@@ -1,0 +1,1 @@
+esptool.exe --chip esp32-S2 --port "COM3" --baud 921600  --before default_reset --after hard_reset write_flash  -z --flash_mode keep --flash_freq keep --flash_size keep 0x1000 uhr3.ino.bootloader.bin 0x8000 uhr3.ino.partitions.bin 0x10000 uhr3.ino.bin

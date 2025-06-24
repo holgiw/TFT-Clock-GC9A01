@@ -1,0 +1,38 @@
+Flashen des ESP unter Windows:
+ESP32-S2 am PC per USB anstecken.
+Danach muss der ESP in den Bootmodus gebracht werden:
+Reset drücken und halten, Boot drücken und halten, Reset loslassen, danach Boot loslassen.
+Am PC sollte jetzt die COM Schnittstelle des ESP auftauchen.
+In der Batch Datei start.bat muss die serielle COM Schnittstelle angepasst und gespeichert werden (derzeit ist COM3 eingestellt).
+Danach ist die start.bat auszuführen und flasht den ESP32 S2.
+Das muss im DOS Fenster im ausgepackten Verzeichnis erfolgen.
+
+Wenn der ESP das erste mal gestartet wird geht er in den Accesspoint Mode.
+Bitte mit dem WLAN Netzwerk SSID clock123 (PASS clock123) verbinden und im Browser die angezeigte IP mit HTTP aufrufen, z.b. http://192.168.4.1
+Achtung, nur HTTP verwendenden, HTTPs funktioniert nicht!
+Mit SAVE werden die geänderten Werte für das WLAN übermittelt und gespeichert.
+RESET startet die Uhr neu.
+
+Wird der Taster beim Einschalten gedrückt geht die Uhr in den AccessPoint Mode.
+
+Für die Helligkeitssteuerung ist ein Photowiderstand mit 10-15 K Ohm notwendig, der externe Widerstand hat einen Wert von 10KOhm.
+Die Portpins 1 und 4 versorgen den Spannungsteiler (Photowiderstand / 10kOhm Widerstand) mit der nötigen Versorgungsspannung.
+Der ESP prüft beim Start automatisch durch Anlegen verschiedener Potentiale ob die Bauteile vorhanden sind.
+Siehe unbedingt auch den Schaltplan und den Platinenentwurf, die TFTs sind nicht pinkompatibel in der Reihenfolge der PINs.
+Unbedingt auf die Beschriftung achten (VCC, GND usw.)
+
+
+Pinbelegung ESP32
+
+TFT_SCLK: 7
+TFT_MOSI: 11
+TFT_CS: 12
+TFT_DC: 33
+TFT_RST: 5
+
+BUTTON: 16
+LED_BOARD: 15 (eingebaut)
+
+ADC_VCC: 1
+ADC(photoresistor): 2
+ADC_GND: 4 
