@@ -1845,7 +1845,7 @@ void setupWebServer() {
 
         html += "<li>PSRam size: " + String(ESP.getPsramSize() /1024) + " kB</li>";
         html += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li>";
-        html += "<li>PSRam used: " + String(psramAvailable == true ? "true" : "false") + "</li><br>";
+        // html += "<li>PSRam used: " + String(psramAvailable == true ? "true" : "false") + "</li><br>";
          
        
         html += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
