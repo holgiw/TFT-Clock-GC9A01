@@ -11,7 +11,6 @@
 // TFT_eSPI: 2.5.34
 
 // Prozessor
-//#define ESP32_D1 // -- funktioniert nicht !!!! SPI & LittleFs ???
 #define ESP32_S2
 
 // TFT
@@ -38,31 +37,6 @@
 TFT_eSPI tft = TFT_eSPI();
 WebServer server(80);
 Preferences preferences;
-
-
-
-#ifdef ESP32_D1  // Mini D1 ESP32 oder LOLIN32 (der mit dem Akku Anschluß)
-// ##############################################################################
-// wires
-//               ESP32 PIN    TFT
-//               3.3V         vcc     3v3             red
-//               GND          gnd     ground          black
-//see C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\user_setups\Setup304__ESP32S3_GC9D01.h
-
-
-#define LED_BOARD 2    // pin2  LED ESP32 D1 Mini
-#define LED_BOARD 22   // pin22 LED LOLIN32
-
-#define ADC_3V 33
-#define ADC_PIN 34
-#define ADC_GND 14
-
-#define BUTTON1 16
-
-#ifdef GC9D01
-#define TFT_Backlight 21  // Backlight
-#endif
-#endif
 
 
 #ifdef ESP32_S2  // Lolin S2 Pico
@@ -210,6 +184,19 @@ uint8_t mac[6];
 char hostname[32];
 
 uint16_t* clockFaceBuffer = nullptr;
+
+bool softAPIP = false;  // Flag für SoftAP IP
+long softAPIPstart = 0;  // Startzeit für SoftAP IP
+
+
+
+struct WifiNetwork {
+    String ssid;
+    int rssi;
+    int enc;
+};
+WifiNetwork foundNetworks[10];
+int foundNetworkCount = 0;
 
 /// <summary>
 /// Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
@@ -485,6 +472,14 @@ void loop() {
     }
 
     checkButton();    
+
+
+    if (softAPIP == true) {
+        if (millis() - softAPIPstart > (30 * 60000)) {
+            ESP.restart();
+        }
+    }
+        
 }
 
 void checkButton() {
@@ -493,6 +488,8 @@ void checkButton() {
         uint8_t secs = 5;
         unsigned long pressStart = millis();
 
+        clearTFT();
+
         // Einmalig Anzeige zeichnen
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -500,9 +497,15 @@ void checkButton() {
         tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
         tft.println("Connected to:");
         tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        tft.println(wifi_ssid);
+        if (wifi_ssid.length() > 15) {
+            tft.print(wifi_ssid.substring(0, 15));
+            tft.println("...");
+        }
+        else tft.println(wifi_ssid);
         tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
         tft.println(WiFi.localIP());
+
+        
 
 
         // Blockierender Loop während Button gedrückt
@@ -512,7 +515,10 @@ void checkButton() {
                 tft.setTextColor(TFT_WHITE, TFT_RED);
                 tft.setTextSize(TFT_TEXT_SIZE);
                 tft.setCursor(20, CLOCK_HEIGHT / 2);
-                tft.printf("Reset in %d secs", secs);
+                tft.printf("Factory Reset", secs);
+
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
+                tft.printf("in %d secs", secs);
                 delay(1000);
                 if (secs>0) secs--;
             }
@@ -532,7 +538,7 @@ void checkButton() {
         }
 
         // Button wurde vor 10 Sek. losgelassen: nur Anzeige bleibt sichtbar
-        delay(500); 
+        delay(3000); 
     }
 }
 
@@ -857,7 +863,7 @@ void checkWiFiReconnect() {
 
 void setup() {
 
-    Serial.begin(115200);   
+    Serial.begin(115200);
 
 
     unsigned long serialStart = millis();
@@ -871,9 +877,9 @@ void setup() {
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
 #elif defined GC9D01    
-    tft_type = "GC9D01";    
+    tft_type = "GC9D01";
 #else   
-    tft_type = "ILI9341";   
+    tft_type = "ILI9341";
 #endif
 
 
@@ -890,13 +896,13 @@ void setup() {
         psramAvailable = false;
         Serial.println("[INFO] Kein PSRAM gefunden, Hardware-Rotation wird verwendet.");
 #ifdef GC9D01
-        preferences.putUChar("tft_rotation", 0); 
+        preferences.putUChar("tft_rotation", 0);
 #endif
     }
 #ifndef GC9D01 // wird nur bei Display GC9D01 benötigt
-    psramAvailable = false; 
+    psramAvailable = false;
 #endif
- 
+
 
     if (preferences.getInt("firstStart", 0) != 42) {
         Serial.println("[Preferences] First start detected, initializing...");
@@ -917,20 +923,20 @@ void setup() {
         preferences.putString("handset", "default");
         preferences.putString("background", "/face_default.bmp");
 
-        preferences.putBool("stationMode", true);   
-        preferences.putBool("showSecondHand", true);   
+        preferences.putBool("stationMode", true);
+        preferences.putBool("showSecondHand", true);
         preferences.putBool("smoothMinute", false);
 
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
-        preferences.putUChar("minBrightness", 5); 
+        preferences.putUChar("minBrightness", 5);
 #else
         preferences.putUChar("minBrightness", 100);
 #endif
-        preferences.putUChar("maxBrightness", 255); 
+        preferences.putUChar("maxBrightness", 255);
 
         preferences.putFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur für Helligkeit
-        
+
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
         preferences.putInt("lowThreshold", 1);
         preferences.putInt("highThreshold", 255);
@@ -939,20 +945,28 @@ void setup() {
         preferences.putInt("highThreshold", 60);
 #endif
 
-        preferences.putUInt("centerColor", TFT_RED);   
+        preferences.putUInt("centerColor", TFT_RED);
 
         if (tft_type == "GC9A01" || tft_type == "ILI9341") {
             preferences.putUInt("centerSize", 6);
         }
         if (tft_type == "GC9D01") {
             preferences.putUInt("centerSize", 3);
-        }        
-       preferences.end();
-       preferences.begin("clock", false);         
+        }
+
+#if defined GC9A01_WITH_BACKLIGHT
+        preferences.putUChar("tft_rotation", 2);
+#else
+        preferences.putUChar("tft_rotation", 0);
+#endif
+
+
+        preferences.end();
+        preferences.begin("clock", false);
     }
-     
+
     ntpServer1 = preferences.getString("ntpServer1", "pool.ntp.org");
-    ntpServer2 = preferences.getString("ntpServer2", "time.nist.gov");  
+    ntpServer2 = preferences.getString("ntpServer2", "time.nist.gov");
 
     timezone = preferences.getString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
     setTimezone(timezone);
@@ -965,9 +979,9 @@ void setup() {
     showSecondHand = preferences.getBool("showSecondHand", true);
 
     lowThreshold = preferences.getInt("lowThreshold", 40);
-    highThreshold = preferences.getInt("highThreshold", 60);    
+    highThreshold = preferences.getInt("highThreshold", 60);
     minBrightness = preferences.getUChar("minBrightness", 100);
-    maxBrightness = preferences.getUChar("maxBrightness", 255); 
+    maxBrightness = preferences.getUChar("maxBrightness", 255);
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT) 
     gammaBrightness = preferences.getFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur für Helligkeit
@@ -1010,7 +1024,7 @@ void setup() {
         pinMode(ADC_3V, INPUT);
         use_adc = false;
     }
-    
+
 #else
     use_adc = false;
 #endif
@@ -1018,8 +1032,8 @@ void setup() {
     minBrightness = preferences.getUChar("minBrightness", 100);
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
-  //  smoothMinute = preferences.getBool("smoothMinute", false);
-  //  Serial.println("[SETUP] smoothMinute: " + String(smoothMinute));    
+    //  smoothMinute = preferences.getBool("smoothMinute", false);
+    //  Serial.println("[SETUP] smoothMinute: " + String(smoothMinute));    
 
     pinMode(LED_BOARD, OUTPUT); digitalWrite(LED_BOARD, HIGH);
 
@@ -1038,7 +1052,7 @@ void setup() {
 
     tft.init();
     delay(50);
-   
+
     tft.fillScreen(TFT_BLACK);
 
     tft_rotation = preferences.getUChar("tft_rotation", 0);
@@ -1064,7 +1078,7 @@ void setup() {
     ledcWrite(TFT_Backlight, 255);
 #endif
 
-    
+
     backgroundSprite.createSprite(CLOCK_WIDTH, CLOCK_HEIGHT);
     backgroundSprite.setSwapBytes(true);
     backgroundSprite.setColorDepth(16);
@@ -1091,20 +1105,32 @@ void setup() {
     wifi_pass = preferences.getString("pass", "");
     wifi_ssid2 = preferences.getString("ssid2", "");
     wifi_pass2 = preferences.getString("pass2", "");
-         
-   
-    if (digitalRead(BUTTON1) == HIGH) startAP();
-    
 
-    connectWiFi(true);
-    if (WiFi.getMode() != WIFI_STA) startAP();
+
+    if (digitalRead(BUTTON1) == HIGH) {
+        wifi_ssid = "";
+        wifi_pass = "";
+        wifi_ssid2 = "";
+        wifi_pass2 = "";
+        startAP();
+    }
+
+
+
+    if (connectWiFi(true) != true) {
+        Serial.println("\n[WiFi] no connections available");
+        startAP();
+    }
+
+
+    //if (WiFi.getMode() != WIFI_STA) startAP();
     setupNTP();
     setupWebServer();
     server.begin();
 
     // MAC-Adresse holen    
     WiFi.macAddress(mac);
-    
+
     snprintf(hostname, sizeof(hostname), "Clock-%02X%02X%02X",
         mac[3], mac[4], mac[5]);
 
@@ -1112,7 +1138,14 @@ void setup() {
     Serial.println("[WiFi] Hostname set to: " + String(hostname));
 
     digitalWrite(LED_BOARD, LOW);
+
 }
+
+
+void clearTFT() {
+    tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
+}
+
 
 /// <summary>
 /// Startet einen WLAN-Access-Point mit dem Namen und Passwort 'clock123' und zeigt Verbindungsinformationen auf dem Display an.
@@ -1121,20 +1154,49 @@ void startAP() {
 #ifdef TFT_Backlight
     ledcWrite(TFT_Backlight, 255);
 #endif
+
+    // 1. WLAN-Scan durchführen
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.setTextSize(TFT_TEXT_SIZE);
+    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+    tft.println("WLAN-Scan...");
+    int n = WiFi.scanNetworks();
+    delay(200); // Kurze Pause für Anzeige
+
+    // foundNetworks füllen
+    foundNetworkCount = 0;
+    for (int i = 0; i < n && i < 10; i++) {
+        foundNetworks[i].ssid = WiFi.SSID(i);
+        foundNetworks[i].rssi = WiFi.RSSI(i);
+        foundNetworks[i].enc = WiFi.encryptionType(i);
+        foundNetworkCount++;
+    }
+
+
     WiFi.softAP("clock123", "clock123");
     Serial.println("[WiFi] Started Access Point: clock123");
+
+    clearTFT();
 
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
     tft.setTextSize(TFT_TEXT_SIZE);
-    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
+    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
     tft.println("AccessPoint active");
-    tft.setCursor(20, (CLOCK_HEIGHT / 2));
+    tft.setCursor(10, (CLOCK_HEIGHT / 2));
     tft.println("clock123 clock123");
-    tft.setCursor(20, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
+    tft.setCursor(10, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
+
+    tft.print("http://");
     tft.println(WiFi.softAPIP());
+
+    softAPIP = true;
+    softAPIPstart = millis();
 }
 
+
+// connect wifi
 bool connectWiFi(bool verbose_mode) {
 #ifdef TFT_Backlight
     if (verbose_mode) {
@@ -1150,21 +1212,40 @@ bool connectWiFi(bool verbose_mode) {
     Serial.print("[WiFi] Trying primary SSID ");
 
     if (verbose_mode) {
+        clearTFT();
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
         tft.setTextSize(TFT_TEXT_SIZE);
         tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("Connect to:");
+        tft.println("Connect to SSID:");
         tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        tft.println(wifi_ssid);
+
+        if (wifi_ssid.length() > 15) {
+            tft.print(wifi_ssid.substring(0,15));
+            tft.println("...");
+        } else tft.println(wifi_ssid);
     }
 
     //WiFi.enableIPv6();
 
     WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
     unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
-        delay(200);
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 60000) {
+         
         Serial.print(".");
+
+        
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.print(". ");
+        delay(200);
+
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.print(" . ");
+        delay(200);
+
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.print("  .");
+        delay(200);
+
     }
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println("\n[WiFi] Connected to primary: " + wifi_ssid);
@@ -1173,9 +1254,13 @@ bool connectWiFi(bool verbose_mode) {
             tft.setTextColor(TFT_GREEN, TFT_BLACK);
             tft.setTextSize(TFT_TEXT_SIZE);
             tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("Connected to:");
+            tft.println("Connected to SSID1:");
             tft.setCursor(20, (CLOCK_HEIGHT / 2) );
-            tft.println(wifi_ssid);
+            if (wifi_ssid.length() > 15) {
+                tft.print(wifi_ssid.substring(0, 15));
+                tft.println("...");
+            }
+            else tft.println(wifi_ssid);
             tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
             tft.println(WiFi.localIP());
         }
@@ -1195,16 +1280,31 @@ bool connectWiFi(bool verbose_mode) {
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
         tft.setTextSize(TFT_TEXT_SIZE);
         tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("Connect to:.");
+        tft.println("Connect to SSID2:");
         tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        tft.println(wifi_ssid2);
+        if (wifi_ssid2.length() > 15) {
+            tft.print(wifi_ssid2.substring(0, 15));
+            tft.println("...");
+        }
+        else tft.println(wifi_ssid2);
     }
 
     WiFi.begin(wifi_ssid2.c_str(), wifi_pass2.c_str());
     start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 5000) {
-        delay(200);
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 60000) {
         Serial.print(".");
+        
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.print(". ");
+        delay(200);
+
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.print(" . ");
+        delay(200);
+
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.print("  .");
+        delay(200);
     }
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println("\n[WiFi] Connected to : " + wifi_ssid2);
@@ -1213,9 +1313,13 @@ bool connectWiFi(bool verbose_mode) {
             tft.setTextColor(TFT_GREEN, TFT_BLACK);
             tft.setTextSize(TFT_TEXT_SIZE);
             tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("Connected to");
+            tft.println("Connected to SSID2");
             tft.setCursor(20, (CLOCK_HEIGHT / 2));
-            tft.println(wifi_ssid2);
+            if (wifi_ssid2.length() > 15) {
+                tft.print(wifi_ssid2.substring(0, 15));
+                tft.println("...");
+            }
+            else tft.println(wifi_ssid2);
             tft.setCursor(20, ((CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8)));
             tft.println(WiFi.localIP());
         }
@@ -2012,6 +2116,38 @@ void setupWebServer() {
         server.send(200, "text/html", html);
         });
 
+   
+    server.on("/api/scanwifi", HTTP_GET, []() {
+        String json = "";
+        
+        // beim Aufruf alle Netzwerke scannen
+        if (WiFi.getMode() == WIFI_STA) {
+            int n = WiFi.scanNetworks();
+            json = "[";
+            for (int i = 0; i < n; ++i) {
+                if (i > 0) json += ",";
+                json += "{\"ssid\":\"" + WiFi.SSID(i) + "\"";
+                json += ",\"rssi\":" + String(WiFi.RSSI(i));
+                json += ",\"enc\":" + String(WiFi.encryptionType(i));
+                json += "}";
+            }
+            json += "]";
+        }
+        else {
+            // im AP-Modus die letzten Scan-Ergebnisse zurückgeben
+            json = "[";
+            for (int i = 0; i < foundNetworkCount; ++i) {
+                if (i > 0) json += ",";
+                json += "{\"ssid\":\"" + foundNetworks[i].ssid + "\"";
+                json += ",\"rssi\":" + String(foundNetworks[i].rssi);
+                json += ",\"enc\":" + String(foundNetworks[i].enc);
+                json += "}";
+            }
+            json += "]";
+        }
+        server.send(200, "application/json", json);
+        });
+
     server.on("/", HTTP_GET, []() {
 
 
@@ -2026,23 +2162,34 @@ void setupWebServer() {
         html += "<form action = '/save' method = 'POST'>";
 
         html += "<h3>Primary WiFi</h3>";
-        html += "<input name='ssid' placeholder='SSID' value='" + wifi_ssid + "'><br>";
+        //html += "<input name='ssid' placeholder='SSID' value='" + wifi_ssid + "'><br>";
 
+        
+        html += "<label for='ssid'>SSID:</label><br>";
+        html += "<select id='ssid_select' onchange=\"document.getElementById('ssid').value=this.value\">";
+        html += "<option value=''>WLAN-Scan in progress</option>";
+        html += "</select><br>";
+        html += "<input name='ssid' id='ssid' placeholder='SSID' value='" + wifi_ssid + "'><br>";
+        html += "<small>You can also enter an SSID manually.</small><br>";
 
         html += "<input name='pass' id='pass' placeholder='Password' type='password' value=''><br>";
         if (WiFi.getMode() == WIFI_STA) {
             html += "<small>Password is hidden. Leave empty to keep current.</small>";
-        }   
+        }
         html += "<br>";
 
-
         html += "<h3>Alternative WiFi</h3>";
-        html += "<input name='ssid2' placeholder='SSID 2' value='" + wifi_ssid2 + "'><br>";
+        html += "<label for='ssid2'>SSID2:</label><br>";
+        html += "<select id='ssid2_select' onchange=\"document.getElementById('ssid2').value=this.value\">";
+        html += "<option value=''>WLAN-Scan in progress</option>";
+        html += "</select><br>";
+        html += "<input name='ssid2' id='ssid2' placeholder='SSID 2' value='" + wifi_ssid2 + "'><br>";
+        html += "<small>You can also enter an SSID manually.</small><br>";
+
         html += "<input name='pass2' placeholder='Password 2' type='password' value=''><br>";
         if (WiFi.getMode() == WIFI_STA) {
             html += "<small>Password is hidden. Leave empty to keep current.</small>";
         }
-
         html += "<br>";
 
 
@@ -2106,6 +2253,51 @@ void setupWebServer() {
         html += "<a href='/status'>Systemstatus</a><br>";
         html += "<br><a href='/reboot'>Reboot</a><br>";
         html += "<br><a href='/factoryReset' onclick = \"return confirm('Really ?')\">Factory Reset</a><br>";
+
+        
+        html += "<script>";
+        html += "window.addEventListener('DOMContentLoaded', function() {";
+        html += "  var select1 = document.getElementById('ssid_select');";
+        html += "  var input1 = document.getElementById('ssid');";
+        html += "  var current1 = input1.value;";
+        html += "  select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
+        html += "  fetch('/api/scanwifi')";
+        html += "    .then(response => response.json())";
+        html += "    .then(data => {";
+        html += "      select1.innerHTML = \"<option value=''>select network</option>\";";
+        html += "      data.forEach(function(net) {";
+        html += "        var opt = document.createElement('option');";
+        html += "        opt.value = net.ssid;";
+        html += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
+        html += "        if(net.ssid === current1) opt.selected = true;";
+        html += "        select1.appendChild(opt);";
+        html += "      });";
+        html += "    })";
+        html += "    .catch(() => { select1.innerHTML = \"<option>Scan failed</option>\"; });";
+
+        html += "  var select2 = document.getElementById('ssid2_select');";
+        html += "  var input2 = document.getElementById('ssid2');";
+        html += "  var current2 = input2.value;";
+        html += "  select2.innerHTML = \"<option>WLAN scan in progress...</option>\";";
+        html += "  fetch('/api/scanwifi')";
+        html += "    .then(response => response.json())";
+        html += "    .then(data => {";
+        html += "      select2.innerHTML = \"<option value=''>select network</option>\";";
+        html += "      data.forEach(function(net) {";
+        html += "        var opt = document.createElement('option');";
+        html += "        opt.value = net.ssid;";
+        html += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
+        html += "        if(net.ssid === current2) opt.selected = true;";
+        html += "        select2.appendChild(opt);";
+        html += "      });";
+        html += "    })";
+        html += "    .catch(() => { select2.innerHTML = \"<option>Scan failed</option>\"; });";
+        html += "});";
+        html += "</script>";
+
+
+
+
         html += "</body></html>";
         server.send(200, "text/html", html);
         });
@@ -2294,7 +2486,7 @@ void setupWebServer() {
 
         html += "<h2>Centre point</h2><form action='/setcenter' method='POST'>";
         html += "<label>Size (Pixel):</label><br><input name='size' type='number' min='0' max='50' value='" + String(centerSize) + "'><br>";
-        html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black):</label><br><input name='color' value='" + String((centerColor >> 11 & 0x1F) * 255 / 31 << 16 | (centerColor >> 5 & 0x3F) * 255 / 63 << 8 | (centerColor & 0x1F) * 255 / 31, HEX) + "'><br>";
+        html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red):</label><br><input name='color' value='" + String((centerColor >> 11 & 0x1F) * 255 / 31 << 16 | (centerColor >> 5 & 0x3F) * 255 / 63 << 8 | (centerColor & 0x1F) * 255 / 31, HEX) + "'><br>";
         html += "<button type='submit'>Apply</button></form><hr>";
 
         html += "<h3>Upload New Hand Set</h3>";
@@ -2830,6 +3022,7 @@ void factoryReset() {
     eraseAllNVS();
     delay(2000);
     Serial.println(">>> Neustart...");
+    esp_reboot();
          
 }
 
