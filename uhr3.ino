@@ -1,7 +1,7 @@
 // howl@gmx.de
 // stationsuhr 05/2025
 // 
-// https://github.com/holgiw/-TFT-Clock-GC9A01
+// https://github.com/holgiw?tab=repositories
 // 
 // 
 // optimiert für ESP32-S2 Mini  (als Lolin S2 Pico compiliert)
@@ -14,8 +14,8 @@
 #define ESP32_S2
 
 // TFT
-//#define GC9A01
-#define GC9A01_WITH_BACKLIGHT
+#define GC9A01
+//#define GC9A01_WITH_BACKLIGHT
 //#define GC9D01
 //#define ILI9341 
 
@@ -35,7 +35,7 @@
 #include "build_defs.h"
 
 TFT_eSPI tft = TFT_eSPI();
-WebServer server(80);
+WebServer webserver(80);
 Preferences preferences;
 
 
@@ -112,7 +112,7 @@ Preferences preferences;
 #define TFT_TEXT_SIZE 2
 #endif
 
-#define TRANSPARENT_COLOR 0x0120
+#define TRANSPARENT_COLOR 0x0120    // Transparent in R5G6B5 RGB(16)
 
 
 String tft_type = "UNKNOWN";
@@ -122,10 +122,9 @@ TFT_eSprite hourHandSprite = TFT_eSprite(&tft);
 TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
 TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 
-String wifi_ssid;
-String wifi_pass;
-String wifi_ssid2;
-String wifi_pass2;
+String wifi_ssid[2];
+String wifi_pass[2];
+
 
 String timezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 String ntpServer1 = "pool.ntp.org";
@@ -139,11 +138,16 @@ bool stationMode;
 bool smoothMinute;
 bool showSecondHand;
 
+// nabe
+uint16_t hub_color = 0;
+uint8_t hub_size = 0;
+
+
 bool firstRun = true;
 
 uint8_t tft_rotation = 0;
 
-float fastSecond = 972.0f;// 966.0f;
+float fastSecond = 972.0f;  // Geschwindigkeit des Sekundenzeigers gegenüber der realen Zeit 
 
 uint16_t rowBuffer[CLOCK_WIDTH];
 
@@ -195,7 +199,8 @@ struct WifiNetwork {
     int rssi;
     int enc;
 };
-WifiNetwork foundNetworks[10];
+#define MAX_NETWORKS 15
+WifiNetwork foundNetworks[MAX_NETWORKS];
 int foundNetworkCount = 0;
 
 /// <summary>
@@ -459,7 +464,7 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 
 void loop() {
     
-    server.handleClient();
+    webserver.handleClient();
     
     if (WiFi.getMode() == WIFI_STA) {
         updateBrightness();
@@ -497,11 +502,11 @@ void checkButton() {
         tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
         tft.println("Connected to:");
         tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        if (wifi_ssid.length() > 15) {
-            tft.print(wifi_ssid.substring(0, 15));
+        if (WiFi.SSID().length() > 15) {
+            tft.print(WiFi.SSID().substring(0, 15));
             tft.println("...");
         }
-        else tft.println(wifi_ssid);
+        else tft.println(WiFi.SSID());
         tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
         tft.println(WiFi.localIP());
 
@@ -673,13 +678,11 @@ void updateClock() {
     if (showSecondHand) {
         secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
     }
-
-    uint16_t color = preferences.getUInt("centerColor", TFT_RED);
-    uint8_t size = preferences.getUInt("centerSize", 6);
-
-    if (size > 0) {
-        color = setPixelBrightness(color);
-        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, size, color);
+    
+    // Nabe (hub)
+    if (hub_size > 0) {
+        hub_color = setPixelBrightness(hub_color);
+        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, hub_color);
     }
 
     backgroundSprite.pushSprite(0, 0);
@@ -826,7 +829,7 @@ void checkNightlyTimeSync() {
         Serial.println("[TIME SYNC] Time sync triggered");
         WiFi.disconnect();
         wifi_ssid = "asdfghj";
-        wifi_ssid2 = "asdfghj";
+        wifi_ssid[1] = "asdfghj";
     }*/
 
 
@@ -858,7 +861,10 @@ void checkWiFiReconnect() {
 
     Serial.println("[WiFi] Disconnected. Attempting reconnect...");
     WiFi.disconnect();
-    connectWiFi(false);
+    if (!connectWiFi(0, false)) {
+         connectWiFi(1, false);
+    }
+
 }
 
 void setup() {
@@ -873,7 +879,7 @@ void setup() {
 
     Serial.println("[Setup] Start");
 
-
+    
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
 #elif defined GC9D01    
@@ -882,10 +888,7 @@ void setup() {
     tft_type = "ILI9341";
 #endif
 
-
-
     preferences.begin("clock", false);
-
 
     // Prüfen, ob PSRAM vorhanden ist
     if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
@@ -909,10 +912,11 @@ void setup() {
 
         preferences.putInt("firstStart", 42);
 
-        preferences.putString("ssid", "");
-        preferences.putString("pass", "");
+        preferences.putString("ssid1", "");
+        preferences.putString("pass1", "");
         preferences.putString("ssid2", "");
         preferences.putString("pass2", "");
+        preferences.putInt("lastWLan", 0);
 
         preferences.putString("ntpServer1", "pool.ntp.org");
         preferences.putString("ntpServer2", "time.nist.gov");
@@ -978,6 +982,10 @@ void setup() {
     smoothMinute = preferences.getBool("smoothMinute", false);
     showSecondHand = preferences.getBool("showSecondHand", true);
 
+    // Nabe
+    hub_color = preferences.getUInt("centerColor", TFT_RED);
+    hub_size = preferences.getUInt("centerSize", 6);
+
     lowThreshold = preferences.getInt("lowThreshold", 40);
     highThreshold = preferences.getInt("highThreshold", 60);
     minBrightness = preferences.getUChar("minBrightness", 100);
@@ -996,21 +1004,21 @@ void setup() {
     // ADC +3,3 / GND über GPIO
     pinMode(ADC_GND, OUTPUT);
     pinMode(ADC_3V, OUTPUT);
-    delay(20);
+    delay(100);
 
     digitalWrite(ADC_GND, false);
     digitalWrite(ADC_3V, false);
-    delay(20);
+    delay(100);
     adc_min = analogRead(ADC_PIN);
 
     digitalWrite(ADC_GND, true);
     digitalWrite(ADC_3V, true);
-    delay(20);
+    delay(100);
     adc_max = analogRead(ADC_PIN);
 
     Serial.printf("ADC min: %d max: %d\n", adc_min, adc_max);
 
-    if (adc_min < 1000 && adc_max > 3000) {
+    if (adc_min < 1000 && adc_max > 2000) {
         Serial.println("found photoresistor");
         digitalWrite(ADC_GND, 0);
         digitalWrite(ADC_3V, 1);
@@ -1101,41 +1109,48 @@ void setup() {
     loadClockFace();
     loadHandSprites();
 
-    wifi_ssid = preferences.getString("ssid", "");
-    wifi_pass = preferences.getString("pass", "");
-    wifi_ssid2 = preferences.getString("ssid2", "");
-    wifi_pass2 = preferences.getString("pass2", "");
+    wifi_ssid[0] = preferences.getString("ssid1", "");
+    wifi_pass[0] = preferences.getString("pass1", "");
+    wifi_ssid[1] = preferences.getString("ssid2", "");
+    wifi_pass[1] = preferences.getString("pass2", "");
+
+    scanAndCacheNetworks();
 
 
     if (digitalRead(BUTTON1) == HIGH) {
-        wifi_ssid = "";
-        wifi_pass = "";
-        wifi_ssid2 = "";
-        wifi_pass2 = "";
+        wifi_ssid[0] = "";
+        wifi_pass[0] = "";
+        wifi_ssid[1] = "";
+        wifi_pass[1] = "";
         startAP();
     }
 
 
+    uint32_t number = preferences.getInt("lastWLan");
+    Serial.println("[WiFi] Last successful WLAN number: " + String(number));
 
-    if (connectWiFi(true) != true) {
-        Serial.println("\n[WiFi] no connections available");
-        startAP();
+    if (number > 1) number = 0;
+    if (number == 0) {
+        if (!connectWiFi(0, true)) {
+            if (!connectWiFi(1, true)) {
+                startAP();
+            }
+        }
     }
+    else {
+        if (!connectWiFi(1, true)) {
+            if (!connectWiFi(0, true)) {
+                startAP();
+            }
+        }
+    }
+       
 
 
     //if (WiFi.getMode() != WIFI_STA) startAP();
     setupNTP();
     setupWebServer();
-    server.begin();
-
-    // MAC-Adresse holen    
-    WiFi.macAddress(mac);
-
-    snprintf(hostname, sizeof(hostname), "Clock-%02X%02X%02X",
-        mac[3], mac[4], mac[5]);
-
-    WiFi.setHostname(hostname);
-    Serial.println("[WiFi] Hostname set to: " + String(hostname));
+    webserver.begin();
 
     digitalWrite(LED_BOARD, LOW);
 
@@ -1166,7 +1181,7 @@ void startAP() {
 
     // foundNetworks füllen
     foundNetworkCount = 0;
-    for (int i = 0; i < n && i < 10; i++) {
+    for (int i = 0; i < n && i < MAX_NETWORKS; i++) {
         foundNetworks[i].ssid = WiFi.SSID(i);
         foundNetworks[i].rssi = WiFi.RSSI(i);
         foundNetworks[i].enc = WiFi.encryptionType(i);
@@ -1197,19 +1212,19 @@ void startAP() {
 
 
 // connect wifi
-bool connectWiFi(bool verbose_mode) {
+bool connectWiFi(int number, bool verbose_mode) {
 #ifdef TFT_Backlight
     if (verbose_mode) {
         ledcWrite(TFT_Backlight, 255);
     }
 #endif
-    if (wifi_ssid == "" && wifi_ssid2 == "") return false;
+    if (wifi_ssid[number] == "") return false;
 
-    Serial.println(wifi_ssid);
+    Serial.println(wifi_ssid[number]);
     // Serial.println(wifi_pass);
    
            
-    Serial.print("[WiFi] Trying primary SSID ");
+    Serial.println("[WiFi] Trying SSID " + (String)number);
 
     if (verbose_mode) {
         clearTFT();
@@ -1219,20 +1234,29 @@ bool connectWiFi(bool verbose_mode) {
         tft.println("Connect to SSID:");
         tft.setCursor(20, (CLOCK_HEIGHT / 2));
 
-        if (wifi_ssid.length() > 15) {
-            tft.print(wifi_ssid.substring(0,15));
+        if (wifi_ssid[number].length() > 15) {
+            tft.print(wifi_ssid[number].substring(0,15));
             tft.println("...");
-        } else tft.println(wifi_ssid);
+        } else tft.println(wifi_ssid[number]);
     }
 
     //WiFi.enableIPv6();
+    WiFi.mode(WIFI_STA);
+      // MAC-Adresse holen    
+    WiFi.macAddress(mac);
 
-    WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
+    snprintf(hostname, sizeof(hostname), "Clock-%02X%02X%02X",
+        mac[3], mac[4], mac[5]);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.setHostname(hostname);
+    Serial.println("[WiFi] Hostname set to: " + String(hostname));
+
+
+    WiFi.begin(wifi_ssid[number].c_str(), wifi_pass[number].c_str());
     unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 60000) {
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
          
         Serial.print(".");
-
         
         tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
         tft.print(". ");
@@ -1248,96 +1272,33 @@ bool connectWiFi(bool verbose_mode) {
 
     }
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[WiFi] Connected to primary: " + wifi_ssid);
+        Serial.println("\n[WiFi] Connected to: " + wifi_ssid[number]);
         if (verbose_mode) {
             tft.fillScreen(TFT_BLACK);
             tft.setTextColor(TFT_GREEN, TFT_BLACK);
             tft.setTextSize(TFT_TEXT_SIZE);
             tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("Connected to SSID1:");
+            tft.println("Connected to SSID");
             tft.setCursor(20, (CLOCK_HEIGHT / 2) );
-            if (wifi_ssid.length() > 15) {
-                tft.print(wifi_ssid.substring(0, 15));
+            if (wifi_ssid[number].length() > 15) {
+                tft.print(wifi_ssid[number].substring(0, 15));
                 tft.println("...");
             }
-            else tft.println(wifi_ssid);
+            else tft.println(wifi_ssid[number]);
             tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
             tft.println(WiFi.localIP());
         }
-        delay(3000);
-        if (!WiFi.softAPgetStationNum()) updateClock();
-        return true;
-    }
 
-    if (wifi_ssid2 == "") return false;
-
-    Serial.println(wifi_ssid2);
-    // Serial.println(wifi_pass2);
-
-    Serial.print("\n[WiFi] Primary failed, trying secondary SSID ");
-
-    if (verbose_mode) {
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("Connect to SSID2:");
-        tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        if (wifi_ssid2.length() > 15) {
-            tft.print(wifi_ssid2.substring(0, 15));
-            tft.println("...");
-        }
-        else tft.println(wifi_ssid2);
-    }
-
-    WiFi.begin(wifi_ssid2.c_str(), wifi_pass2.c_str());
-    start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 60000) {
-        Serial.print(".");
+       
+        preferences.putInt("lastWLan", number);
+        Serial.println("[WiFi] set lastWLan: " + (String)number);
         
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.print(". ");
-        delay(200);
-
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.print(" . ");
-        delay(200);
-
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.print("  .");
-        delay(200);
-    }
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[WiFi] Connected to : " + wifi_ssid2);
-        if (verbose_mode) {
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_GREEN, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("Connected to SSID2");
-            tft.setCursor(20, (CLOCK_HEIGHT / 2));
-            if (wifi_ssid2.length() > 15) {
-                tft.print(wifi_ssid2.substring(0, 15));
-                tft.println("...");
-            }
-            else tft.println(wifi_ssid2);
-            tft.setCursor(20, ((CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8)));
-            tft.println(WiFi.localIP());
-        }
-        delay(5000);
+        delay(1500);
         if (!WiFi.softAPgetStationNum()) updateClock();
         return true;
     }
 
-    Serial.println("[WiFi] Both connections failed.");
-    if (verbose_mode) {
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_RED, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("WiFi failed");
-        tft.setCursor(20, CLOCK_HEIGHT / 2);
-        tft.println("AP Mode active");
-    }
+
     return false;    
 }
 
@@ -1398,9 +1359,9 @@ void setupWebServer() {
 
     // http://192.168.0.128/api/setface?file=face_bigben.bmp
 
-    server.on("/api/setface", HTTP_GET, []() {
-        if (server.hasArg("file")) {
-            String file = server.arg("file");
+    webserver.on("/api/setface", HTTP_GET, []() {
+        if (webserver.hasArg("file")) {
+            String file = webserver.arg("file");
             file.replace("..", "");
             if (!file.startsWith("/")) file = "/" + file;
             if (file == "/face_default.bmp" || LittleFS.exists(file)) {
@@ -1410,39 +1371,39 @@ void setupWebServer() {
                 loadClockFace();
                 loadHandSprites();
                 updateClock();
-                server.send(200, "application/json", "{\"status\":\"ok\",\"face\":\"" + file + "\"}");
+                webserver.send(200, "application/json", "{\"status\":\"ok\",\"face\":\"" + file + "\"}");
                 return;
             }
-            server.send(404, "application/json", "{\"status\":\"error\",\"msg\":\"File not found\"}");
+            webserver.send(404, "application/json", "{\"status\":\"error\",\"msg\":\"File not found\"}");
         }
         else {
-            server.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"Missing file parameter\"}");
+            webserver.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"Missing file parameter\"}");
         }
         });
 
     // http://192.168.0.128/api/sethandset?set=3
 
-    server.on("/api/sethandset", HTTP_GET, []() {
-        if (server.hasArg("set")) {
-            String set = server.arg("set");
+    webserver.on("/api/sethandset", HTTP_GET, []() {
+        if (webserver.hasArg("set")) {
+            String set = webserver.arg("set");
             Serial.println("[HANDSET] Set to: " + set);
             preferences.putString("handset", set);
             freeClockFaceBuffer();
             loadClockFace();
             loadHandSprites();
             updateClock();
-            server.send(200, "application/json", "{\"status\":\"ok\",\"handset\":\"" + set + "\"}");
+            webserver.send(200, "application/json", "{\"status\":\"ok\",\"handset\":\"" + set + "\"}");
         }
         else {
-            server.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"Missing set parameter\"}");
+            webserver.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"Missing set parameter\"}");
         }
         });
 
     
-    server.on("/set_timezone", HTTP_POST, []() {
-        if (server.hasArg("ntpServer1")) {
-            ntpServer1 = server.arg("ntpServer1");
-            ntpServer2 = server.arg("ntpServer2");
+    webserver.on("/set_timezone", HTTP_POST, []() {
+        if (webserver.hasArg("ntpServer1")) {
+            ntpServer1 = webserver.arg("ntpServer1");
+            ntpServer2 = webserver.arg("ntpServer2");
             preferences.putString("ntpServer1", ntpServer1);
             preferences.putString("ntpServer2", ntpServer2);
             Serial.println("[NTP] NTP Server1 set to: " + ntpServer1);    
@@ -1450,12 +1411,12 @@ void setupWebServer() {
             setupNTP();
         }
 
-        if (server.hasArg("timezone")) {
-            String tz = server.arg("timezone");
+        if (webserver.hasArg("timezone")) {
+            String tz = webserver.arg("timezone");
             preferences.putString("timezone", tz);
             setTimezone(tz);            
 
-            server.send(200, "text/html",
+            webserver.send(200, "text/html",
                 "<!DOCTYPE html><html><head>"
                 "<meta http-equiv='refresh' content='3; url=/' />"
                 "<title>NTP / Timezone Updated</title></head>"
@@ -1464,15 +1425,50 @@ void setupWebServer() {
             );
         }
         else {
-            server.send(400, "text/plain", "Timezone parameter missing");
+            webserver.send(400, "text/plain", "Timezone parameter missing");
         }
         setupNTP();
         });
 
      
 
-    server.on("/timezone_form", HTTP_GET, []() {
+    webserver.on("/timezone_form", HTTP_GET, []() {
         String timezone = preferences.getString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+
+        struct TimezoneEntry {
+            const char* label;
+            const char* value;
+        } tzList[] = {
+            {"Germany (DST auto)", "CET-1CEST,M3.5.0,M10.5.0/3"},
+            {"Germany (fixed summer time)", "CEST-2"},
+            {"Germany (fixed winter time)", "CET-1"},
+            {"UK (DST auto)", "GMT0BST,M3.5.0/1,M10.5.0"},
+            {"UK (fixed summer time)", "BST-1"},
+            {"UK (fixed winter time)", "GMT0"},
+            {"USA Pacific (DST auto)", "PST8PDT,M3.2.0,M11.1.0"},
+            {"USA Central (DST auto)", "CST6CDT,M3.2.0,M11.1.0"},
+            {"USA Mountain (DST auto)", "MST7MDT,M3.2.0,M11.1.0"},
+            {"USA Eastern (DST auto)", "EST5EDT,M3.2.0,M11.1.0"},
+            {"USA Eastern (fixed summer time)", "EDT-4"},
+            {"USA Eastern (fixed winter time)", "EST-5"},
+            {"Japan (JST)", "JST-9"},
+            {"Australia Sydney (DST auto)", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+            {"Australia Sydney (fixed summer time)", "AEDT-11"},
+            {"Australia Sydney (fixed winter time)", "AEST-10"},
+            {"India (IST)", "IST-5:30"},
+            {"Brazil (BRT)", "BRT-3"},
+            {"China (CST)", "CST-8"},
+            {"Singapore (SGT)", "SGT-8"},
+            {"Indonesia (WIB)", "WIB-7"},
+            {"South Korea (KST)", "KST-9"},
+            {"Argentina (ART)", "ART-3"},
+            {"Chile (DST auto)", "CLT4CLST,M9.1.6/24,M4.1.6/24"},
+            {"New Zealand (DST auto)", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
+            {"Fiji (FJT)", "FJT-12"},
+            {"Nigeria (WAT)", "WAT-1"},
+            {"South Africa (SAST)", "SAST-2"},
+            {"Egypt (EET)", "EET-2"}
+        };
 
         String html = "<!DOCTYPE html><html><head><title>Set Timezone</title></head><body>";
         html += "<h2>NTP Server / Timezone (DST String)</h2>";
@@ -1481,55 +1477,31 @@ void setupWebServer() {
         html += "NTP Server1: <input type='text' name='ntpServer1' value='" + ntpServer1 + "'><br>";
         html += "NTP Server2: <input type='text' name='ntpServer2' value='" + ntpServer2 + "'><br><br>";
 
-        html += "Timezone: <input type='text' name='timezone' value='" + String(timezone) + "' style = 'width: 300px;' required><br>";
-        
-        html += "<ul>";
-        html += "<li><strong>Germany (DE)</strong> - With Daylight Saving Time (DST) automatically: <code>CET-1CEST,M3.5.0,M10.5.0/3</code></li>";
-        html += "<li>Germany (DE) - Permanent Summer Time: <code>CEST-2</code></li>";
-        html += "<li>Germany (DE) - Permanent Winter Time: <code>CET-1</code></li>";
-        html += "<li><strong>United Kingdom (UK)</strong> - With Daylight Saving Time (DST) automatically: <code>GMT0BST,M3.5.0/1,M10.5.0</code></li>";
-        html += "<li>United Kingdom (UK) - Permanent Summer Time: <code>BST-1</code></li>";
-        html += "<li>United Kingdom (UK) - Permanent Winter Time: <code>GMT0</code></li>";
-        html += "<li><strong>USA (Pacific Time, Los Angeles)</strong> - DST Auto: <code>PST8PDT,M3.2.0,M11.1.0</code></li>";
-        html += "<li>USA (Central Time, Chicago) - DST Auto: <code>CST6CDT,M3.2.0,M11.1.0</code></li>";
-        html += "<li>USA (Mountain Time, Denver) - DST Auto: <code>MST7MDT,M3.2.0,M11.1.0</code></li>";
-        html += "<li>USA (Eastern Time, New York) - DST Auto: <code>EST5EDT,M3.2.0,M11.1.0</code></li>";
-        html += "<li>USA (Eastern Time, New York) - Permanent Summer Time: <code>EDT-4</code></li>";
-        html += "<li>USA (Eastern Time, New York) - Permanent Winter Time: <code>EST-5</code></li>";
-        html += "<li><strong>Japan (Tokyo, JST)</strong> - No Daylight Saving Time: <code>JST-9</code></li>";
-        html += "<li><strong>Australia (Sydney, AEDT)</strong> - DST Auto: <code>AEST-10AEDT,M10.1.0,M4.1.0/3</code></li>";
-        html += "<li>Australia (Sydney, AEDT) - Permanent Summer Time: <code>AEDT-11</code></li>";
-        html += "<li>Australia (Sydney, AEDT) - Permanent Winter Time: <code>AEST-10</code></li>";
-        html += "<li><strong>India (New Delhi, IST)</strong> - No Daylight Saving Time: <code>IST-5:30</code></li>";
-        html += "<li><strong>Brazil (Brasília, BRT)</strong> - No Daylight Saving Time: <code>BRT-3</code></li>";
-        html += "<li><strong>China (Shanghai, CST)</strong> - No Daylight Saving Time: <code>CST-8</code></li>";
-        html += "<li><strong>Singapore (SGT)</strong> - No Daylight Saving Time: <code>SGT-8</code></li>";
-        html += "<li><strong>Indonesia (Jakarta, WIB)</strong> - No Daylight Saving Time: <code>WIB-7</code></li>";
-        html += "<li><strong>South Korea (Seoul, KST)</strong> - No Daylight Saving Time: <code>KST-9</code></li>";
-        html += "<li><strong>Argentina (Buenos Aires, ART)</strong> - No Daylight Saving Time: <code>ART-3</code></li>";
-        html += "<li><strong>Chile (Santiago, CLT)</strong> - DST Auto: <code>CLT4CLST,M9.1.6/24,M4.1.6/24</code></li>";
-        html += "<li><strong>New Zealand (Wellington, NZST)</strong> - DST Auto: <code>NZST-12NZDT,M9.5.0,M4.1.0/3</code></li>";
-        html += "<li><strong>Fiji (Suva, FJT)</strong> - No Daylight Saving Time: <code>FJT-12</code></li>";
-        html += "<li><strong>Nigeria (Lagos, WAT)</strong> - No Daylight Saving Time: <code>WAT-1</code></li>";
-        html += "<li><strong>South Africa (Johannesburg, SAST)</strong> - No Daylight Saving Time: <code>SAST-2</code></li>";
-        html += "<li><strong>Egypt (Cairo, EET)</strong> - No Daylight Saving Time: <code>EET-2</code></li>";
+        // Kombiniertes Select + Input
+        html += "Timezone: <br><select id='tz_select' style='width: 400px;' onchange=\"document.getElementById('tz_input').value=this.value\">";
+        for (size_t i = 0; i < sizeof(tzList) / sizeof(tzList[0]); i++) {
+            html += "<option value='" + String(tzList[i].value) + "'";
+            if (timezone == tzList[i].value) html += " selected";
+            html += ">" + String(tzList[i].label) + " (" + String(tzList[i].value) + ")</option>";
+        }
+        html += "</select><br><br>";
 
-        html += "</ul>";
+        html += "<input type='text' id='tz_input' name='timezone' style='width: 400px;' value='" + timezone + "'><br><br>";
 
-
+        html += "<small>For custom timezones, select a preset or enter your own value above.</small><br><br>";
         html += "<button type='submit'>Save Timezone</button>";
-        html += "<br><a href='/'>Back</a></body></html>";
+        html += "<br><br><a href='/'>Back</a></body></html>";
         html += "</form></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/rename_form", HTTP_GET, []() {
-        if (!server.hasArg("file")) {
-            server.send(400, "text/plain", "Missing file parameter.");
+    webserver.on("/rename_form", HTTP_GET, []() {
+        if (!webserver.hasArg("file")) {
+            webserver.send(400, "text/plain", "Missing file parameter.");
             return;
         }
 
-        String oldName = server.arg("file");
+        String oldName = webserver.arg("file");
         String html = "<!DOCTYPE html><html><head><title>Rename File</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input{margin:10px;padding:10px;}</style></head><body>";
         html += "<h2>Rename File</h2>";
@@ -1539,13 +1511,13 @@ void setupWebServer() {
         html += "<input name='new' value='" + oldName + "' required><br><br>";
         html += "<button type='submit'>Rename</button></form>";
         html += "<br><a href='/files'>Cancel</a></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/rename", HTTP_POST, []() {
-        if (server.hasArg("old") && server.hasArg("new")) {
-            String oldName = server.arg("old");
-            String newName = server.arg("new");
+    webserver.on("/rename", HTTP_POST, []() {
+        if (webserver.hasArg("old") && webserver.hasArg("new")) {
+            String oldName = webserver.arg("old");
+            String newName = webserver.arg("new");
 
             oldName.replace("..", ""); newName.replace("..", "");
             if (!oldName.startsWith("/")) oldName = "/" + oldName;
@@ -1553,30 +1525,30 @@ void setupWebServer() {
 
             if (LittleFS.exists(oldName)) {
                 if (LittleFS.rename(oldName, newName)) {
-                    server.sendHeader("Location", "/files", true);
-                    server.send(302, "text/plain", "");
+                    webserver.sendHeader("Location", "/files", true);
+                    webserver.send(302, "text/plain", "");
                 }
                 else {
-                    server.send(500, "text/plain", "Rename failed.");
+                    webserver.send(500, "text/plain", "Rename failed.");
                 }
             }
             else {
-                server.send(404, "text/plain", "Original file not found.");
+                webserver.send(404, "text/plain", "Original file not found.");
             }
         }
         else {
-            server.send(400, "text/plain", "Missing parameters.");
+            webserver.send(400, "text/plain", "Missing parameters.");
         }
         });
 
 
 
-    server.on("/scalebmp_form", HTTP_GET, []() {
-        if (!server.hasArg("file")) {
-            server.send(400, "text/plain", "Missing file name.");
+    webserver.on("/scalebmp_form", HTTP_GET, []() {
+        if (!webserver.hasArg("file")) {
+            webserver.send(400, "text/plain", "Missing file name.");
             return;
         }
-        String src = server.arg("file");
+        String src = webserver.arg("file");
         String html = "<!DOCTYPE html><html><head><title>Scale BMP</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;}input{margin:5px;}</style></head><body>";
         html += "<h2>Scale and Save BMP</h2>";
         html += "<form action='/scalebmp_run' method='GET'>";
@@ -1588,43 +1560,43 @@ void setupWebServer() {
         html += "<a href='/status'>Systemstatus</a><br>";
         html += "<a href='/files'>File Manager</a><br>";
         html += "<br><a href='/files'>Back</a></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/scalebmp_run", HTTP_GET, []() {
-        if (!server.hasArg("src") || !server.hasArg("dst") || !server.hasArg("w") || !server.hasArg("h")) {
-            server.send(400, "text/plain", "Missing parameters.");
+    webserver.on("/scalebmp_run", HTTP_GET, []() {
+        if (!webserver.hasArg("src") || !webserver.hasArg("dst") || !webserver.hasArg("w") || !webserver.hasArg("h")) {
+            webserver.send(400, "text/plain", "Missing parameters.");
             return;
         }
 
-        String src = server.arg("src");
-        String dst = server.arg("dst");
-        int w = server.arg("w").toInt();
-        int h = server.arg("h").toInt();
+        String src = webserver.arg("src");
+        String dst = webserver.arg("dst");
+        int w = webserver.arg("w").toInt();
+        int h = webserver.arg("h").toInt();
 
         bool ok = scaleAndSaveBmp(src.c_str(), dst.c_str(), w, h);
         if (ok) {
-            server.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>Scaling successful!</h3><p>Saved as: " + dst + "</p><a href='/files'>Back</a></body></html>");
+            webserver.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>Scaling successful!</h3><p>Saved as: " + dst + "</p><a href='/files'>Back</a></body></html>");
         }
         else {
-            server.send(500, "text/html", "<html><body style='font-family:Arial;'><h3>Failed to scale BMP.</h3><p>Check source file and format.</p><a href='/files'>Back</a></body></html>");
+            webserver.send(500, "text/html", "<html><body style='font-family:Arial;'><h3>Failed to scale BMP.</h3><p>Check source file and format.</p><a href='/files'>Back</a></body></html>");
         }
         });
 
 
-    server.on("/applydisplaysettings", HTTP_POST, []() {
+    webserver.on("/applydisplaysettings", HTTP_POST, []() {
         // Save to Preferences
 
-        stationMode = server.hasArg("stationMode");
-        showSecondHand = server.hasArg("showSecondHand");        
-        smoothMinute = server.hasArg("smoothMinute");
+        stationMode = webserver.hasArg("stationMode");
+        showSecondHand = webserver.hasArg("showSecondHand");
+        smoothMinute = webserver.hasArg("smoothMinute");
 
         preferences.putBool("stationMode", stationMode);
         preferences.putBool("showSecondHand", showSecondHand);
         preferences.putBool("smoothMinute", smoothMinute);
 
-        if (server.hasArg("rotation")) {
-            tft_rotation = server.arg("rotation").toInt();  
+        if (webserver.hasArg("rotation")) {
+            tft_rotation = webserver.arg("rotation").toInt();
             if (tft_rotation >= 0 && tft_rotation <= 3) {
                 preferences.putUChar("tft_rotation", tft_rotation);
                 firstRun = true;
@@ -1638,7 +1610,7 @@ void setupWebServer() {
             loadHandSprites();            
         }
 
-        server.send(200, "text/html",
+        webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/'><title>Gespeichert</title></head>"
             "<body style='font-family:Arial;text-align:center;'><h2>Saved</h2><p>Back...</p></body></html>");
         });
@@ -1647,7 +1619,7 @@ void setupWebServer() {
 
 
 
-    server.on("/brightness", HTTP_POST, []() {
+    webserver.on("/brightness", HTTP_POST, []() {
         String html = "<!DOCTYPE html><html><head><title>Brightness Settings</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input{margin:8px;padding:8px;width:80%;}</style></head><body>";
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
@@ -1734,10 +1706,10 @@ void setupWebServer() {
 
         
         html += "<br><a href='/'>Back</a></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/brightness", HTTP_GET, []() {
+    webserver.on("/brightness", HTTP_GET, []() {
         String html = "<!DOCTYPE html><html><head><title>Brightness Settings</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input{margin:8px;padding:8px;width:80%;}</style></head><body>";
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
@@ -1819,20 +1791,20 @@ void setupWebServer() {
         }
         
         html += "<br><a href='/'>Back</a></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
 
-    server.on("/save_brightness", HTTP_POST, []() {
-        use_adc = server.hasArg("use_adc");
-        lowThreshold = server.arg("lowThreshold").toInt();
-        highThreshold = server.arg("highThreshold").toInt();
+    webserver.on("/save_brightness", HTTP_POST, []() {
+        use_adc = webserver.hasArg("use_adc");
+        lowThreshold = webserver.arg("lowThreshold").toInt();
+        highThreshold = webserver.arg("highThreshold").toInt();
         
-        maxBrightness = (uint8_t)server.arg("maxBrightness").toInt();
-        minBrightness = (uint8_t)server.arg("minBrightness").toInt();
+        maxBrightness = (uint8_t)webserver.arg("maxBrightness").toInt();
+        minBrightness = (uint8_t)webserver.arg("minBrightness").toInt();
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-        gammaBrightness = server.arg("gamma").toFloat();
+        gammaBrightness = webserver.arg("gamma").toFloat();
         preferences.putFloat("gammaBrightness", gammaBrightness);
 #endif
 
@@ -1845,14 +1817,14 @@ void setupWebServer() {
          
 
 
-        server.send(200, "text/html",
+        webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2; url=/brightness'><title>Saved</title></head>"
             "<body style='font-family:Arial;text-align:center;'><h2>Settings saved</h2><p>Returning...</p></body></html>");
         });
 
 
 
-    server.on("/files", HTTP_GET, []() {
+    webserver.on("/files", HTTP_GET, []() {
         String html = "<!DOCTYPE html><html><head><title>All Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head><body>";
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
@@ -1876,13 +1848,13 @@ void setupWebServer() {
             file = root.openNextFile();
         }
         html += "</table><br><a href='/'>Back</a></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
 
 
 
-    server.on("/status", HTTP_GET, []() {
+    webserver.on("/status", HTTP_GET, []() {
 
         char version[32];
         sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
@@ -1989,7 +1961,7 @@ void setupWebServer() {
 
         
         html += "<h3>Actual Preferences</h3><ul>";
-        html += "<li><b>ssid</b>: " + preferences.getString("ssid", "") + "</li>";
+        html += "<li><b>ssid</b>: " + preferences.getString("ssid1", "") + "</li>";
         html += "<li><b>ssid2</b>: " + preferences.getString("ssid2", "") + "</li>";
         html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", "pool.ntp.org") + "</li>";
         html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", "time.nist.gov") + "</li>";   
@@ -2026,10 +1998,10 @@ void setupWebServer() {
         html += "</ul>";
             
         html += "<br><a href = '/'>Back</a></body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/preview_defaultface", HTTP_GET, []() {
+        webserver.on("/preview_defaultface", HTTP_GET, []() {
         const int headerSize = 54;
         const int rowSize = ((CLOCK_WIDTH * 2 + 3) / 4) * 4;
         const int dataSize = rowSize * CLOCK_HEIGHT;
@@ -2057,11 +2029,11 @@ void setupWebServer() {
             }
         }
 
-        server.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
+        webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
         delete[] bmpData;
         });
 
-    server.on("/listfilesFaces", HTTP_GET, []() {
+        webserver.on("/listfilesFaces", HTTP_GET, []() {
 
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
@@ -2070,7 +2042,7 @@ void setupWebServer() {
         String html = "<!DOCTYPE html><html><head><title>Clock Face Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head>";
 
 
-        html += "Connected to : <strong>" + WiFi.SSID() + " </strong > (" + WiFi.localIP().toString() + ")" + (WiFi.SSID() == wifi_ssid2 ? " (secondary)" : "") + " &nbsp;&nbsp; ";
+        html += "Connected to : <strong>" + WiFi.SSID() + " </strong > (" + WiFi.localIP().toString() + ")" + (WiFi.SSID() == wifi_ssid[1] ? " (secondary)" : "") + " &nbsp;&nbsp; ";
         html += "<br>Storage used : " + String(used / 1024) + " KB / " + String(total / 1024) + " KB<hr>";
 
         html += "<h2>Manage Clock Face Files " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>Preview</th><th>Action</th></tr>";
@@ -2106,29 +2078,31 @@ void setupWebServer() {
 
         html += "<h3>Upload New Clock Face</h3>";
         html += "<small>Requirements: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16-bit BMP (RGB565), name must start with <code>face_</code></small><br><br>";
+          
         html += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
-        html += "<input type='file' name='upload' accept='.bmp' required><br>";
-        
+        html += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
+
         html += "<button type='submit'>Upload BMP</button>";
         html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
         html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form>";
         html += "<br><a href='/'>Back</a></body> </html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
    
-    server.on("/api/scanwifi", HTTP_GET, []() {
+        webserver.on("/api/scanwifi", HTTP_GET, []() {
         String json = "";
         
         // beim Aufruf alle Netzwerke scannen
         if (WiFi.getMode() == WIFI_STA) {
-            int n = WiFi.scanNetworks();
+            //int n = WiFi.scanNetworks();
+             // JSON immer aus foundNetworks erzeugen
             json = "[";
-            for (int i = 0; i < n; ++i) {
+            for (int i = 0; i < foundNetworkCount; ++i) {
                 if (i > 0) json += ",";
-                json += "{\"ssid\":\"" + WiFi.SSID(i) + "\"";
-                json += ",\"rssi\":" + String(WiFi.RSSI(i));
-                json += ",\"enc\":" + String(WiFi.encryptionType(i));
+                json += "{\"ssid\":\"" + foundNetworks[i].ssid + "\"";
+                json += ",\"rssi\":" + String(foundNetworks[i].rssi);
+                json += ",\"enc\":" + String(foundNetworks[i].enc);
                 json += "}";
             }
             json += "]";
@@ -2145,14 +2119,23 @@ void setupWebServer() {
             }
             json += "]";
         }
-        server.send(200, "application/json", json);
+        webserver.send(200, "application/json", json);
         });
 
-    server.on("/", HTTP_GET, []() {
+        webserver.on("/api/rescanwifi", HTTP_POST, []() {
+        scanAndCacheNetworks();
+        webserver.send(200, "application/json", "{\"status\":\"ok\"}");
+        });
+
+        webserver.on("/", HTTP_GET, []() {
 
 
         String html = "<!DOCTYPE html><html><head><title>Clock Setup</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input,select,button{margin:10px;padding:10px;width:80%;}</style></head><body>";
+
+        // Seite benötigt JavaScript
+        html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>JavaScript is disabled. This page requires JavaScript to work properly!</div></noscript>";
+
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
         html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
@@ -2161,18 +2144,18 @@ void setupWebServer() {
 
         html += "<form action = '/save' method = 'POST'>";
 
-        html += "<h3>Primary WiFi</h3>";
-        //html += "<input name='ssid' placeholder='SSID' value='" + wifi_ssid + "'><br>";
+        html += "<button id='rescanBtn' type='button'>Rescan Networks</button><br>";
 
+        html += "<h3>Primary WiFi</h3>";
         
-        html += "<label for='ssid'>SSID:</label><br>";
-        html += "<select id='ssid_select' onchange=\"document.getElementById('ssid').value=this.value\">";
-        html += "<option value=''>WLAN-Scan in progress</option>";
+        html += "<label for='ssid1'>SSID1:</label><br>";
+        html += "<select id='ssid_select' onchange=\"document.getElementById('ssid1').value=this.value\">";
+       // html += "<option value=''>WLAN-Scan in progress</option>";
         html += "</select><br>";
-        html += "<input name='ssid' id='ssid' placeholder='SSID' value='" + wifi_ssid + "'><br>";
+        html += "<input name='ssid1' id='ssid1' placeholder='SSID 1' value='" + wifi_ssid[0] + "'><br>";
         html += "<small>You can also enter an SSID manually.</small><br>";
 
-        html += "<input name='pass' id='pass' placeholder='Password' type='password' value=''><br>";
+        html += "<input name='pass1' id='pass1' placeholder='Password 1' type='password' value=''><br>";
         if (WiFi.getMode() == WIFI_STA) {
             html += "<small>Password is hidden. Leave empty to keep current.</small>";
         }
@@ -2181,9 +2164,9 @@ void setupWebServer() {
         html += "<h3>Alternative WiFi</h3>";
         html += "<label for='ssid2'>SSID2:</label><br>";
         html += "<select id='ssid2_select' onchange=\"document.getElementById('ssid2').value=this.value\">";
-        html += "<option value=''>WLAN-Scan in progress</option>";
+      //  html += "<option value=''>WLAN-Scan in progress</option>";
         html += "</select><br>";
-        html += "<input name='ssid2' id='ssid2' placeholder='SSID 2' value='" + wifi_ssid2 + "'><br>";
+        html += "<input name='ssid2' id='ssid2' placeholder='SSID 2' value='" + wifi_ssid[1] + "'><br>";
         html += "<small>You can also enter an SSID manually.</small><br>";
 
         html += "<input name='pass2' placeholder='Password 2' type='password' value=''><br>";
@@ -2193,19 +2176,14 @@ void setupWebServer() {
         html += "<br>";
 
 
-        html += "<button type='submit'>Save</button></form><hr>";
+        html += "<button type='submit'>Save and Reboot</button></form><hr>";
 
         if (WiFi.getMode() == WIFI_STA) {
 
 
             html += "<form action='/applydisplaysettings' method='POST'>";
 
-
-            //html += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
-
             html += "<li><a href='/timezone_form'>Set Timezone</a></li>";
-
-
 
             html += "<table style='margin:auto;text-align:left;'><tr>";
 
@@ -2232,14 +2210,10 @@ void setupWebServer() {
             }
             html += "</select></td>";
 
-
-
             html += "<td valign=bottom><button type='submit'>Apply</button></td>";
             html += "</tr></table></form>";
 
-
             html += "<hr>";
-
 
             html += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
             html += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
@@ -2256,9 +2230,29 @@ void setupWebServer() {
 
         
         html += "<script>";
+        html += "document.getElementById('rescanBtn').onclick = function() {";
+        html += "  fetch('/api/rescanwifi', {method: 'POST'})";
+        html += "    .then(() => {";
+        html += "      select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
+        html += "      select2.innerHTML = \"<option>WLAN scan in progress...</option>\";";
+        html += "      setTimeout(function() {";
+        html += "        fetch('/api/scanwifi').then(response => response.json()).then(data => {";
+        html += "          select1.innerHTML = \"<option value=''>select network</option>\";";
+        html += "          data.forEach(function(net) {";
+        html += "            var opt = document.createElement('option');";
+        html += "            opt.value = net.ssid;";
+        html += "            opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
+        html += "            select1.appendChild(opt);";
+        html += "          });";
+        html += "          select2.innerHTML = select1.innerHTML;";
+        html += "        });";
+        html += "      }, 2000);"; // 2 Sekunden warten für Scan
+        html += "    });";
+        html += "};";
+
         html += "window.addEventListener('DOMContentLoaded', function() {";
         html += "  var select1 = document.getElementById('ssid_select');";
-        html += "  var input1 = document.getElementById('ssid');";
+        html += "  var input1 = document.getElementById('ssid1');";
         html += "  var current1 = input1.value;";
         html += "  select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
         html += "  fetch('/api/scanwifi')";
@@ -2299,27 +2293,23 @@ void setupWebServer() {
 
 
         html += "</body></html>";
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/save", HTTP_POST, []() {
-        if (server.hasArg("ssid")) {
-            if (server.arg("ssid") != "") preferences.putString("ssid", server.arg("ssid"));       
-            if (server.arg("ssid2") != "") preferences.putString("ssid2", server.arg("ssid2"));       
+        webserver.on("/save", HTTP_POST, []() {
+        if (webserver.hasArg("ssid1")) {
+            if (webserver.arg("ssid1") != "") preferences.putString("ssid1", webserver.arg("ssid1"));
+            if (webserver.arg("pass1") != "") preferences.putString("pass1", webserver.arg("pass1"));
 
-            if (server.arg("pass") != "") preferences.putString("pass", server.arg("pass"));
-            if (server.arg("pass2") != "") preferences.putString("pass2", server.arg("pass2"));
-
-             
-            //preferences.putBool("showSecondHand", server.hasArg("show"));
-            //preferences.putBool("stationMode", server.hasArg("stationMode"));    
+            if (webserver.arg("ssid2") != "") preferences.putString("ssid2", webserver.arg("ssid2"));
+            if (webserver.arg("pass2") != "") preferences.putString("pass2", webserver.arg("pass2"));
 
             if (WiFi.getMode() == WIFI_STA) {
-                server.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'>"
+                webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
                     "<h2>Settings saved</h2><p>Return to the main page in 10 seconds or refresh the website when the ESP is online again.</p></body></html>");
             } else {
-                server.send(200, "text/html", "<!DOCTYPE html><html><head>"
+                webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
                     "<h2>Settings saved</h2><p>Please connect to your home network and go to the ESP website at http:// IPADDRESS</p></body></html>");
             }
@@ -2327,27 +2317,27 @@ void setupWebServer() {
         }
         });
 
-    server.on("/upload", HTTP_GET, []() {
-        server.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp'><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'>Back to file list</a>");
+        webserver.on("/upload", HTTP_GET, []() {
+            webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'>Back to file list</a>");
         });
 
-    server.on("/upload", HTTP_POST, []() {
+        webserver.on("/upload", HTTP_POST, []() {
         if (uploadSuccess) {
-            server.sendHeader("Location", "/listfilesFaces", true);
-            server.send(302, "text/plain", "");
+            webserver.sendHeader("Location", "/listfilesFaces", true);
+            webserver.send(302, "text/plain", "");
         }
         else {
             String errorHtml = "<!DOCTYPE html><html><head><title>Upload Failed</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
             errorHtml += "<h2>Upload failed</h2>";
             errorHtml += "<p>Only .bmp files starting with <code>face_</code> or <code>hand_</code> are accepted.</p>";
             errorHtml += "<a href='/upload'>Try again</a></body></html>";
-            server.send(400, "text/html", errorHtml);
+            webserver.send(400, "text/html", errorHtml);
         }
         }, handleFileUpload);
 
-    server.on("/setbackground", HTTP_GET, []() {
-        if (server.hasArg("file")) {
-            String file = server.arg("file");
+        webserver.on("/setbackground", HTTP_GET, []() {
+        if (webserver.hasArg("file")) {
+            String file = webserver.arg("file");
             file.replace("..", "");
             if (!file.startsWith("/")) file = "/" + file;
 
@@ -2357,8 +2347,8 @@ void setupWebServer() {
                 freeClockFaceBuffer();
                 loadClockFace();
                 loadHandSprites();
-                server.sendHeader("Location", "/listfilesFaces", true);
-                server.send(302, "text/plain", "");
+                webserver.sendHeader("Location", "/listfilesFaces", true);
+                webserver.send(302, "text/plain", "");
                 return;
             }
 
@@ -2369,46 +2359,46 @@ void setupWebServer() {
                 freeClockFaceBuffer();
                 loadClockFace();
                 loadHandSprites();
-                server.sendHeader("Location", "/listfilesFaces", true);
-                server.send(302, "text/plain", "");
+                webserver.sendHeader("Location", "/listfilesFaces", true);
+                webserver.send(302, "text/plain", "");
                 return;
             }
         }
-        server.send(404, "text/plain", "File not found");
+        webserver.send(404, "text/plain", "File not found");
         });
 
 
-    server.on("/delete", HTTP_GET, []() {
-        if (server.hasArg("file")) {
-            String path = server.arg("file");
+        webserver.on("/delete", HTTP_GET, []() {
+        if (webserver.hasArg("file")) {
+            String path = webserver.arg("file");
             path.replace("..", "");
             if (!path.startsWith("/")) path = "/" + path;
             if (LittleFS.exists(path)) {
                 LittleFS.remove(path);
-                server.sendHeader("Location", "/listfilesFaces", true);
-                server.send(302, "text/plain", "");
+                webserver.sendHeader("Location", "/listfilesFaces", true);
+                webserver.send(302, "text/plain", "");
             }
             else {
-                server.send(404, "text/plain", "File not found");
+                webserver.send(404, "text/plain", "File not found");
             }
         }
         });
 
-    server.on("/file", HTTP_GET, []() {
-        if (server.hasArg("name")) {
-            String path = server.arg("name");
+        webserver.on("/file", HTTP_GET, []() {
+        if (webserver.hasArg("name")) {
+            String path = webserver.arg("name");
             if (!path.startsWith("/")) path = "/" + path;
             if (LittleFS.exists(path)) {
                 File f = LittleFS.open(path, "r");
-                server.streamFile(f, "image/bmp");
+                webserver.streamFile(f, "image/bmp");
                 f.close();
                 return;
             }
         }
-        server.send(404, "text/plain", "File not found");
+        webserver.send(404, "text/plain", "File not found");
         });
 
-    server.on("/handsets", HTTP_GET, []() {
+        webserver.on("/handsets", HTTP_GET, []() {
         String html = "<!DOCTYPE html><html><head><title>Clock Hand Set Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:10px;}img{height:50px;}</style></head><body>";
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
@@ -2481,32 +2471,33 @@ void setupWebServer() {
         
         html += "</table><hr>";
                
-        uint8_t centerSize = preferences.getUInt("centerSize", 6);
-        uint32_t centerColor = preferences.getUInt("centerColor", 0x000000);
+        uint8_t hub_size = preferences.getUInt("centerSize", 6);
+        uint32_t hub_color = preferences.getUInt("centerColor", 0x000000);
 
         html += "<h2>Centre point</h2><form action='/setcenter' method='POST'>";
-        html += "<label>Size (Pixel):</label><br><input name='size' type='number' min='0' max='50' value='" + String(centerSize) + "'><br>";
-        html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red):</label><br><input name='color' value='" + String((centerColor >> 11 & 0x1F) * 255 / 31 << 16 | (centerColor >> 5 & 0x3F) * 255 / 63 << 8 | (centerColor & 0x1F) * 255 / 31, HEX) + "'><br>";
+        html += "<label>Size (Pixel):</label><br><input name='size' type='number' min='0' max='50' value='" + String(hub_size) + "'><br>";
+        html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red):</label><br><input name='color' value='" + String((hub_color >> 11 & 0x1F) * 255 / 31 << 16 | (hub_color >> 5 & 0x3F) * 255 / 63 << 8 | (hub_color & 0x1F) * 255 / 31, HEX) + "'><br>";
         html += "<button type='submit'>Apply</button></form><hr>";
 
         html += "<h3>Upload New Hand Set</h3>";
         html += "<small>Requirements: " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " pixels, 16-bit BMP (RGB565), <br>name must start with <code>hand_set + no + _hour, _minute or _second .bmp e.g. hand_set1_second.bmp</code><br>Pivot point:" + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
         html += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
         
-        html += "File: <input type='file' name='upload' accept='.bmp' required><br><br>";
+        html += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
         html += "<button type='submit'>Upload to Set</button></form><br>";
-        html += "<a href='/'>Back</a><br>";
+        
         html += "<a href='/status'>Systemstatus</a><br>";
         html += "<a href='/files'>File Manager</a><br>";
+        html += "<a href='/'>Back</a><br><br><br>";
         html += "</body></html>";
         //Serial.println(html);
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
-    server.on("/setcenter", HTTP_POST, []() {
-        if (server.hasArg("size") && server.hasArg("color")) {
-            uint8_t size = server.arg("size").toInt();
-            uint32_t rgb = (uint32_t)strtoul(server.arg("color").c_str(), nullptr, 16);
+        webserver.on("/setcenter", HTTP_POST, []() {
+        if (webserver.hasArg("size") && webserver.hasArg("color")) {
+            hub_size = webserver.arg("size").toInt();
+            uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16);
 
             // Convert 24-bit RGB888 to RGB565
             uint8_t r = (rgb >> 16) & 0xFF;
@@ -2514,17 +2505,20 @@ void setupWebServer() {
             uint8_t b = rgb & 0xFF;
             uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 
-            preferences.putUInt("centerSize", size);
+            preferences.putUInt("centerSize", hub_size);
             preferences.putUInt("centerColor", rgb565);
+
+            hub_color = rgb565;
+
         }
-        server.send(200, "text/html",
+        webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/handsets'>"
             "<title>Updated</title></head><body style='font-family:Arial;text-align:center;'>"
             "<h2>Centre point updated</h2><p>back to handsets...</p></body></html>");
         });
 
 
-    server.on("/uploadhandset", HTTP_POST, []() {
+        webserver.on("/uploadhandset", HTTP_POST, []() {
         if (uploadSuccess) {
             // Sicherheitsprüfung auf Dateinamenmuster
             if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
@@ -2532,10 +2526,10 @@ void setupWebServer() {
                 errorHtml += "<h2>Upload failed</h2>";
                 errorHtml += "<p>Only .bmp files starting with <code>hand_</code> are accepted for handset upload.</p>";
                 errorHtml += "<a href='/handsets'>Try again</a></body></html>";
-                server.send(400, "text/html", errorHtml);
+                webserver.send(400, "text/html", errorHtml);
                 return;
             }
-            String set = server.arg("set");
+            String set = webserver.arg("set");
           //  String target = server.arg("target");
             String dir = "/";
             if (!LittleFS.exists(dir)) LittleFS.mkdir(dir);
@@ -2543,34 +2537,34 @@ void setupWebServer() {
           //  LittleFS.rename(uploadFilePath, finalPath);
           //  Serial.println("[UPLOAD] Hand uploaded to: " + finalPath);
             Serial.println("[UPLOAD] Hand uploaded to: " + uploadFilePath);
-            server.sendHeader("Location", "/handsets", true);
-            server.send(302, "text/plain", "");
+            webserver.sendHeader("Location", "/handsets", true);
+            webserver.send(302, "text/plain", "");
         }
         else {
-            server.send(500, "text/html", " Upload failed!<br><a href='/handsets'>Try again</a>");
+            webserver.send(500, "text/html", " Upload failed!<br><a href='/handsets'>Try again</a>");
         }
         }, handleFileUpload);
 
-    server.on("/sethandset", HTTP_GET, []() {
-        if (server.hasArg("set")) {
-            String chosen = server.arg("set");
+        webserver.on("/sethandset", HTTP_GET, []() {
+        if (webserver.hasArg("set")) {
+            String chosen = webserver.arg("set");
             preferences.putString("handset", chosen);
             Serial.println("[HANDSET] Set to: " + chosen);
             freeClockFaceBuffer();
             loadClockFace();
             loadHandSprites();
             updateClock();
-            server.sendHeader("Location", "/handsets", true);
-            server.send(302, "text/plain", "");
+            webserver.sendHeader("Location", "/handsets", true);
+            webserver.send(302, "text/plain", "");
         }
         else {
-            server.send(400, "text/plain", "Missing set name");
+            webserver.send(400, "text/plain", "Missing set name");
         }
         });
 
-    server.on("/deletehandset", HTTP_GET, []() {
-        if (server.hasArg("set")) {
-            String set = server.arg("set");
+        webserver.on("/deletehandset", HTTP_GET, []() {
+        if (webserver.hasArg("set")) {
+            String set = webserver.arg("set");
             String targets[] = { "hour", "minute", "second" };
             for (const String& target : targets) {
                 String path = "/hand_set" + set + "_" + target + ".bmp";
@@ -2580,26 +2574,26 @@ void setupWebServer() {
                     Serial.println("[DELETE] Removed: " + path);
                 }
             }
-            server.sendHeader("Location", "/handsets", true);
-            server.send(302, "text/plain", "");
+            webserver.sendHeader("Location", "/handsets", true);
+            webserver.send(302, "text/plain", "");
         }
         else {
-            server.send(400, "text/plain", "Missing set name");
+            webserver.send(400, "text/plain", "Missing set name");
         }
         });
 
-    server.on("/reboot", HTTP_GET, []() {
-        server.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>Rebooting...</h2><p>Return to the main page in 10 seconds or refresh the website when the ESP is online again.</p></body></html>");        
+        webserver.on("/reboot", HTTP_GET, []() {
+            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>Rebooting...</h2><p>Return to the main page in 10 seconds or refresh the website when the ESP is online again.</p></body></html>");
         esp_reboot();
         }); 
 
-    server.on("/factoryReset", HTTP_GET, []() {
+        webserver.on("/factoryReset", HTTP_GET, []() {
           factoryReset();
         });
 
 
 
-    server.on("/syncnow", HTTP_POST, []() {
+        webserver.on("/syncnow", HTTP_POST, []() {
         setupNTP();
         struct tm timeinfo;
         getLocalTime(&timeinfo);
@@ -2611,13 +2605,13 @@ void setupWebServer() {
             "<title>Time Synced</title></head><body style='font-family:Arial;text-align:center;'>"
             "<h2>Time synced</h2><p>" + String(timeStr) + "</p><p>Returning to main page in 5 seconds.</p></body></html>";
 
-        server.send(200, "text/html", html);
+        webserver.send(200, "text/html", html);
         });
 
 }
 
 void handleFileUpload() {
-    HTTPUpload& upload = server.upload();
+    HTTPUpload& upload = webserver.upload();
 
     if (upload.status == UPLOAD_FILE_START) {
         uploadFilePath = upload.filename;
@@ -3085,4 +3079,28 @@ void scaleAllFacesTo80x80() {
         }
         file = root.openNextFile();
     }
+}
+
+void scanAndCacheNetworks() {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.setTextSize(TFT_TEXT_SIZE);
+    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+    tft.println("WLAN-Scan...");
+
+    Serial.println("Scanning for WiFi networks...");
+    digitalWrite(LED_BOARD, HIGH);
+    int n = WiFi.scanNetworks();
+    foundNetworkCount = 0;
+    for (int i = 0; i < n && i < MAX_NETWORKS; i++) {
+        foundNetworks[i].ssid = WiFi.SSID(i);
+        foundNetworks[i].rssi = WiFi.RSSI(i);
+        foundNetworks[i].enc = WiFi.encryptionType(i);
+        foundNetworkCount++;
+
+        Serial.println("  " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+
+    }    
+    Serial.println("done.");
+    digitalWrite(LED_BOARD, LOW);
 }
