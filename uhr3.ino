@@ -31,12 +31,15 @@
 #include <set>
 #include <base64.h>
 #include "nvs_flash.h"
+#include <vector>
+#include <DNSServer.h>
 
 #include "build_defs.h"
 
 TFT_eSPI tft = TFT_eSPI();
 WebServer webserver(80);
 Preferences preferences;
+DNSServer dnsServer;
 
 
 #ifdef ESP32_S2  // Lolin S2 Pico
@@ -114,6 +117,16 @@ Preferences preferences;
 
 #define TRANSPARENT_COLOR 0x0120    // Transparent in R5G6B5 RGB(16)
 
+// --- neuer GPIO für Touch (anpassen falls nötig) ---
+#define TOUCH_PIN 9
+
+// --- Touch / Debounce State ---
+unsigned long touchLastMillis = 0;
+const unsigned long TOUCH_DEBOUNCE_MS = 300;
+bool touchLastState = false;
+// --- Touch enable flag: aktivieren erst nach Setup-Initialisierung ---
+bool touchEnabled = false;
+unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
 
 String tft_type = "UNKNOWN";
 
@@ -166,6 +179,11 @@ int lowThreshold = 40;
 int highThreshold = 60;
 uint8_t minBrightness = 100;  // 
 uint8_t maxBrightness = 255;  // Obergrenze 
+
+// Zeitabhängige Helligkeit
+uint8_t brightStartHour = 8;       // inkl. (z.B. 8)
+uint8_t brightEndHour = 20;        // exkl. (z.B. 20)
+
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
 float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit
 #endif
@@ -464,19 +482,36 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 
 void loop() {
     
+    // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
+    if (softAPIP) {
+        dnsServer.processNextRequest();
+    }
+
     webserver.handleClient();
     
     if (WiFi.getMode() == WIFI_STA) {
-        updateBrightness();
+        //updateBrightness();
         checkWiFiReconnect();
         updateClock();
-        // updateBrightness();
+        
         checkNightlyTimeSync();  
         checkWeeklyRestart();
         initial = false;
     }
 
-    checkButton();    
+    checkButton();  
+    updateBrightness();
+
+    // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
+    if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
+        touchEnabled = true;
+        Serial.println("[TOUCH] Enabled");
+    }
+
+    if (touchEnabled) {
+        // Touch-Input prüfen und ggf. Hintergrund wechseln
+        checkTouchInput();
+    }
 
 
     if (softAPIP == true) {
@@ -680,9 +715,10 @@ void updateClock() {
     }
     
     // Nabe (hub)
-    if (hub_size > 0) {
-        hub_color = setPixelBrightness(hub_color);
-        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, hub_color);
+    if (hub_size > 0 && hub_color > 0) {
+        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
+        // Serial.println("[HUB] Drawn hub with size " + String(hub_size));
+        // Serial.println("[HUB] Color: " + String(hub_color, HEX));
     }
 
     backgroundSprite.pushSprite(0, 0);
@@ -690,77 +726,101 @@ void updateClock() {
  
 void updateBrightness() {
 
+    // Wenn Helligkeit geändert → neu zeichnen
     if (currentBrightness != lastAppliedBrightness) {
         loadClockFace();
         loadHandSprites();
         lastAppliedBrightness = currentBrightness;
     }
 
-    if (use_adc) {
-
-        int adcRaw = analogRead(ADC_PIN);
-
-        if (initial) {
-            for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
-        }
-
-        adcHistory[adcIndex] = adcRaw;
-        adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
-
-        uint32_t avg = 0;
-        for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
-        avg /= ADC_SMOOTHING;
-
-        currentAdcAvg = avg;  // speichern
-        
-        int lightPercent = map(avg, 0, 4095, 5, 100);
-       
-        if (lightPercent < lowThreshold) targetBrightness = minBrightness;
-
-        else if (lightPercent > highThreshold) targetBrightness = maxBrightness;
-
-#ifdef TFT_Backlight
-        else {
-            float norm = constrain((float)avg / 4095.0f, 0.0f, 1.0f);
-           
-            float gamma = gammaBrightness;
-            float gammaNorm = powf(norm, gamma);
-            targetBrightness = minBrightness + (uint8_t)((maxBrightness - minBrightness) * gammaNorm + 0.5f);
-          //  Serial.printf("[ADC] lightPercent: %d, targetBrightness: %d\n", lightPercent, targetBrightness);
-            
-        }  
-#endif
-
-        currentLightPercent = lightPercent;
-
-        if (initial) currentBrightness = targetBrightness;
-
-#ifdef TFT_Backlight
-        if (currentBrightness != targetBrightness) {
-            if (currentBrightness < targetBrightness) {
-                currentBrightness++;
+    // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
+    bool withinDayWindow = false;
+    
+        struct tm timeinfo;
+        if (getLocalTime(&timeinfo)) {
+            int h = timeinfo.tm_hour;
+            if (brightStartHour <= brightEndHour) {
+                // normaler Bereich z.B. 8..20
+                withinDayWindow = (h >= brightStartHour && h < brightEndHour);
             }
             else {
-                currentBrightness--;
+                // über Mitternacht z.B. 20..6
+                withinDayWindow = (h >= brightStartHour || h < brightEndHour);
             }
         }
+    
+
+    // Wenn Zeitfenster aktiv und wir innerhalb davon sind: volle Helligkeit erzwingen
+    if (withinDayWindow) {
+        targetBrightness = maxBrightness;
+#ifdef TFT_Backlight
+        // sanfte Erhöhung, falls gewünscht (ähnlich wie ADC-Rampen)
+        if (currentBrightness < targetBrightness) currentBrightness++;
+        else if (currentBrightness > targetBrightness) currentBrightness--;
 #else
         currentBrightness = targetBrightness;
 #endif
-
     }
     else {
-        currentBrightness = maxBrightness;
-        targetBrightness = currentBrightness;
+        // Normale Auto-Brightness oder statische Helligkeit
+        if (use_adc) {
+
+            int adcRaw = analogRead(ADC_PIN);
+            // Serial.printf("[ADC] Raw value: %d\n", adcRaw);
+
+            if (initial) {
+                for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
+            }
+
+            adcHistory[adcIndex] = adcRaw;
+            adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
+
+            uint32_t avg = 0;
+            for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
+            avg /= ADC_SMOOTHING;
+
+            currentAdcAvg = avg;  // speichern
+
+            int lightPercent = map(avg, 0, 4095, 5, 100);
+
+            if (lightPercent < lowThreshold) targetBrightness = minBrightness;
+            else if (lightPercent > highThreshold) targetBrightness = maxBrightness;
+#ifdef TFT_Backlight
+            else {
+                float norm = constrain((float)avg / 4095.0f, 0.0f, 1.0f);
+                float gamma = gammaBrightness;
+                float gammaNorm = powf(norm, gamma);
+                targetBrightness = minBrightness + (uint8_t)((maxBrightness - minBrightness) * gammaNorm + 0.5f);
+            }
+#endif
+
+            currentLightPercent = lightPercent;
+
+            if (initial) currentBrightness = targetBrightness;
+
+#ifdef TFT_Backlight
+            if (currentBrightness != targetBrightness) {
+                if (currentBrightness < targetBrightness) {
+                    currentBrightness++;
+                }
+                else {
+                    currentBrightness--;
+                }
+            }
+#else
+            currentBrightness = targetBrightness;
+#endif
+
+        }
+        else {
+            // kein ADC: Standardeinstellung
+            currentBrightness = maxBrightness;
+            targetBrightness = currentBrightness;
+        }
     }
 
 #ifdef TFT_Backlight
     ledcWrite(TFT_Backlight, currentBrightness);  // 0–255
-
-    // invertiert
-   // ledcWrite(TFT_Backlight, 255 - currentBrightness);
-
-   // Serial.println(255 - currentBrightness);
 #endif
 
 }
@@ -949,7 +1009,7 @@ void setup() {
         preferences.putInt("highThreshold", 60);
 #endif
 
-        preferences.putUInt("centerColor", TFT_RED);
+        preferences.putUInt("centerColor", 0xEC0016);
 
         if (tft_type == "GC9A01" || tft_type == "ILI9341") {
             preferences.putUInt("centerSize", 6);
@@ -983,13 +1043,22 @@ void setup() {
     showSecondHand = preferences.getBool("showSecondHand", true);
 
     // Nabe
-    hub_color = preferences.getUInt("centerColor", TFT_RED);
+    uint32_t hub_color_RGB = preferences.getLong("centerColor", 0xEC0016); //DB red
+    hub_color = tft.color565((hub_color_RGB >> 16) & 0xFF, (hub_color_RGB >> 8) & 0xFF, hub_color_RGB & 0xFF);
+    Serial.printf("[HUB.] Color RGB: #%06X 565: 0x%04X\n", hub_color_RGB, hub_color);
     hub_size = preferences.getUInt("centerSize", 6);
 
     lowThreshold = preferences.getInt("lowThreshold", 40);
     highThreshold = preferences.getInt("highThreshold", 60);
     minBrightness = preferences.getUChar("minBrightness", 100);
     maxBrightness = preferences.getUChar("maxBrightness", 255);
+
+    // Zeitabhängige Helligkeit aus Preferences
+   
+    brightStartHour = preferences.getUChar("brightStart", 8);
+    brightEndHour = preferences.getUChar("brightEnd", 20);
+
+   
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT) 
     gammaBrightness = preferences.getFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur für Helligkeit
@@ -1064,9 +1133,11 @@ void setup() {
     tft.fillScreen(TFT_BLACK);
 
     tft_rotation = preferences.getUChar("tft_rotation", 0);
-
+       
     selectedBackground = preferences.getString("background", "/face_default.bmp");
-    Serial.println("selected background: " + selectedBackground);
+    
+
+    validateSelectedBackground();
 
 #ifndef GC9D01
     tft.setRotation(tft_rotation);
@@ -1124,27 +1195,34 @@ void setup() {
         wifi_pass[1] = "";
         startAP();
     }
-
-
-    uint32_t number = preferences.getInt("lastWLan");
-    Serial.println("[WiFi] Last successful WLAN number: " + String(number));
-
-    if (number > 1) number = 0;
-    if (number == 0) {
-        if (!connectWiFi(0, true)) {
-            if (!connectWiFi(1, true)) {
-                startAP();
-            }
-        }
+    // Neu: wenn noch keine SSID gespeichert → sofort AP starten (erleichtert Erstkonfiguration)
+    else if (wifi_ssid[0].length() == 0 && wifi_ssid[1].length() == 0) {
+        Serial.println("[WiFi] No stored credentials — starting AP for configuration");
+        startAP();
     }
     else {
-        if (!connectWiFi(1, true)) {
+
+        Serial.println("[TFT] Selected background: " + selectedBackground);
+
+        uint32_t number = preferences.getInt("lastWLan");
+        Serial.println("[WiFi] Last successful WLAN number: " + String(number));
+
+        if (number > 1) number = 0;
+        if (number == 0) {
             if (!connectWiFi(0, true)) {
-                startAP();
+                if (!connectWiFi(1, true)) {
+                    startAP();
+                }
+            }
+        }
+        else {
+            if (!connectWiFi(1, true)) {
+                if (!connectWiFi(0, true)) {
+                    startAP();
+                }
             }
         }
     }
-       
 
 
     //if (WiFi.getMode() != WIFI_STA) startAP();
@@ -1153,6 +1231,12 @@ void setup() {
     webserver.begin();
 
     digitalWrite(LED_BOARD, LOW);
+
+    // Touch-Eingang initialisieren
+    pinMode(TOUCH_PIN, INPUT_PULLDOWN);
+
+    // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
+    touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
 
 }
 
@@ -1177,7 +1261,7 @@ void startAP() {
     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     tft.println("WLAN-Scan...");
     int n = WiFi.scanNetworks();
-    delay(200); // Kurze Pause für Anzeige
+    delay(100); // Kurze Pause für Anzeige
 
     // foundNetworks füllen
     foundNetworkCount = 0;
@@ -1191,6 +1275,9 @@ void startAP() {
 
     WiFi.softAP("clock123", "clock123");
     Serial.println("[WiFi] Started Access Point: clock123");
+
+    // Captive portal: leite alle DNS-Anfragen auf die AP-IP um
+    dnsServer.start(53, "*", WiFi.softAPIP());
 
     clearTFT();
 
@@ -1329,7 +1416,7 @@ void setupNTP() {
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
             tft.printf("NTP failed (%d/10)", attempts);
         }
-        delay(2000);
+        delay(1000);
     }
     if (attempts >= 10) {
         if (verbose_mode) {
@@ -1338,7 +1425,7 @@ void setupNTP() {
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
             tft.println("NTP timeout! Using last known time.");
         }
-        delay(3000);
+        delay(1000);
     }
 }
 
@@ -1348,7 +1435,7 @@ void setupNTP() {
 /// <param name="tz">Die zu setzende Zeitzone als String.</param>
 void setTimezone(String tz) {
     preferences.putString("timezone", tz);
-    configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str());
+    configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str(), "de.pool.ntp.org");
     Serial.println("Set Timezone: " + tz);
 }
 
@@ -1635,6 +1722,10 @@ void setupWebServer() {
 
         html += "<label>Max Brightness (0 - 255):</label><br><input name='maxBrightness' type='number' min='0' max='255' value='" + String(maxBrightness) + "'><br>";
 
+        
+        html += "<label>Full brightness from (hour, 0-23):</label><br><input name='brightStart' type='number' min='0' max='23' value='" + String(brightStartHour) + "'><br>";
+        html += "<label>Full brightness until (hour, 0-23):</label><br><input name='brightEnd' type='number' min='0' max='23' value='" + String(brightEndHour) + "'><br>";
+
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
         html += "<label>Gamma Correction (0.1 - 3.0):</label><br>";
         html += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
@@ -1725,6 +1816,9 @@ void setupWebServer() {
 
         html += "<label>Max Brightness (0 - 255):</label><br><input name='maxBrightness' type='number' min='0' max='255' value='" + String(maxBrightness) + "'><br>";
 
+       
+        html += "<label>Full brightness from (hour, 0-23):</label><br><input name='brightStart' type='number' min='0' max='23' value='" + String(brightStartHour) + "'><br>";
+        html += "<label>Full brightness until (hour, 0-23):</label><br><input name='brightEnd' type='number' min='0' max='23' value='" + String(brightEndHour) + "'><br>";
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
         html += "<label>Gamma Correction (0.1 - 3.0):</label><br>";
         html += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
@@ -1803,6 +1897,12 @@ void setupWebServer() {
         maxBrightness = (uint8_t)webserver.arg("maxBrightness").toInt();
         minBrightness = (uint8_t)webserver.arg("minBrightness").toInt();
 
+        // neue: Zeitabhängige Helligkeit speichern
+        
+        
+        brightStartHour = (uint8_t)constrain(webserver.arg("brightStart").toInt(), 0, 23);
+        brightEndHour = (uint8_t)constrain(webserver.arg("brightEnd").toInt(), 0, 23);
+
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
         gammaBrightness = webserver.arg("gamma").toFloat();
         preferences.putFloat("gammaBrightness", gammaBrightness);
@@ -1815,7 +1915,13 @@ void setupWebServer() {
         preferences.putUChar("maxBrightness", maxBrightness);        
         preferences.putUChar("minBrightness", minBrightness);
          
+        // persist time-based settings
+       
+        preferences.putUChar("brightStart", brightStartHour);
+        preferences.putUChar("brightEnd", brightEndHour);
 
+
+        
 
         webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2; url=/brightness'><title>Saved</title></head>"
@@ -1945,7 +2051,9 @@ void setupWebServer() {
         html += "<li>TFT_RST: " + String(TFT_RST) + "</li><br>";
 
         html += "<li>BUTTON: " + String(BUTTON1) + "</li>";           
-        html += "<li>LED_BOARD: " + String(LED_BOARD) + "</li><br>";
+        html += "<li>LED_BOARD: " + String(LED_BOARD) + "</li>";
+        html += "<li>TOUCH_PIN: " + String(TOUCH_PIN) + "</li><br>";
+        
 
         html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
         html += "<li>ADC(photoresistor): " + String(ADC_PIN) + "</li>";        
@@ -2020,9 +2128,9 @@ void setupWebServer() {
         *(uint16_t*)&bmpData[28] = 16;
         *(uint32_t*)&bmpData[34] = dataSize;
 
-        for (int y = 0; y < CLOCK_WIDTH; y++) {
+        for (int y = 0; y < CLOCK_HEIGHT; y++) {
             uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
-            for (int x = 0; x < CLOCK_HEIGHT; x++) {
+            for (int x = 0; x < CLOCK_WIDTH; x++) {
                 uint16_t px = clockFace[y * CLOCK_WIDTH + x];
                 if (px == TRANSPARENT_COLOR) px = 0xFFFF;
                 ((uint16_t*)rowPtr)[x] = px;
@@ -2472,11 +2580,11 @@ void setupWebServer() {
         html += "</table><hr>";
                
         uint8_t hub_size = preferences.getUInt("centerSize", 6);
-        uint32_t hub_color = preferences.getUInt("centerColor", 0x000000);
+        uint32_t hub_color_rgb = preferences.getLong("centerColor", 0xEC0016);
 
         html += "<h2>Centre point</h2><form action='/setcenter' method='POST'>";
         html += "<label>Size (Pixel):</label><br><input name='size' type='number' min='0' max='50' value='" + String(hub_size) + "'><br>";
-        html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red):</label><br><input name='color' value='" + String((hub_color >> 11 & 0x1F) * 255 / 31 << 16 | (hub_color >> 5 & 0x3F) * 255 / 63 << 8 | (hub_color & 0x1F) * 255 / 31, HEX) + "'><br>";
+        html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red):</label><br><input name='color' value='" + String(hub_color_rgb, HEX) + "'><br>";
         html += "<button type='submit'>Apply</button></form><hr>";
 
         html += "<h3>Upload New Hand Set</h3>";
@@ -2506,7 +2614,7 @@ void setupWebServer() {
             uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 
             preferences.putUInt("centerSize", hub_size);
-            preferences.putUInt("centerColor", rgb565);
+            preferences.putLong("centerColor", rgb);
 
             hub_color = rgb565;
 
@@ -2701,7 +2809,7 @@ bool loadBmpToSprite(TFT_eSprite* sprite, const char* filename) {
         int row = flip ? height - 1 - y : y;
         bmp.read((uint8_t*)rowBuffer, CLOCK_WIDTH * 2);
 
-        for (int x = 0; x < CLOCK_HEIGHT; x++) {
+        for (int x = 0; x < CLOCK_WIDTH; x++) {
             rowBuffer[x] = setPixelBrightness(rowBuffer[x]);
         }
 
@@ -2858,12 +2966,10 @@ bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int
 }
 
 String getBmpInfo(const String& filename) {
+    // Normalisiere Pfad (einfach und eindeutig)
+    String file = filename;
+    if (!file.startsWith("/")) file = "/" + file;
 
-    String file;
-    if (filename.startsWith("/")) file = filename;
-    else file = "/" + filename; if (!filename.startsWith("/")) file = "/" + filename;
-
-    //Serial.println("[BMP Info] Checking file: " + file);
     File bmp = LittleFS.open(file, "r");
     if (!bmp) return "n/a";
 
@@ -3103,4 +3209,156 @@ void scanAndCacheNetworks() {
     }    
     Serial.println("done.");
     digitalWrite(LED_BOARD, LOW);
+}
+
+void switchToNextBackground() {
+    std::vector<String> faces;
+
+    // 1) Sammle alle face_*.bmp Dateien aus LittleFS (verwende Pfad wie File::name() liefert)
+    File root = LittleFS.open("/");
+    if (root) {
+        File f = root.openNextFile();
+        while (f) {
+            String name = f.name(); // meist mit führendem '/'
+            // Akzeptiere sowohl "/face_..." als auch "face_..."
+            if (name.startsWith("/")) {
+                if (name.startsWith("/face_") && name.endsWith(".bmp")) {
+                    // Duplikate vermeiden
+                    bool exists = false;
+                    for (const auto& s : faces) if (s == name) { exists = true; break; }
+                    if (!exists) faces.push_back(name);
+                }
+            }
+            else {
+                if (name.startsWith("face_") && name.endsWith(".bmp")) {
+                    String n = "/" + name;
+                    bool exists = false;
+                    for (const auto& s : faces) if (s == n) { exists = true; break; }
+                    if (!exists) faces.push_back(n);
+                }
+            }
+            f = root.openNextFile();
+        }
+        root.close();
+    }
+
+    // 2) Stelle sicher, dass builtin default vorhanden ist (am Anfang)
+    bool hasDefault = false;
+    for (const auto& s : faces) if (s == "/face_default.bmp") { hasDefault = true; break; }
+    if (!hasDefault) faces.insert(faces.begin(), "/face_default.bmp");
+
+    if (faces.empty()) {
+        Serial.println("[TOUCH] No faces found");
+        return;
+    }
+
+    // 3) Normalisiere aktuellen Auswahlwert
+    String sel = selectedBackground;
+    sel.trim();
+    if (!sel.startsWith("/")) sel = "/" + sel;
+
+    // 4) Bestimme aktuellen Index
+    int idx = -1;
+    for (size_t i = 0; i < faces.size(); ++i) {
+        if (faces[i] == sel) { idx = (int)i; break; }
+    }
+
+    // 5) Wenn nicht gefunden: versuche eine tolerantere Suche (ohne führenden '/')
+    if (idx < 0) {
+        String selNoSlash = sel;
+        if (selNoSlash.startsWith("/")) selNoSlash = selNoSlash.substring(1);
+        for (size_t i = 0; i < faces.size(); ++i) {
+            String cmp = faces[i];
+            if (cmp.startsWith("/")) cmp = cmp.substring(1);
+            if (cmp == selNoSlash) { idx = (int)i; break; }
+        }
+    }
+
+    // 6) Wähle nächstes Element:
+    int next;
+    if (idx < 0) {
+        // Falls aktuelle Auswahl unbekannt ist, wähle erstes user-face (wenn default an pos 0) sonst 0
+        if (faces.size() > 1 && faces[0] == "/face_default.bmp") next = 1;
+        else next = 0;
+    }
+    else {
+        next = (idx + 1) % (int)faces.size();
+    }
+
+    // 7) Übernehme und speichere
+    selectedBackground = faces[next];
+    preferences.putString("background", selectedBackground);
+
+    // Debug
+    Serial.print("[TOUCH] Faces: ");
+    for (const auto& s : faces) Serial.print(s + " ");
+    Serial.println();
+    Serial.println("[TOUCH] Current: " + sel + " idx=" + String(idx) + " -> Next: " + selectedBackground);
+        
+    freeClockFaceBuffer();
+    loadClockFace();
+    loadHandSprites();
+    updateClock();
+}
+
+// --- Funktion: Touch prüfen (nicht-blockierend, mit Entprellung) ---
+void checkTouchInput() {
+
+    uint16_t var = touchRead(TOUCH_PIN);
+
+    bool state = false;
+
+    if (var > 15000 && var < 65535) state = true;
+
+    // Serial.println("Touch read: " + String(var));
+    //Serial.println("Touch state: " + String(state));
+
+    // Flanke LOW->HIGH (kurzer Tip) mit Debounce
+    if (state && !touchLastState && (millis() - touchLastMillis) > TOUCH_DEBOUNCE_MS) {
+        touchLastMillis = millis();
+        Serial.println("switch");
+        switchToNextBackground();
+    }
+    touchLastState = state;
+}
+
+
+// Validiert den geladenen Preferences-Eintrag für background und repariert falls nötig
+static void validateSelectedBackground() {
+    // Normalisieren
+    selectedBackground.trim();
+    if (selectedBackground.length() == 0) selectedBackground = "/face_default.bmp";
+    if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
+
+    Serial.println("[BG] Pref load: '" + selectedBackground + "'");
+
+    // LittleFS muss gemountet sein
+    if (!LittleFS.exists(selectedBackground)) {
+        Serial.println("[BG] File not found: " + selectedBackground);
+        // Versuche tolerant auch ohne führenden Slash (falls gespeichert ohne '/')
+        String withoutSlash = selectedBackground;
+        if (withoutSlash.startsWith("/")) withoutSlash = withoutSlash.substring(1);
+        if (LittleFS.exists("/" + withoutSlash)) {
+            selectedBackground = "/" + withoutSlash;
+            Serial.println("[BG] Found (alt) file: " + selectedBackground);
+        }
+        else {
+            // Fallback auf Default
+            selectedBackground = "/face_default.bmp";
+            preferences.putString("background", selectedBackground);
+            Serial.println("[BG] Falling back to default and saved: " + selectedBackground);
+            return;
+        }
+    }
+
+    // Prüfe BMP-Format (Größe / bpp)
+    if (!checkBmpFormat(selectedBackground)) {
+        Serial.println("[BG] BMP format invalid: " + selectedBackground);
+        selectedBackground = "/face_default.bmp";
+        preferences.putString("background", selectedBackground);
+        Serial.println("[BG] Falling back to default and saved: " + selectedBackground);
+        return;
+    }
+
+    Serial.println("[BG] Background OK: " + selectedBackground);
 }
