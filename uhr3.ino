@@ -11,14 +11,19 @@
 // TFT_eSPI: 2.5.34
 
 // Prozessor
-#define ESP32_S2
+#define ESP32_S2  //only ESP32-S2 supported
 
-// TFT
+// select TFT
 #define GC9A01
 //#define GC9A01_WITH_BACKLIGHT
 //#define GC9D01
 //#define ILI9341 
 
+
+// time server & timezone default
+#define NTP_SERVER_1 "pool.ntp.org"
+#define NTP_SERVER_2 "time.nist.gov"
+#define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Central European Time
 
 //#define DEBUG
 
@@ -31,8 +36,9 @@
 #include <set>
 #include <base64.h>
 #include "nvs_flash.h"
-#include <vector>
+// #include <vector>
 #include <DNSServer.h>
+// #include <HTTPClient.h>
 
 #include "build_defs.h"
 
@@ -51,8 +57,6 @@ DNSServer dnsServer;
 //  see C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\user_setups\Setup304__ESP32S3_GC9D01.h
 
 
-
-
 #define LED_BOARD 15 // BUILTIN LED
 
 #define ADC_3V 1
@@ -60,6 +64,12 @@ DNSServer dnsServer;
 #define ADC_GND 4
 
 #define BUTTON1 16
+
+// Touch 
+#define TOUCH_PIN 9
+
+// Transparent in R5G6B5 RGB(16)
+#define TRANSPARENT_COLOR 0x0120    
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)  
 #define TFT_Backlight 3  // Backlight
@@ -115,11 +125,6 @@ DNSServer dnsServer;
 #define TFT_TEXT_SIZE 2
 #endif
 
-#define TRANSPARENT_COLOR 0x0120    // Transparent in R5G6B5 RGB(16)
-
-// --- neuer GPIO für Touch (anpassen falls nötig) ---
-#define TOUCH_PIN 9
-
 // --- Touch / Debounce State ---
 unsigned long touchLastMillis = 0;
 const unsigned long TOUCH_DEBOUNCE_MS = 300;
@@ -139,9 +144,9 @@ String wifi_ssid[2];
 String wifi_pass[2];
 
 
-String timezone = "CET-1CEST,M3.5.0,M10.5.0/3";
-String ntpServer1 = "pool.ntp.org";
-String ntpServer2 = "time.nist.gov";
+String timezone = TIMEZONE_DEFAULT;
+String ntpServer1 = NTP_SERVER_1;
+String ntpServer2 = NTP_SERVER_2;
 
 bool initial = true;
 
@@ -150,6 +155,10 @@ String selectedBackground = "/face_default.bmp";
 bool stationMode;
 bool smoothMinute;
 bool showSecondHand;
+
+int hourHandWidth = HAND_WIDTH;
+int minuteHandWidth = HAND_WIDTH;
+int secondHandWidth = HAND_WIDTH;
 
 // nabe
 uint16_t hub_color = 0;
@@ -308,10 +317,13 @@ void loadClockFace() {
         else {
             // Fallback: Standard-Zifferblatt aus Array kopieren
             memcpy(clockFaceBuffer, clockFace, CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
-        }
-    
-
+        }    
     }
+
+    // Breiten aus Dateinamen extrahieren
+    parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
+    updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
+
     // Buffer ins Sprite kopieren (mit Helligkeit)
     for (int y = 0; y < CLOCK_HEIGHT; y++) {
         for (int x = 0; x < CLOCK_WIDTH; x++) {
@@ -403,26 +415,18 @@ void loadHandSprites() {
     }
     else {
         for (int y = 0; y < HAND_HEIGHT; y++) {
-
             for (int x = 0; x < HAND_WIDTH; x++) {
-                uint16_t px = handHour[y * HAND_WIDTH + x];
-                rowBuffer[x] = setPixelBrightness(px);
+                rowBuffer[x] = setPixelBrightness(handHour[y * HAND_WIDTH + x]);
             }
             hourHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
-        }
-        for (int y = 0; y < HAND_HEIGHT; y++) {
 
             for (int x = 0; x < HAND_WIDTH; x++) {
-                uint16_t px = handMinute[y * HAND_WIDTH + x];
-                rowBuffer[x] = setPixelBrightness(px);
+                rowBuffer[x] = setPixelBrightness(handMinute[y * HAND_WIDTH + x]);
             }
             minuteHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
-        }
-        for (int y = 0; y < HAND_HEIGHT; y++) {
 
             for (int x = 0; x < HAND_WIDTH; x++) {
-                uint16_t px = handSecond[y * HAND_WIDTH + x];
-                rowBuffer[x] = setPixelBrightness(px);
+                rowBuffer[x] = setPixelBrightness(handSecond[y * HAND_WIDTH + x]);
             }
             secondHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
         }
@@ -480,6 +484,7 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
     return true;
 }
 
+// Haupt-Loop
 void loop() {
     
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
@@ -487,6 +492,7 @@ void loop() {
         dnsServer.processNextRequest();
     }
 
+ 
     webserver.handleClient();
     
     if (WiFi.getMode() == WIFI_STA) {
@@ -519,9 +525,12 @@ void loop() {
             ESP.restart();
         }
     }
+
+    
         
 }
 
+// Button prüfen und ggf. Anzeige oder Factory Reset auslösen
 void checkButton() {
     if (digitalRead(BUTTON1) == HIGH) {
 
@@ -583,15 +592,17 @@ void checkButton() {
 }
 
 
-
+// Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
 float shortestAngleDiff(float from, float to) {
-    float diff = fmodf(to - from + 540.0f, 360.0f) - 180.0f;
+    float diff = fmodf(to - from + 360.0f, 360.0f); // Modulo 360, um Werte im Bereich [0, 360) zu halten
+    if (diff > 180.0f) diff -= 360.0f;             // Kürzeste Richtung wählen
     return diff;
 }
 
 static float lastHourAngle = 0.0f;
 static float lastMinuteAngle = 0.0f;
 
+// updateClock Funktion
 void updateClock() {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) return;
@@ -654,6 +665,7 @@ void updateClock() {
         secAngle = rotatedAngle(smoothSec * 6.0f, orientation);
 
         minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);
+             
 
     }
 
@@ -683,6 +695,8 @@ void updateClock() {
 
             if (fabs(angleDiff) > 0.1f) {
                 lastMinuteAngle += angleDiff * 0.1f;
+                if (lastMinuteAngle < 0.0f) lastMinuteAngle += 360.0f;
+                if (lastMinuteAngle >= 360.0f) lastMinuteAngle -= 360.0f;
             }
             else {
                 lastMinuteAngle = targetMinAngle;
@@ -825,12 +839,14 @@ void updateBrightness() {
 
 }
 
+//
 float easeInOutSine(float t) {
     // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
     float intensity = 0.5f;
     return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
 }
 
+/// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
 String encodeBmpToBase64(const uint16_t* data, int width, int height) {
     const int headerSize = 54;
     const int rowSize = ((width * 2 + 3) / 4) * 4;
@@ -911,6 +927,7 @@ void checkNightlyTimeSync() {
     }
 }
 
+// Überprüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
 void checkWiFiReconnect() {
     static unsigned long lastAttempt = 0;
     if (WiFi.status() == WL_CONNECTED) return;
@@ -927,6 +944,7 @@ void checkWiFiReconnect() {
 
 }
 
+// Setup-Funktion
 void setup() {
 
     Serial.begin(115200);
@@ -938,7 +956,6 @@ void setup() {
     }
 
     Serial.println("[Setup] Start");
-
     
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
@@ -967,10 +984,13 @@ void setup() {
 #endif
 
 
-    if (preferences.getInt("firstStart", 0) != 42) {
+
+#define MAGIC_NUMBER 42
+
+    if (preferences.getInt("firstStart", 0) != MAGIC_NUMBER) {
         Serial.println("[Preferences] First start detected, initializing...");
 
-        preferences.putInt("firstStart", 42);
+        preferences.putInt("firstStart", MAGIC_NUMBER);
 
         preferences.putString("ssid1", "");
         preferences.putString("pass1", "");
@@ -978,10 +998,10 @@ void setup() {
         preferences.putString("pass2", "");
         preferences.putInt("lastWLan", 0);
 
-        preferences.putString("ntpServer1", "pool.ntp.org");
-        preferences.putString("ntpServer2", "time.nist.gov");
+        preferences.putString("ntpServer1", NTP_SERVER_1);
+        preferences.putString("ntpServer2", NTP_SERVER_2);
 
-        preferences.putString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+        preferences.putString("timezone", TIMEZONE_DEFAULT);
 
         preferences.putUChar("tft_rotation", 0);
         preferences.putString("handset", "default");
@@ -1029,10 +1049,10 @@ void setup() {
         preferences.begin("clock", false);
     }
 
-    ntpServer1 = preferences.getString("ntpServer1", "pool.ntp.org");
-    ntpServer2 = preferences.getString("ntpServer2", "time.nist.gov");
+    ntpServer1 = preferences.getString("ntpServer1", NTP_SERVER_1);
+    ntpServer2 = preferences.getString("ntpServer2", NTP_SERVER_2);
 
-    timezone = preferences.getString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+    timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
     setTimezone(timezone);
 
     Serial.println("[NTP] Aktuelle NTP-Server: " + ntpServer1 + " / " + ntpServer2);
@@ -1073,8 +1093,7 @@ void setup() {
     // ADC +3,3 / GND über GPIO
     pinMode(ADC_GND, OUTPUT);
     pinMode(ADC_3V, OUTPUT);
-    delay(100);
-
+    
     digitalWrite(ADC_GND, false);
     digitalWrite(ADC_3V, false);
     delay(100);
@@ -1241,6 +1260,7 @@ void setup() {
 }
 
 
+// clear TFT display
 void clearTFT() {
     tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
 }
@@ -1347,15 +1367,15 @@ bool connectWiFi(int number, bool verbose_mode) {
         
         tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
         tft.print(". ");
-        delay(200);
+        delay(50);
 
         tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
         tft.print(" . ");
-        delay(200);
+        delay(50);
 
         tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
         tft.print("  .");
-        delay(200);
+        delay(50);
 
     }
     if (WiFi.status() == WL_CONNECTED) {
@@ -1376,11 +1396,11 @@ bool connectWiFi(int number, bool verbose_mode) {
             tft.println(WiFi.localIP());
         }
 
-       
+        
         preferences.putInt("lastWLan", number);
         Serial.println("[WiFi] set lastWLan: " + (String)number);
         
-        delay(1500);
+        delay(100);
         if (!WiFi.softAPgetStationNum()) updateClock();
         return true;
     }
@@ -1402,21 +1422,23 @@ void setupNTP() {
         tft.setCursor(10, (CLOCK_HEIGHT / 2));
     }
 
-    timezone = preferences.getString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+    timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
-    //Serial.println("[NTP] " + timezone);
+    Serial.println("[NTP] " + timezone);
     setTimezone(timezone);
     struct tm timeinfo;
     int attempts = 0;
+    delay(100);
     while (!getLocalTime(&timeinfo, 5000) && attempts < 10) {
         attempts++;
         if (verbose_mode) {
             tft.fillScreen(TFT_BLACK);
             tft.setTextColor(TFT_RED, TFT_BLACK);
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
-            tft.printf("NTP failed (%d/10)", attempts);
+            tft.printf("NTP failed (%d/10)", attempts);            
         }
-        delay(1000);
+        Serial.printf("[NTP] Attempt %d/10 failed to get time from NTP server.\n", attempts);
+        delay(100);
     }
     if (attempts >= 10) {
         if (verbose_mode) {
@@ -1425,7 +1447,8 @@ void setupNTP() {
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
             tft.println("NTP timeout! Using last known time.");
         }
-        delay(1000);
+        Serial.printf("[NTP] Failed to get time from NTP server after 10 attempts. Using last known time.\n");
+        delay(100);
     }
 }
 
@@ -1520,15 +1543,18 @@ void setupWebServer() {
      
 
     webserver.on("/timezone_form", HTTP_GET, []() {
-        String timezone = preferences.getString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+        String timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
         struct TimezoneEntry {
             const char* label;
             const char* value;
         } tzList[] = {
-            {"Germany (DST auto)", "CET-1CEST,M3.5.0,M10.5.0/3"},
+            {"Germany (DST auto)", TIMEZONE_DEFAULT},
             {"Germany (fixed summer time)", "CEST-2"},
             {"Germany (fixed winter time)", "CET-1"},
+            {"Ireland (DST auto)", "GMT0BST,M3.5.0/1,M10.5.0"},
+            {"Ireland (fixed summer time)", "BST-1"},
+            {"Ireland (fixed winter time)", "GMT0"},
             {"UK (DST auto)", "GMT0BST,M3.5.0/1,M10.5.0"},
             {"UK (fixed summer time)", "BST-1"},
             {"UK (fixed winter time)", "GMT0"},
@@ -1935,7 +1961,8 @@ void setupWebServer() {
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
         html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        html += "<br>Storage: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB <hr>";
+        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
 
         html += "<h2>All Files on LittleFS</h2><table border='1'><tr><th align=left>Filename</th><th>Size (bytes)</th><th>Info</th><th>Action</th></tr>";
 
@@ -1969,7 +1996,9 @@ void setupWebServer() {
 
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;<br>Storage: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB<hr>";
+        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
+        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
 
         html += "<h2>ESP System Status</h2><ul>";
 
@@ -2024,6 +2053,7 @@ void setupWebServer() {
         html += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
         html += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
         html += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li><br>";
+        html += "<li>Free Sketch Space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li><br>";
 
         html += "<li>PSRam size: " + String(ESP.getPsramSize() /1024) + " kB</li>";
         html += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li>";
@@ -2057,7 +2087,9 @@ void setupWebServer() {
 
         html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
         html += "<li>ADC(photoresistor): " + String(ADC_PIN) + "</li>";        
-        html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";           
+        html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";    
+        html += "<li>ADC val: " + String(analogRead(ADC_PIN)) + "</li><br>";
+
 
 
 #ifndef TFT_Backlight 
@@ -2071,9 +2103,9 @@ void setupWebServer() {
         html += "<h3>Actual Preferences</h3><ul>";
         html += "<li><b>ssid</b>: " + preferences.getString("ssid1", "") + "</li>";
         html += "<li><b>ssid2</b>: " + preferences.getString("ssid2", "") + "</li>";
-        html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", "pool.ntp.org") + "</li>";
-        html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", "time.nist.gov") + "</li>";   
-        html += "<li><b>timezone</b>: " + preferences.getString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3") + "</li>";
+        html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
+        html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";   
+        html += "<li><b>timezone</b>: " + preferences.getString("timezone", TIMEZONE_DEFAULT) + "</li>";
         html += "<li><b>background</b>: " + preferences.getString("background", "/faces/default") + "</li>";
         html += "<li><b>handset</b>: " + preferences.getString("handset", "") + "</li>";
         html += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt("centerColor", TFT_RED), HEX) + "</li>";
@@ -2110,36 +2142,53 @@ void setupWebServer() {
         });
 
         webserver.on("/preview_defaultface", HTTP_GET, []() {
-        const int headerSize = 54;
-        const int rowSize = ((CLOCK_WIDTH * 2 + 3) / 4) * 4;
-        const int dataSize = rowSize * CLOCK_HEIGHT;
-        const int fileSize = headerSize + dataSize;
+            const int headerSize = 54;
+            const int rowSize = ((CLOCK_WIDTH * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel für RGB888
+            const int dataSize = rowSize * CLOCK_HEIGHT;
+            const int fileSize = headerSize + dataSize;
 
-        uint8_t* bmpData = new uint8_t[fileSize];
-        memset(bmpData, 0, fileSize);
+            uint8_t* bmpData = new uint8_t[fileSize];
+            memset(bmpData, 0, fileSize);
 
-        bmpData[0] = 'B'; bmpData[1] = 'M';
-        *(uint32_t*)&bmpData[2] = fileSize;
-        *(uint32_t*)&bmpData[10] = headerSize;
-        *(uint32_t*)&bmpData[14] = 40;
-        *(int32_t*)&bmpData[18] = CLOCK_WIDTH;
-        *(int32_t*)&bmpData[22] = -CLOCK_HEIGHT;
-        *(uint16_t*)&bmpData[26] = 1;
-        *(uint16_t*)&bmpData[28] = 16;
-        *(uint32_t*)&bmpData[34] = dataSize;
+            // BMP-Header
+            bmpData[0] = 'B'; bmpData[1] = 'M';
+            *(uint32_t*)&bmpData[2] = fileSize;
+            *(uint32_t*)&bmpData[10] = headerSize;
+            *(uint32_t*)&bmpData[14] = 40;
+            *(int32_t*)&bmpData[18] = CLOCK_WIDTH;
+            *(int32_t*)&bmpData[22] = -CLOCK_HEIGHT; // Top-down BMP
+            *(uint16_t*)&bmpData[26] = 1;
+            *(uint16_t*)&bmpData[28] = 24; // 24-Bit Farbtiefe
+            *(uint32_t*)&bmpData[34] = dataSize;
 
-        for (int y = 0; y < CLOCK_HEIGHT; y++) {
-            uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
-            for (int x = 0; x < CLOCK_WIDTH; x++) {
-                uint16_t px = clockFace[y * CLOCK_WIDTH + x];
-                if (px == TRANSPARENT_COLOR) px = 0xFFFF;
-                ((uint16_t*)rowPtr)[x] = px;
+            // Pixel-Daten (RGB565 → RGB888)
+            for (int y = 0; y < CLOCK_HEIGHT; y++) {
+                uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
+                for (int x = 0; x < CLOCK_WIDTH; x++) {
+                    uint16_t px = clockFace[y * CLOCK_WIDTH + x];
+
+                    // Transparente Farbe ersetzen
+                    if (px == TRANSPARENT_COLOR) {
+                        rowPtr[x * 3 + 0] = 255; // Blau
+                        rowPtr[x * 3 + 1] = 255; // Grün
+                        rowPtr[x * 3 + 2] = 255; // Rot
+                        continue;
+                    }
+
+                    // RGB565 → RGB888
+                    uint8_t r = (px >> 8) & 0xF8; // obere 5 Bits
+                    uint8_t g = (px >> 3) & 0xFC; // mittlere 6 Bits
+                    uint8_t b = (px << 3) & 0xF8; // untere 5 Bits
+
+                    rowPtr[x * 3 + 0] = b; // Blau
+                    rowPtr[x * 3 + 1] = g; // Grün
+                    rowPtr[x * 3 + 2] = r; // Rot
+                }
             }
-        }
 
-        webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
-        delete[] bmpData;
-        });
+            webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
+            delete[] bmpData;
+            });
 
         webserver.on("/listfilesFaces", HTTP_GET, []() {
 
@@ -2150,15 +2199,18 @@ void setupWebServer() {
         String html = "<!DOCTYPE html><html><head><title>Clock Face Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head>";
 
 
-        html += "Connected to : <strong>" + WiFi.SSID() + " </strong > (" + WiFi.localIP().toString() + ")" + (WiFi.SSID() == wifi_ssid[1] ? " (secondary)" : "") + " &nbsp;&nbsp; ";
-        html += "<br>Storage used : " + String(used / 1024) + " KB / " + String(total / 1024) + " KB<hr>";
+        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
+        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
 
-        html += "<h2>Manage Clock Face Files " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>Preview</th><th>Action</th></tr>";
+        html += "<h2>Manage Clock Face Files " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>Preview/Set</th></tr>";
 
         // Add built-in default face
-        html += "<tr><td>default (built-in)<br>";
-        html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'></td>";
-        html += "<td><a href='/setbackground?file=face_default.bmp'>Set</a></td></tr>";
+        html += "<tr><td>";
+        html += "<a href='/setbackground?file=face_default.bmp'>";
+        html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+        html += "</a><br>default (built-in)</td>";
+        html += "</tr>";
 
         File root = LittleFS.open("/");
         File file = root.openNextFile();
@@ -2174,9 +2226,10 @@ void setupWebServer() {
                 anyFile = true;
                 String shortName = name;
                 String info = getBmpInfo(name);
-                html += "<tr><td>" + shortName + "<br><img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'><br><small>" + String(info) + "</small></td>";
-                html += "<td><a href='/setbackground?file=" + shortName + "'>Set</a> | ";
-                html += "<a href='/delete?file=" + shortName + "'>Delete</a></td></tr>";
+                html += "<tr><td>";
+                html += "<a href='/setbackground?file=" + shortName + "'>";
+                html += "<img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+                html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";                
             }
             file = root.openNextFile();
         }
@@ -2246,8 +2299,16 @@ void setupWebServer() {
 
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        html += "<br>Storage: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB <hr>";
+        if (WiFi.getMode() == WIFI_STA) {
+            html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
+        } 
+        else {
+            html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.softAPIP().toString() + ")" + "&nbsp;&nbsp;";
+        }
+
+
+        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
         html += "<h2>Clock Setup</h2>";
 
         html += "<form action = '/save' method = 'POST'>";
@@ -2510,8 +2571,11 @@ void setupWebServer() {
         String html = "<!DOCTYPE html><html><head><title>Clock Hand Set Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:10px;}img{height:50px;}</style></head><body>";
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;<br>Storage: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB<hr>";
-        html += "<h2>Manage Clock Hand Sets " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th>Set</th><th>Preview</th><th>Action</th></tr>";
+        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
+        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
+        
+        html += "<h2>Manage Clock Hand Sets " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th>Preview/Set</th></tr>";
 
         String activeSet = preferences.getString("handset", "");
         std::set<String> foundSets;
@@ -2549,14 +2613,13 @@ void setupWebServer() {
 
 
         // Always show default as built-in
-        html += "<tr><td>default (built-in)</td><td>";
+        html += "<tr><td>default</td><td>";
+        html += "<a href='/sethandset?set=default'>";
         html += "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
         html += "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
-        html += "<img src='data:image/bmp;charset=utf-8;base64, " + handSecondBase64 + "'> ";
-        html += "</td>";
-        //html += "<td> </td>";
-        html += "<td><a href = '/sethandset?set=default'>Set</a></td> ";
-        html += "</tr>";
+        html += "<img src='data:image/bmp;charset=utf-8;base64, " + handSecondBase64 + "'>";
+        html += "</a>";
+        html += "</td></tr>";
 
         
         for (const String& set : foundSets) {
@@ -2564,16 +2627,15 @@ void setupWebServer() {
             String hourPath = "/hand_set" + set + "_hour.bmp";
             String minutePath = "/hand_set" + set + "_minute.bmp";
             String secondPath = "/hand_set" + set + "_second.bmp";
+            html += "<a href='/sethandset?set=" + set + "'>";
             html += LittleFS.exists(hourPath) ? "<img src='/file?name=" + hourPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
             html += LittleFS.exists(minutePath) ? "<img src='/file?name=" + minutePath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
-           
-             
-            html += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'> ";
+            html += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
+            html += "</a>";
                 
 
             html += "</td>";
-         //   html += "<td> </td>";
-            html += "<td><a href = '/sethandset?set=" + set + "'>Set</a> | <a href = '/deletehandset?set=" + set + "' onclick = \"return confirm('Delete this hand set?')\">Delete</a></td>";
+         
             html +="</tr>";
         }
         
@@ -2718,6 +2780,8 @@ void setupWebServer() {
 
 }
 
+
+// Handhabt den Datei-Upload
 void handleFileUpload() {
     HTTPUpload& upload = webserver.upload();
 
@@ -2757,9 +2821,22 @@ void handleFileUpload() {
                     bool isHand = uploadFilePath.indexOf("hour") > 0 || uploadFilePath.indexOf("minute") > 0 || uploadFilePath.indexOf("second") > 0;
                     if (uploadFilePath.startsWith("/face_")) {
                         Serial.println("[UPLOAD] Detected Clock Face upload");
+
+                        if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), TFT_WIDTH, TFT_HEIGHT)) {
+                            Serial.println("[UPLOAD] Scaling failed!");
+                            uploadSuccess = false;
+                            return;
+                        }
+
                     }
                     else if (uploadFilePath.startsWith("/hand_set")) {
                         Serial.println("[UPLOAD] Detected Clock Hand upload");
+
+                        if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
+                            Serial.println("[UPLOAD] Scaling failed!");
+                            uploadSuccess = false;
+                            return;
+                        }
                     }                    
                 }
             }
@@ -2774,7 +2851,7 @@ void handleFileUpload() {
     }
 }
 
-
+// Lädt eine BMP-Datei in einen Sprite ohne PSRAM
 bool loadBmpToSprite(TFT_eSprite* sprite, const char* filename) {
 
     if (psramAvailable) {
@@ -2822,7 +2899,7 @@ bool loadBmpToSprite(TFT_eSprite* sprite, const char* filename) {
 
 
 
-
+// Lädt eine BMP-Datei in einen Sprite unter Verwendung von PSRAM und rotiert das Bild basierend auf der Display-Rotation
 bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
 
     
@@ -2930,6 +3007,7 @@ float rotatedAngle(float angle, int orientation) {
     return angle;
 }
 
+// Überprüft, ob die BMP-Datei das erwartete Format hat
 bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) {
     File bmpFile = LittleFS.open(filename, "r");
     if (!bmpFile) {
@@ -2965,14 +3043,16 @@ bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int
     return true;
 }
 
+// Liest die BMP-Header-Informationen und gibt sie als String zurück
 String getBmpInfo(const String& filename) {
     // Normalisiere Pfad (einfach und eindeutig)
     String file = filename;
     if (!file.startsWith("/")) file = "/" + file;
 
     File bmp = LittleFS.open(file, "r");
-    if (!bmp) return "n/a";
-
+    if (!bmp) {
+        return "n/a";
+    }
     uint8_t header[54];
     if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
         bmp.close();
@@ -2987,13 +3067,15 @@ String getBmpInfo(const String& filename) {
     return String(abs(width)) + " x " + String(abs(height)) + " / " + String(bpp) + " bpp";
 }
 
+// Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
 bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
-
     Serial.println("[BMP Scale] Scaling BMP: " + String(sourcePath) + " to " + String(targetPath));
     File bmp = LittleFS.open(sourcePath, "r");
-    if (!bmp) {        
+    if (!bmp) {
         Serial.println("[BMP Scale] Failed to open source file");
+        return false;
     }
+
     uint8_t header[54];
     if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
         bmp.close();
@@ -3006,9 +3088,9 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     uint16_t bpp = *(uint16_t*)&header[28];
     uint32_t offset = *(uint32_t*)&header[10];
 
-    if (bpp != 16 || inW <= 0 || abs(inH) <= 0) {
+    if (inW <= 0 || abs(inH) <= 0) {
         bmp.close();
-        Serial.println("[BMP Scale] Invalid BMP format or dimensions");
+        Serial.println("[BMP Scale] Invalid BMP dimensions");
         return false;
     }
 
@@ -3017,7 +3099,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     float scaleX = (float)inW / outW;
     float scaleY = (float)inH / outH;
 
-    int inRowSize = ((inW * 2 + 3) / 4) * 4;
+    int inRowSize = ((inW * (bpp / 8) + 3) / 4) * 4;
     uint8_t* rowBuf = (uint8_t*)malloc(inRowSize);
     if (!rowBuf) {
         bmp.close();
@@ -3031,11 +3113,34 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
         int srcY = flip ? (inH - 1 - int(y * scaleY)) : int(y * scaleY);
         bmp.seek(offset + inRowSize * srcY);
         bmp.read(rowBuf, inRowSize);
-        uint16_t* row16 = (uint16_t*)rowBuf;
 
         for (int x = 0; x < outW; x++) {
             int srcX = int(x * scaleX);
-            outImage[y * outW + x] = row16[srcX];
+            uint16_t pixel = 0;
+
+            if (bpp == 16) {
+                // 16 bpp (RGB565) → direkt übernehmen
+                uint16_t* row16 = (uint16_t*)rowBuf;
+                pixel = row16[srcX];
+            }
+            else if (bpp == 24) {
+                // 24 bpp (RGB888) → 16 bpp (RGB565)
+                uint8_t* row24 = rowBuf + (srcX * 3);
+                uint8_t r = row24[2];
+                uint8_t g = row24[1];
+                uint8_t b = row24[0];
+                pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            }
+            else if (bpp == 32) {
+                // 32 bpp (ARGB8888) → 16 bpp (RGB565)
+                uint8_t* row32 = rowBuf + (srcX * 4);
+                uint8_t r = row32[2];
+                uint8_t g = row32[1];
+                uint8_t b = row32[0];
+                pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            }
+
+            outImage[y * outW + x] = pixel;
         }
     }
 
@@ -3079,6 +3184,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     return true;
 }
 
+// --- Funktion: Löscht die gespeicherten WiFi-Konfigurationen ---
 void eraseWiFiConfig() {
     // WLAN trennen und komplett deaktivieren
     WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen
@@ -3099,6 +3205,7 @@ void eraseWiFiConfig() {
     }
 }
 
+// --- Funktion: Löscht den gesamten NVS-Speicher ---
 void eraseAllNVS() {
     // Löscht gesamten NVS-Speicher
     esp_err_t result = nvs_flash_erase();
@@ -3111,6 +3218,7 @@ void eraseAllNVS() {
     }
 }
 
+// --- Funktion: Führt einen Factory Reset durch ---
 void factoryReset() {
     tft.fillScreen(TFT_BLACK);
     preferences.begin("clock", false);
@@ -3118,6 +3226,9 @@ void factoryReset() {
     preferences.end();
     delay(100);
     Serial.println(">>> Factory Reset gestartet...");
+    LittleFS.begin();
+    LittleFS.format();
+    LittleFS.end();
     eraseWiFiConfig();
     eraseAllNVS();
     delay(2000);
@@ -3126,6 +3237,7 @@ void factoryReset() {
          
 }
 
+// --- Funktion: Führt einen Reboot durch mit Anzeige ---
 void esp_reboot() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -3138,6 +3250,8 @@ void esp_reboot() {
     ESP.restart();
 }
 
+
+// --- Funktion: Prüft, ob ein wöchentlicher Neustart fällig ist ---
 void checkWeeklyRestart() {
 
     struct tm timeinfo;
@@ -3167,26 +3281,8 @@ void checkWeeklyRestart() {
     }
 }
 
-void scaleAllFacesTo80x80() {
-    File root = LittleFS.open("/");
-    File file = root.openNextFile();
-    while (file) {
-        String name = file.name();
-        if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
-            String target = "/face80_" + name.substring(1); // z.B. /face80_bigben.bmp
-            Serial.printf("[SCALE] %s -> %s\n", name.c_str(), target.c_str());
-            bool ok = scaleAndSaveBmp(name.c_str(), target.c_str(), 80, 80);
-            if (ok) {
-                Serial.println("  -> OK");
-            }
-            else {
-                Serial.println("  -> Fehler beim Skalieren");
-            }
-        }
-        file = root.openNextFile();
-    }
-}
 
+// --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
 void scanAndCacheNetworks() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -3211,6 +3307,7 @@ void scanAndCacheNetworks() {
     digitalWrite(LED_BOARD, LOW);
 }
 
+// --- Funktion: Wechselt zum nächsten Hintergrundbild ---
 void switchToNextBackground() {
     std::vector<String> faces;
 
@@ -3361,4 +3458,74 @@ static void validateSelectedBackground() {
     }
 
     Serial.println("[BG] Background OK: " + selectedBackground);
+}
+
+// Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
+void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) {
+    // Aktualisiere die globalen Breiten
+    hourHandWidth = newHourWidth;
+    minuteHandWidth = newMinuteWidth;
+    secondHandWidth = newSecondWidth;
+
+    // Alte Sprites löschen
+    hourHandSprite.deleteSprite();
+    minuteHandSprite.deleteSprite();
+    secondHandSprite.deleteSprite();
+
+    // Neue Sprites erstellen
+    hourHandSprite.createSprite(hourHandWidth, HAND_HEIGHT);
+    hourHandSprite.setSwapBytes(true);
+    hourHandSprite.setColorDepth(16);
+    hourHandSprite.setPivot(hourHandWidth / 2, HAND_HEIGHT * 0.77);
+
+    minuteHandSprite.createSprite(minuteHandWidth, HAND_HEIGHT);
+    minuteHandSprite.setSwapBytes(true);
+    minuteHandSprite.setColorDepth(16);
+    minuteHandSprite.setPivot(minuteHandWidth / 2, HAND_HEIGHT * 0.77);
+
+    secondHandSprite.createSprite(secondHandWidth, HAND_HEIGHT);
+    secondHandSprite.setSwapBytes(true);
+    secondHandSprite.setColorDepth(16);
+    secondHandSprite.setPivot(secondHandWidth / 2, HAND_HEIGHT * 0.77);
+
+    // Zeiger neu laden
+    loadHandSprites();
+}
+
+// Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes
+void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) {
+    // Standardwerte setzen
+    hourWidth = HAND_WIDTH;
+    minuteWidth = HAND_WIDTH;
+    secondWidth = HAND_WIDTH;
+
+    // Suche nach dem ersten `#`
+    int firstHash = filename.indexOf('!');
+    if (firstHash == -1) {
+        // Kein `!` gefunden, Standardwerte verwenden
+        return;
+    }
+
+    // Schneide den relevanten Teil nach dem ersten `#` ab
+    String params = filename.substring(firstHash + 1);
+
+    // Teile die Parameter anhand von `!`
+    int secondHash = params.indexOf('!');
+    int thirdHash = params.indexOf('!', secondHash + 1);
+
+    if (secondHash != -1 && thirdHash != -1) {
+        // Extrahiere die Werte
+        hourWidth = params.substring(0, secondHash).toInt();
+        minuteWidth = params.substring(secondHash + 1, thirdHash).toInt();
+        secondWidth = params.substring(thirdHash + 1).toInt();
+    }
+
+    if (hourWidth <= 0) hourWidth = HAND_WIDTH;
+    if (minuteWidth <= 0) minuteWidth = HAND_WIDTH;
+    if (secondWidth <= 0) secondWidth = HAND_WIDTH;
+
+    if (hourWidth > HAND_WIDTH) hourWidth = HAND_WIDTH;
+    if (minuteWidth > HAND_WIDTH) minuteWidth = HAND_WIDTH;
+    if (secondWidth > HAND_WIDTH) secondWidth = HAND_WIDTH;
+
 }
