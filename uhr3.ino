@@ -36,9 +36,7 @@
 #include <set>
 #include <base64.h>
 #include "nvs_flash.h"
-// #include <vector>
 #include <DNSServer.h>
-// #include <HTTPClient.h>
 
 #include "build_defs.h"
 
@@ -132,6 +130,7 @@ bool touchLastState = false;
 // --- Touch enable flag: aktivieren erst nach Setup-Initialisierung ---
 bool touchEnabled = false;
 unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
+bool useTouch = false; // Touch verwenden
 
 String tft_type = "UNKNOWN";
 
@@ -175,6 +174,7 @@ uint16_t rowBuffer[CLOCK_WIDTH];
 
 static bool psramAvailable = false;
 
+bool adcInverted = false; // Standardmäßig nicht invertiert
 uint16_t adc_min = 0;
 uint16_t adc_max = 0;   
 bool use_adc = false; 
@@ -486,37 +486,39 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 
 // Haupt-Loop
 void loop() {
-    
+
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
         dnsServer.processNextRequest();
     }
 
- 
+
     webserver.handleClient();
-    
+
     if (WiFi.getMode() == WIFI_STA) {
         //updateBrightness();
         checkWiFiReconnect();
         updateClock();
-        
-        checkNightlyTimeSync();  
+
+        checkNightlyTimeSync();
         checkWeeklyRestart();
         initial = false;
     }
 
-    checkButton();  
+    checkButton();
     updateBrightness();
 
-    // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
-    if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
-        touchEnabled = true;
-        Serial.println("[TOUCH] Enabled");
-    }
+    if (useTouch) {
+        // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
+        if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
+            touchEnabled = true;
+            Serial.println("[TOUCH] Enabled");
+        }
 
-    if (touchEnabled) {
-        // Touch-Input prüfen und ggf. Hintergrund wechseln
-        checkTouchInput();
+        if (touchEnabled) {
+            // Touch-Input prüfen und ggf. Hintergrund wechseln
+            checkTouchInput();
+        }
     }
 
 
@@ -684,6 +686,10 @@ void updateClock() {
             float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
             float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
 
+            // Sicherstellen, dass der Zeiger immer vorwärts läuft
+            if (angleDiff < -180.0f) angleDiff += 360.0f;
+            if (angleDiff > 180.0f) angleDiff -= 360.0f;
+
             lastMinuteAngle += angleDiff * 0.01f;  // noch feinere Bewegung
 
         }
@@ -779,7 +785,7 @@ void updateBrightness() {
         // Normale Auto-Brightness oder statische Helligkeit
         if (use_adc) {
 
-            int adcRaw = analogRead(ADC_PIN);
+            int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
             // Serial.printf("[ADC] Raw value: %d\n", adcRaw);
 
             if (initial) {
@@ -837,6 +843,13 @@ void updateBrightness() {
     ledcWrite(TFT_Backlight, currentBrightness);  // 0–255
 #endif
 
+}
+
+int getAdjustedAdcValue(int rawValue) {
+    if (adcInverted) {
+        return 4096 - rawValue; // Invertiere den Wert
+    }
+    return rawValue; // Standardwert
 }
 
 //
@@ -956,7 +969,7 @@ void setup() {
     }
 
     Serial.println("[Setup] Start");
-    
+
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
 #elif defined GC9D01    
@@ -1043,7 +1056,8 @@ void setup() {
 #else
         preferences.putUChar("tft_rotation", 0);
 #endif
-
+        preferences.putBool("adcInverted", false);
+        preferences.putBool("useTouch", false);
 
         preferences.end();
         preferences.begin("clock", false);
@@ -1074,11 +1088,14 @@ void setup() {
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
     // Zeitabhängige Helligkeit aus Preferences
-   
+
     brightStartHour = preferences.getUChar("brightStart", 8);
     brightEndHour = preferences.getUChar("brightEnd", 20);
 
-   
+    adcInverted = preferences.getBool("adcInverted", false);
+
+    useTouch = preferences.getBool("useTouch", false);
+
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT) 
     gammaBrightness = preferences.getFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur für Helligkeit
@@ -1093,7 +1110,7 @@ void setup() {
     // ADC +3,3 / GND über GPIO
     pinMode(ADC_GND, OUTPUT);
     pinMode(ADC_3V, OUTPUT);
-    
+
     digitalWrite(ADC_GND, false);
     digitalWrite(ADC_3V, false);
     delay(100);
@@ -1152,9 +1169,9 @@ void setup() {
     tft.fillScreen(TFT_BLACK);
 
     tft_rotation = preferences.getUChar("tft_rotation", 0);
-       
+
     selectedBackground = preferences.getString("background", "/face_default.bmp");
-    
+
 
     validateSelectedBackground();
 
@@ -1251,12 +1268,13 @@ void setup() {
 
     digitalWrite(LED_BOARD, LOW);
 
-    // Touch-Eingang initialisieren
-    pinMode(TOUCH_PIN, INPUT_PULLDOWN);
+    if (useTouch) {
+        // Touch-Eingang initialisieren
+        pinMode(TOUCH_PIN, INPUT_PULLDOWN);
 
-    // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
-    touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
-
+        // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
+        touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
+    }
 }
 
 
@@ -1738,7 +1756,11 @@ void setupWebServer() {
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
 
         if (photoresistorFound) {
-            html += "<label><input type='checkbox' name='use_adc' value='1' " + String(use_adc ? "checked" : "") + "> Enable Auto Brightness</label><br>";
+            html += "<table style='margin:auto;text-align:left;'><tr>";
+            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(use_adc ? "checked" : "") + "> Enable Auto Brightness</label></td>";
+
+            html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> Invert ADC Reading</label></td>";
+            html += "</tr></table><hr><br>";
 
             html += "<label>Low Threshold (0 - 100%):</label><br><input name='lowThreshold' type='number' min='0' max='100' value='" + String(lowThreshold) + "'><br>";
             html += "<label>High Threshold (0 - 100%):</label><br><input name='highThreshold' type='number' min='0' max='100' value='" + String(highThreshold) + "'><br>";
@@ -1832,7 +1854,11 @@ void setupWebServer() {
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
 
         if (photoresistorFound) {
-            html += "<label><input type='checkbox' name='use_adc' value='1' " + String(use_adc ? "checked" : "") + "> Enable Auto Brightness</label><br>";
+            html += "<table style='margin:auto;text-align:left;'><tr>";
+            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(use_adc ? "checked" : "") + "> Enable Auto Brightness</label></td>";
+
+            html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> Invert ADC Reading</label></td>";
+            html += "</tr></table><hr><br>";
 
             html += "<label>Low Threshold (0 - 100):</label><br><input name='lowThreshold' type='number' min='0' max='100' value='" + String(lowThreshold) + "'><br>";
             html += "<label>High Threshold (0 - 100):</label><br><input name='highThreshold' type='number' min='0' max='100' value='" + String(highThreshold) + "'><br>";
@@ -1917,6 +1943,7 @@ void setupWebServer() {
 
     webserver.on("/save_brightness", HTTP_POST, []() {
         use_adc = webserver.hasArg("use_adc");
+        adcInverted = webserver.hasArg("adcInverted");
         lowThreshold = webserver.arg("lowThreshold").toInt();
         highThreshold = webserver.arg("highThreshold").toInt();
         
@@ -1935,6 +1962,7 @@ void setupWebServer() {
 #endif
 
         preferences.putBool("use_adc", use_adc);
+        preferences.putBool("adcInverted", adcInverted);
         preferences.putInt("lowThreshold", lowThreshold);
         preferences.putInt("highThreshold", highThreshold);
        
@@ -2082,13 +2110,14 @@ void setupWebServer() {
 
         html += "<li>BUTTON: " + String(BUTTON1) + "</li>";           
         html += "<li>LED_BOARD: " + String(LED_BOARD) + "</li>";
-        html += "<li>TOUCH_PIN: " + String(TOUCH_PIN) + "</li><br>";
+        html += "<li>TOUCH_PIN: " + String(TOUCH_PIN) + "</li>";
+        html += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";  
         
 
         html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
         html += "<li>ADC(photoresistor): " + String(ADC_PIN) + "</li>";        
         html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";    
-        html += "<li>ADC val: " + String(analogRead(ADC_PIN)) + "</li><br>";
+        html += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
 
 
 
@@ -2123,6 +2152,8 @@ void setupWebServer() {
         
         html += "<li><b>lowThreshold</b>: " + String(preferences.getInt("lowThreshold", 40)) + "</li>";
         html += "<li><b>highThreshold</b>: " + String(preferences.getInt("highThreshold", 60)) + "</li>";
+        html += "<li><b>adc Inverted</b>: " + String(preferences.getBool("adcInverted", false) ? "true" : "false") + "</li>";
+        html += "<li>use Touch: " + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
         html += "</ul>";
 
 
@@ -3499,7 +3530,7 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
     minuteWidth = HAND_WIDTH;
     secondWidth = HAND_WIDTH;
 
-    // Suche nach dem ersten `#`
+    // Suche nach dem ersten `!`
     int firstHash = filename.indexOf('!');
     if (firstHash == -1) {
         // Kein `!` gefunden, Standardwerte verwenden
@@ -3522,7 +3553,7 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
 
     if (hourWidth <= 0) hourWidth = HAND_WIDTH;
     if (minuteWidth <= 0) minuteWidth = HAND_WIDTH;
-    if (secondWidth <= 0) secondWidth = HAND_WIDTH;
+    if (secondWidth < 0) secondWidth = HAND_WIDTH;
 
     if (hourWidth > HAND_WIDTH) hourWidth = HAND_WIDTH;
     if (minuteWidth > HAND_WIDTH) minuteWidth = HAND_WIDTH;
