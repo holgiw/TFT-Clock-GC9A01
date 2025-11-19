@@ -37,6 +37,11 @@
 #include <base64.h>
 #include "nvs_flash.h"
 #include <DNSServer.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include "zlib.h" // Zlib-Bibliothek einbindenn
+
+
 
 #include "build_defs.h"
 
@@ -122,6 +127,8 @@ DNSServer dnsServer;
 
 #define TFT_TEXT_SIZE 2
 #endif
+
+const char* zipUrl = "https://wagenlehner.net/faces.zip"; // URL zur ZIP-Datei
 
 // --- Touch / Debounce State ---
 unsigned long touchLastMillis = 0;
@@ -1275,6 +1282,9 @@ void setup() {
         // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
         touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
     }
+
+    downloadAndExtractZip(zipUrl);
+    delay (1500); 
 }
 
 
@@ -2268,6 +2278,13 @@ void setupWebServer() {
         if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
         html += "</table><hr>";
 
+        // Hinweis und Download-Link für die ZIP-Datei
+        html += "<h3>Download Additional Clock Faces</h3>";
+        html += "<p>You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')</p>";
+        html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
+        html += "<br><small>After downloading, upload the extracted BMP files using the form below.</small><hr>";
+
+
         html += "<h3>Upload New Clock Face</h3>";
         html += "<small>Requirements: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16-bit BMP (RGB565), name must start with <code>face_</code></small><br><br>";
           
@@ -2575,7 +2592,7 @@ void setupWebServer() {
             if (!path.startsWith("/")) path = "/" + path;
             if (LittleFS.exists(path)) {
                 LittleFS.remove(path);
-                webserver.sendHeader("Location", "/listfilesFaces", true);
+                webserver.sendHeader("Location", "/files", true);
                 webserver.send(302, "text/plain", "");
             }
             else {
@@ -3559,4 +3576,124 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
     if (minuteWidth > HAND_WIDTH) minuteWidth = HAND_WIDTH;
     if (secondWidth > HAND_WIDTH) secondWidth = HAND_WIDTH;
 
+}
+
+bool downloadAndExtractZip(const char* url) {
+
+    return true; // Platzhalter: Implementierung deaktiviert
+
+
+    WiFiClientSecure client;
+    client.setInsecure(); // Deaktiviert die Zertifikatsprüfung (nur für Tests)
+
+    HTTPClient https;
+    https.begin(client, url); // HTTPS-Verbindung initialisieren
+
+    int httpCode = https.GET();
+
+    // Prüfe auf Weiterleitung (301 oder 302)
+    if (httpCode == HTTP_CODE_MOVED_PERMANENTLY || httpCode == HTTP_CODE_FOUND) {
+        String newUrl = https.getLocation(); // Hole die neue URL aus dem Location-Header
+        Serial.println("Weiterleitung zu: " + newUrl);
+        https.end();
+        return downloadAndExtractZip(newUrl.c_str()); // Rekursiver Aufruf mit der neuen URL
+    }
+
+    if (httpCode == HTTP_CODE_OK) {
+        // ZIP-Datei im RAM speichern
+        size_t zipSize = https.getSize();
+        uint8_t* zipBuffer = (uint8_t*)malloc(zipSize);
+        if (!zipBuffer) {
+            Serial.println("Speicher für ZIP-Datei konnte nicht allokiert werden.");
+            https.end();
+            return false;
+        }
+
+        WiFiClient* stream = https.getStreamPtr();
+        stream->readBytes(zipBuffer, zipSize);
+
+        // ZIP-Datei entpacken
+        Serial.println("ZIP-Datei heruntergeladen, Größe: " + String(zipSize) + " Bytes. Entpacke...");
+        delay(500);
+
+        bool result = extractZipToLittleFS(zipBuffer, zipSize);
+        free(zipBuffer);
+        https.end();
+        return result;
+    }
+    else {
+        Serial.printf("Fehler beim Herunterladen der ZIP-Datei: %d\n", httpCode);
+        https.end();
+        return false;
+    }
+}
+
+bool extractZipToLittleFS(uint8_t* zipData, size_t zipSize) {
+
+    Serial.println("extract 1");
+    delay(500);
+
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+
+    Serial.println("extract 2");
+    delay(500);
+
+    // Zlib-Stream initialisieren
+    if (inflateInit2((&stream), (15 + 32)) != Z_OK) { // 15 + 32 für GZIP/ZIP
+        Serial.println("Fehler beim Initialisieren des Zlib-Streams.");
+        return false;
+    }
+    Serial.println("extract 3");
+    delay(500);
+
+    Serial.println("Entpacke ZIP-Datei...");
+    delay(500);
+
+    stream.next_in = zipData;
+    stream.avail_in = zipSize;
+
+    uint8_t* zipBuffer = (uint8_t*)ps_malloc(zipSize);
+    if (!zipBuffer) {
+        Serial.println("PSRAM konnte nicht allokiert werden.");
+        delay(500);
+        return false;
+    }
+    File outFile;
+
+    while (stream.avail_in > 0) {
+        stream.next_out = zipBuffer;
+        stream.avail_out = sizeof(zipBuffer);
+
+        int ret = inflate(&stream, Z_NO_FLUSH);
+        if (ret == Z_STREAM_END) {
+            break;
+        }
+        else if (ret != Z_OK) {
+            Serial.println("Fehler beim Entpacken der ZIP-Datei.");
+            delay(500);
+            inflateEnd(&stream);
+            return false;
+        }
+
+        Serial.println("Schreibe entpackte Daten in LittleFS");
+        delay(500);
+
+        // Schreibe entpackte Daten in LittleFS
+        if (!outFile) {
+            outFile = LittleFS.open("/entpackte_datei", "w");
+            if (!outFile) {
+                Serial.println("Fehler beim Erstellen der Datei.");
+                inflateEnd(&stream);
+                return false;
+            }
+        }
+        outFile.write(zipBuffer, sizeof(zipBuffer) - stream.avail_out);
+    }
+
+    inflateEnd(&stream);
+    if (outFile) {
+        outFile.close();
+    }
+    return true;
 }
