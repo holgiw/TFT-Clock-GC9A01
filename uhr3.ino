@@ -38,11 +38,7 @@
 #include "nvs_flash.h"
 #include <DNSServer.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-#include "zlib.h" // Zlib-Bibliothek einbindenn
-
-
-
+#include <WiFiClientSecure.h> 
 #include "build_defs.h"
 
 TFT_eSPI tft = TFT_eSPI();
@@ -1282,9 +1278,7 @@ void setup() {
         // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
         touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
     }
-
-    downloadAndExtractZip(zipUrl);
-    delay (1500); 
+      
 }
 
 
@@ -1490,6 +1484,30 @@ void setTimezone(String tz) {
     Serial.println("Set Timezone: " + tz);
 }
 
+String generateHtmlStatus() {
+    size_t total = LittleFS.totalBytes();
+    size_t used = LittleFS.usedBytes();
+    String html = "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
+    html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+    html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
+    return html;    
+}
+
+String generateNavigation() {
+    String nav = "<style>";
+    nav += "a { text-decoration: underline; color: blue; font-weight: bold; }"; // Unterstrich hinzufügen
+    nav += "a:hover { text-decoration: underline; }"; // Optional: Hover-Effekt beibehalten
+    nav += "</style>";
+    nav += "<div style='text-align:center; margin-bottom:20px;'>";
+    nav += "<a href=\"/\" style=\"margin-right:15px;\">Main</a>";
+    nav += "<a href=\"/files\" style=\"margin-right:15px;\">File Manager</a>";
+    nav += "<a href=\"/status\" style=\"margin-right:15px;\">Systemstatus</a>";
+    nav += "<a href=\"/reboot\"  onclick=\"return confirm('Really?')\" style=\"margin-right:15px;\">Reboot</a>";
+    nav += "<a href=\"/factoryReset\" onclick=\"return confirm('Really?')\">Factory Reset</a>";
+    nav += "</div>";
+    return nav;
+}
+
 /// <summary> 
 /// Sets up the web server routes for clock face and hand set changes.
 /// </summary>
@@ -1612,6 +1630,8 @@ void setupWebServer() {
         };
 
         String html = "<!DOCTYPE html><html><head><title>Set Timezone</title></head><body>";
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>NTP Server / Timezone (DST String)</h2>";
         html += "<form method='POST' action='/set_timezone'>";
 
@@ -1630,8 +1650,9 @@ void setupWebServer() {
         html += "<input type='text' id='tz_input' name='timezone' style='width: 400px;' value='" + timezone + "'><br><br>";
 
         html += "<small>For custom timezones, select a preset or enter your own value above.</small><br><br>";
-        html += "<button type='submit'>Save Timezone</button>";
-        html += "<br><br><a href='/'>Back</a></body></html>";
+        html += "<button type='submit'>Save Timezone</button><br><br>";
+        html += generateNavigation(); // Navigation einfügen
+        html += "<br><br>";
         html += "</form></body></html>";
         webserver.send(200, "text/html", html);
         });
@@ -1645,6 +1666,8 @@ void setupWebServer() {
         String oldName = webserver.arg("file");
         String html = "<!DOCTYPE html><html><head><title>Rename File</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input{margin:10px;padding:10px;}</style></head><body>";
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>Rename File</h2>";
         html += "<form action='/rename' method='POST'>";
         html += "<input type='hidden' name='old' value='" + oldName + "'>";
@@ -1691,6 +1714,8 @@ void setupWebServer() {
         }
         String src = webserver.arg("file");
         String html = "<!DOCTYPE html><html><head><title>Scale BMP</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;}input{margin:5px;}</style></head><body>";
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>Scale and Save BMP</h2>";
         html += "<form action='/scalebmp_run' method='GET'>";
         html += "Source: <input name='src' value='/" + src + "' readonly><br>";
@@ -1698,9 +1723,9 @@ void setupWebServer() {
         html += "Width: <input name='w' type='number' value='" + String(CLOCK_WIDTH) +"' required><br>";
         html += "Height: <input name='h' type='number' value='" + String(CLOCK_HEIGHT) + "' required><br>";
         html += "<button type='submit'>Scale and Save</button></form>";
-        html += "<a href='/status'>Systemstatus</a><br>";
-        html += "<a href='/files'>File Manager</a><br>";
-        html += "<br><a href='/files'>Back</a></body></html>";
+        html += "<br><br>";
+        html += generateNavigation(); // Navigation einfügen
+        html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
@@ -1763,6 +1788,8 @@ void setupWebServer() {
     webserver.on("/brightness", HTTP_POST, []() {
         String html = "<!DOCTYPE html><html><head><title>Brightness Settings</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input{margin:8px;padding:8px;width:80%;}</style></head><body>";
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
 
         if (photoresistorFound) {
@@ -1852,15 +1879,16 @@ void setupWebServer() {
 #endif
         }
 
-
-        
-        html += "<br><a href='/'>Back</a></body></html>";
+        html += "<br><br>";
+        html += generateNavigation(); // Navigation einfügen
+        html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
     webserver.on("/brightness", HTTP_GET, []() {
         String html = "<!DOCTYPE html><html><head><title>Brightness Settings</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial;text-align:center;}input{margin:8px;padding:8px;width:80%;}</style></head><body>";
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
 
         if (photoresistorFound) {
@@ -1946,7 +1974,8 @@ void setupWebServer() {
 #endif
         }
         
-        html += "<br><a href='/'>Back</a></body></html>";
+        html += generateNavigation(); // Navigation einfügen    
+        html += "<br><br></body></html>";
         webserver.send(200, "text/html", html);
         });
 
@@ -1996,11 +2025,9 @@ void setupWebServer() {
 
     webserver.on("/files", HTTP_GET, []() {
         String html = "<!DOCTYPE html><html><head><title>All Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head><body>";
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
+        
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
 
         html += "<h2>All Files on LittleFS</h2><table border='1'><tr><th align=left>Filename</th><th>Size (bytes)</th><th>Info</th><th>Action</th></tr>";
 
@@ -2018,7 +2045,9 @@ void setupWebServer() {
 
             file = root.openNextFile();
         }
-        html += "</table><br><a href='/'>Back</a></body></html>";
+        html += "</table><br><br>";
+        html += generateNavigation(); // Navigation einfügen
+        html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
@@ -2030,13 +2059,10 @@ void setupWebServer() {
         char version[32];
         sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
-        String html = "<!DOCTYPE html><html><head><title>Status</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;}table{margin:auto;}th,td{padding:8px;}</style></head><body>";
+        String html = "<!DOCTYPE html><html><head><title>Status</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial}table{margin:auto;}th,td{padding:8px;}</style></head><body>";
 
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
 
         html += "<h2>ESP System Status</h2><ul>";
 
@@ -2163,22 +2189,13 @@ void setupWebServer() {
         html += "<li><b>lowThreshold</b>: " + String(preferences.getInt("lowThreshold", 40)) + "</li>";
         html += "<li><b>highThreshold</b>: " + String(preferences.getInt("highThreshold", 60)) + "</li>";
         html += "<li><b>adc Inverted</b>: " + String(preferences.getBool("adcInverted", false) ? "true" : "false") + "</li>";
-        html += "<li>use Touch: " + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
+        html += "<li><b>use Touch</b>:" + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
         html += "</ul>";
-
-
         html += "</br>";
-
-
-
-
         html += "<li>Contact: holger.wagenlehner@gmx.de</li>";
-
-
-
-        html += "</ul>";
-            
-        html += "<br><a href = '/'>Back</a></body></html>";
+        html += "</ul>";        
+        html += generateNavigation(); // Navigation einfügen
+        html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
@@ -2240,10 +2257,8 @@ void setupWebServer() {
         String html = "<!DOCTYPE html><html><head><title>Clock Face Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head>";
 
 
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
-
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>Manage Clock Face Files " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>Preview/Set</th></tr>";
 
         // Add built-in default face
@@ -2293,8 +2308,9 @@ void setupWebServer() {
 
         html += "<button type='submit'>Upload BMP</button>";
         html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
-        html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form>";
-        html += "<br><a href='/'>Back</a></body> </html>";
+        html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
+        html += generateNavigation(); // Navigation einfügen
+        html += "</body> </html>";
         webserver.send(200, "text/html", html);
         });
 
@@ -2345,18 +2361,9 @@ void setupWebServer() {
         // Seite benötigt JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>JavaScript is disabled. This page requires JavaScript to work properly!</div></noscript>";
 
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
-        if (WiFi.getMode() == WIFI_STA) {
-            html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        } 
-        else {
-            html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.softAPIP().toString() + ")" + "&nbsp;&nbsp;";
-        }
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
 
-
-        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
         html += "<h2>Clock Setup</h2>";
 
         html += "<form action = '/save' method = 'POST'>";
@@ -2437,13 +2444,9 @@ void setupWebServer() {
 
             html += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
             html += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
-            
-            html += "<a href='/files'>File Manager</a><br>"; 
         }
 
-        html += "<a href='/status'>Systemstatus</a><br>";
-        html += "<br><a href='/reboot'>Reboot</a><br>";
-        html += "<br><a href='/factoryReset' onclick = \"return confirm('Really ?')\">Factory Reset</a><br>";
+        
 
         
         html += "<script>";
@@ -2506,7 +2509,7 @@ void setupWebServer() {
         html += "});";
         html += "</script>";
 
-
+        html += generateNavigation(); // Navigation einfügen
 
 
         html += "</body></html>";
@@ -2617,12 +2620,8 @@ void setupWebServer() {
 
         webserver.on("/handsets", HTTP_GET, []() {
         String html = "<!DOCTYPE html><html><head><title>Clock Hand Set Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:10px;}img{height:50px;}</style></head><body>";
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
-        html += "Connected to: <strong>" + WiFi.SSID() + "</strong> (" + WiFi.localIP().toString() + ")" + "&nbsp;&nbsp;";
-        html += "<br>Storage used: " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (Free: " + String((total - used) / 1024) + " KB)<hr>";
-        
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>Manage Clock Hand Sets " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th>Preview/Set</th></tr>";
 
         String activeSet = preferences.getString("handset", "");
@@ -2647,10 +2646,6 @@ void setupWebServer() {
                 }
             }
             file = root.openNextFile();
-        }
-
-        if (foundSets.empty()) {
-            html += "<tr><td colspan='3'>No hand sets found.</td></tr>";
         }
 
 
@@ -2702,11 +2697,10 @@ void setupWebServer() {
         html += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
         
         html += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
-        html += "<button type='submit'>Upload to Set</button></form><br>";
+        html += "<button type='submit'>Upload to Set</button></form><br><br>";
+        html += generateNavigation(); // Navigation einfügen
         
-        html += "<a href='/status'>Systemstatus</a><br>";
-        html += "<a href='/files'>File Manager</a><br>";
-        html += "<a href='/'>Back</a><br><br><br>";
+        html += "<br><br>";
         html += "</body></html>";
         //Serial.println(html);
         webserver.send(200, "text/html", html);
@@ -3578,122 +3572,3 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
 
 }
 
-bool downloadAndExtractZip(const char* url) {
-
-    return true; // Platzhalter: Implementierung deaktiviert
-
-
-    WiFiClientSecure client;
-    client.setInsecure(); // Deaktiviert die Zertifikatsprüfung (nur für Tests)
-
-    HTTPClient https;
-    https.begin(client, url); // HTTPS-Verbindung initialisieren
-
-    int httpCode = https.GET();
-
-    // Prüfe auf Weiterleitung (301 oder 302)
-    if (httpCode == HTTP_CODE_MOVED_PERMANENTLY || httpCode == HTTP_CODE_FOUND) {
-        String newUrl = https.getLocation(); // Hole die neue URL aus dem Location-Header
-        Serial.println("Weiterleitung zu: " + newUrl);
-        https.end();
-        return downloadAndExtractZip(newUrl.c_str()); // Rekursiver Aufruf mit der neuen URL
-    }
-
-    if (httpCode == HTTP_CODE_OK) {
-        // ZIP-Datei im RAM speichern
-        size_t zipSize = https.getSize();
-        uint8_t* zipBuffer = (uint8_t*)malloc(zipSize);
-        if (!zipBuffer) {
-            Serial.println("Speicher für ZIP-Datei konnte nicht allokiert werden.");
-            https.end();
-            return false;
-        }
-
-        WiFiClient* stream = https.getStreamPtr();
-        stream->readBytes(zipBuffer, zipSize);
-
-        // ZIP-Datei entpacken
-        Serial.println("ZIP-Datei heruntergeladen, Größe: " + String(zipSize) + " Bytes. Entpacke...");
-        delay(500);
-
-        bool result = extractZipToLittleFS(zipBuffer, zipSize);
-        free(zipBuffer);
-        https.end();
-        return result;
-    }
-    else {
-        Serial.printf("Fehler beim Herunterladen der ZIP-Datei: %d\n", httpCode);
-        https.end();
-        return false;
-    }
-}
-
-bool extractZipToLittleFS(uint8_t* zipData, size_t zipSize) {
-
-    Serial.println("extract 1");
-    delay(500);
-
-    z_stream stream;
-    memset(&stream, 0, sizeof(stream));
-
-    Serial.println("extract 2");
-    delay(500);
-
-    // Zlib-Stream initialisieren
-    if (inflateInit2((&stream), (15 + 32)) != Z_OK) { // 15 + 32 für GZIP/ZIP
-        Serial.println("Fehler beim Initialisieren des Zlib-Streams.");
-        return false;
-    }
-    Serial.println("extract 3");
-    delay(500);
-
-    Serial.println("Entpacke ZIP-Datei...");
-    delay(500);
-
-    stream.next_in = zipData;
-    stream.avail_in = zipSize;
-
-    uint8_t* zipBuffer = (uint8_t*)ps_malloc(zipSize);
-    if (!zipBuffer) {
-        Serial.println("PSRAM konnte nicht allokiert werden.");
-        delay(500);
-        return false;
-    }
-    File outFile;
-
-    while (stream.avail_in > 0) {
-        stream.next_out = zipBuffer;
-        stream.avail_out = sizeof(zipBuffer);
-
-        int ret = inflate(&stream, Z_NO_FLUSH);
-        if (ret == Z_STREAM_END) {
-            break;
-        }
-        else if (ret != Z_OK) {
-            Serial.println("Fehler beim Entpacken der ZIP-Datei.");
-            delay(500);
-            inflateEnd(&stream);
-            return false;
-        }
-
-        Serial.println("Schreibe entpackte Daten in LittleFS");
-        delay(500);
-
-        // Schreibe entpackte Daten in LittleFS
-        if (!outFile) {
-            outFile = LittleFS.open("/entpackte_datei", "w");
-            if (!outFile) {
-                Serial.println("Fehler beim Erstellen der Datei.");
-                inflateEnd(&stream);
-                return false;
-            }
-        }
-        outFile.write(zipBuffer, sizeof(zipBuffer) - stream.avail_out);
-    }
-
-    inflateEnd(&stream);
-    if (outFile) {
-        outFile.close();
-    }
-    return true;
-}
