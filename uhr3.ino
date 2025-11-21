@@ -2193,6 +2193,9 @@ void setupWebServer() {
         html += "</ul>";
         html += "</br>";
         html += "<li>Contact: holger.wagenlehner@gmx.de</li>";
+        
+        html += "<li><a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
+
         html += "</ul>";        
         html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
