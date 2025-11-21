@@ -31,14 +31,12 @@
 #include <WebServer.h>
 #include <TFT_eSPI.h>
 #include <Preferences.h>
-#include <LittleFS.h>
-#include <time.h>
+#include <LittleFS.h>/
 #include <set>
 #include <base64.h>
 #include "nvs_flash.h"
 #include <DNSServer.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h> 
+
 #include "build_defs.h"
 
 TFT_eSPI tft = TFT_eSPI();
@@ -591,7 +589,7 @@ void checkButton() {
             delay(10);  
         }
 
-        // Button wurde vor 10 Sek. losgelassen: nur Anzeige bleibt sichtbar
+        // Button wurde vor erreichen der 10 Sek. losgelassen: nur Anzeige bleibt kurz sichtbar
         delay(3000); 
     }
 }
@@ -1093,7 +1091,7 @@ void setup() {
     // Zeitabhängige Helligkeit aus Preferences
 
     brightStartHour = preferences.getUChar("brightStart", 8);
-    brightEndHour = preferences.getUChar("brightEnd", 20);
+    brightEndHour = preferences.getUChar("brightEnd", 22);
 
     adcInverted = preferences.getBool("adcInverted", false);
 
