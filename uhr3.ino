@@ -2253,65 +2253,72 @@ void setupWebServer() {
 
         webserver.on("/listfilesFaces", HTTP_GET, []() {
 
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
+            size_t total = LittleFS.totalBytes();
+            size_t used = LittleFS.usedBytes();
 
 
-        String html = "<!DOCTYPE html><html><head><title>Clock Face Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head>";
+            String html = "<!DOCTYPE html><html><head><title>Clock Face Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head>";
 
 
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
-        html += "<h2>Manage Clock Face Files " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>Preview/Set</th></tr>";
+            html += generateHtmlStatus(); // Statusleiste einfügen
+            html += generateNavigation(); // Navigation einfügen
+            html += "<h2>Manage Clock Face Files " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>Preview/Set</th></tr>";
 
-        // Add built-in default face
-        html += "<tr><td>";
-        html += "<a href='/setbackground?file=face_default.bmp'>";
-        html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-        html += "</a><br>default (built-in)</td>";
-        html += "</tr>";
+            // Add built-in default face
+            html += "<tr><td>";
+            html += "<a href='/setbackground?file=face_default.bmp'>";
+            html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+            html += "</a><br>default (built-in)</td>";
+            html += "</tr>";
 
-        File root = LittleFS.open("/");
-        File file = root.openNextFile();
+            File root = LittleFS.open("/");
+            File file = root.openNextFile();
 
 
-        bool anyFile = false;
-        while (file) {
-            String name = file.name();
+            bool anyFile = false;
+            while (file) {
+                String name = file.name();
 #ifdef DEBUG
-            Serial.println(name);
+                Serial.println(name);
 #endif
-            if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
-                anyFile = true;
-                String shortName = name;
-                String info = getBmpInfo(name);
-                html += "<tr><td>";
-                html += "<a href='/setbackground?file=" + shortName + "'>";
-                html += "<img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-                html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";                
+                if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
+                    anyFile = true;
+                    String shortName = name;
+                    String info = getBmpInfo(name);
+                    html += "<tr><td>";
+                    html += "<a href='/setbackground?file=" + shortName + "'>";
+                    html += "<img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+                    html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
+                }
+                file = root.openNextFile();
             }
-            file = root.openNextFile();
-        }
 
-        if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
-        html += "</table><hr>";
+            if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
+            html += "</table><hr>";
 
-        // Hinweis und Download-Link für die ZIP-Datei
-        html += "<h3>Download Additional Clock Faces</h3>";
-        html += "<p>You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')</p>";
-        html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
-        html += "<br><small>After downloading, upload the extracted BMP files using the form below.</small><hr>";
+            // Hinweis und Download-Link für die ZIP-Datei
+            html += "<h3>Download Additional Clock Faces</h3>";
+            html += "<p>You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')</p>";
+            html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
+            html += "<br><small>After downloading, upload the extracted BMP files using the form below.</small><hr>";
+
+            if (used + (TFT_WIDTH * TFT_HEIGHT * 2) + 54  > total) {
+                html += "<div style='color:red;font-weight:bold;'>Warning: Not enough free space to upload new clock faces! Free up some space first.</div><br><br>";
+            }
+            else {
+
+                html += "<h3>Upload New Clock Face</h3>";
+                html += "<small>Requirements: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16-bit BMP (RGB565), name must start with <code>face_</code></small><br><br>";
+
+                html += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
+                html += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
+
+                html += "<button type='submit'>Upload BMP</button>";
+                html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
+                html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
+            }
 
 
-        html += "<h3>Upload New Clock Face</h3>";
-        html += "<small>Requirements: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16-bit BMP (RGB565), name must start with <code>face_</code></small><br><br>";
-          
-        html += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
-        html += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
-
-        html += "<button type='submit'>Upload BMP</button>";
-        html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
-        html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
         html += generateNavigation(); // Navigation einfügen
         html += "</body> </html>";
         webserver.send(200, "text/html", html);
@@ -2553,6 +2560,7 @@ void setupWebServer() {
             String errorHtml = "<!DOCTYPE html><html><head><title>Upload Failed</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
             errorHtml += "<h2>Upload failed</h2>";
             errorHtml += "<p>Only .bmp files starting with <code>face_</code> or <code>hand_</code> are accepted.</p>";
+            errorHtml += "<p>Please also check the available space</p>";            
             errorHtml += "<a href='/upload'>Try again</a></body></html>";
             webserver.send(400, "text/html", errorHtml);
         }
@@ -2622,6 +2630,10 @@ void setupWebServer() {
         });
 
         webserver.on("/handsets", HTTP_GET, []() {
+
+            size_t total = LittleFS.totalBytes();
+            size_t used = LittleFS.usedBytes();
+
         String html = "<!DOCTYPE html><html><head><title>Clock Hand Set Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:10px;}img{height:50px;}</style></head><body>";
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
@@ -2695,12 +2707,19 @@ void setupWebServer() {
         html += "<label>Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red):</label><br><input name='color' value='" + String(hub_color_rgb, HEX) + "'><br>";
         html += "<button type='submit'>Apply</button></form><hr>";
 
-        html += "<h3>Upload New Hand Set</h3>";
-        html += "<small>Requirements: " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " pixels, 16-bit BMP (RGB565), <br>name must start with <code>hand_set + no + _hour, _minute or _second .bmp e.g. hand_set1_second.bmp</code><br>Pivot point:" + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
-        html += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
-        
-        html += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
-        html += "<button type='submit'>Upload to Set</button></form><br><br>";
+        if (used + 5818 > total) {
+            html += "<div style='color:red;font-weight:bold;'>Warning: Not enough free space to upload new hand sets! Free up some space first.</div><br><br>";
+        }
+        else {
+
+            html += "<h3>Upload New Hand Set</h3>";
+            html += "<small>Requirements: " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " pixels, 16-bit BMP (RGB565), <br>name must start with <code>hand_set + no + _hour, _minute or _second .bmp e.g. hand_set1_second.bmp</code><br>Pivot point:" + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
+            html += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
+
+            html += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
+            html += "<button type='submit'>Upload to Set</button></form>";
+        }
+        html += "<br><br>";
         html += generateNavigation(); // Navigation einfügen
         
         html += "<br><br>";
