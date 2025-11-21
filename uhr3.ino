@@ -122,7 +122,6 @@ DNSServer dnsServer;
 #define TFT_TEXT_SIZE 2
 #endif
 
-const char* zipUrl = "https://wagenlehner.net/faces.zip"; // URL zur ZIP-Datei
 
 // --- Touch / Debounce State ---
 unsigned long touchLastMillis = 0;
@@ -193,7 +192,7 @@ uint8_t maxBrightness = 255;  // Obergrenze
 
 // Zeitabhängige Helligkeit
 uint8_t brightStartHour = 8;       // inkl. (z.B. 8)
-uint8_t brightEndHour = 20;        // exkl. (z.B. 20)
+uint8_t brightEndHour = 22;        // exkl. (z.B. 20)
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
 float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit
@@ -746,6 +745,7 @@ void updateClock() {
     backgroundSprite.pushSprite(0, 0);
 }
  
+/// Helligkeit aktualisieren
 void updateBrightness() {
 
     // Wenn Helligkeit geändert → neu zeichnen
@@ -847,6 +847,7 @@ void updateBrightness() {
 
 }
 
+// Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
 int getAdjustedAdcValue(int rawValue) {
     if (adcInverted) {
         return 4096 - rawValue; // Invertiere den Wert
@@ -854,7 +855,7 @@ int getAdjustedAdcValue(int rawValue) {
     return rawValue; // Standardwert
 }
 
-//
+/// Easing-Funktion für sanfte Animationen
 float easeInOutSine(float t) {
     // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
     float intensity = 0.5f;
@@ -1385,18 +1386,22 @@ bool connectWiFi(int number, bool verbose_mode) {
     while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
          
         Serial.print(".");
-        
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.print(". ");
-        delay(50);
+        if (verbose_mode) {
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+            tft.print(". ");
+            delay(50);
 
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.print(" . ");
-        delay(50);
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+            tft.print(" . ");
+            delay(50);
 
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.print("  .");
-        delay(50);
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+            tft.print("  .");
+            delay(50);
+        }
+        else {
+            delay(150);
+        }
 
     }
     if (WiFi.status() == WL_CONNECTED) {
@@ -1483,6 +1488,7 @@ void setTimezone(String tz) {
     Serial.println("Set Timezone: " + tz);
 }
 
+// Generiert den HTML-Header für die Weboberfläche
 String generateHtmlHeader() {
     String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
     html += "<style>body{font-family:Arial;text-align:center;}input,select,button{margin:10px;padding:10px;width:80%;}";
@@ -1496,7 +1502,7 @@ String generateHtmlHeader() {
 }
 
 
-
+/// Generiert den HTML-Statusabschnitt für die Weboberfläche
 String generateHtmlStatus() {
     size_t total = LittleFS.totalBytes();
     size_t used = LittleFS.usedBytes();
@@ -1506,6 +1512,7 @@ String generateHtmlStatus() {
     return html;    
 }
 
+// Navigationsleiste generieren
 String generateNavigation() {
     String nav = "<style>";
     nav += "a { text-decoration: underline; color: blue; font-weight: bold; }"; // Unterstrich hinzufügen
@@ -2864,6 +2871,8 @@ void handleFileUpload() {
     if (upload.status == UPLOAD_FILE_START) {
         uploadFilePath = upload.filename;
         uploadFilePath.replace("..", "");
+        uploadFilePath.replace("#", "_");
+
         if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
 
         // Nur bestimmte Dateinamenmuster zulassen
