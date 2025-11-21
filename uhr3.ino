@@ -145,6 +145,7 @@ String wifi_pass[2];
 
 
 String timezone = TIMEZONE_DEFAULT;
+
 String ntpServer1 = NTP_SERVER_1;
 String ntpServer2 = NTP_SERVER_2;
 
@@ -1482,6 +1483,20 @@ void setTimezone(String tz) {
     Serial.println("Set Timezone: " + tz);
 }
 
+String generateHtmlHeader() {
+    String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+    html += "<style>body{font-family:Arial;text-align:center;}input,select,button{margin:10px;padding:10px;width:80%;}";
+    html += "h1 { color: #333333; } ";
+    html += "hr { border: 0; height: 1px; background-color: #cccccc; margin: 20px 0; } ";
+    html += "table { margin: auto; border-collapse: collapse; } "; // Tabellen zentrieren
+    html += "th, td { padding: 10px; text-align: center; border: 1px solid #cccccc; } "; // Tabellenzellen 
+    html += "li { text-align: left; } "; // <li> linksbündig formatieren
+    html += "</style></head><body>";
+    return html;
+}
+
+
+
 String generateHtmlStatus() {
     size_t total = LittleFS.totalBytes();
     size_t used = LittleFS.usedBytes();
@@ -1498,10 +1513,10 @@ String generateNavigation() {
     nav += "</style>";
     nav += "<div style='text-align:center; margin-bottom:20px;'>";
     nav += "<a href=\"/\" style=\"margin-right:15px;\">Main</a>";
-    nav += "<a href=\"/files\" style=\"margin-right:15px;\">File Manager</a>";
-    nav += "<a href=\"/status\" style=\"margin-right:15px;\">Systemstatus</a>";
+    nav += "<a href=\"/files\" style=\"margin-right:15px;\">File&nbsp;Manager</a>";
+    nav += "<a href=\"/status\" style=\"margin-right:15px;\">Status</a>";
     nav += "<a href=\"/reboot\"  onclick=\"return confirm('Really?')\" style=\"margin-right:15px;\">Reboot</a>";
-    nav += "<a href=\"/factoryReset\" onclick=\"return confirm('Really?')\">Factory Reset</a>";
+    nav += "<a href=\"/factoryReset\" onclick=\"return confirm('Really?')\">Factory&nbsp;Reset</a>";
     nav += "</div>";
     return nav;
 }
@@ -1627,7 +1642,7 @@ void setupWebServer() {
             {"Egypt (EET)", "EET-2"}
         };
 
-        String html = "<!DOCTYPE html><html><head><title>Set Timezone</title></head><body>";
+        String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>NTP Server / Timezone (DST String)</h2>";
@@ -1649,7 +1664,7 @@ void setupWebServer() {
 
         html += "<small>For custom timezones, select a preset or enter your own value above.</small><br><br>";
         html += "<button type='submit'>Save Timezone</button><br><br>";
-        html += generateNavigation(); // Navigation einfügen
+      //  html += generateNavigation(); // Navigation einfügen
         html += "<br><br>";
         html += "</form></body></html>";
         webserver.send(200, "text/html", html);
@@ -1662,8 +1677,8 @@ void setupWebServer() {
         }
 
         String oldName = webserver.arg("file");
-        String html = "<!DOCTYPE html><html><head><title>Rename File</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial;text-align:center;}input{margin:10px;padding:10px;}</style></head><body>";
+        String html = generateHtmlHeader();
+        
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>Rename File</h2>";
@@ -1711,7 +1726,7 @@ void setupWebServer() {
             return;
         }
         String src = webserver.arg("file");
-        String html = "<!DOCTYPE html><html><head><title>Scale BMP</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;}input{margin:5px;}</style></head><body>";
+        String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>Scale and Save BMP</h2>";
@@ -1775,7 +1790,7 @@ void setupWebServer() {
         }
 
         webserver.send(200, "text/html",
-            "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/'><title>Gespeichert</title></head>"
+            "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/'><title>Saved</title></head>"
             "<body style='font-family:Arial;text-align:center;'><h2>Saved</h2><p>Back...</p></body></html>");
         });
 
@@ -1784,8 +1799,7 @@ void setupWebServer() {
 
 
     webserver.on("/brightness", HTTP_POST, []() {
-        String html = "<!DOCTYPE html><html><head><title>Brightness Settings</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial;text-align:center;}input{margin:8px;padding:8px;width:80%;}</style></head><body>";
+        String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
@@ -1884,8 +1898,7 @@ void setupWebServer() {
         });
 
     webserver.on("/brightness", HTTP_GET, []() {
-        String html = "<!DOCTYPE html><html><head><title>Brightness Settings</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial;text-align:center;}input{margin:8px;padding:8px;width:80%;}</style></head><body>";
+        String html = generateHtmlHeader();
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
 
@@ -2022,7 +2035,7 @@ void setupWebServer() {
 
 
     webserver.on("/files", HTTP_GET, []() {
-        String html = "<!DOCTYPE html><html><head><title>All Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head><body>";
+        String html = generateHtmlHeader();
         
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
@@ -2057,7 +2070,7 @@ void setupWebServer() {
         char version[32];
         sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
-        String html = "<!DOCTYPE html><html><head><title>Status</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial}table{margin:auto;}th,td{padding:8px;}</style></head><body>";
+        String html = generateHtmlHeader();
 
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
@@ -2163,7 +2176,7 @@ void setupWebServer() {
         html += "<br>";
 
         
-        html += "<h3>Actual Preferences</h3><ul>";
+        html += "<li><h3>Actual Preferences</h3></li><ul>";
         html += "<li><b>ssid</b>: " + preferences.getString("ssid1", "") + "</li>";
         html += "<li><b>ssid2</b>: " + preferences.getString("ssid2", "") + "</li>";
         html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
@@ -2187,7 +2200,7 @@ void setupWebServer() {
         html += "<li><b>lowThreshold</b>: " + String(preferences.getInt("lowThreshold", 40)) + "</li>";
         html += "<li><b>highThreshold</b>: " + String(preferences.getInt("highThreshold", 60)) + "</li>";
         html += "<li><b>adc Inverted</b>: " + String(preferences.getBool("adcInverted", false) ? "true" : "false") + "</li>";
-        html += "<li><b>use Touch</b>:" + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
+        html += "<li><b>use Touch</b>: " + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
         html += "</ul>";
         html += "</br>";
         html += "<li>Contact: holger.wagenlehner@gmx.de</li>";
@@ -2255,7 +2268,7 @@ void setupWebServer() {
             size_t used = LittleFS.usedBytes();
 
 
-            String html = "<!DOCTYPE html><html><head><title>Clock Face Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:8px;}</style></head>";
+            String html = generateHtmlHeader();
 
 
             html += generateHtmlStatus(); // Statusleiste einfügen
@@ -2363,8 +2376,8 @@ void setupWebServer() {
         webserver.on("/", HTTP_GET, []() {
 
 
-        String html = "<!DOCTYPE html><html><head><title>Clock Setup</title><meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial;text-align:center;}input,select,button{margin:10px;padding:10px;width:80%;}</style></head><body>";
+        String html = generateHtmlHeader();
+        
 
         // Seite benötigt JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>JavaScript is disabled. This page requires JavaScript to work properly!</div></noscript>";
@@ -2391,7 +2404,7 @@ void setupWebServer() {
         if (WiFi.getMode() == WIFI_STA) {
             html += "<small>Password is hidden. Leave empty to keep current.</small>";
         }
-        html += "<br>";
+        html += "<br><hr><br>";
 
         html += "<h3>Alternative WiFi</h3>";
         html += "<label for='ssid2'>SSID2:</label><br>";
@@ -2405,18 +2418,16 @@ void setupWebServer() {
         if (WiFi.getMode() == WIFI_STA) {
             html += "<small>Password is hidden. Leave empty to keep current.</small>";
         }
-        html += "<br>";
+        html += "<br><br>";
 
 
-        html += "<button type='submit'>Save and Reboot</button></form><hr>";
+        html += "<button type='submit'>Save WiFi settings and reboot</button></form><hr>";
 
         if (WiFi.getMode() == WIFI_STA) {
 
 
             html += "<form action='/applydisplaysettings' method='POST'>";
-
-            html += "<li><a href='/timezone_form'>Set Timezone</a></li>";
-
+            
             html += "<table style='margin:auto;text-align:left;'><tr>";
 
             html += "<td><input type='checkbox' name='stationMode' value='1' ";
@@ -2446,6 +2457,9 @@ void setupWebServer() {
             html += "</tr></table></form>";
 
             html += "<hr>";
+
+            //html += "<a href='/timezone_form'>Set Timezone</a>";
+            html += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
 
             html += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
             html += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
@@ -2632,7 +2646,7 @@ void setupWebServer() {
             size_t total = LittleFS.totalBytes();
             size_t used = LittleFS.usedBytes();
 
-        String html = "<!DOCTYPE html><html><head><title>Clock Hand Set Files</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;}table{margin:auto;}th,td{padding:10px;}img{height:50px;}</style></head><body>";
+        String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>Manage Clock Hand Sets " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th>Preview/Set</th></tr>";
@@ -2833,9 +2847,9 @@ void setupWebServer() {
         char timeStr[32];
         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
 
-        String html = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='5; url=/'>"
+        String html = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/'>"
             "<title>Time Synced</title></head><body style='font-family:Arial;text-align:center;'>"
-            "<h2>Time synced</h2><p>" + String(timeStr) + "</p><p>Returning to main page in 5 seconds.</p></body></html>";
+            "<h2>Time synced</h2><p>" + String(timeStr) + "</p><p>Returning to main page in 3 seconds.</p></body></html>";
 
         webserver.send(200, "text/html", html);
         });
