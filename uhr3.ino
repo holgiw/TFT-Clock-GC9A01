@@ -220,8 +220,6 @@ uint16_t* clockFaceBuffer = nullptr;
 bool softAPIP = false;  // Flag für SoftAP IP
 long softAPIPstart = 0;  // Startzeit für SoftAP IP
 
-
-
 struct WifiNetwork {
     String ssid;
     int rssi;
@@ -231,740 +229,11 @@ struct WifiNetwork {
 WifiNetwork foundNetworks[MAX_NETWORKS];
 int foundNetworkCount = 0;
 
-/// <summary>
-/// Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
-/// </summary>
-/// <param name="pixel">Der 16-Bit-Farbwert des Pixels, der angepasst werden soll.</param>
-/// <returns>Der angepasste 16-Bit-Farbwert des Pixels, basierend auf der aktuellen Helligkeit. Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, wird der ursprüngliche Wert zurückgegeben.</returns>
- 
-uint16_t setPixelBrightness(uint16_t pixel) {
-
-#ifdef TFT_Backlight
-    return pixel;
-#else
-
-    // Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, direkt zurückgeben
-    if (pixel == TRANSPARENT_COLOR || pixel == 0x0000 || currentBrightness == 255) {
-        return pixel;
-    }
-
-    // Multiplikator einmal berechnen (statt 3x Division)
-    uint32_t brightnessFactor = (uint32_t)currentBrightness;
-
-    // Farben extrahieren
-    uint32_t r = (pixel & 0xF800);
-    uint32_t g = (pixel & 0x07E0);
-    uint32_t b = (pixel & 0x001F);
-
-    // Multiplikation mit Brightness (optimiert, kein Shift nötig)
-    r = ((r * brightnessFactor) >> 8) & 0xF800;
-    g = ((g * brightnessFactor) >> 8) & 0x07E0;
-    b = ((b * brightnessFactor) >> 8) & 0x001F;
-
-    // Farbwerte zusammenfügen
-    return r | g | b;
-#endif
-}
-
-
-
-/// <summary>
-/// Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.           
-/// </summary>  
-void loadClockFace() {
-    // Prüfen, ob Buffer schon existiert
-    if (!clockFaceBuffer) {
-        size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
-        if (psramFound() and ESP.getFreePsram() > bufSize) {
-            Serial.println("[clockFaceBuffer] allocate psram");
-            clockFaceBuffer = (uint16_t*)ps_malloc(bufSize);
-        }
-        else {
-            Serial.println("allocte ram: " + bufSize);
-            Serial.println("[clockFaceBuffer] allocate ram");
-            clockFaceBuffer = (uint16_t*)malloc(bufSize);
-        }
-        if (!clockFaceBuffer) {
-            Serial.println("Fehler: clockFaceBuffer konnte nicht allokiert werden!");
-            return;
-        }
-
-
-
-        if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
-        // Bild aus Datei laden und dekodieren
-        if (LittleFS.exists(selectedBackground)) {
-            File bmp = LittleFS.open(selectedBackground, "r");
-            if (bmp) {
-                uint8_t header[54];
-                if (bmp.read(header, 54) == 54 && header[0] == 'B' && header[1] == 'M') {
-                    int32_t width = *(int32_t*)&header[18];
-                    int32_t height = *(int32_t*)&header[22];
-                    uint16_t bpp = *(uint16_t*)&header[28];
-                    uint32_t offset = *(uint32_t*)&header[10];
-                    if (width == CLOCK_WIDTH && abs(height) == CLOCK_HEIGHT && bpp == 16) {
-                        bool flip = height > 0;
-                        height = abs(height);
-                        bmp.seek(offset);
-                        for (int y = 0; y < height; y++) {
-                            int row = flip ? height - 1 - y : y;
-                            bmp.read((uint8_t*)&clockFaceBuffer[row * CLOCK_WIDTH], CLOCK_WIDTH * 2);
-                        }
-                    }
-                }
-                bmp.close();
-            }
-        }
-        else {
-            // Fallback: Standard-Zifferblatt aus Array kopieren
-            memcpy(clockFaceBuffer, clockFace, CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
-        }    
-    }
-
-    // Breiten aus Dateinamen extrahieren
-    parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
-    updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
-
-    // Buffer ins Sprite kopieren (mit Helligkeit)
-    for (int y = 0; y < CLOCK_HEIGHT; y++) {
-        for (int x = 0; x < CLOCK_WIDTH; x++) {
-            rowBuffer[x] = setPixelBrightness(clockFaceBuffer[y * CLOCK_WIDTH + x]);
-        }
-        backgroundSprite.pushImage(0, y, CLOCK_WIDTH, 1, rowBuffer);
-    }
-
-}
-
-// Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
-void freeClockFaceBuffer() {
-    if (clockFaceBuffer) {
-        free(clockFaceBuffer);
-        clockFaceBuffer = nullptr;
-        Serial.println("[clockFaceBuffer] free");
-    }
-}
-
-/// <summary>
-/// Lädt die Grafiken für die Zeiger eines Uhren-Widgets, entweder aus einer benutzerdefinierten Konfiguration oder aus Standardwerten.
-/// </summary>  
-void loadHandSprites() {
-    String set = preferences.getString("handset", "");
-
-#ifdef DEBUG
-    Serial.println("[HANDS] Active hand set: " + set);
-#endif
-
-    bool usedDefault = false;
-    if (set != "" && set != "default") {
-        struct HandConfig {
-            String label;
-            TFT_eSprite* sprite;
-            const uint16_t* fallback;
-        } hands[3] = {
-            {"hour", &hourHandSprite, handHour},
-            {"minute", &minuteHandSprite, handMinute},
-            {"second", &secondHandSprite, handSecond}
-        };
-
-        for (auto& h : hands) {
-            String path = "/hand_set" + set + "_" + h.label + ".bmp";
-#ifdef DEBUG
-            Serial.println("[HANDS] Looking for: " + path);
-#endif
-
-            if (LittleFS.exists(path)) {
-                if (!loadHandBmp(h.sprite, path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
-                    for (int y = 0; y < HAND_HEIGHT; y++) {
-
-                        for (int x = 0; x < HAND_WIDTH; x++) {
-                            uint16_t px = h.fallback[y * HAND_WIDTH + x];
-
-                            rowBuffer[x] = setPixelBrightness(px);
-
-                        }
-                        h.sprite->pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
-                    }
-                    usedDefault = true;
-#ifdef DEBUG
-                    Serial.println("[HANDS] Failed to load " + h.label + ", fallback used.");
-#endif
-                }
-                else {
-#ifdef DEBUG
-                    Serial.println("[HANDS] Loaded " + h.label);
-#endif
-                }
-                // Serial.println("found");
-            }
-            else {
-                h.sprite->pushImage(0, 0, HAND_WIDTH, HAND_HEIGHT, h.fallback);
-                usedDefault = true;
-#ifdef DEBUG
-                Serial.println("[HANDS] Missing " + h.label + ", using default.");
-#endif
-            }
-        }
-
-#ifdef DEBUG
-        if (!usedDefault) {
-            Serial.println("[HANDS] Loaded handset: " + set);
-        }
-        else {
-            Serial.println("[HANDS] Incomplete set, used default for missing hands.");
-        }
-#endif
-    }
-    else {
-        for (int y = 0; y < HAND_HEIGHT; y++) {
-            for (int x = 0; x < HAND_WIDTH; x++) {
-                rowBuffer[x] = setPixelBrightness(handHour[y * HAND_WIDTH + x]);
-            }
-            hourHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
-
-            for (int x = 0; x < HAND_WIDTH; x++) {
-                rowBuffer[x] = setPixelBrightness(handMinute[y * HAND_WIDTH + x]);
-            }
-            minuteHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
-
-            for (int x = 0; x < HAND_WIDTH; x++) {
-                rowBuffer[x] = setPixelBrightness(handSecond[y * HAND_WIDTH + x]);
-            }
-            secondHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
-        }
-#ifdef DEBUG
-        Serial.println("[HANDS] No set selected, using defaults.");
-#endif
-    }
-}
- 
-// Hilfsfunktion zum Laden von Zeiger-BMPs 
-bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) {
-    File bmp = LittleFS.open(filename, "r");
-    if (!bmp) return false;
-
-    uint8_t header[54];
-    if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
-        bmp.close();
-        return false;
-    }
-
-    int32_t bmpWidth = *(int32_t*)&header[18];
-    int32_t bmpHeight = *(int32_t*)&header[22];
-    uint16_t bpp = *(uint16_t*)&header[28];
-    uint32_t offset = *(uint32_t*)&header[10];
-
-    if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
-        bmp.close();
-        return false;
-    }
-
-    bool flip = bmpHeight > 0;
-    bmpHeight = abs(bmpHeight);
-
-    bmp.seek(offset);
-    int rowSize = ((width * 2 + 3) / 4) * 4;
-    for (int y = 0; y < bmpHeight; y++) {
-        int row = flip ? bmpHeight - 1 - y : y;
-        //uint8_t rowBuffer[rowSize];
-        if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) break;
-
-        uint16_t* pixelData = (uint16_t*)rowBuffer;
-        for (int x = 0; x < width; x++) {
-
-            if (pixelData[x] == 0xFFFF) {
-                pixelData[x] = TRANSPARENT_COLOR;
-            }
-
-            pixelData[x] = setPixelBrightness(pixelData[x]);
-
-        }
-        sprite->pushImage(0, row, width, 1, (uint16_t*)rowBuffer, TRANSPARENT_COLOR);
-    }
-
-    bmp.close();
-    return true;
-}
-
-// Haupt-Loop
-void loop() {
-
-    // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
-    if (softAPIP) {
-        dnsServer.processNextRequest();
-    }
-
-
-    webserver.handleClient();
-
-    if (WiFi.getMode() == WIFI_STA) {
-        //updateBrightness();
-        checkWiFiReconnect();
-        updateClock();
-
-        checkNightlyTimeSync();
-        checkWeeklyRestart();
-        initial = false;
-    }
-
-    checkButton();
-    updateBrightness();
-
-    if (useTouch) {
-        // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
-        if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
-            touchEnabled = true;
-            Serial.println("[TOUCH] Enabled");
-        }
-
-        if (touchEnabled) {
-            // Touch-Input prüfen und ggf. Hintergrund wechseln
-            checkTouchInput();
-        }
-    }
-
-
-    if (softAPIP == true) {
-        if (millis() - softAPIPstart > (30 * 60000)) {
-            ESP.restart();
-        }
-    }
-
-    
-        
-}
-
-// Button prüfen und ggf. Anzeige oder Factory Reset auslösen
-void checkButton() {
-    if (digitalRead(BUTTON1) == HIGH) {
-
-        uint8_t secs = 5;
-        unsigned long pressStart = millis();
-
-        clearTFT();
-
-        // Einmalig Anzeige zeichnen
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("Connected to:");
-        tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        if (WiFi.SSID().length() > 15) {
-            tft.print(WiFi.SSID().substring(0, 15));
-            tft.println("...");
-        }
-        else tft.println(WiFi.SSID());
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.println(WiFi.localIP());
-
-        
-
-
-        // Blockierender Loop während Button gedrückt
-        while (digitalRead(BUTTON1) == HIGH) {
-            if (millis() - pressStart > 10000 && millis() - pressStart < 15000) {
-                tft.fillScreen(TFT_RED);
-                tft.setTextColor(TFT_WHITE, TFT_RED);
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, CLOCK_HEIGHT / 2);
-                tft.printf("Factory Reset", secs);
-
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
-                tft.printf("in %d secs", secs);
-                delay(1000);
-                if (secs>0) secs--;
-            }
-
-            if (millis() - pressStart > 15000) {
-                // 15 Sekunden überschritten → Factory Reset
-                tft.fillScreen(TFT_RED);
-                tft.setTextColor(TFT_WHITE, TFT_RED);
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, CLOCK_HEIGHT / 2);
-                tft.println("Factory Reset...");
-                delay(1000);
-                factoryReset();  
-                return;    
-            }
-            delay(10);  
-        }
-
-        // Button wurde vor erreichen der 10 Sek. losgelassen: nur Anzeige bleibt kurz sichtbar
-        delay(3000); 
-    }
-}
-
-
-// Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
-float shortestAngleDiff(float from, float to) {
-    float diff = fmodf(to - from + 360.0f, 360.0f); // Modulo 360, um Werte im Bereich [0, 360) zu halten
-    if (diff > 180.0f) diff -= 360.0f;             // Kürzeste Richtung wählen
-    return diff;
-}
-
-static float lastHourAngle = 0.0f;
-static float lastMinuteAngle = 0.0f;
-
-// updateClock Funktion
-void updateClock() {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return;
-
-    int orientation = preferences.getUChar("tft_rotation", 0);
-
-    float secAngle = timeinfo.tm_sec * 6.0f;
-    float minAngle = timeinfo.tm_min * 6.0f;
-    float hourAngle = (timeinfo.tm_hour % 12) * 30.0f + (timeinfo.tm_min / 2.0f) + (timeinfo.tm_sec / 120.0f);
-
-    static uint8_t stationTick = 0;
-    static uint32_t stationLastMillis = 0;
-    static bool stationWaiting = false;
-
-    unsigned long currentMillis = millis();
-
-    if (firstRun) {
-        stationTick = timeinfo.tm_sec;
-        stationLastMillis = millis();
-        stationWaiting = false;
-        firstRun = false;
-
-        lastHourAngle = rotatedAngle(hourAngle, orientation);
-        lastMinuteAngle = rotatedAngle(minAngle, orientation);
-
-        hourHandSprite.pushRotated(&backgroundSprite, lastHourAngle, TRANSPARENT_COLOR);
-        minuteHandSprite.pushRotated(&backgroundSprite, lastMinuteAngle, TRANSPARENT_COLOR);
-
-        if (showSecondHand) {
-            secondHandSprite.pushRotated(&backgroundSprite, rotatedAngle(secAngle, orientation), TRANSPARENT_COLOR);
-        }
-        backgroundSprite.pushSprite(0, 0);
-    }
-
-    if (stationMode) {
-        if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
-            stationTick++;
-            stationLastMillis += fastSecond;
-
-            if (stationTick >= 60) {
-                stationTick = 60;
-                stationWaiting = true;
-            }
-        }
-        else if (stationWaiting) {
-            if (timeinfo.tm_sec == 0) {
-                stationTick = 0;
-                stationWaiting = false;
-                stationLastMillis = currentMillis;
-
-                // Sekundenzeiger korrekt synchronisieren
-                secAngle = rotatedAngle(0, orientation);
-            }
-        }
-
-        float subTick = (currentMillis - stationLastMillis) / fastSecond;
-        if (subTick > 1.0f || stationWaiting) subTick = 0.0f;
-
-        float smoothSec = (stationTick >= 60) ? 60.0f : stationTick + easeInOutSine(subTick);
-        secAngle = rotatedAngle(smoothSec * 6.0f, orientation);
-
-        minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);
-             
-
-    }
-
-    if (!stationMode) {
-        secAngle = rotatedAngle(secAngle, orientation);
-          
-        smoothMinute = preferences.getBool("smoothMinute", false);
-
-        if (smoothMinute) {
-            // Millisekunden einbeziehen
-            unsigned long currentMillis = millis();
-            int milliseconds = currentMillis % 1000;
-            float smoothMinuteValue = timeinfo.tm_min + (timeinfo.tm_sec / 60.0f) + (milliseconds / 60000.0f);
-
-            float rawMinAngle = smoothMinuteValue * 6.0f;
-            float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
-            float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
-
-            // Sicherstellen, dass der Zeiger immer vorwärts läuft
-            if (angleDiff < -180.0f) angleDiff += 360.0f;
-            if (angleDiff > 180.0f) angleDiff -= 360.0f;
-
-            lastMinuteAngle += angleDiff * 0.01f;  // noch feinere Bewegung
-
-        }
-        else {
-            // Normale Minutenanzeige mit sanfter Korrektur bei Wechsel
-            float rawMinAngle = timeinfo.tm_min * 6.0f;
-            float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
-            float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
-
-            if (fabs(angleDiff) > 0.1f) {
-                lastMinuteAngle += angleDiff * 0.1f;
-                if (lastMinuteAngle < 0.0f) lastMinuteAngle += 360.0f;
-                if (lastMinuteAngle >= 360.0f) lastMinuteAngle -= 360.0f;
-            }
-            else {
-                lastMinuteAngle = targetMinAngle;
-            }
-        }
-
-        minAngle = lastMinuteAngle;
-    }
-         
-    
-
-    float targetHourAngle = rotatedAngle(hourAngle, orientation);
-    float hourAngleDiff = shortestAngleDiff(lastHourAngle, targetHourAngle);
-
-    if (fabs(hourAngleDiff) > 0.05f) {
-        lastHourAngle += hourAngleDiff * 0.1f;  // Glättungsfaktor
-    }
-    else {
-        lastHourAngle = targetHourAngle;
-    }
-    hourAngle = lastHourAngle;
-
-
-    loadClockFace();
-
-    hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
-    minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
-    if (showSecondHand) {
-        secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
-    }
-    
-    // Nabe (hub)
-    if (hub_size > 0 && hub_color > 0) {
-        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
-        // Serial.println("[HUB] Drawn hub with size " + String(hub_size));
-        // Serial.println("[HUB] Color: " + String(hub_color, HEX));
-    }
-
-    backgroundSprite.pushSprite(0, 0);
-}
- 
-/// Helligkeit aktualisieren
-void updateBrightness() {
-
-    // Wenn Helligkeit geändert → neu zeichnen
-    if (currentBrightness != lastAppliedBrightness) {
-        loadClockFace();
-        loadHandSprites();
-        lastAppliedBrightness = currentBrightness;
-    }
-
-    // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
-    bool withinDayWindow = false;
-    
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo)) {
-            int h = timeinfo.tm_hour;
-            if (brightStartHour <= brightEndHour) {
-                // normaler Bereich z.B. 8..20
-                withinDayWindow = (h >= brightStartHour && h < brightEndHour);
-            }
-            else {
-                // über Mitternacht z.B. 20..6
-                withinDayWindow = (h >= brightStartHour || h < brightEndHour);
-            }
-        }
-    
-
-    // Wenn Zeitfenster aktiv und wir innerhalb davon sind: volle Helligkeit erzwingen
-    if (withinDayWindow) {
-        targetBrightness = maxBrightness;
-#ifdef TFT_Backlight
-        // sanfte Erhöhung, falls gewünscht (ähnlich wie ADC-Rampen)
-        if (currentBrightness < targetBrightness) currentBrightness++;
-        else if (currentBrightness > targetBrightness) currentBrightness--;
-#else
-        currentBrightness = targetBrightness;
-#endif
-    }
-    else {
-        // Normale Auto-Brightness oder statische Helligkeit
-        if (use_adc) {
-
-            int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
-            // Serial.printf("[ADC] Raw value: %d\n", adcRaw);
-
-            if (initial) {
-                for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
-            }
-
-            adcHistory[adcIndex] = adcRaw;
-            adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
-
-            uint32_t avg = 0;
-            for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
-            avg /= ADC_SMOOTHING;
-
-            currentAdcAvg = avg;  // speichern
-
-            int lightPercent = map(avg, 0, 4095, 5, 100);
-
-            if (lightPercent < lowThreshold) targetBrightness = minBrightness;
-            else if (lightPercent > highThreshold) targetBrightness = maxBrightness;
-#ifdef TFT_Backlight
-            else {
-                float norm = constrain((float)avg / 4095.0f, 0.0f, 1.0f);
-                float gamma = gammaBrightness;
-                float gammaNorm = powf(norm, gamma);
-                targetBrightness = minBrightness + (uint8_t)((maxBrightness - minBrightness) * gammaNorm + 0.5f);
-            }
-#endif
-
-            currentLightPercent = lightPercent;
-
-            if (initial) currentBrightness = targetBrightness;
-
-#ifdef TFT_Backlight
-            if (currentBrightness != targetBrightness) {
-                if (currentBrightness < targetBrightness) {
-                    currentBrightness++;
-                }
-                else {
-                    currentBrightness--;
-                }
-            }
-#else
-            currentBrightness = targetBrightness;
-#endif
-
-        }
-        else {
-            // kein ADC: Standardeinstellung
-            currentBrightness = maxBrightness;
-            targetBrightness = currentBrightness;
-        }
-    }
-
-#ifdef TFT_Backlight
-    ledcWrite(TFT_Backlight, currentBrightness);  // 0–255
-#endif
-
-}
-
-// Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
-int getAdjustedAdcValue(int rawValue) {
-    if (adcInverted) {
-        return 4096 - rawValue; // Invertiere den Wert
-    }
-    return rawValue; // Standardwert
-}
-
-/// Easing-Funktion für sanfte Animationen
-float easeInOutSine(float t) {
-    // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
-    float intensity = 0.5f;
-    return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
-}
-
-/// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
-String encodeBmpToBase64(const uint16_t* data, int width, int height) {
-    const int headerSize = 54;
-    const int rowSize = ((width * 2 + 3) / 4) * 4;
-    const int dataSize = rowSize * height;
-    const int fileSize = headerSize + dataSize;
-
-    uint8_t* bmpData = new uint8_t[fileSize];
-    if (!bmpData) return "";
-
-    memset(bmpData, 0, fileSize);
-
-    // BMP Header
-    bmpData[0] = 'B'; bmpData[1] = 'M';
-    *(uint32_t*)&bmpData[2] = fileSize;
-    *(uint32_t*)&bmpData[10] = headerSize;
-    *(uint32_t*)&bmpData[14] = 40;
-    *(int32_t*)&bmpData[18] = width;
-    *(int32_t*)&bmpData[22] = -height; // Top-down BMP
-    *(uint16_t*)&bmpData[26] = 1;
-    *(uint16_t*)&bmpData[28] = 16;
-    *(uint32_t*)&bmpData[34] = dataSize;
-
-    // Pixel-Daten (RGB565 → BMP raw)
-    for (int y = 0; y < height; y++) {
-        uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
-        for (int x = 0; x < width; x++) {
-            uint16_t px = data[y * width + x];
-            if (px == TRANSPARENT_COLOR) px = 0xFFFF;
-
-            rowPtr[x * 2] = px & 0xFF;
-            rowPtr[x * 2 + 1] = px >> 8;
-        }
-    }
-
-    String result = base64::encode(bmpData, fileSize);
-    result.replace("\n", "");
-
-    delete[] bmpData;
-
-    return result;
-}
-
-
-//
-// NTP-Zeitsynchronisation um 02:00:05 und 03:00:05
-//
-void checkNightlyTimeSync() {
-    static bool triggered2 = false;
-    static bool triggered3 = false;
-
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return;
-
-    /*if (timeinfo.tm_sec == 30) {
-        delay(1000);
-        Serial.println("[TIME SYNC] Time sync triggered");
-        WiFi.disconnect();
-        wifi_ssid = "asdfghj";
-        wifi_ssid[1] = "asdfghj";
-    }*/
-
-
-    if (timeinfo.tm_hour == 2 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered2) {
-        Serial.println("[TIME SYNC] Triggered at 02:00:05");
-        setupNTP();
-        triggered2 = true;
-    }
-
-    if (timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered3) {
-        Serial.println("[TIME SYNC] Triggered at 03:00:05");
-        setupNTP();
-        triggered3 = true;
-    }
-
-    if (timeinfo.tm_hour == 4 && triggered2 && triggered3) {
-        triggered2 = false;
-        triggered3 = false;
-    }
-}
-
-// Überprüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
-void checkWiFiReconnect() {
-    static unsigned long lastAttempt = 0;
-    if (WiFi.status() == WL_CONNECTED) return;
-
-    unsigned long now = millis();
-    if (now - lastAttempt < 300000) return;
-    lastAttempt = now;
-
-    Serial.println("[WiFi] Disconnected. Attempting reconnect...");
-    WiFi.disconnect();
-    if (!connectWiFi(0, false)) {
-         connectWiFi(1, false);
-    }
-
-}
 
 // Setup-Funktion
 void setup() {
 
     Serial.begin(115200);
-
 
     unsigned long serialStart = millis();
     while (!Serial && (millis() - serialStart < 1000)) {
@@ -1278,8 +547,735 @@ void setup() {
         // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
         touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
     }
-      
+
 }
+
+// Haupt-Loop
+void loop() {
+
+    // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
+    if (softAPIP) {
+        dnsServer.processNextRequest();
+    }
+
+
+    webserver.handleClient();
+
+    if (WiFi.getMode() == WIFI_STA) {
+
+        checkWiFiReconnect();
+        updateClock();
+
+        checkNightlyTimeSync();
+        checkWeeklyRestart();
+        initial = false;
+    }
+
+    checkButton();
+    updateBrightness();
+
+    if (useTouch) {
+        // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
+        if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
+            touchEnabled = true;
+            Serial.println("[TOUCH] Enabled");
+        }
+
+        if (touchEnabled) {
+            // Touch-Input prüfen und ggf. Hintergrund wechseln
+            checkTouchInput();
+        }
+    }
+
+    // restart im AP Mode nach 30 Minuten
+    if (softAPIP == true) {
+        if (millis() - softAPIPstart > (30 * 60000)) {
+            ESP.restart();
+        }
+    }
+
+}
+
+/// <summary>
+/// Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
+/// </summary>
+/// <param name="pixel">Der 16-Bit-Farbwert des Pixels, der angepasst werden soll.</param>
+/// <returns>Der angepasste 16-Bit-Farbwert des Pixels, basierend auf der aktuellen Helligkeit. Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, wird der ursprüngliche Wert zurückgegeben.</returns>
+ 
+uint16_t setPixelBrightness(uint16_t pixel) {
+
+#ifdef TFT_Backlight
+    return pixel;
+#else
+
+    // Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, direkt zurückgeben
+    if (pixel == TRANSPARENT_COLOR || pixel == 0x0000 || currentBrightness == 255) {
+        return pixel;
+    }
+
+    // Multiplikator einmal berechnen (statt 3x Division)
+    uint32_t brightnessFactor = (uint32_t)currentBrightness;
+
+    // Farben extrahieren
+    uint32_t r = (pixel & 0xF800);
+    uint32_t g = (pixel & 0x07E0);
+    uint32_t b = (pixel & 0x001F);
+
+    // Multiplikation mit Brightness (optimiert, kein Shift nötig)
+    r = ((r * brightnessFactor) >> 8) & 0xF800;
+    g = ((g * brightnessFactor) >> 8) & 0x07E0;
+    b = ((b * brightnessFactor) >> 8) & 0x001F;
+
+    // Farbwerte zusammenfügen
+    return r | g | b;
+#endif
+}
+
+
+
+/// <summary>
+/// Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.           
+/// </summary>  
+void loadClockFace() {
+    // Prüfen, ob Buffer schon existiert
+    if (!clockFaceBuffer) {
+        size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
+        if (psramFound() and ESP.getFreePsram() > bufSize) {
+            Serial.println("[clockFaceBuffer] allocate psram");
+            clockFaceBuffer = (uint16_t*)ps_malloc(bufSize);
+        }
+        else {
+            Serial.println("allocte ram: " + bufSize);
+            Serial.println("[clockFaceBuffer] allocate ram");
+            clockFaceBuffer = (uint16_t*)malloc(bufSize);
+        }
+        if (!clockFaceBuffer) {
+            Serial.println("Fehler: clockFaceBuffer konnte nicht allokiert werden!");
+            return;
+        }
+
+
+
+        if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
+        // Bild aus Datei laden und dekodieren
+        if (LittleFS.exists(selectedBackground)) {
+            File bmp = LittleFS.open(selectedBackground, "r");
+            if (bmp) {
+                uint8_t header[54];
+                if (bmp.read(header, 54) == 54 && header[0] == 'B' && header[1] == 'M') {
+                    int32_t width = *(int32_t*)&header[18];
+                    int32_t height = *(int32_t*)&header[22];
+                    uint16_t bpp = *(uint16_t*)&header[28];
+                    uint32_t offset = *(uint32_t*)&header[10];
+                    if (width == CLOCK_WIDTH && abs(height) == CLOCK_HEIGHT && bpp == 16) {
+                        bool flip = height > 0;
+                        height = abs(height);
+                        bmp.seek(offset);
+                        for (int y = 0; y < height; y++) {
+                            int row = flip ? height - 1 - y : y;
+                            bmp.read((uint8_t*)&clockFaceBuffer[row * CLOCK_WIDTH], CLOCK_WIDTH * 2);
+                        }
+                    }
+                }
+                bmp.close();
+            }
+        }
+        else {
+            // Fallback: Standard-Zifferblatt aus Array kopieren
+            memcpy(clockFaceBuffer, clockFace, CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
+        }    
+    }
+
+    // Breiten aus Dateinamen extrahieren
+    parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
+    updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
+
+    // Buffer ins Sprite kopieren (mit Helligkeit)
+    for (int y = 0; y < CLOCK_HEIGHT; y++) {
+        for (int x = 0; x < CLOCK_WIDTH; x++) {
+            rowBuffer[x] = setPixelBrightness(clockFaceBuffer[y * CLOCK_WIDTH + x]);
+        }
+        backgroundSprite.pushImage(0, y, CLOCK_WIDTH, 1, rowBuffer);
+    }
+
+}
+
+// Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
+void freeClockFaceBuffer() {
+    if (clockFaceBuffer) {
+        free(clockFaceBuffer);
+        clockFaceBuffer = nullptr;
+        Serial.println("[clockFaceBuffer] free");
+    }
+}
+
+/// <summary>
+/// Lädt die Grafiken für die Zeiger eines Uhren-Widgets, entweder aus einer benutzerdefinierten Konfiguration oder aus Standardwerten.
+/// </summary>  
+void loadHandSprites() {
+    String set = preferences.getString("handset", "");
+
+#ifdef DEBUG
+    Serial.println("[HANDS] Active hand set: " + set);
+#endif
+
+    bool usedDefault = false;
+    if (set != "" && set != "default") {
+        struct HandConfig {
+            String label;
+            TFT_eSprite* sprite;
+            const uint16_t* fallback;
+        } hands[3] = {
+            {"hour", &hourHandSprite, handHour},
+            {"minute", &minuteHandSprite, handMinute},
+            {"second", &secondHandSprite, handSecond}
+        };
+
+        for (auto& h : hands) {
+            String path = "/hand_set" + set + "_" + h.label + ".bmp";
+#ifdef DEBUG
+            Serial.println("[HANDS] Looking for: " + path);
+#endif
+
+            if (LittleFS.exists(path)) {
+                if (!loadHandBmp(h.sprite, path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
+                    for (int y = 0; y < HAND_HEIGHT; y++) {
+
+                        for (int x = 0; x < HAND_WIDTH; x++) {
+                            uint16_t px = h.fallback[y * HAND_WIDTH + x];
+
+                            rowBuffer[x] = setPixelBrightness(px);
+
+                        }
+                        h.sprite->pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
+                    }
+                    usedDefault = true;
+#ifdef DEBUG
+                    Serial.println("[HANDS] Failed to load " + h.label + ", fallback used.");
+#endif
+                }
+                else {
+#ifdef DEBUG
+                    Serial.println("[HANDS] Loaded " + h.label);
+#endif
+                }
+                // Serial.println("found");
+            }
+            else {
+                h.sprite->pushImage(0, 0, HAND_WIDTH, HAND_HEIGHT, h.fallback);
+                usedDefault = true;
+#ifdef DEBUG
+                Serial.println("[HANDS] Missing " + h.label + ", using default.");
+#endif
+            }
+        }
+
+#ifdef DEBUG
+        if (!usedDefault) {
+            Serial.println("[HANDS] Loaded handset: " + set);
+        }
+        else {
+            Serial.println("[HANDS] Incomplete set, used default for missing hands.");
+        }
+#endif
+    }
+    else {
+        for (int y = 0; y < HAND_HEIGHT; y++) {
+            for (int x = 0; x < HAND_WIDTH; x++) {
+                rowBuffer[x] = setPixelBrightness(handHour[y * HAND_WIDTH + x]);
+            }
+            hourHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
+
+            for (int x = 0; x < HAND_WIDTH; x++) {
+                rowBuffer[x] = setPixelBrightness(handMinute[y * HAND_WIDTH + x]);
+            }
+            minuteHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
+
+            for (int x = 0; x < HAND_WIDTH; x++) {
+                rowBuffer[x] = setPixelBrightness(handSecond[y * HAND_WIDTH + x]);
+            }
+            secondHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
+        }
+#ifdef DEBUG
+        Serial.println("[HANDS] No set selected, using defaults.");
+#endif
+    }
+}
+ 
+// Hilfsfunktion zum Laden von Zeiger-BMPs 
+bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) {
+    File bmp = LittleFS.open(filename, "r");
+    if (!bmp) return false;
+
+    uint8_t header[54];
+    if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
+        bmp.close();
+        return false;
+    }
+
+    int32_t bmpWidth = *(int32_t*)&header[18];
+    int32_t bmpHeight = *(int32_t*)&header[22];
+    uint16_t bpp = *(uint16_t*)&header[28];
+    uint32_t offset = *(uint32_t*)&header[10];
+
+    if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
+        bmp.close();
+        return false;
+    }
+
+    bool flip = bmpHeight > 0;
+    bmpHeight = abs(bmpHeight);
+
+    bmp.seek(offset);
+    int rowSize = ((width * 2 + 3) / 4) * 4;
+    for (int y = 0; y < bmpHeight; y++) {
+        int row = flip ? bmpHeight - 1 - y : y;
+        //uint8_t rowBuffer[rowSize];
+        if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) break;
+
+        uint16_t* pixelData = (uint16_t*)rowBuffer;
+        for (int x = 0; x < width; x++) {
+
+            if (pixelData[x] == 0xFFFF) {
+                pixelData[x] = TRANSPARENT_COLOR;
+            }
+
+            pixelData[x] = setPixelBrightness(pixelData[x]);
+
+        }
+        sprite->pushImage(0, row, width, 1, (uint16_t*)rowBuffer, TRANSPARENT_COLOR);
+    }
+
+    bmp.close();
+    return true;
+}
+
+
+
+// Button prüfen und ggf. Anzeige oder Factory Reset auslösen
+void checkButton() {
+    if (digitalRead(BUTTON1) == HIGH) {
+
+        uint8_t secs = 5;
+        unsigned long pressStart = millis();
+
+        clearTFT();
+
+        // Einmalig Anzeige zeichnen
+        tft.fillScreen(TFT_BLACK);
+        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        tft.setTextSize(TFT_TEXT_SIZE);
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+        tft.println("Connected to:");
+        tft.setCursor(20, (CLOCK_HEIGHT / 2));
+        if (WiFi.SSID().length() > 15) {
+            tft.print(WiFi.SSID().substring(0, 15));
+            tft.println("...");
+        }
+        else tft.println(WiFi.SSID());
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.println(WiFi.localIP());
+
+        
+
+
+        // Blockierender Loop während Button gedrückt
+        while (digitalRead(BUTTON1) == HIGH) {
+            if (millis() - pressStart > 10000 && millis() - pressStart < 15000) {
+                tft.fillScreen(TFT_RED);
+                tft.setTextColor(TFT_WHITE, TFT_RED);
+                tft.setTextSize(TFT_TEXT_SIZE);
+                tft.setCursor(20, CLOCK_HEIGHT / 2);
+                tft.printf("Factory Reset", secs);
+
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
+                tft.printf("in %d secs", secs);
+                delay(1000);
+                if (secs > 0) secs--;
+            }
+
+            if (millis() - pressStart > 15000) {
+                // 15 Sekunden überschritten → Factory Reset
+                tft.fillScreen(TFT_RED);
+                tft.setTextColor(TFT_WHITE, TFT_RED);
+                tft.setTextSize(TFT_TEXT_SIZE);
+                tft.setCursor(20, CLOCK_HEIGHT / 2);
+                tft.println("Factory Reset...");
+                delay(1000);
+                factoryReset();  
+                return;    
+            }
+            delay(10);  
+        }
+
+        // Button wurde vor erreichen der 10 Sek. losgelassen: nur Anzeige bleibt kurz sichtbar
+        delay(3000); 
+    }
+}
+
+
+// Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
+float shortestAngleDiff(float from, float to) {
+    float diff = fmodf(to - from + 360.0f, 360.0f); // Modulo 360, um Werte im Bereich [0, 360) zu halten
+    if (diff > 180.0f) diff -= 360.0f;             // Kürzeste Richtung wählen
+    return diff;
+}
+
+static float lastHourAngle = 0.0f;
+static float lastMinuteAngle = 0.0f;
+
+// updateClock Funktion
+void updateClock() {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) return;
+
+    int orientation = preferences.getUChar("tft_rotation", 0);
+
+    float secAngle = timeinfo.tm_sec * 6.0f;
+    float minAngle = timeinfo.tm_min * 6.0f;
+    float hourAngle = (timeinfo.tm_hour % 12) * 30.0f + (timeinfo.tm_min / 2.0f) + (timeinfo.tm_sec / 120.0f);
+
+    static uint8_t stationTick = 0;
+    static uint32_t stationLastMillis = 0;
+    static bool stationWaiting = false;
+
+    unsigned long currentMillis = millis();
+
+    if (firstRun) {
+        stationTick = timeinfo.tm_sec;
+        stationLastMillis = millis();
+        stationWaiting = false;
+        firstRun = false;
+
+        lastHourAngle = rotatedAngle(hourAngle, orientation);
+        lastMinuteAngle = rotatedAngle(minAngle, orientation);
+
+        hourHandSprite.pushRotated(&backgroundSprite, lastHourAngle, TRANSPARENT_COLOR);
+        minuteHandSprite.pushRotated(&backgroundSprite, lastMinuteAngle, TRANSPARENT_COLOR);
+
+        if (showSecondHand) {
+            secondHandSprite.pushRotated(&backgroundSprite, rotatedAngle(secAngle, orientation), TRANSPARENT_COLOR);
+        }
+        backgroundSprite.pushSprite(0, 0);
+    }
+
+    if (stationMode) {
+        if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
+            stationTick++;
+            stationLastMillis += fastSecond;
+
+            if (stationTick >= 60) {
+                stationTick = 60;
+                stationWaiting = true;
+            }
+        }
+        else if (stationWaiting) {
+            if (timeinfo.tm_sec == 0) {
+                stationTick = 0;
+                stationWaiting = false;
+                stationLastMillis = currentMillis;
+
+                // Sekundenzeiger korrekt synchronisieren
+                secAngle = rotatedAngle(0, orientation);
+            }
+        }
+
+        float subTick = (currentMillis - stationLastMillis) / fastSecond;
+        if (subTick > 1.0f || stationWaiting) subTick = 0.0f;
+
+        float smoothSec = (stationTick >= 60) ? 60.0f : stationTick + easeInOutSine(subTick);
+        secAngle = rotatedAngle(smoothSec * 6.0f, orientation);
+
+        minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);   
+    }
+
+    if (!stationMode) {
+        secAngle = rotatedAngle(secAngle, orientation);
+          
+        smoothMinute = preferences.getBool("smoothMinute", false);
+
+        if (smoothMinute) {
+            // Millisekunden einbeziehen
+            unsigned long currentMillis = millis();
+            int milliseconds = currentMillis % 1000;
+            float smoothMinuteValue = timeinfo.tm_min + (timeinfo.tm_sec / 60.0f) + (milliseconds / 60000.0f);
+
+            float rawMinAngle = smoothMinuteValue * 6.0f;
+            float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
+            float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
+
+            // Sicherstellen, dass der Zeiger immer vorwärts läuft
+            if (angleDiff < -180.0f) angleDiff += 360.0f;
+            if (angleDiff > 180.0f) angleDiff -= 360.0f;
+
+            lastMinuteAngle += angleDiff * 0.01f;  // noch feinere Bewegung
+
+        }
+        else {
+            // Normale Minutenanzeige mit sanfter Korrektur bei Wechsel
+            float rawMinAngle = timeinfo.tm_min * 6.0f;
+            float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
+            float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
+
+            if (fabs(angleDiff) > 0.1f) {
+                lastMinuteAngle += angleDiff * 0.1f;
+                if (lastMinuteAngle < 0.0f) lastMinuteAngle += 360.0f;
+                if (lastMinuteAngle >= 360.0f) lastMinuteAngle -= 360.0f;
+            }
+            else {
+                lastMinuteAngle = targetMinAngle;
+            }
+        }
+
+        minAngle = lastMinuteAngle;
+    }
+         
+    
+
+    float targetHourAngle = rotatedAngle(hourAngle, orientation);
+    float hourAngleDiff = shortestAngleDiff(lastHourAngle, targetHourAngle);
+
+    if (fabs(hourAngleDiff) > 0.05f) {
+        lastHourAngle += hourAngleDiff * 0.1f;  // Glättungsfaktor
+    }
+    else {
+        lastHourAngle = targetHourAngle;
+    }
+    hourAngle = lastHourAngle;
+
+
+    loadClockFace();
+
+    hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
+    minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
+    if (showSecondHand) {
+        secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
+    }
+    
+    // Nabe (hub)
+    if (hub_size > 0 && hub_color > 0) {
+        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
+        // Serial.println("[HUB] Drawn hub with size " + String(hub_size));
+        // Serial.println("[HUB] Color: " + String(hub_color, HEX));
+    }
+
+    backgroundSprite.pushSprite(0, 0);
+}
+ 
+/// Helligkeit aktualisieren
+void updateBrightness() {
+
+    // Wenn Helligkeit geändert → neu zeichnen
+    if (currentBrightness != lastAppliedBrightness) {
+        loadClockFace();
+        loadHandSprites();
+        lastAppliedBrightness = currentBrightness;
+    }
+
+    // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
+    bool withinDayWindow = false;
+    
+        struct tm timeinfo;
+        if (getLocalTime(&timeinfo)) {
+            int h = timeinfo.tm_hour;
+            if (brightStartHour <= brightEndHour) {
+                // normaler Bereich z.B. 8..20
+                withinDayWindow = (h >= brightStartHour && h < brightEndHour);
+            }
+            else {
+                // über Mitternacht z.B. 20..6
+                withinDayWindow = (h >= brightStartHour || h < brightEndHour);
+            }
+        }
+    
+
+    // Wenn Zeitfenster aktiv und wir innerhalb davon sind: volle Helligkeit erzwingen
+    if (withinDayWindow) {
+        targetBrightness = maxBrightness;
+#ifdef TFT_Backlight
+        // sanfte Erhöhung, falls gewünscht (ähnlich wie ADC-Rampen)
+        if (currentBrightness < targetBrightness) currentBrightness++;
+        else if (currentBrightness > targetBrightness) currentBrightness--;
+#else
+        currentBrightness = targetBrightness;
+#endif
+    }
+    else {
+        // Normale Auto-Brightness oder statische Helligkeit
+        if (use_adc) {
+
+            int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
+            // Serial.printf("[ADC] Raw value: %d\n", adcRaw);
+
+            if (initial) {
+                for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
+            }
+
+            adcHistory[adcIndex] = adcRaw;
+            adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
+
+            uint32_t avg = 0;
+            for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
+            avg /= ADC_SMOOTHING;
+
+            currentAdcAvg = avg;  // speichern
+
+            int lightPercent = map(avg, 0, 4095, 5, 100);
+
+            if (lightPercent < lowThreshold) targetBrightness = minBrightness;
+            else if (lightPercent > highThreshold) targetBrightness = maxBrightness;
+#ifdef TFT_Backlight
+            else {
+                float norm = constrain((float)avg / 4095.0f, 0.0f, 1.0f);
+                float gamma = gammaBrightness;
+                float gammaNorm = powf(norm, gamma);
+                targetBrightness = minBrightness + (uint8_t)((maxBrightness - minBrightness) * gammaNorm + 0.5f);
+            }
+#endif
+
+            currentLightPercent = lightPercent;
+
+            if (initial) currentBrightness = targetBrightness;
+
+#ifdef TFT_Backlight
+            if (currentBrightness != targetBrightness) {
+                if (currentBrightness < targetBrightness) {
+                    currentBrightness++;
+                }
+                else {
+                    currentBrightness--;
+                }
+            }
+#else
+            currentBrightness = targetBrightness;
+#endif
+
+        }
+        else {
+            // kein ADC: Standardeinstellung
+            currentBrightness = maxBrightness;
+            targetBrightness = currentBrightness;
+        }
+    }
+
+#ifdef TFT_Backlight
+    ledcWrite(TFT_Backlight, currentBrightness);  // 0–255
+#endif
+
+}
+
+// Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
+int getAdjustedAdcValue(int rawValue) {
+    if (adcInverted) {
+        return 4096 - rawValue; // Invertiere den Wert
+    }
+    return rawValue; // Standardwert
+}
+
+/// Easing-Funktion für sanfte Animationen
+float easeInOutSine(float t) {
+    // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
+    float intensity = 0.5f;
+    return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
+}
+
+/// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
+String encodeBmpToBase64(const uint16_t* data, int width, int height) {
+    const int headerSize = 54;
+    const int rowSize = ((width * 2 + 3) / 4) * 4;
+    const int dataSize = rowSize * height;
+    const int fileSize = headerSize + dataSize;
+
+    uint8_t* bmpData = new uint8_t[fileSize];
+    if (!bmpData) return "";
+
+    memset(bmpData, 0, fileSize);
+
+    // BMP Header
+    bmpData[0] = 'B'; bmpData[1] = 'M';
+    *(uint32_t*)&bmpData[2] = fileSize;
+    *(uint32_t*)&bmpData[10] = headerSize;
+    *(uint32_t*)&bmpData[14] = 40;
+    *(int32_t*)&bmpData[18] = width;
+    *(int32_t*)&bmpData[22] = -height; // Top-down BMP
+    *(uint16_t*)&bmpData[26] = 1;
+    *(uint16_t*)&bmpData[28] = 16;
+    *(uint32_t*)&bmpData[34] = dataSize;
+
+    // Pixel-Daten (RGB565 → BMP raw)
+    for (int y = 0; y < height; y++) {
+        uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
+        for (int x = 0; x < width; x++) {
+            uint16_t px = data[y * width + x];
+            if (px == TRANSPARENT_COLOR) px = 0xFFFF;
+
+            rowPtr[x * 2] = px & 0xFF;
+            rowPtr[x * 2 + 1] = px >> 8;
+        }
+    }
+
+    String result = base64::encode(bmpData, fileSize);
+    result.replace("\n", "");
+
+    delete[] bmpData;
+
+    return result;
+}
+
+
+//
+// NTP-Zeitsynchronisation um 02:00:05 und 03:00:05
+//
+void checkNightlyTimeSync() {
+    static bool triggered2 = false;
+    static bool triggered3 = false;
+
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) return;
+
+    /*if (timeinfo.tm_sec == 30) {
+        delay(1000);
+        Serial.println("[TIME SYNC] Time sync triggered");
+        WiFi.disconnect();
+        wifi_ssid = "asdfghj";
+        wifi_ssid[1] = "asdfghj";
+    }*/
+
+
+    if (timeinfo.tm_hour == 2 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered2) {
+        Serial.println("[TIME SYNC] Triggered at 02:00:05");
+        setupNTP();
+        triggered2 = true;
+    }
+
+    if (timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered3) {
+        Serial.println("[TIME SYNC] Triggered at 03:00:05");
+        setupNTP();
+        triggered3 = true;
+    }
+
+    if (timeinfo.tm_hour == 4 && triggered2 && triggered3) {
+        triggered2 = false;
+        triggered3 = false;
+    }
+}
+
+// Überprüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
+void checkWiFiReconnect() {
+    static unsigned long lastAttempt = 0;
+    if (WiFi.status() == WL_CONNECTED) return;
+
+    unsigned long now = millis();
+    if (now - lastAttempt < 300000) return;
+    lastAttempt = now;
+
+    Serial.println("[WiFi] Disconnected. Attempting reconnect...");
+    WiFi.disconnect();
+    if (!connectWiFi(0, false)) {
+         connectWiFi(1, false);
+    }
+}
+
 
 
 // clear TFT display
@@ -1350,9 +1346,7 @@ bool connectWiFi(int number, bool verbose_mode) {
     if (wifi_ssid[number] == "") return false;
 
     Serial.println(wifi_ssid[number]);
-    // Serial.println(wifi_pass);
-   
-           
+               
     Serial.println("[WiFi] Trying SSID " + (String)number);
 
     if (verbose_mode) {
@@ -1515,10 +1509,11 @@ String generateHtmlStatus() {
 // Navigationsleiste generieren
 String generateNavigation() {
     String nav = "<style>";
-    nav += "a { text-decoration: underline; color: blue; font-weight: bold; }"; // Unterstrich hinzufügen
-    nav += "a:hover { text-decoration: underline; }"; // Optional: Hover-Effekt beibehalten
+    nav += "a { text-decoration: underline; color: blue; font-weight: bold; }"; 
+    nav += "a:hover { text-decoration: underline; }"; 
     nav += "</style>";
     nav += "<div style='text-align:center; margin-bottom:20px;'>";
+    // Links
     nav += "<a href=\"/\" style=\"margin-right:15px;\">Main</a>";
     nav += "<a href=\"/files\" style=\"margin-right:15px;\">File&nbsp;Manager</a>";
     nav += "<a href=\"/status\" style=\"margin-right:15px;\">Status</a>";
@@ -1534,7 +1529,8 @@ String generateNavigation() {
 void setupWebServer() {
 
     // http://192.168.0.128/api/setface?file=face_bigben.bmp
-
+    
+    // Setzt das Ziffernblatt auf die angegebene Datei
     webserver.on("/api/setface", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String file = webserver.arg("file");
@@ -1559,6 +1555,7 @@ void setupWebServer() {
 
     // http://192.168.0.128/api/sethandset?set=3
 
+    // Setzt das Zeigerset
     webserver.on("/api/sethandset", HTTP_GET, []() {
         if (webserver.hasArg("set")) {
             String set = webserver.arg("set");
@@ -1575,7 +1572,7 @@ void setupWebServer() {
         }
         });
 
-    
+    // NTP Server und Zeitzone setzen
     webserver.on("/set_timezone", HTTP_POST, []() {
         if (webserver.hasArg("ntpServer1")) {
             ntpServer1 = webserver.arg("ntpServer1");
@@ -1607,7 +1604,7 @@ void setupWebServer() {
         });
 
      
-
+    // NTP Server und Zeitzone Formular
     webserver.on("/timezone_form", HTTP_GET, []() {
         String timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
@@ -1677,6 +1674,7 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
+    // Datei umbenennen Formular
     webserver.on("/rename_form", HTTP_GET, []() {
         if (!webserver.hasArg("file")) {
             webserver.send(400, "text/plain", "Missing file parameter.");
@@ -1698,6 +1696,7 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
+    // Datei umbenennen Aktion
     webserver.on("/rename", HTTP_POST, []() {
         if (webserver.hasArg("old") && webserver.hasArg("new")) {
             String oldName = webserver.arg("old");
@@ -1726,7 +1725,7 @@ void setupWebServer() {
         });
 
 
-
+    // BMP skalieren Formular
     webserver.on("/scalebmp_form", HTTP_GET, []() {
         if (!webserver.hasArg("file")) {
             webserver.send(400, "text/plain", "Missing file name.");
@@ -1744,11 +1743,12 @@ void setupWebServer() {
         html += "Height: <input name='h' type='number' value='" + String(CLOCK_HEIGHT) + "' required><br>";
         html += "<button type='submit'>Scale and Save</button></form>";
         html += "<br><br>";
-        html += generateNavigation(); // Navigation einfügen
+       // html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
+    // BMP skalieren Aktion 
     webserver.on("/scalebmp_run", HTTP_GET, []() {
         if (!webserver.hasArg("src") || !webserver.hasArg("dst") || !webserver.hasArg("w") || !webserver.hasArg("h")) {
             webserver.send(400, "text/plain", "Missing parameters.");
@@ -1769,9 +1769,13 @@ void setupWebServer() {
         }
         });
 
-
+    // Anzeigeeinstellungen speichern
     webserver.on("/applydisplaysettings", HTTP_POST, []() {
         // Save to Preferences
+
+        stationMode = preferences.getBool("stationMode", false);
+        showSecondHand = preferences.getBool("showSecondHand", true);   
+        smoothMinute = preferences.getBool("smoothMinute", false);  
 
         stationMode = webserver.hasArg("stationMode");
         showSecondHand = webserver.hasArg("showSecondHand");
@@ -1802,9 +1806,7 @@ void setupWebServer() {
         });
 
    
-
-
-
+    // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_POST, []() {
         String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
@@ -1904,6 +1906,7 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
+    // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_GET, []() {
         String html = generateHtmlHeader();
         html += generateNavigation(); // Navigation einfügen
@@ -1997,7 +2000,7 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
-
+    // Helligkeitseinstellungen speichern
     webserver.on("/save_brightness", HTTP_POST, []() {
         use_adc = webserver.hasArg("use_adc");
         adcInverted = webserver.hasArg("adcInverted");
@@ -2032,15 +2035,13 @@ void setupWebServer() {
         preferences.putUChar("brightEnd", brightEndHour);
 
 
-        
-
         webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2; url=/brightness'><title>Saved</title></head>"
             "<body style='font-family:Arial;text-align:center;'><h2>Settings saved</h2><p>Returning...</p></body></html>");
         });
 
 
-
+    // Alle Dateien auflisten
     webserver.on("/files", HTTP_GET, []() {
         String html = generateHtmlHeader();
         
@@ -2071,7 +2072,7 @@ void setupWebServer() {
 
 
 
-
+    // Systemstatus Seite
     webserver.on("/status", HTTP_GET, []() {
 
         char version[32];
@@ -2198,7 +2199,7 @@ void setupWebServer() {
         // Booleans als Text
         html += "<li><b>use_adc</b>: " + String(preferences.getBool("use_adc", true) ? "true" : "false") + "</li>";
         html += "<li><b>stationMode</b>: " + String(preferences.getBool("stationMode", true) ? "true" : "false") + "</li>";
-        html += "<li><b>secondhand</b>: " + String(preferences.getBool("showSecondHand", true) ? "true" : "false") + "</li>";
+        html += "<li><b>showSecondhand</b>: " + String(preferences.getBool("showSecondHand", true) ? "true" : "false") + "</li>";
         html += "<li><b>smoothMinute</b>: " + String(preferences.getBool("smoothMinute", false) ? "true" : "false") + "</li>";
         
         html += "<li><b>minBrightness</b>: " + String(preferences.getUChar("minBrightness", 100)) + "</li>";
@@ -2269,6 +2270,7 @@ void setupWebServer() {
             delete[] bmpData;
             });
 
+        // Uhr-Gesichter verwalten
         webserver.on("/listfilesFaces", HTTP_GET, []() {
 
             size_t total = LittleFS.totalBytes();
@@ -2342,7 +2344,7 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
-   
+        // WLAN Netzwerke scannen
         webserver.on("/api/scanwifi", HTTP_GET, []() {
         String json = "";
         
@@ -2380,11 +2382,11 @@ void setupWebServer() {
         webserver.send(200, "application/json", "{\"status\":\"ok\"}");
         });
 
+
+        // Hauptseite - WLAN Einstellungen
         webserver.on("/", HTTP_GET, []() {
 
-
         String html = generateHtmlHeader();
-        
 
         // Seite benötigt JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>JavaScript is disabled. This page requires JavaScript to work properly!</div></noscript>";
@@ -2545,6 +2547,7 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
+        // Speichern der WiFi-Einstellungen
         webserver.on("/save", HTTP_POST, []() {
         if (webserver.hasArg("ssid1")) {
             if (webserver.arg("ssid1") != "") preferences.putString("ssid1", webserver.arg("ssid1"));
@@ -2566,10 +2569,12 @@ void setupWebServer() {
         }
         });
 
+        // Upload-Formular anzeigen
         webserver.on("/upload", HTTP_GET, []() {
             webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'>Back to file list</a>");
         });
 
+        // Datei-Upload verarbeiten
         webserver.on("/upload", HTTP_POST, []() {
         if (uploadSuccess) {
             webserver.sendHeader("Location", "/listfilesFaces", true);
@@ -2585,6 +2590,7 @@ void setupWebServer() {
         }
         }, handleFileUpload);
 
+        // Hintergrundbild setzen
         webserver.on("/setbackground", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String file = webserver.arg("file");
@@ -2617,7 +2623,7 @@ void setupWebServer() {
         webserver.send(404, "text/plain", "File not found");
         });
 
-
+        // Datei löschen
         webserver.on("/delete", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String path = webserver.arg("file");
@@ -2634,6 +2640,7 @@ void setupWebServer() {
         }
         });
 
+        // Datei anzeigen (BMP)
         webserver.on("/file", HTTP_GET, []() {
         if (webserver.hasArg("name")) {
             String path = webserver.arg("name");
@@ -2648,6 +2655,7 @@ void setupWebServer() {
         webserver.send(404, "text/plain", "File not found");
         });
 
+        // Hand-Sets verwalten
         webserver.on("/handsets", HTTP_GET, []() {
 
             size_t total = LittleFS.totalBytes();
@@ -2656,7 +2664,7 @@ void setupWebServer() {
         String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
-        html += "<h2>Manage Clock Hand Sets " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th>Preview/Set</th></tr>";
+        html += "<h2>Manage Clock Hand Sets " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th colspan=2>Preview/Set</th></tr>";
 
         String activeSet = preferences.getString("handset", "");
         std::set<String> foundSets;
@@ -2665,17 +2673,12 @@ void setupWebServer() {
         File file = root.openNextFile();
         while (file) {
             String name = file.name();
-#ifdef DEBUG
-            Serial.println(name);
-#endif
+
             if (!file.isDirectory() && name.startsWith("hand_set") && name.endsWith(".bmp")) {
                 int start = 8;
                 int end = name.indexOf('_', start);
                 if (end > start) {
                     String set = name.substring(start, end);
-#ifdef DEBUG
-                    Serial.println("[HANDS] Found set: " + set);
-#endif
                     foundSets.insert(set);
                 }
             }
@@ -2767,10 +2770,10 @@ void setupWebServer() {
         webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/handsets'>"
             "<title>Updated</title></head><body style='font-family:Arial;text-align:center;'>"
-            "<h2>Centre point updated</h2><p>back to handsets...</p></body></html>");
+            "<h2>Centre point updated</h2><p>back to handsets in 3 seconds</p></body></html>");
         });
 
-
+        //  Handsets Datei-Upload verarbeiten
         webserver.on("/uploadhandset", HTTP_POST, []() {
         if (uploadSuccess) {
             // Sicherheitsprüfung auf Dateinamenmuster
@@ -2798,6 +2801,8 @@ void setupWebServer() {
         }
         }, handleFileUpload);
 
+
+        // Handset setzen
         webserver.on("/sethandset", HTTP_GET, []() {
         if (webserver.hasArg("set")) {
             String chosen = webserver.arg("set");
@@ -2815,6 +2820,7 @@ void setupWebServer() {
         }
         });
 
+        // Handset löschen
         webserver.on("/deletehandset", HTTP_GET, []() {
         if (webserver.hasArg("set")) {
             String set = webserver.arg("set");
@@ -2835,17 +2841,18 @@ void setupWebServer() {
         }
         });
 
+        // ESP neu starten
         webserver.on("/reboot", HTTP_GET, []() {
             webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>Rebooting...</h2><p>Return to the main page in 10 seconds or refresh the website when the ESP is online again.</p></body></html>");
         esp_reboot();
         }); 
-
+            
+        // Factory Reset    
         webserver.on("/factoryReset", HTTP_GET, []() {
           factoryReset();
         });
 
-
-
+        // Sofortige Zeitsynchronisation
         webserver.on("/syncnow", HTTP_POST, []() {
         setupNTP();
         struct tm timeinfo;
@@ -3149,7 +3156,7 @@ String getBmpInfo(const String& filename) {
     uint16_t bpp = *(uint16_t*)&header[28];
     bmp.close();
 
-    return String(abs(width)) + " x " + String(abs(height)) + " / " + String(bpp) + " bpp";
+    return String(abs(width)) + "&nbsp;x&nbsp;" + String(abs(height)) + " / " + String(bpp) + " bpp";
 }
 
 // Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
@@ -3577,7 +3584,7 @@ void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) 
     loadHandSprites();
 }
 
-// Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes
+// Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes (test)
 void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) {
     // Standardwerte setzen
     hourWidth = HAND_WIDTH;
