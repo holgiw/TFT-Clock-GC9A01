@@ -56,3 +56,5 @@
 •	Uptime Display: Shows the clock's runtime since the last restart.
 •	Reboot Function: Allows restarting the clock via the web interface.
 •	BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
+• API Interface
+
