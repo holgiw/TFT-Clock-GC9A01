@@ -52,6 +52,7 @@ DNSServer dnsServer;
 //               3.3V         vcc     3v3             red
 //               GND          gnd     ground          blue
 //  see C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\user_setups\Setup304__ESP32S3_GC9D01.h
+// or   https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
 
 #define LED_BOARD 15 // BUILTIN LED
@@ -1478,7 +1479,8 @@ void setupNTP() {
 /// <param name="tz">Die zu setzende Zeitzone als String.</param>
 void setTimezone(String tz) {
     preferences.putString("timezone", tz);
-    configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str(), "de.pool.ntp.org");
+    configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str(), "de.pool.ntp.org");    
+
     Serial.println("Set Timezone: " + tz);
 }
 
@@ -1519,6 +1521,11 @@ String generateNavigation() {
     nav += "<a href=\"/status\" style=\"margin-right:15px;\">Status</a>";
     nav += "<a href=\"/reboot\"  onclick=\"return confirm('Really?')\" style=\"margin-right:15px;\">Reboot</a>";
     nav += "<a href=\"/factoryReset\" onclick=\"return confirm('Really?')\">Factory&nbsp;Reset</a>";
+    nav += "<br><br>";
+    nav += "<a href=\"/listfilesFaces\" style=\"margin-right:15px;\">Clock&nbsp;Face</a>";
+    nav += "<a href=\"/handsets\" style=\"margin-right:15px;\">Hand&nbsp;Set</a>";
+    nav += "<a href=\"/timezone_form\" style=\"margin-right:15px;\">NTP/Timezone</a>";
+    nav += "<a href=\"/brightness\" style=\"margin-right:15px;\">Brightness</a>";  
     nav += "</div>";
     return nav;
 }
@@ -1528,49 +1535,103 @@ String generateNavigation() {
 /// </summary>
 void setupWebServer() {
 
-    // http://192.168.0.128/api/setface?file=face_bigben.bmp
-    
-    // Setzt das Ziffernblatt auf die angegebene Datei
-    webserver.on("/api/setface", HTTP_GET, []() {
-        if (webserver.hasArg("file")) {
-            String file = webserver.arg("file");
-            file.replace("..", "");
-            if (!file.startsWith("/")) file = "/" + file;
-            if (file == "/face_default.bmp" || LittleFS.exists(file)) {
-                preferences.putString("background", file);
-                selectedBackground = file;
+    // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
+     
+    // DB
+    // http://192.168.0.214/api/setMode?face=face_db_uhr.bmp&handSet=0&hubSize=6&hubColor=ff0000showSecondHand=1&stationMode=true&smoothMinute=false&rotation=2
+
+    // Irish Pub
+    // http://192.168.0.214/api/setMode?face=face_irish_pub.bmp&handSet=0&hubSize=2&hubColor=aaaaaa&showSecondHand=false&stationMode=false&smoothMinute=true&rotation=2
+
+    webserver.on("/api/setMode", HTTP_GET, []() {
+
+        if (webserver.hasArg("face")) {
+            String face = webserver.arg("face");
+            face.replace("..", "");
+            if (!face.startsWith("/")) face = "/" + face;
+            if (face == "/face_default.bmp" || LittleFS.exists(face)) {
+                preferences.putString("background", face);
+                selectedBackground = face;
                 freeClockFaceBuffer();
                 loadClockFace();
                 loadHandSprites();
                 updateClock();
-                webserver.send(200, "application/json", "{\"status\":\"ok\",\"face\":\"" + file + "\"}");
-                return;
             }
-            webserver.send(404, "application/json", "{\"status\":\"error\",\"msg\":\"File not found\"}");
         }
-        else {
-            webserver.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"Missing file parameter\"}");
-        }
-        });
 
-    // http://192.168.0.128/api/sethandset?set=3
-
-    // Setzt das Zeigerset
-    webserver.on("/api/sethandset", HTTP_GET, []() {
-        if (webserver.hasArg("set")) {
-            String set = webserver.arg("set");
-            Serial.println("[HANDSET] Set to: " + set);
-            preferences.putString("handset", set);
+        if (webserver.hasArg("handSet")) {
+            String handSet = webserver.arg("handSet");
+            preferences.putString("handset", handSet);
             freeClockFaceBuffer();
             loadClockFace();
             loadHandSprites();
             updateClock();
-            webserver.send(200, "application/json", "{\"status\":\"ok\",\"handset\":\"" + set + "\"}");
         }
-        else {
-            webserver.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"Missing set parameter\"}");
+
+        if (webserver.hasArg("timeZone")) {
+            String tz = webserver.arg("timeZone");
+            preferences.putString("timezone", tz);
+            setTimezone(tz);
+            setupNTP();
         }
+        if (webserver.hasArg("ntpServer1")) {
+            ntpServer1 = webserver.arg("ntpServer1");
+            preferences.putString("ntpServer1", ntpServer1);
+        }
+        if (webserver.hasArg("ntpServer2")) {
+            ntpServer2 = webserver.arg("ntpServer2");
+            preferences.putString("ntpServer2", ntpServer2);
+        }
+        if (webserver.hasArg("hubSize")) {
+            hub_size = webserver.arg("hubSize").toInt();
+            preferences.putUInt("hub_size", hub_size);
+        }
+        if (webserver.hasArg("hubColor")) {
+            uint32_t rgb = strtoul(webserver.arg("hubColor").c_str(), NULL, 16); // 24-Bit RGB
+            uint8_t r = (rgb >> 16) & 0xFF; // Rot extrahieren
+            uint8_t g = (rgb >> 8) & 0xFF;  // Grün extrahieren
+            uint8_t b = rgb & 0xFF;         // Blau extrahieren
+
+            // Konvertiere RGB888 zu RGB565
+            hub_color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            preferences.putUInt("hub_color", hub_color);
+        }
+
+
+        if (webserver.hasArg("stationMode")) {
+            String arg = webserver.arg("stationMode");
+            stationMode = (arg == "1" || arg.equalsIgnoreCase("true")); // Konvertiere zu bool            
+            preferences.putBool("stationMode", stationMode);
+        }
+        tft_rotation = webserver.arg("rotation").toInt();
+        if (tft_rotation >= 0 && tft_rotation <= 3) {
+            preferences.putUChar("tft_rotation", tft_rotation);
+            firstRun = true;
+            if (!psramAvailable) {
+                tft.setRotation(tft_rotation); // sofort anwenden
+            }
+            freeClockFaceBuffer();
+            loadClockFace();      // neu zeichnen mit neuer Ausrichtung
+            loadHandSprites();
+        }
+
+        if (webserver.hasArg("showSecondHand")) {
+            String arg = webserver.arg("showSecondHand");
+            showSecondHand = (arg == "1" || arg.equalsIgnoreCase("true")); // Konvertiere zu bool
+            preferences.putBool("showSecondHand", showSecondHand);
+        }
+
+        if (webserver.hasArg("smoothMinute")) {
+            String arg = webserver.arg("smoothMinute");
+            smoothMinute = (arg == "1" || arg.equalsIgnoreCase("true")); // Konvertiere zu bool 
+            preferences.putBool("smoothMinute", smoothMinute);
+        }
+
+          webserver.send(200, "text/plain", "ok");
         });
+
+
+           
 
     // NTP Server und Zeitzone setzen
     webserver.on("/set_timezone", HTTP_POST, []() {
@@ -1909,6 +1970,7 @@ void setupWebServer() {
     // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_GET, []() {
         String html = generateHtmlHeader();
+        html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>Brightness Settings</h2><form method='POST' action='/save_brightness'>";
 
@@ -2288,7 +2350,7 @@ void setupWebServer() {
             html += "<tr><td>";
             html += "<a href='/setbackground?file=face_default.bmp'>";
             html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-            html += "</a><br>default (built-in)</td>";
+            html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH  + " x " + (String)TFT_HEIGHT + " / "  + "16 bpp"; + " </small> </td>";
             html += "</tr>";
 
             File root = LittleFS.open("/");
@@ -2467,7 +2529,7 @@ void setupWebServer() {
 
             html += "<hr>";
 
-            //html += "<a href='/timezone_form'>Set Timezone</a>";
+            /*
             html += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
 
             html += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
@@ -2475,6 +2537,8 @@ void setupWebServer() {
 
             html += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
             html += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
+               */
+
         }
 
         
@@ -2693,7 +2757,7 @@ void setupWebServer() {
 
 
         // Always show default as built-in
-        html += "<tr><td>default</td><td>";
+        html += "<tr><td>0</td><td>";
         html += "<a href='/sethandset?set=default'>";
         html += "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
         html += "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
@@ -3621,4 +3685,3 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
     if (secondWidth > HAND_WIDTH) secondWidth = HAND_WIDTH;
 
 }
-
