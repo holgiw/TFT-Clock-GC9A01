@@ -57,4 +57,8 @@
 •	Reboot Function: Allows restarting the clock via the web interface.
 •	BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
 • API Interface
+• Up to 15 presets (faces, hands, behave)
+
+
+
 
