@@ -1,5 +1,5 @@
 // howl@gmx.de
-// stationsuhr 05/2025
+// stationsuhr 05/2025 - 12/2025
 // 
 // https://github.com/holgiw?tab=repositories
 // 
@@ -20,12 +20,24 @@
 //#define ILI9341 
 
 
+//#define DEBUG
+
+// Debug-Makros
+#ifdef DEBUG
+#define DEBUG_PRINT(x) Serial.print(x)
+#define DEBUG_PRINTLN(x) Serial.println(x)
+#define DEBUG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(x)
+#define DEBUG_PRINTLN(x)
+#define DEBUG_PRINTF(...)
+#endif
+
 // time server & timezone default
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "time.nist.gov"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Central European Time
 
-//#define DEBUG
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -155,13 +167,12 @@ bool initial = true;
 
 String selectedBackground = "/face_default.bmp";
 
+// Presets
 #define MAX_PRESETS 15
-
 struct Preset {
     String name;
     String url;
 };
-
 Preset presets[MAX_PRESETS];
 
 bool stationMode;
@@ -253,7 +264,7 @@ void setup() {
         delay(10);
     }
 
-    Serial.println("[Setup] Start");
+    DEBUG_PRINTLN("[Setup] Start");
 
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
@@ -268,11 +279,11 @@ void setup() {
     // Prüfen, ob PSRAM vorhanden ist
     if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
         psramAvailable = true;
-        Serial.println("[INFO] PSRAM gefunden.");
+        DEBUG_PRINTLN("[INFO] PSRAM gefunden.");
     }
     else {
         psramAvailable = false;
-        Serial.println("[INFO] Kein PSRAM gefunden, Hardware-Rotation wird verwendet.");
+        DEBUG_PRINTLN("[INFO] Kein PSRAM gefunden, Hardware-Rotation wird verwendet.");
 #ifdef GC9D01
         preferences.putUChar("tft_rotation", 0);
 #endif
@@ -286,7 +297,7 @@ void setup() {
 #define MAGIC_NUMBER 42
 
     if (preferences.getInt("firstStart", 0) != MAGIC_NUMBER) {
-        Serial.println("[Preferences] First start detected, initializing...");
+        DEBUG_PRINTLN("[Preferences] First start detected, initializing...");
 
         preferences.putInt("firstStart", MAGIC_NUMBER);
 
@@ -354,8 +365,8 @@ void setup() {
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
     setTimezone(timezone);
 
-    Serial.println("[NTP] Aktuelle NTP-Server: " + ntpServer1 + " / " + ntpServer2);
-    Serial.println("Zeitzone eingestellt auf: " + timezone);
+    DEBUG_PRINTLN("[NTP] Aktuelle NTP-Server: " + ntpServer1 + " / " + ntpServer2);
+    DEBUG_PRINTLN("Zeitzone eingestellt auf: " + timezone);
 
     stationMode = preferences.getBool("stationMode", true);
     smoothMinute = preferences.getBool("smoothMinute", false);
@@ -364,7 +375,7 @@ void setup() {
     // Nabe
     uint32_t hub_color_RGB = preferences.getLong("centerColor", 0xEC0016); //DB red
     hub_color = tft.color565((hub_color_RGB >> 16) & 0xFF, (hub_color_RGB >> 8) & 0xFF, hub_color_RGB & 0xFF);
-    Serial.printf("[HUB.] Color RGB: #%06X 565: 0x%04X\n", hub_color_RGB, hub_color);
+    DEBUG_PRINTF("[HUB.] Color RGB: #%06X 565: 0x%04X\n", hub_color_RGB, hub_color);
     hub_size = preferences.getUInt("centerSize", 6);
 
     lowThreshold = preferences.getInt("lowThreshold", 40);
@@ -406,10 +417,10 @@ void setup() {
     delay(100);
     adc_max = analogRead(ADC_PIN);
 
-    Serial.printf("ADC min: %d max: %d\n", adc_min, adc_max);
+    DEBUG_PRINTF("ADC min: %d max: %d\n", adc_min, adc_max);
 
     if (adc_min < 1000 && adc_max > 2000) {
-        Serial.println("found photoresistor");
+        DEBUG_PRINTLN("found photoresistor");
         digitalWrite(ADC_GND, 0);
         digitalWrite(ADC_3V, 1);
         use_adc = true;
@@ -431,19 +442,19 @@ void setup() {
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
     //  smoothMinute = preferences.getBool("smoothMinute", false);
-    //  Serial.println("[SETUP] smoothMinute: " + String(smoothMinute));    
+    //  DEBUG_PRINTLN("[SETUP] smoothMinute: " + String(smoothMinute));    
 
     pinMode(LED_BOARD, OUTPUT); digitalWrite(LED_BOARD, HIGH);
 
     if (!LittleFS.begin(true)) {
-        Serial.println("[LittleFS] Mount Failed");
+        DEBUG_PRINTLN("[LittleFS] Mount Failed");
     }
     /* else {
-        Serial.println("[LittleFS] Listing all files in root:");
+        DEBUG_PRINTLN("[LittleFS] Listing all files in root:");
         File root = LittleFS.open("/");
         File entry = root.openNextFile();
         while (entry) {
-            Serial.printf(" - %s (%d bytes)  ", entry.name(), entry.size());
+            DEBUG_PRINTF(" - %s (%d bytes)  ", entry.name(), entry.size());
             entry = root.openNextFile();
         }
     } */
@@ -467,7 +478,7 @@ void setup() {
         tft_rotation = 0;
         preferences.putUChar("tft_rotation", tft_rotation);
         tft.setRotation(tft_rotation);
-        Serial.printf("[TFT] Using stored rotation: %d\n", tft_rotation);
+        DEBUG_PRINTF("[TFT] Using stored rotation: %d\n", tft_rotation);
     }
 #endif
 
@@ -518,15 +529,15 @@ void setup() {
     }
     // Neu: wenn noch keine SSID gespeichert → sofort AP starten (erleichtert Erstkonfiguration)
     else if (wifi_ssid[0].length() == 0 && wifi_ssid[1].length() == 0) {
-        Serial.println("[WiFi] No stored credentials — starting AP for configuration");
+        DEBUG_PRINTLN("[WiFi] No stored credentials — starting AP for configuration");
         startAP();
     }
     else {
 
-        Serial.println("[TFT] Selected background: " + selectedBackground);
+        DEBUG_PRINTLN("[TFT] Selected background: " + selectedBackground);
 
         uint32_t number = preferences.getInt("lastWLan");
-        Serial.println("[WiFi] Last successful WLAN number: " + String(number));
+        DEBUG_PRINTLN("[WiFi] Last successful WLAN number: " + String(number));
 
         if (number > 1) number = 0;
         if (number == 0) {
@@ -623,7 +634,7 @@ void createPresetFromPreferences() {
 
     // Wenn kein leeres Preset gefunden wurde, abbrechen
     if (presetIndex == -1) {
-        Serial.println("[Preset] No empty preset slot available.");
+        DEBUG_PRINTLN("[Preset] No empty preset slot available.");
         return;
     }
 
@@ -664,8 +675,8 @@ void createPresetFromPreferences() {
     preferences.putString(nameKey.c_str(), presetName);
     preferences.putString(urlKey.c_str(), url);
 
-    Serial.println("[Preset] Created preset: " + presetName);
-    Serial.println("[Preset] URL: " + url);
+    DEBUG_PRINTLN("[Preset] Created preset: " + presetName);
+    DEBUG_PRINTLN("[Preset] URL: " + url);
 }
 
 // Haupt-Loop
@@ -696,7 +707,7 @@ void loop() {
         // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
         if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
             touchEnabled = true;
-            Serial.println("[TOUCH] Enabled");
+            DEBUG_PRINTLN("[TOUCH] Enabled");
         }
 
         if (touchEnabled) {
@@ -759,16 +770,16 @@ void loadClockFace() {
     if (!clockFaceBuffer) {
         size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
         if (psramFound() and ESP.getFreePsram() > bufSize) {
-            Serial.println("[clockFaceBuffer] allocate psram");
+            DEBUG_PRINTLN("[clockFaceBuffer] allocate psram");
             clockFaceBuffer = (uint16_t*)ps_malloc(bufSize);
         }
         else {
-            Serial.println("allocte ram: " + bufSize);
-            Serial.println("[clockFaceBuffer] allocate ram");
+            DEBUG_PRINTLN("allocte ram: " + bufSize);
+            DEBUG_PRINTLN("[clockFaceBuffer] allocate ram");
             clockFaceBuffer = (uint16_t*)malloc(bufSize);
         }
         if (!clockFaceBuffer) {
-            Serial.println("Fehler: clockFaceBuffer konnte nicht allokiert werden!");
+            DEBUG_PRINTLN("Fehler: clockFaceBuffer konnte nicht allokiert werden!");
             return;
         }
 
@@ -823,7 +834,7 @@ void freeClockFaceBuffer() {
     if (clockFaceBuffer) {
         free(clockFaceBuffer);
         clockFaceBuffer = nullptr;
-        Serial.println("[clockFaceBuffer] free");
+        DEBUG_PRINTLN("[clockFaceBuffer] free");
     }
 }
 
@@ -834,7 +845,7 @@ void loadHandSprites() {
     String set = preferences.getString("handset", "");
 
 #ifdef DEBUG
-    Serial.println("[HANDS] Active hand set: " + set);
+    DEBUG_PRINTLN("[HANDS] Active hand set: " + set);
 #endif
 
     bool usedDefault = false;
@@ -852,7 +863,7 @@ void loadHandSprites() {
         for (auto& h : hands) {
             String path = "/hand_set" + set + "_" + h.label + ".bmp";
 #ifdef DEBUG
-            Serial.println("[HANDS] Looking for: " + path);
+            DEBUG_PRINTLN("[HANDS] Looking for: " + path);
 #endif
 
             if (LittleFS.exists(path)) {
@@ -869,31 +880,31 @@ void loadHandSprites() {
                     }
                     usedDefault = true;
 #ifdef DEBUG
-                    Serial.println("[HANDS] Failed to load " + h.label + ", fallback used.");
+                    DEBUG_PRINTLN("[HANDS] Failed to load " + h.label + ", fallback used.");
 #endif
                 }
                 else {
 #ifdef DEBUG
-                    Serial.println("[HANDS] Loaded " + h.label);
+                    DEBUG_PRINTLN("[HANDS] Loaded " + h.label);
 #endif
                 }
-                // Serial.println("found");
+                // DEBUG_PRINTLN("found");
             }
             else {
                 h.sprite->pushImage(0, 0, HAND_WIDTH, HAND_HEIGHT, h.fallback);
                 usedDefault = true;
 #ifdef DEBUG
-                Serial.println("[HANDS] Missing " + h.label + ", using default.");
+                DEBUG_PRINTLN("[HANDS] Missing " + h.label + ", using default.");
 #endif
             }
         }
 
 #ifdef DEBUG
         if (!usedDefault) {
-            Serial.println("[HANDS] Loaded handset: " + set);
+            DEBUG_PRINTLN("[HANDS] Loaded handset: " + set);
         }
         else {
-            Serial.println("[HANDS] Incomplete set, used default for missing hands.");
+            DEBUG_PRINTLN("[HANDS] Incomplete set, used default for missing hands.");
         }
 #endif
     }
@@ -915,7 +926,7 @@ void loadHandSprites() {
             secondHandSprite.pushImage(0, y, HAND_WIDTH, 1, rowBuffer);
         }
 #ifdef DEBUG
-        Serial.println("[HANDS] No set selected, using defaults.");
+        DEBUG_PRINTLN("[HANDS] No set selected, using defaults.");
 #endif
     }
 }
@@ -972,6 +983,7 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 
 // Button prüfen und ggf. Anzeige oder Factory Reset auslösen
 void checkButton() {
+    bool resetStarted = false;
     if (digitalRead(BUTTON1) == HIGH) {
 
         uint8_t secs = 5;
@@ -980,26 +992,12 @@ void checkButton() {
         clearTFT();
 
         // Einmalig Anzeige zeichnen
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("Connected to:");
-        tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        if (WiFi.SSID().length() > 15) {
-            tft.print(WiFi.SSID().substring(0, 15));
-            tft.println("...");
-        }
-        else tft.println(WiFi.SSID());
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.println(WiFi.localIP());
-
-        
-
+        showWlanCredentials(WiFi.SSID());
 
         // Blockierender Loop während Button gedrückt
         while (digitalRead(BUTTON1) == HIGH) {
             if (millis() - pressStart > 10000 && millis() - pressStart < 15000) {
+                resetStarted = true;
                 tft.fillScreen(TFT_RED);
                 tft.setTextColor(TFT_WHITE, TFT_RED);
                 tft.setTextSize(TFT_TEXT_SIZE);
@@ -1025,9 +1023,11 @@ void checkButton() {
             }
             delay(10);  
         }
-
-        // Button wurde vor erreichen der 10 Sek. losgelassen: nur Anzeige bleibt kurz sichtbar
-        delay(3000); 
+        // Button wurde vor 10secs losgelassen → WLAN-Credentials für 10 Sekunden anzeigen
+        if (!resetStarted) {            
+            delay(10000);
+        }
+        
     }
 }
 
@@ -1173,8 +1173,8 @@ void updateClock() {
     // Nabe (hub)
     if (hub_size > 0 && hub_color > 0) {
         backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
-        // Serial.println("[HUB] Drawn hub with size " + String(hub_size));
-        // Serial.println("[HUB] Color: " + String(hub_color, HEX));
+        // DEBUG_PRINTLN("[HUB] Drawn hub with size " + String(hub_size));
+        // DEBUG_PRINTLN("[HUB] Color: " + String(hub_color, HEX));
     }
 
     backgroundSprite.pushSprite(0, 0);
@@ -1223,7 +1223,7 @@ void updateBrightness() {
         if (use_adc) {
 
             int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
-            // Serial.printf("[ADC] Raw value: %d\n", adcRaw);
+            // DEBUG_PRINTF("[ADC] Raw value: %d\n", adcRaw);
 
             if (initial) {
                 for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
@@ -1353,7 +1353,7 @@ void checkNightlyTimeSync() {
 
     /*if (timeinfo.tm_sec == 30) {
         delay(1000);
-        Serial.println("[TIME SYNC] Time sync triggered");
+        DEBUG_PRINTLN("[TIME SYNC] Time sync triggered");
         WiFi.disconnect();
         wifi_ssid = "asdfghj";
         wifi_ssid[1] = "asdfghj";
@@ -1361,13 +1361,13 @@ void checkNightlyTimeSync() {
 
 
     if (timeinfo.tm_hour == 2 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered2) {
-        Serial.println("[TIME SYNC] Triggered at 02:00:05");
+        DEBUG_PRINTLN("[TIME SYNC] Triggered at 02:00:05");
         setupNTP();
         triggered2 = true;
     }
 
     if (timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered3) {
-        Serial.println("[TIME SYNC] Triggered at 03:00:05");
+        DEBUG_PRINTLN("[TIME SYNC] Triggered at 03:00:05");
         setupNTP();
         triggered3 = true;
     }
@@ -1387,7 +1387,7 @@ void checkWiFiReconnect() {
     if (now - lastAttempt < 300000) return;
     lastAttempt = now;
 
-    Serial.println("[WiFi] Disconnected. Attempting reconnect...");
+    DEBUG_PRINTLN("[WiFi] Disconnected. Attempting reconnect...");
     WiFi.disconnect();
     if (!connectWiFi(0, false)) {
          connectWiFi(1, false);
@@ -1430,7 +1430,7 @@ void startAP() {
 
 
     WiFi.softAP("clock123", "clock123");
-    Serial.println("[WiFi] Started Access Point: clock123");
+    DEBUG_PRINTLN("[WiFi] Started Access Point: clock123");
 
     // Captive portal: leite alle DNS-Anfragen auf die AP-IP um
     dnsServer.start(53, "*", WiFi.softAPIP());
@@ -1463,9 +1463,9 @@ bool connectWiFi(int number, bool verbose_mode) {
 #endif
     if (wifi_ssid[number] == "") return false;
 
-    Serial.println(wifi_ssid[number]);
+    DEBUG_PRINTLN(wifi_ssid[number]);
                
-    Serial.println("[WiFi] Trying SSID " + (String)number);
+    DEBUG_PRINTLN("[WiFi] Trying SSID " + (String)number);
 
     if (verbose_mode) {
         clearTFT();
@@ -1491,28 +1491,18 @@ bool connectWiFi(int number, bool verbose_mode) {
         mac[3], mac[4], mac[5]);
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.setHostname(hostname);
-    Serial.println("[WiFi] Hostname set to: " + String(hostname));
+    DEBUG_PRINTLN("[WiFi] Hostname set to: " + String(hostname));
 
     WiFi.begin(wifi_ssid[number].c_str(), wifi_pass[number].c_str());
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
          
-        Serial.print(".");
+        DEBUG_PRINT(".");
         if (verbose_mode) {
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-            tft.print(". ");
-            delay(50);
-
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-            tft.print(" . ");
-            delay(50);
-
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-            tft.print("  .");
-            delay(50);
+            animateCursor(tft, 20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
         }
         else {
-            delay(150);
+            delay(100);
         }
 
     }
@@ -1520,37 +1510,25 @@ bool connectWiFi(int number, bool verbose_mode) {
 
         // mDNS initialisieren
         if (!MDNS.begin(hostname)) {
-            Serial.println("Error starting mDNS");
+            DEBUG_PRINTLN("Error starting mDNS");
         }
         else {
             MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80
         }
 
-        Serial.println("\n[WiFi] Connected to: " + wifi_ssid[number]);
-        Serial.println("[WiFi] IP address: " + WiFi.localIP().toString());
+        DEBUG_PRINTLN("\n[WiFi] Connected to: " + wifi_ssid[number]);
+        DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
         String fullHostname = String(hostname) + ".local";
         pingHostname = Ping.ping(fullHostname.c_str(),3);
-        Serial.printf("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
+        DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
 
         if (verbose_mode) {
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_GREEN, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("Connected to SSID");
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) );
-            if (wifi_ssid[number].length() > 15) {
-                tft.print(wifi_ssid[number].substring(0, 15));
-                tft.println("...");
-            }
-            else tft.println(wifi_ssid[number]);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-            tft.println(WiFi.localIP());
+            showWlanCredentials(wifi_ssid[number]);           
         }
 
         
         preferences.putInt("lastWLan", number);
-        Serial.println("[WiFi] set lastWLan: " + (String)number);
+        DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number);
         
         delay(100);
         if (!WiFi.softAPgetStationNum()) updateClock();
@@ -1561,13 +1539,44 @@ bool connectWiFi(int number, bool verbose_mode) {
     return false;    
 }
 
+// Animation während WLAN-Verbindung
+void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
+    tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
+    tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
+    tft.setCursor(x, y);    tft.print("\\");   delay(delayMs);
+    tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
+}
+
+
+// Anzeige WLAN Parameter
+void showWlanCredentials(String wlan) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.setTextSize(TFT_TEXT_SIZE);
+    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+    tft.println("Connected to SSID");
+    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+    if (wlan.length() > 15) {
+        wlan.substring(0, 15);
+        tft.println("...");
+    }
+    else tft.println(wlan);
+    tft.setCursor(20, (CLOCK_HEIGHT / 2));
+    tft.println(WiFi.localIP());
+
+    if (pingHostname) {
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+        tft.println(String(hostname) + ".local");
+    }
+}
+
 /// <summary>
 /// Initialisiert die Zeitsynchronisierung über NTP und stellt die Zeitzone ein. Bei Fehlern werden bis zu 10 Versuche unternommen, um die Zeit zu erhalten. Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
 /// </summary>
 void setupNTP() {
     
     if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) {
-        Serial.println("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
+        DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
         return;
     }
 
@@ -1581,7 +1590,7 @@ void setupNTP() {
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
-    Serial.println("[NTP] " + timezone);
+    DEBUG_PRINTLN("[NTP] " + timezone);
     setTimezone(timezone);
     struct tm timeinfo;
     int attempts = 0;
@@ -1594,7 +1603,7 @@ void setupNTP() {
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
             tft.printf("NTP failed (%d/10)", attempts);            
         }
-        Serial.printf("[NTP] Attempt %d/10 failed to get time from NTP server.\n", attempts);
+        DEBUG_PRINTF("[NTP] Attempt %d/10 failed to get time from NTP server.\n", attempts);
         delay(100);
     }
     if (attempts >= 10) {
@@ -1604,7 +1613,7 @@ void setupNTP() {
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
             tft.println("NTP timeout! Using last known time.");
         }
-        Serial.printf("[NTP] Failed to get time from NTP server after 10 attempts. Using last known time.\n");
+        DEBUG_PRINTF("[NTP] Failed to get time from NTP server after 10 attempts. Using last known time.\n");
         delay(100);
     }
 }
@@ -1617,7 +1626,7 @@ void setTimezone(String tz) {
     preferences.putString("timezone", tz);
     configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str(), "de.pool.ntp.org");    
 
-    Serial.println("Set Timezone: " + tz);
+    DEBUG_PRINTLN("Set Timezone: " + tz);
 }
 
 // Generiert den HTML-Header für die Weboberfläche
@@ -1658,7 +1667,7 @@ String generateHtmlStatus() {
 String generateNavigation() {
 
     if (WiFi.getMode() != WIFI_STA) {
-        Serial.println("[HTML] Skipping HTML navigation.");
+        DEBUG_PRINTLN("[HTML] Skipping HTML navigation.");
         return "";
     }
 
@@ -1717,7 +1726,7 @@ void setupWebServer() {
 
         // Sende eine Bestätigung zurück
         webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
-        Serial.println("[API] WiFi settings reset via /api/resetWiFi");
+        DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
         delay(1000);
         // Neustart des ESP
@@ -1779,7 +1788,7 @@ void setupWebServer() {
         }
         if (webserver.hasArg("hubColor")) {
             uint32_t rgb = strtoul(webserver.arg("hubColor").c_str(), NULL, 16); // 24-Bit RGB
-            Serial.println("[API] Received hubColor: " + webserver.arg("hubColor") + " -> " + String(rgb, HEX));
+            DEBUG_PRINTLN("[API] Received hubColor: " + webserver.arg("hubColor") + " -> " + String(rgb, HEX));
             uint8_t r = (rgb >> 16) & 0xFF; // Rot extrahieren
             uint8_t g = (rgb >> 8) & 0xFF;  // Grün extrahieren
             uint8_t b = rgb & 0xFF;         // Blau extrahieren
@@ -1823,7 +1832,7 @@ void setupWebServer() {
         if (webserver.hasArg("source")) {
             String arg = webserver.arg("source");
             if (arg == "preset") {
-                Serial.println("[API] Request source: preset");
+                DEBUG_PRINTLN("[API] Request source: preset");
                 webserver.sendHeader("Location", "/presets", true);
                 webserver.send(302, "text/plain", "Redirecting to /presets...");
                 return;
@@ -1907,11 +1916,11 @@ void setupWebServer() {
                 int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
                 if (ipEnd != -1) {
                     displayUrl = espIP + displayUrl.substring(ipEnd); // Ersetze die IP
-                    Serial.println("[HTML] 1 Replaced preset URL for display: " + displayUrl);
+                    DEBUG_PRINTLN("[HTML] 1 Replaced preset URL for display: " + displayUrl);
                 }
                 else {
                     displayUrl = espIP; // Nur die IP ohne Pfad
-                    Serial.println("[HTML] 2 Replaced preset URL for display: " + displayUrl);
+                    DEBUG_PRINTLN("[HTML] 2 Replaced preset URL for display: " + displayUrl);
                 }
             }
             presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
@@ -1964,7 +1973,7 @@ void setupWebServer() {
                     // Redirect zur URL des Presets
                     webserver.sendHeader("Location", presets[i].url, true);
                     webserver.send(302, "text/plain", "Redirecting to preset URL...");
-                    Serial.println("[setPreset] Redirecting to preset: " + presetName + " -> " + presets[i].url);
+                    DEBUG_PRINTLN("[setPreset] Redirecting to preset: " + presetName + " -> " + presets[i].url);
                     return;
                 }
                 else {
@@ -1976,7 +1985,7 @@ void setupWebServer() {
 
         // Preset nicht gefunden
         webserver.send(404, "text/plain", "Preset not found");
-        Serial.println("[setPreset] Preset not found: " + presetName);
+        DEBUG_PRINTLN("[setPreset] Preset not found: " + presetName);
         });
 
     // NTP Server und Zeitzone setzen
@@ -1986,8 +1995,8 @@ void setupWebServer() {
             ntpServer2 = webserver.arg("ntpServer2");
             preferences.putString("ntpServer1", ntpServer1);
             preferences.putString("ntpServer2", ntpServer2);
-            Serial.println("[NTP] NTP Server1 set to: " + ntpServer1);    
-            Serial.println("[NTP] NTP Server2 set to: " + ntpServer2);
+            DEBUG_PRINTLN("[NTP] NTP Server1 set to: " + ntpServer1);    
+            DEBUG_PRINTLN("[NTP] NTP Server2 set to: " + ntpServer2);
             setupNTP();
         }
 
@@ -2706,7 +2715,7 @@ void setupWebServer() {
             while (file) {
                 String name = file.name();
 #ifdef DEBUG
-                Serial.println(name);
+                DEBUG_PRINTLN(name);
 #endif
                 if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
                     anyFile = true;
@@ -3020,7 +3029,7 @@ void setupWebServer() {
             if (LittleFS.exists(file)) {
                 selectedBackground = file;
                 preferences.putString("background", file);
-                Serial.println("set bg to: " + file);
+                DEBUG_PRINTLN("set bg to: " + file);
                 freeClockFaceBuffer();
                 loadClockFace();
                 loadHandSprites();
@@ -3155,7 +3164,7 @@ void setupWebServer() {
         
         html += "<br><br>";
         html += "</body></html>";
-        //Serial.println(html);
+        //DEBUG_PRINTLN(html);
         webserver.send(200, "text/html", html);
         });
 
@@ -3200,8 +3209,8 @@ void setupWebServer() {
             if (!LittleFS.exists(dir)) LittleFS.mkdir(dir);
           //  String finalPath = "/hand_set" + set + "_" + target + ".bmp";
           //  LittleFS.rename(uploadFilePath, finalPath);
-          //  Serial.println("[UPLOAD] Hand uploaded to: " + finalPath);
-            Serial.println("[UPLOAD] Hand uploaded to: " + uploadFilePath);
+          //  DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + finalPath);
+            DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + uploadFilePath);
             webserver.sendHeader("Location", "/handsets", true);
             webserver.send(302, "text/plain", "");
         }
@@ -3216,7 +3225,7 @@ void setupWebServer() {
         if (webserver.hasArg("set")) {
             String chosen = webserver.arg("set");
             preferences.putString("handset", chosen);
-            Serial.println("[HANDSET] Set to: " + chosen);
+            DEBUG_PRINTLN("[HANDSET] Set to: " + chosen);
             freeClockFaceBuffer();
             loadClockFace();
             loadHandSprites();
@@ -3236,10 +3245,10 @@ void setupWebServer() {
             String targets[] = { "hour", "minute", "second" };
             for (const String& target : targets) {
                 String path = "/hand_set" + set + "_" + target + ".bmp";
-                Serial.println("[DELETE] Looking for: " + path);
+                DEBUG_PRINTLN("[DELETE] Looking for: " + path);
                 if (LittleFS.exists(path)) {
                     LittleFS.remove(path);
-                    Serial.println("[DELETE] Removed: " + path);
+                    DEBUG_PRINTLN("[DELETE] Removed: " + path);
                 }
             }
             webserver.sendHeader("Location", "/handsets", true);
@@ -3294,7 +3303,7 @@ void handleFileUpload() {
         // Nur bestimmte Dateinamenmuster zulassen
         if (!uploadFilePath.endsWith(".bmp") ||
             !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set"))) {
-            Serial.println("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp'");
+            DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp'");
             uploadSuccess = false;
             return;
         }
@@ -3302,7 +3311,7 @@ void handleFileUpload() {
         uploadFilePath.replace("..", "");
         if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
 
-        Serial.println("[UPLOAD] Start: " + uploadFilePath);
+        DEBUG_PRINTLN("[UPLOAD] Start: " + uploadFilePath);
         uploadFile = LittleFS.open(uploadFilePath, FILE_WRITE);
         uploadSuccess = uploadFile ? true : false;
     }
@@ -3315,26 +3324,26 @@ void handleFileUpload() {
         if (uploadSuccess && uploadFile) {
             uploadFile.close();
             if (LittleFS.exists(uploadFilePath)) {
-                Serial.println("[UPLOAD] Finished OK: " + uploadFilePath);
+                DEBUG_PRINTLN("[UPLOAD] Finished OK: " + uploadFilePath);
                 String ext = uploadFilePath;
                 ext.toLowerCase();
                 if (ext.endsWith(".bmp")) {
                     bool isHand = uploadFilePath.indexOf("hour") > 0 || uploadFilePath.indexOf("minute") > 0 || uploadFilePath.indexOf("second") > 0;
                     if (uploadFilePath.startsWith("/face_")) {
-                        Serial.println("[UPLOAD] Detected Clock Face upload");
+                        DEBUG_PRINTLN("[UPLOAD] Detected Clock Face upload");
 
                         if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), TFT_WIDTH, TFT_HEIGHT)) {
-                            Serial.println("[UPLOAD] Scaling failed!");
+                            DEBUG_PRINTLN("[UPLOAD] Scaling failed!");
                             uploadSuccess = false;
                             return;
                         }
 
                     }
                     else if (uploadFilePath.startsWith("/hand_set")) {
-                        Serial.println("[UPLOAD] Detected Clock Hand upload");
+                        DEBUG_PRINTLN("[UPLOAD] Detected Clock Hand upload");
 
                         if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
-                            Serial.println("[UPLOAD] Scaling failed!");
+                            DEBUG_PRINTLN("[UPLOAD] Scaling failed!");
                             uploadSuccess = false;
                             return;
                         }
@@ -3342,12 +3351,12 @@ void handleFileUpload() {
                 }
             }
             else {
-                Serial.println("[UPLOAD] Finished but file missing!");
+                DEBUG_PRINTLN("[UPLOAD] Finished but file missing!");
                 uploadSuccess = false;
             }
         }
         else {
-            Serial.println("[UPLOAD] Failed during writing");
+            DEBUG_PRINTLN("[UPLOAD] Failed during writing");
         }
     }
 }
@@ -3432,7 +3441,7 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
     // Temporärer Buffer für die Bitmap-Daten
     uint16_t* tempBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
     if (!tempBuffer) {
-        Serial.println("PSRAM konnte nicht allokiert werden für Bitmap-Daten!");
+        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden für Bitmap-Daten!");
         bmp.close();
         return false;
     }
@@ -3444,7 +3453,7 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
     // Neuen Buffer erstellen, der rotiert ist
     uint16_t* rotatedBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
     if (!rotatedBuffer) {
-        Serial.println("PSRAM konnte nicht allokiert werden für Rotation!");
+        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden für Rotation!");
         free(tempBuffer);
         bmp.close();
         return false;
@@ -3512,19 +3521,19 @@ float rotatedAngle(float angle, int orientation) {
 bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) {
     File bmpFile = LittleFS.open(filename, "r");
     if (!bmpFile) {
-        Serial.println("[BMP Check] Failed to open file");
+        DEBUG_PRINTLN("[BMP Check] Failed to open file");
         return false;
     }
 
     uint8_t header[54];
     if (bmpFile.read(header, 54) != 54) {
-        Serial.println("[BMP Check] Failed to read header");
+        DEBUG_PRINTLN("[BMP Check] Failed to read header");
         bmpFile.close();
         return false;
     }
 
     if (header[0] != 'B' || header[1] != 'M') {
-        Serial.println("[BMP Check] Not a BMP file");
+        DEBUG_PRINTLN("[BMP Check] Not a BMP file");
         bmpFile.close();
         return false;
     }
@@ -3536,11 +3545,11 @@ bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int
     bmpFile.close();
 
     if (width != expectedWidth || abs(height) != expectedHeight || bpp != 16) {
-        Serial.printf("[BMP Check] Invalid BMP dimensions or format: %d x %d, %d bpp", width, height, bpp);
+        DEBUG_PRINTF("[BMP Check] Invalid BMP dimensions or format: %d x %d, %d bpp", width, height, bpp);
         return false;
     }
 
-    Serial.println("[BMP Check] BMP format valid");
+    DEBUG_PRINTLN("[BMP Check] BMP format valid");
     return true;
 }
 
@@ -3570,17 +3579,17 @@ String getBmpInfo(const String& filename) {
 
 // Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
 bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
-    Serial.println("[BMP Scale] Scaling BMP: " + String(sourcePath) + " to " + String(targetPath));
+    DEBUG_PRINTLN("[BMP Scale] Scaling BMP: " + String(sourcePath) + " to " + String(targetPath));
     File bmp = LittleFS.open(sourcePath, "r");
     if (!bmp) {
-        Serial.println("[BMP Scale] Failed to open source file");
+        DEBUG_PRINTLN("[BMP Scale] Failed to open source file");
         return false;
     }
 
     uint8_t header[54];
     if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
         bmp.close();
-        Serial.println("[BMP Scale] Invalid BMP header");
+        DEBUG_PRINTLN("[BMP Scale] Invalid BMP header");
         return false;
     }
 
@@ -3591,7 +3600,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
 
     if (inW <= 0 || abs(inH) <= 0) {
         bmp.close();
-        Serial.println("[BMP Scale] Invalid BMP dimensions");
+        DEBUG_PRINTLN("[BMP Scale] Invalid BMP dimensions");
         return false;
     }
 
@@ -3604,7 +3613,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     uint8_t* rowBuf = (uint8_t*)malloc(inRowSize);
     if (!rowBuf) {
         bmp.close();
-        Serial.println("[BMP Scale] Memory allocation failed");
+        DEBUG_PRINTLN("[BMP Scale] Memory allocation failed");
         return false;
     }
 
@@ -3652,7 +3661,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     File out = LittleFS.open(targetPath, "w");
     if (!out) {
         delete[] outImage;
-        Serial.println("[BMP Scale] Failed to open target file");
+        DEBUG_PRINTLN("[BMP Scale] Failed to open target file");
         return false;
     }
 
@@ -3699,10 +3708,10 @@ void eraseWiFiConfig() {
         nvs_erase_all(nvsHandle);
         nvs_commit(nvsHandle);
         nvs_close(nvsHandle);
-        Serial.println("WiFi-NVS-Einträge gelöscht.");
+        DEBUG_PRINTLN("WiFi-NVS-Einträge gelöscht.");
     }
     else {
-        Serial.printf("Fehler beim Öffnen des NVS-WiFi-Handles: %s\n", esp_err_to_name(err));
+        DEBUG_PRINTF("Fehler beim Öffnen des NVS-WiFi-Handles: %s\n", esp_err_to_name(err));
     }
 }
 
@@ -3711,11 +3720,11 @@ void eraseAllNVS() {
     // Löscht gesamten NVS-Speicher
     esp_err_t result = nvs_flash_erase();
     if (result == ESP_OK) {
-        Serial.println("Kompletter NVS-Speicher gelöscht (inkl. WiFi, Preferences).");
+        DEBUG_PRINTLN("Kompletter NVS-Speicher gelöscht (inkl. WiFi, Preferences).");
         nvs_flash_init();  // Wichtig: Danach wieder initialisieren!
     }
     else {
-        Serial.printf("NVS-Erase fehlgeschlagen: %s\n", esp_err_to_name(result));
+        DEBUG_PRINTF("NVS-Erase fehlgeschlagen: %s\n", esp_err_to_name(result));
     }
 }
 
@@ -3726,14 +3735,14 @@ void factoryReset() {
     preferences.putInt("firstStart", 0);
     preferences.end();
     delay(100);
-    Serial.println(">>> Factory Reset gestartet...");
+    DEBUG_PRINTLN(">>> Factory Reset gestartet...");
     LittleFS.begin();
     LittleFS.format();
     LittleFS.end();
     eraseWiFiConfig();
     eraseAllNVS();
     delay(2000);
-    Serial.println(">>> Neustart...");
+    DEBUG_PRINTLN(">>> Neustart...");
     esp_reboot();
          
 }
@@ -3773,7 +3782,7 @@ void checkWeeklyRestart() {
 
 
         if (currentWeek != lastResetWeek) {
-            Serial.printf("→ Wöchentlicher Reboot in Woche %d\n", currentWeek);
+            DEBUG_PRINTF("→ Wöchentlicher Reboot in Woche %d\n", currentWeek);
             preferences.putInt("last_reset_week", currentWeek);
             preferences.end();
             delay(1000);
@@ -3791,7 +3800,7 @@ void scanAndCacheNetworks() {
     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     tft.println("WLAN-Scan...");
 
-    Serial.println("Scanning for WiFi networks...");
+    DEBUG_PRINTLN("Scanning for WiFi networks...");
     digitalWrite(LED_BOARD, HIGH);
     int n = WiFi.scanNetworks();
     foundNetworkCount = 0;
@@ -3801,10 +3810,10 @@ void scanAndCacheNetworks() {
         foundNetworks[i].enc = WiFi.encryptionType(i);
         foundNetworkCount++;
 
-        Serial.println("  " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+        DEBUG_PRINTLN("  " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
 
     }    
-    Serial.println("done.");
+    DEBUG_PRINTLN("done.");
     digitalWrite(LED_BOARD, LOW);
 }
 
@@ -3846,7 +3855,7 @@ void switchToNextBackground() {
     if (!hasDefault) faces.insert(faces.begin(), "/face_default.bmp");
 
     if (faces.empty()) {
-        Serial.println("[TOUCH] No faces found");
+        DEBUG_PRINTLN("[TOUCH] No faces found");
         return;
     }
 
@@ -3888,10 +3897,10 @@ void switchToNextBackground() {
     preferences.putString("background", selectedBackground);
 
     // Debug
-    Serial.print("[TOUCH] Faces: ");
-    for (const auto& s : faces) Serial.print(s + " ");
-    Serial.println();
-    Serial.println("[TOUCH] Current: " + sel + " idx=" + String(idx) + " -> Next: " + selectedBackground);
+    DEBUG_PRINT("[TOUCH] Faces: ");
+    for (const auto& s : faces) DEBUG_PRINT(s + " ");
+    DEBUG_PRINTLN();
+    DEBUG_PRINTLN("[TOUCH] Current: " + sel + " idx=" + String(idx) + " -> Next: " + selectedBackground);
         
     freeClockFaceBuffer();
     loadClockFace();
@@ -3908,13 +3917,13 @@ void checkTouchInput() {
 
     if (var > 15000 && var < 65535) state = true;
 
-    // Serial.println("Touch read: " + String(var));
-    //Serial.println("Touch state: " + String(state));
+    // DEBUG_PRINTLN("Touch read: " + String(var));
+    //DEBUG_PRINTLN("Touch state: " + String(state));
 
     // Flanke LOW->HIGH (kurzer Tip) mit Debounce
     if (state && !touchLastState && (millis() - touchLastMillis) > TOUCH_DEBOUNCE_MS) {
         touchLastMillis = millis();
-        Serial.println("switch");
+        DEBUG_PRINTLN("switch");
         switchToNextBackground();
     }
     touchLastState = state;
@@ -3928,37 +3937,37 @@ static void validateSelectedBackground() {
     if (selectedBackground.length() == 0) selectedBackground = "/face_default.bmp";
     if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
 
-    Serial.println("[BG] Pref load: '" + selectedBackground + "'");
+    DEBUG_PRINTLN("[BG] Pref load: '" + selectedBackground + "'");
 
     // LittleFS muss gemountet sein
     if (!LittleFS.exists(selectedBackground)) {
-        Serial.println("[BG] File not found: " + selectedBackground);
+        DEBUG_PRINTLN("[BG] File not found: " + selectedBackground);
         // Versuche tolerant auch ohne führenden Slash (falls gespeichert ohne '/')
         String withoutSlash = selectedBackground;
         if (withoutSlash.startsWith("/")) withoutSlash = withoutSlash.substring(1);
         if (LittleFS.exists("/" + withoutSlash)) {
             selectedBackground = "/" + withoutSlash;
-            Serial.println("[BG] Found (alt) file: " + selectedBackground);
+            DEBUG_PRINTLN("[BG] Found (alt) file: " + selectedBackground);
         }
         else {
             // Fallback auf Default
             selectedBackground = "/face_default.bmp";
             preferences.putString("background", selectedBackground);
-            Serial.println("[BG] Falling back to default and saved: " + selectedBackground);
+            DEBUG_PRINTLN("[BG] Falling back to default and saved: " + selectedBackground);
             return;
         }
     }
 
     // Prüfe BMP-Format (Größe / bpp)
     if (!checkBmpFormat(selectedBackground)) {
-        Serial.println("[BG] BMP format invalid: " + selectedBackground);
+        DEBUG_PRINTLN("[BG] BMP format invalid: " + selectedBackground);
         selectedBackground = "/face_default.bmp";
         preferences.putString("background", selectedBackground);
-        Serial.println("[BG] Falling back to default and saved: " + selectedBackground);
+        DEBUG_PRINTLN("[BG] Falling back to default and saved: " + selectedBackground);
         return;
     }
 
-    Serial.println("[BG] Background OK: " + selectedBackground);
+    DEBUG_PRINTLN("[BG] Background OK: " + selectedBackground);
 }
 
 // Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
