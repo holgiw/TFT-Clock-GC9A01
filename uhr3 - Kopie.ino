@@ -20,7 +20,7 @@
 //#define ILI9341 
 
 
- #define DEBUG
+// #define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
@@ -336,7 +336,7 @@ std::map<String, std::map<String, String>> translations = {
     { "Cancel", "Abbrechen" },
     { "Confirm", "Best&auml;tigen" },
     { "File&nbsp;Manager", "Dateimanager" },
-    { "Clock&nbsp;Face", "Zifferblatt" },
+    { "Clock&nbsp;Face", "Ziffernblatt" },
     { "Hand&nbsp;Set", "Zeiger" },
     { "Use&nbsp;Touch&nbsp;Control", "Touch verwenden" },
     { "Min&nbsp;Brightness", "Minimale Helligkeit" },
@@ -373,7 +373,7 @@ std::map<String, std::map<String, String>> translations = {
     { "Enable Touch", "Touch Pin verwenden" },
     { "Apply", "Anwenden" },
     { "select network","Netzwerk ausw&auml;hlen" },
-    { "Manage Clock Face Files", "Zifferbl&auml;tter verwalten" },
+    { "Manage Clock Face Files", "Ziffernbl&auml;tter verwalten" },
     { "Manage Hand Set Files", "Zeigersatz Dateien verwalten" },
     { "Rename", "Umbenennen" },
     { "Enter new name for", "Neuen Namen eingeben f%uuml;r" },
@@ -381,11 +381,11 @@ std::map<String, std::map<String, String>> translations = {
     { "New Name", "Neuer Name" },
     { "File renamed successfully", "Datei erfolgreich umbenannt" },
     { "File rename failed", "Datei-Umbenennung fehlgeschlagen" },
-    { "Download Additional Clock Faces", "Zus&auml;tzliche Zifferbl&auml;tter herunterladen" },
-    { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Zifferbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')" },
+    { "Download Additional Clock Faces", "Zus&auml;tzliche Ziffernbl&auml;tter herunterladen" },
+    { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Ziffernbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')" },
     { "Unzip the file and upload the contents to the /clockfaces and /handsets directories using the File Manager", "Entpacken Sie die Datei und laden Sie den Inhalt mit dem Dateimanager in die Verzeichnisse /clockfaces und /handsets hoch" },
     { "After downloading, upload the extracted BMP files using the form below", "Nach dem Herunterladen k&ouml;nnen Sie die extrahierten BMP-Dateien mit dem untenstehenden Formular hochladen" },
-    { "Upload New Clock Face", "neue Zifferbl&auml;tter hochladen" },
+    { "Upload New Clock Face", "neue Ziffernbl&auml;tter hochladen" },
 
     { "Requirements","Anforderungen" },
     { "name must start with face_ and end with .bmp","Name muss mit face_ beginnen" },
@@ -438,9 +438,7 @@ std::map<String, std::map<String, String>> translations = {
     { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?"},
 
     { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?" },
-    {"Rename File", "Datei umbenennen"},
-
-    { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"}
+    {"Rename File", "Datei umbenennen"}
 
 
        
@@ -926,7 +924,7 @@ void loop() {
         dnsServer.processNextRequest();
     }
 
-    
+
     webserver.handleClient();
 
     if (WiFi.getMode() == WIFI_STA) {
@@ -1840,10 +1838,8 @@ void setupNTP() {
             tft.setTextColor(TFT_RED, TFT_BLACK);
             tft.setCursor(10, (CLOCK_HEIGHT / 2));
             tft.println("NTP timeout! Using last known time.");
-            DEBUG_PRINTF("[NTP] Failed to get time from NTP server after 10 attempts. Using last known time.\n");
-            delay(5000);
         }
-        
+        DEBUG_PRINTF("[NTP] Failed to get time from NTP server after 10 attempts. Using last known time.\n");
         delay(100);
     }
 }
@@ -1854,8 +1850,6 @@ void setupNTP() {
 /// <param name="tz">Die zu setzende Zeitzone als String.</param>
 void setTimezone(String tz) {
     preferences.putString("timezone", tz);
-
-  
     configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str(), "de.pool.ntp.org");    
 
     DEBUG_PRINTLN("Set Timezone: " + tz);
@@ -1898,14 +1892,19 @@ String generateHtmlStatus() {
 // Navigationsleiste generieren
 
 String generateLanguageSelector() {
-    String html = "<form method='POST' action='/setLanguage'>";
-    html += "<label for='lang'>Language/Sprache:</label>";
-    html += "<select name='lang'>";
+    String html = "<form id='languageForm' method='POST' action='/setLanguage'>";
+    html += "<label for='lang'>" + translate("settings") + ":</label>";
+    html += "<select name='lang' id='lang' onchange='changeLanguage()'>";
     html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">English</option>";
     html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch</option>";
     html += "</select>";
-    html += "<button type='submit'>" + translate("save") + "</button>";
-    html += "</form><hr>";
+    html += "</form>";
+    html += "<script>";
+    html += "function changeLanguage() {";
+    html += "  const form = document.getElementById('languageForm');";
+    html += "  form.submit();"; // Formular absenden, um die Sprache zu ändern
+    html += "}";
+    html += "</script>";
     return html;
 }
 
@@ -1933,7 +1932,7 @@ String generateNavigation() {
         {"/timezone_form", translate("NTP&nbsp;Timezone"), ""},
         {"/brightness", translate("Brightness"), ""},
         {"/status", "Status", ""},
-        {"/files", translate("<br>File&nbsp;Manager"), ""},
+        {"/files", translate("File&nbsp;Manager"), ""},
         {"/reboot", translate("Reboot"), translate("Are you sure you want to reboot?")},
         {"/factoryReset", translate("Factory&nbsp;Reset"), translate("Are you sure you want to reset to factory settings?")}
     };
@@ -1980,20 +1979,9 @@ void setupWebServer() {
     webserver.on("/setLanguage", HTTP_POST, []() {
         if (webserver.hasArg("lang")) {
             String lang = webserver.arg("lang");
-            if (lang == "en") { 
-                saveLanguage(lang); 
-                // webserver.send(200, "text/plain", "Language updated to " + lang);
-                webserver.sendHeader("Location", "/", true);
-                webserver.send(302, "text/plain", "");
-                return;
-            }
-
             if (translations.count(lang)) {
                 saveLanguage(lang);
-                // webserver.send(200, "text/plain", "Language updated to " + lang);
-                webserver.sendHeader("Location", "/", true);
-                webserver.send(302, "text/plain", "");
-                return;
+                webserver.send(200, "text/plain", "Language updated to " + lang);
             }
             else {
                 webserver.send(400, "text/plain", "Invalid language");
@@ -3288,7 +3276,7 @@ void setupWebServer() {
             if (WiFi.getMode() == WIFI_STA) {
                 webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
-                    "<h2>Settings saved</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
+                    "<h2>Settings saved</h2><p>Return to the main page in 10 seconds or refresh the website when the ESP is online again.</p></body></html>");
             } else {
                 webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
@@ -3572,7 +3560,7 @@ void setupWebServer() {
 
         // ESP neu starten
         webserver.on("/reboot", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>" + translate("Rebooting...") + "</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
+            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>Rebooting...</h2><p>Return to the main page in 10 seconds or refresh the website when the ESP is online again.</p></body></html>");
         esp_reboot();
         }); 
             
