@@ -4,9 +4,9 @@
 // https://github.com/holgiw?tab=repositories
 // 
 // 
-// optimiert f%uuml;r ESP32-S2 Mini  (als Lolin S2 Pico compiliert)
+// optimiert für ESP32-S2 Mini  (als Lolin S2 Pico compiliert)
 // Filesystem: LittleFS
-// TFT: GC9A01 / GC9D01 / ILI9341
+// TFT: GC9A01 / GC9D01 
 // Partition: Default 4MB NO OTA, 2MB, 2MB
 // TFT_eSPI: 2.5.34
 
@@ -36,6 +36,7 @@
 // time server & timezone default
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "time.nist.gov"
+#define NTP_SERVER_3 "time.google.com"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Central European Time
 
 
@@ -139,7 +140,7 @@ DNSServer dnsServer;
 #define TFT_TEXT_SIZE 2
 #endif
 
-String currentLanguage = "de"; // Standardm&auml;ßig Deutsch
+String currentLanguage = "de"; // Standardmäßig Deutsch
 
 // --- Touch / Debounce State ---
 unsigned long touchLastMillis = 0;
@@ -160,11 +161,14 @@ TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 String wifi_ssid[2];
 String wifi_pass[2];
 
+unsigned long lastNTPRetry = 0;
+//const unsigned long retryIntervalNTPms = 12 * 60 * 60 * 1000; // 12h
+const unsigned long retryIntervalNTPms = 10 * 60 * 1000; // 10 Minuten
 
 String timezone = TIMEZONE_DEFAULT;
 
-String ntpServer1 = NTP_SERVER_1;
-String ntpServer2 = NTP_SERVER_2;
+char ntpServers[4][64] = { NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3, "fritz.box"};
+const int numServers = sizeof(ntpServers) / sizeof(ntpServers[0]);
 
 bool initial = true;
 
@@ -195,13 +199,13 @@ bool firstRun = true;
 
 uint8_t tftRotation = 0;
 
-float fastSecond = 972.0f;  // Geschwindigkeit des Sekundenzeigers gegen%uuml;ber der realen Zeit 
+float fastSecond = 972.0f;  // Geschwindigkeit des Sekundenzeigers gegenüber der realen Zeit 
 
 uint16_t rowBuffer[CLOCK_WIDTH];
 
 static bool psramAvailable = false;
 
-bool adcInverted = false; // Standardm&auml;ßig nicht invertiert
+bool adcInverted = false; // Standardmäßig nicht invertiert
 uint16_t adc_min = 0;
 uint16_t adc_max = 0;   
 bool use_adc = false; 
@@ -216,19 +220,19 @@ int highThreshold = 60;
 uint8_t minBrightness = 100;  // 
 uint8_t maxBrightness = 255;  // Obergrenze 
 
-// Zeitabh&auml;ngige Helligkeit
+// Zeitabhängige Helligkeit
 uint8_t brightStartHour = 8;       // inkl. (z.B. 8)
 uint8_t brightEndHour = 22;        // exkl. (z.B. 20)
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-float gammaBrightness = 2.2f;  // Gamma-Korrektur f%uuml;r Helligkeit
+float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit
 #endif
 
 #define ADC_SMOOTHING 20
 int adcHistory[ADC_SMOOTHING];
 int adcIndex = 0;
 int currentAdcAvg = 0;  // global definieren
-int currentLightPercent = 0;  // global speichern f%uuml;r Anzeige
+int currentLightPercent = 0;  // global speichern für Anzeige
 
 File uploadFile;
 String uploadFilePath = "";
@@ -244,8 +248,8 @@ bool pingHostname = false;
 
 uint16_t* clockFaceBuffer = nullptr;
 
-bool softAPIP = false;  // Flag f%uuml;r SoftAP IP
-long softAPIPstart = 0;  // Startzeit f%uuml;r SoftAP IP
+bool softAPIP = false;  // Flag für SoftAP IP
+long softAPIPstart = 0;  // Startzeit für SoftAP IP
 
 struct WifiNetwork {
     String ssid;
@@ -256,32 +260,32 @@ struct WifiNetwork {
 WifiNetwork foundNetworks[MAX_NETWORKS];
 int foundNetworkCount = 0;
 
-// %uuml;bersetzungen f%uuml;r verschiedene Sprachen
+//Übersetzungen fÜr verschiedene Sprachen
 std::map<String, std::map<String, String>> translations = {
 
     {"de", { // Deutsch
         {"Main", "Start"},
-    {"Connected to", "Verbunden mit"},
-    { "Connecting to", "Verbinde mit"},
-    {"Connection failed", "Verbindung fehlgeschlagen"},
-    {"IP Address", "IP Adresse"},
-    {"SSID", "SSID"},
-    {"Password", "Passwort"},
-    {"Alternative WiFi","alternatives WiFi"},
-    {"WiFi Settings", "WLAN Einstellungen"},
-    { "Save Settings", "Einstellungen speichern"},
-    {"WiFi Networks", "WLAN Netzwerke"},
-    {"Scan", "Scannen"},
-    {"Refresh", "Aktualisieren"},
-    {"Available Networks", "Verf%uuml;gbare Netzwerke"},
-    {"Signal Strength", "Signalst&auml;rke"},
-    {"Encryption", "Verschl%uuml;sselung"},
-    {"Storage used", "Speicher belegt"},
-    {"Free", "Frei"},
-    {"Total", "Gesamt"},
-    { "Used", "Belegt"},
-    { "Save", "speichern"},
-    {"Brightness", "Helligkeit"},
+        {"Connected to", "Verbunden mit"},
+        { "Connecting to", "Verbinde mit"},
+        {"Connection failed", "Verbindung fehlgeschlagen"},
+        {"IP Address", "IP Adresse"},
+        {"SSID", "SSID"},
+        {"Password", "Passwort"},
+        {"Alternative WiFi","alternatives WiFi"},
+        {"WiFi Settings", "WLAN Einstellungen"},
+        { "Save Settings", "Einstellungen speichern"},
+        {"WiFi Networks", "WLAN Netzwerke"},
+        {"Scan", "Scannen"},
+        {"Refresh", "Aktualisieren"},
+        {"Available Networks", "Verf%uuml;gbare Netzwerke"},
+        {"Signal Strength", "Signalst&auml;rke"},
+        {"Encryption", "Verschl%uuml;sselung"},
+        {"Storage used", "Speicher belegt"},
+        {"Free", "Frei"},
+        {"Total", "Gesamt"},
+        { "Used", "Belegt"},
+        { "Save", "speichern"},
+        {"Brightness", "Helligkeit"},
         {"Language", "Sprache"},
         {"Time Settings", "Zeiteinstellungen"},
         {"NTP Server 1", "NTP Server 1"},
@@ -301,150 +305,137 @@ std::map<String, std::map<String, String>> translations = {
         {"High Light Threshold", "Schwellenwert f%uuml;r helles Licht"},
         {"Center Color", "Nabenfarbe"},
         {"Center Size", "Nabengr&ouml;ße"},
-    {"Rebooting...", "Starte neu..."},
-    {"Reboot", "Neustart"},
-    {"Factory&nbsp;Reset", "Werkseinstellungen"},
-    {"File&nbsp;Manager", "Dateimanager"},
-    {"Upload File", "Datei hochladen"},
-    { "Choose File", "Datei ausw&auml;hlen"},
-    {"No file selected", "Keine Datei ausgew&auml;hlt"},
-    {"Upload", "Hochladen"},
-    {"Delete", "L&ouml;schen"},
-    {"File deleted", "Datei gel&ouml;scht"},
-    {"File upload failed", "Datei-Upload fehlgeschlagen"},
-    {"File uploaded successfully", "Datei erfolgreich hochgeladen"},
-    {"File already exists", "Datei existiert bereits"},
-    {"File too large", "Datei zu groß"},
-    { "rename", "Umbenennen" },
-
-
-    { "Disconnected", "Getrennt" },
-    { "Settings", "Einstellungen" },
-
-
-
-    { "settings", "Einstellungen" },
-    { "save", "Speichern" },
-    { "brightness", "Helligkeit" },
-    { "timezone", "Zeitzone" },
-    { "NTP&nbsp;Timezone", "NTP Zeitzone" },
-    { "Select&nbsp;File", "Datei ausw&auml;hlen" },
-    { "No&nbsp;File&nbsp;Selected", "Keine Datei ausgew&auml;hlt" },
-    { "Upload&nbsp;File", "Datei hochladen" },
-    { "Delete&nbsp;File", "Datei l&ouml;schen" },
-    { "Are you sure you want to delete", "M&ouml;chten Sie wirklich l&ouml;schen" },
-    { "Cancel", "Abbrechen" },
-    { "Confirm", "Best&auml;tigen" },
-    { "File&nbsp;Manager", "Dateimanager" },
-    { "Clock&nbsp;Face", "Zifferblatt" },
-    { "Hand&nbsp;Set", "Zeiger" },
-    { "Use&nbsp;Touch&nbsp;Control", "Touch verwenden" },
-    { "Min&nbsp;Brightness", "Minimale Helligkeit" },
-    { "Max&nbsp;Brightness", "Maximale Helligkeit" },
-    { "Presets","Uhren Sets" },
-    { "Select&nbsp;Preset","Set ausw&auml;hlen" },
-    { "Default","Standard" },
-    { "Clock Seetup", "Einstellungen" },
-    { "Rescan Networks", "WLan Netzwerke neu scannen" },
-    { "SSID", "SSID" },
-    { "Password", "Passwort" },
-    { "Connect", "Verbinden" },
-    { "WiFi&nbsp;Settings", "WLAN Einstellungen" },
-    { "Time&nbsp;Settings", "Zeiteinstellungen" },
-    { "NTP&nbsp;Server&nbsp;1", "NTP Server 1" },
-    { "NTP&nbsp;Server&nbsp;2", "NTP Server 2" },
-    { "Clock&nbsp;Settings", "Uhreinstellungen" },
-    { "Display&nbsp;Settings", "Anzeigeeinstellungen" },
-    { "Photoresistor&nbsp;Settings", "Fotowiderstand Einstellungen" },
-    { "Center&nbsp;Color", "Nabenfarbe" },
-    { "Center&nbsp;Size", "Nabengr&ouml;ße" },
-    { "Primary WiFi", "Prim&auml;res WLAN Netzwerk" },
-    { "Alternative Network", "Alternatives WLAN Netzwerk" },
-    { "Station&nbsp;Mode", "Station Modus" },
-    { "Show&nbsp;Second&nbsp;Hand", "Sekundenzeiger anzeigen" },
-    { "Smooth&nbsp;Minute&nbsp;Hand", "Sanfter Minutenzeiger" },
-    { "Password is hidden.Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten" },
-    { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben" },
-    { "No WiFi networks found", "Keine WLAN Netzwerke gefunden" },
-    { "Signal&nbsp;Strength", "Signalst&auml;rke" },
-    { "Save WiFi settings and reboot", "WLAN Einstellungen speichern und neu starten" },
-    { "Train Station Mode", "Bahnhof Modus" },
-    { "Show Seconds", "Sekundenzeiger anzeigen" },
-    { "Enable Touch", "Touch Pin verwenden" },
-    { "Apply", "Anwenden" },
-    { "select network","Netzwerk ausw&auml;hlen" },
-    { "Manage Clock Face Files", "Zifferbl&auml;tter verwalten" },
-    { "Manage Hand Set Files", "Zeigersatz Dateien verwalten" },
-    { "Rename", "Umbenennen" },
-    { "Enter new name for", "Neuen Namen eingeben f%uuml;r" },
-    { "New name", "Neuer Name" },
-    { "New Name", "Neuer Name" },
-    { "File renamed successfully", "Datei erfolgreich umbenannt" },
-    { "File rename failed", "Datei-Umbenennung fehlgeschlagen" },
-    { "Download Additional Clock Faces", "Zus&auml;tzliche Zifferbl&auml;tter herunterladen" },
-    { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Zifferbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')" },
-    { "Unzip the file and upload the contents to the /clockfaces and /handsets directories using the File Manager", "Entpacken Sie die Datei und laden Sie den Inhalt mit dem Dateimanager in die Verzeichnisse /clockfaces und /handsets hoch" },
-    { "After downloading, upload the extracted BMP files using the form below", "Nach dem Herunterladen k&ouml;nnen Sie die extrahierten BMP-Dateien mit dem untenstehenden Formular hochladen" },
-    { "Upload New Clock Face", "neue Zifferbl&auml;tter hochladen" },
-
-    { "Requirements","Anforderungen" },
-    { "name must start with face_ and end with .bmp","Name muss mit face_ beginnen" },
-    { "size must be","Gr&ouml;&szlig;e muss sein" },
-    { "Clock Setup", "Uhr Einstellungen" },
-    { "name must start with", "Name muss beginnen mit" },
-    { "Manage Clock Hand Sets", "Zeigers&auml;tze verwalten" },
-    { "Preview/Set","Vorschau/Setzen" },
-    { "Upload New Hand Set", "Neuen Zeigersatz hochladen" },
-    { "name must start with", "Name muss starten mit" },
-    { "Upload New Hand Set", "Neuen Zeigersatz hochladen" },
-    { "Upload to Set", "Set hochladen" },
-    { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Farbe (RGB hex, z.B. FF0000 = Rot, 000000 = Schwarz, EC0016 = DB rot)" },
-    { "Centre point", "Mittelpunkt" },
-    { "Size", "Gr&ouml;%szlig;e" },
-    { "Warning: Not enough free space to upload new hand sets!Free up some space first","Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben" },
-    { "Pivot point","Drehpunkt bei" },
-    { "Preset","Set" },
-    { "Manage Presets", "Manage Uhren Sets" },
-    { "Preset Name", "Set Name" },
-    { "Create New Preset","Erstelle neues Set" },
-    { "Edit Presets", "editiere Sets" },
-    { "Save Presets", "speichere Sets" },
-    { "Create Preset from Current Settings", "Erzeuge ein Set aus den aktuellen Einstellungen" },
-    { "For custom timezones, select a preset or enter your own value above", "F&uuml;r benutzerdefinierte Zeitzonen w&auml;hlen Sie eine Voreinstellung aus oder geben Sie oben Ihren eigenen Wert ein" },
-    { "Save Timezone","Zeitzone speichern" },
-    { "NTP Server / Timezone (DST String)", "NTP Server / Zeitzone (DST)" },
-    { "Low Threshold", "untere Helligkeitsschwelle" },
-    { "High Threshold","obere Helligkeitsschwelle" },
-    { "Full brightness from (hour, 0-23)", "volle Helligkeit ab Stunde (0-23)" },
-    { "Full brightness until (hour, 0-23)", "volle Helligkeit bis Stunde (0-23)" },
-    { "Current ADC Value", "aktueller ADC Wert"},
-    { "Current Brightness", "aktuelle Helligkeit"},
-    { "Light (for Threshold)", "Licht (f&uuml;r Helligkeitsschwelle"},
-    { "Brightness Settings", "Helligkeit Einstellungen"},
-    { "Enable Auto Brightness", "automatische Einstellung"},
-    { "Invert ADC Reading", "invertiere ADC Werte"},
-    { "All Files on LittleFS", "alle Dateien im FileSystem"},
-    { "Scale and Save BMP", "skaliere und speichere das BMP"},
-    { "Filename", "Dateiname"},
-    { "Size(bytes)","Gr&ouml;&szlig;e (Bytes)"},
-    { "Action", "Aktion"},
-    { "Scale", "skalieren"},
-    { "Source", "Quelle" },
-    { "Target", "Ziel" },
-    { "Width", "Breite" },
-    { "Height", "H&ouml;he" },
-    { "Scale and Save", "skalieren und speichern"},
-
-    { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?"},
-
-    { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?" },
-    {"Rename File", "Datei umbenennen"},
-
-    { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"}
-
-
-       
-
+        {"Rebooting...", "Starte neu..."},
+        {"Reboot", "Neustart"},
+        {"Factory&nbsp;Reset", "Werkseinstellungen"},
+        {"File&nbsp;Manager", "Dateimanager"},
+        {"Upload File", "Datei hochladen"},
+        { "Choose File", "Datei ausw&auml;hlen"},
+        {"No file selected", "Keine Datei ausgew&auml;hlt"},
+        {"Upload", "Hochladen"},
+        {"Delete", "L&ouml;schen"},
+        {"File deleted", "Datei gel&ouml;scht"},
+        {"File upload failed", "Datei-Upload fehlgeschlagen"},
+        {"File uploaded successfully", "Datei erfolgreich hochgeladen"},
+        {"File already exists", "Datei existiert bereits"},
+        {"File too large", "Datei zu groß"},
+        { "rename", "Umbenennen" },
+        { "Disconnected", "Getrennt" },
+        { "Settings", "Einstellungen" },
+        { "settings", "Einstellungen" },
+        { "save", "Speichern" },
+        { "brightness", "Helligkeit" },
+        { "timezone", "Zeitzone" },
+        { "NTP&nbsp;Timezone", "NTP Zeitzone" },
+        { "Select&nbsp;File", "Datei ausw&auml;hlen" },
+        { "No&nbsp;File&nbsp;Selected", "Keine Datei ausgew&auml;hlt" },
+        { "Upload&nbsp;File", "Datei hochladen" },
+        { "Delete&nbsp;File", "Datei l&ouml;schen" },
+        { "Are you sure you want to delete", "M&ouml;chten Sie wirklich l&ouml;schen" },
+        { "Cancel", "Abbrechen" },
+        { "Confirm", "Best&auml;tigen" },
+        { "File&nbsp;Manager", "Dateimanager" },
+        { "Clock&nbsp;Face", "Zifferblatt" },
+        { "Hand&nbsp;Set", "Zeiger" },
+        { "Use&nbsp;Touch&nbsp;Control", "Touch verwenden" },
+        { "Min&nbsp;Brightness", "Minimale Helligkeit" },
+        { "Max&nbsp;Brightness", "Maximale Helligkeit" },
+        { "Presets","Uhren Sets" },
+        { "Select&nbsp;Preset","Set ausw&auml;hlen" },
+        { "Default","Standard" },
+        { "Clock Seetup", "Einstellungen" },
+        { "Rescan Networks", "WLan Netzwerke neu scannen" },
+        { "SSID", "SSID" },
+        { "Password", "Passwort" },
+        { "Connect", "Verbinden" },
+        { "WiFi&nbsp;Settings", "WLAN Einstellungen" },
+        { "Time&nbsp;Settings", "Zeiteinstellungen" },
+        { "NTP&nbsp;Server&nbsp;1", "NTP Server 1" },
+        { "NTP&nbsp;Server&nbsp;2", "NTP Server 2" },
+        { "Clock&nbsp;Settings", "Uhreinstellungen" },
+        { "Display&nbsp;Settings", "Anzeigeeinstellungen" },
+        { "Photoresistor&nbsp;Settings", "Fotowiderstand Einstellungen" },
+        { "Center&nbsp;Color", "Nabenfarbe" },
+        { "Center&nbsp;Size", "Nabengr&ouml;ße" },
+        { "Primary WiFi", "Prim&auml;res WLAN Netzwerk" },
+        { "Alternative Network", "Alternatives WLAN Netzwerk" },
+        { "Station&nbsp;Mode", "Station Modus" },
+        { "Show&nbsp;Second&nbsp;Hand", "Sekundenzeiger anzeigen" },
+        { "Smooth&nbsp;Minute&nbsp;Hand", "Sanfter Minutenzeiger" },
+        { "Password is hidden.Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten" },
+        { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben" },
+        { "No WiFi networks found", "Keine WLAN Netzwerke gefunden" },
+        { "Signal&nbsp;Strength", "Signalst&auml;rke" },
+        { "Save WiFi settings and reboot", "WLAN Einstellungen speichern und neu starten" },
+        { "Train Station Mode", "Bahnhof Modus" },
+        { "Show Seconds", "Sekundenzeiger anzeigen" },
+        { "Enable Touch", "Touch Pin verwenden" },
+        { "Apply", "Anwenden" },
+        { "select network","Netzwerk ausw&auml;hlen" },
+        { "Manage Clock Face Files", "Zifferbl&auml;tter verwalten" },
+        { "Manage Hand Set Files", "Zeigersatz Dateien verwalten" },
+        { "Rename", "Umbenennen" },
+        { "Enter new name for", "Neuen Namen eingeben f%uuml;r" },
+        { "New name", "Neuer Name" },
+        { "New Name", "Neuer Name" },
+        { "File renamed successfully", "Datei erfolgreich umbenannt" },
+        { "File rename failed", "Datei-Umbenennung fehlgeschlagen" },
+        { "Download Additional Clock Faces", "Zus&auml;tzliche Zifferbl&auml;tter herunterladen" },
+        { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Zifferbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')" },
+        { "Unzip the file and upload the contents to the /clockfaces and /handsets directories using the File Manager", "Entpacken Sie die Datei und laden Sie den Inhalt mit dem Dateimanager in die Verzeichnisse /clockfaces und /handsets hoch" },
+        { "After downloading, upload the extracted BMP files using the form below", "Nach dem Herunterladen k&ouml;nnen Sie die extrahierten BMP-Dateien mit dem untenstehenden Formular hochladen" },
+        { "Upload New Clock Face", "neue Zifferbl&auml;tter hochladen" },
+        { "Requirements","Anforderungen" },
+        { "name must start with face_ and end with .bmp","Name muss mit face_ beginnen" },
+        { "size must be","Gr&ouml;&szlig;e muss sein" },
+        { "Clock Setup", "Uhr Einstellungen" },
+        { "name must start with", "Name muss beginnen mit" },
+        { "Manage Clock Hand Sets", "Zeigers&auml;tze verwalten" },
+        { "Preview/Set","Vorschau/Setzen" },
+        { "Upload New Hand Set", "Neuen Zeigersatz hochladen" },
+        { "name must start with", "Name muss starten mit" },
+        { "Upload New Hand Set", "Neuen Zeigersatz hochladen" },
+        { "Upload to Set", "Set hochladen" },
+        { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Farbe (RGB hex, z.B. FF0000 = Rot, 000000 = Schwarz, EC0016 = DB rot)" },
+        { "Centre point", "Mittelpunkt" },
+        { "Size", "Gr&ouml;%szlig;e" },
+        { "Warning: Not enough free space to upload new hand sets!Free up some space first","Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben" },
+        { "Pivot point","Drehpunkt bei" },
+        { "Preset","Set" },
+        { "Manage Presets", "Manage Uhren Sets" },
+        { "Preset Name", "Set Name" },
+        { "Create New Preset","Erstelle neues Set" },
+        { "Edit Presets", "editiere Sets" },
+        { "Save Presets", "speichere Sets" },
+        { "Create Preset from Current Settings", "Erzeuge ein Set aus den aktuellen Einstellungen" },
+        { "For custom timezones, select a preset or enter your own value above", "F&uuml;r benutzerdefinierte Zeitzonen w&auml;hlen Sie eine Voreinstellung aus oder geben Sie oben Ihren eigenen Wert ein" },
+        { "Save Timezone","Zeitzone speichern" },
+        { "NTP Server / Timezone (DST String)", "NTP Server / Zeitzone (DST)" },
+        { "Low Threshold", "untere Helligkeitsschwelle" },
+        { "High Threshold","obere Helligkeitsschwelle" },
+        { "Full brightness from (hour, 0-23)", "volle Helligkeit ab Stunde (0-23)" },
+        { "Full brightness until (hour, 0-23)", "volle Helligkeit bis Stunde (0-23)" },
+        { "Current ADC Value", "aktueller ADC Wert"},
+        { "Current Brightness", "aktuelle Helligkeit"},
+        { "Light (for Threshold)", "Licht (f&uuml;r Helligkeitsschwelle"},
+        { "Brightness Settings", "Helligkeit Einstellungen"},
+        { "Enable Auto Brightness", "automatische Einstellung"},
+        { "Invert ADC Reading", "invertiere ADC Werte"},
+        { "All Files on LittleFS", "alle Dateien im FileSystem"},
+        { "Scale and Save BMP", "skaliere und speichere das BMP"},
+        { "Filename", "Dateiname"},
+        { "Size(bytes)","Gr&ouml;&szlig;e (Bytes)"},
+        { "Action", "Aktion"},
+        { "Scale", "skalieren"},
+        { "Source", "Quelle" },
+        { "Target", "Ziel" },
+        { "Width", "Breite" },
+        { "Height", "H&ouml;he" },
+        { "Scale and Save", "skalieren und speichern"},
+        { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?"},
+        { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?" },
+        {"Rename File", "Datei umbenennen"},
+        { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"}
 
     }}
 };
@@ -558,13 +549,18 @@ void setup() {
 
     currentLanguage = preferences.getString("language", "en");
 
-    ntpServer1 = preferences.getString("ntpServer1", NTP_SERVER_1);
-    ntpServer2 = preferences.getString("ntpServer2", NTP_SERVER_2);
+    
+    strncpy(ntpServers[0], preferences.getString("ntpServer1", NTP_SERVER_1).c_str(), sizeof(ntpServers[0]) - 1);
+    ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
+
+    strncpy(ntpServers[1], preferences.getString("ntpServer2", NTP_SERVER_2).c_str(), sizeof(ntpServers[1]) - 1);
+    ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0'; // Null-terminieren
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
-    setTimezone(timezone);
+    // setTimezone(timezone);
+    setupNTP();
 
-    DEBUG_PRINTLN("[NTP] Aktuelle NTP-Server: " + ntpServer1 + " / " + ntpServer2);
+    DEBUG_PRINTLN("[NTP] Aktuelle NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
     DEBUG_PRINTLN("Zeitzone eingestellt auf: " + timezone);
 
     stationMode = preferences.getBool("stationMode", true);
@@ -598,11 +594,11 @@ void setup() {
 
     pinMode(BUTTON1, INPUT_PULLDOWN);
 
-    // auf Fotowiderstand pr%uuml;fen
+    // auf Fotowiderstand prüfen
 #ifdef ADC_3V
     analogReadResolution(12);
 
-    // ADC +3,3 / GND %uuml;ber GPIO
+    // ADC +3,3 / GND über GPIO
     pinMode(ADC_GND, OUTPUT);
     pinMode(ADC_3V, OUTPUT);
 
@@ -624,7 +620,7 @@ void setup() {
         digitalWrite(ADC_3V, 1);
         use_adc = true;
         photoresistorFound = true;
-        // evtl %uuml;berschreiben
+        // evtl überschreiben
         use_adc = preferences.getBool("use_adc", true);
     }
     else {
@@ -788,21 +784,21 @@ void saveLanguage(String lang) {
 }
 String translate(const String& key) {
 
-    if (currentLanguage == "en") return key;  // Englisch: Schl%uuml;ssel zur%uuml;ckgeben
+    if (currentLanguage == "en") return key;  // Englisch: Schüssel zurückgeben
 
     if (translations.count(currentLanguage) && translations[currentLanguage].count(key)) {
         return translations[currentLanguage][key];
     }
    
-    return key; // Fallback: Schl%uuml;ssel zur%uuml;ckgeben
+    return key; // Fallback: Schlüssel zurückgeben
 }
 
 void enableTouch() {
     touchEnabled = true;
     pinMode(TOUCH_PIN, INPUT_PULLDOWN);
 
-    // Touch erst nach kurzer Verz&ouml;gerung aktivieren (verhindert fr%uuml;he Reads w&auml;hrend Init)
-    touchEnableAt = millis() + 1000; // 1000 ms Verz&ouml;gerung
+    // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
+    touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
     DEBUG_PRINTLN("[TOUCH] Touch aktiviert.");
 }
 
@@ -926,7 +922,8 @@ void loop() {
         dnsServer.processNextRequest();
     }
 
-    
+    checkNTPRetry();
+
     webserver.handleClient();
 
     if (WiFi.getMode() == WIFI_STA) {
@@ -943,14 +940,14 @@ void loop() {
     updateBrightness();
 
     if (useTouch) {
-        // Touch erst aktivieren, wenn die Startverz&ouml;gerung vorbei ist
+        // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
         if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
             touchEnabled = true;
             DEBUG_PRINTLN("[TOUCH] Enabled");
         }
 
         if (touchEnabled) {
-            // Touch-Input pr%uuml;fen und ggf. Hintergrund wechseln
+            // Touch-Input prüfen und ggf. Hintergrund wechseln
             checkTouchInput();
         }
     }
@@ -976,7 +973,7 @@ uint16_t setPixelBrightness(uint16_t pixel) {
     return pixel;
 #else
 
-    // Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, direkt zur%uuml;ckgeben
+    // Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, direkt zurückgeben
     if (pixel == TRANSPARENT_COLOR || pixel == 0x0000 || currentBrightness == 255) {
         return pixel;
     }
@@ -989,12 +986,12 @@ uint16_t setPixelBrightness(uint16_t pixel) {
     uint32_t g = (pixel & 0x07E0);
     uint32_t b = (pixel & 0x001F);
 
-    // Multiplikation mit Brightness (optimiert, kein Shift n&ouml;tig)
+    // Multiplikation mit Brightness (optimiert, kein Shift nötig)
     r = ((r * brightnessFactor) >> 8) & 0xF800;
     g = ((g * brightnessFactor) >> 8) & 0x07E0;
     b = ((b * brightnessFactor) >> 8) & 0x001F;
 
-    // Farbwerte zusammenf%uuml;gen
+    // Farbwerte zusammenfügen
     return r | g | b;
 #endif
 }
@@ -1002,10 +999,10 @@ uint16_t setPixelBrightness(uint16_t pixel) {
 
 
 /// <summary>
-/// L&auml;dt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.           
+/// Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.           
 /// </summary>  
 void loadClockFace() {
-    // Pr%uuml;fen, ob Buffer schon existiert
+    // Prüfen, ob Buffer schon existiert
     if (!clockFaceBuffer) {
         size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
         if (psramFound() and ESP.getFreePsram() > bufSize) {
@@ -1021,7 +1018,6 @@ void loadClockFace() {
             DEBUG_PRINTLN("Fehler: clockFaceBuffer konnte nicht allokiert werden!");
             return;
         }
-
 
 
         if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
@@ -1068,7 +1064,7 @@ void loadClockFace() {
 
 }
 
-// Buffer freigeben, wenn ein neues Zifferblatt gew&auml;hlt wird
+// Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
 void freeClockFaceBuffer() {
     if (clockFaceBuffer) {
         free(clockFaceBuffer);
@@ -1077,9 +1073,9 @@ void freeClockFaceBuffer() {
     }
 }
 
-/// <summary>
-/// L&auml;dt die Grafiken f%uuml;r die Zeiger eines Uhren-Widgets, entweder aus einer benutzerdefinierten Konfiguration oder aus Standardwerten.
-/// </summary>  
+
+// Lädt die Grafiken für die Zeiger eines Uhren-Widgets, entweder aus einer benutzerdefinierten Konfiguration oder aus Standardwerten.
+  
 void loadHandSprites() {
     String set = preferences.getString("handset", "");
 
@@ -1209,7 +1205,7 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 
 
 
-// Button pr%uuml;fen und ggf. Anzeige oder Factory Reset ausl&ouml;sen
+// Button prüfen und ggf. Anzeige oder Factory Reset auslösen
 void checkButton() {
     bool resetStarted = false;
     if (digitalRead(BUTTON1) == HIGH) {
@@ -1222,7 +1218,7 @@ void checkButton() {
         // Einmalig Anzeige zeichnen
         showWlanCredentials(WiFi.SSID());
 
-        // Blockierender Loop w&auml;hrend Button gedr%uuml;ckt
+        // Blockierender Loop während Button gedrückt
         while (digitalRead(BUTTON1) == HIGH) {
             if (millis() - pressStart > 10000 && millis() - pressStart < 15000) {
                 resetStarted = true;
@@ -1239,7 +1235,7 @@ void checkButton() {
             }
 
             if (millis() - pressStart > 15000) {
-                // 15 Sekunden %uuml;berschritten → Factory Reset
+                // 15 Sekunden überschritten → Factory Reset
                 tft.fillScreen(TFT_RED);
                 tft.setTextColor(TFT_WHITE, TFT_RED);
                 tft.setTextSize(TFT_TEXT_SIZE);
@@ -1251,7 +1247,7 @@ void checkButton() {
             }
             delay(10);  
         }
-        // Button wurde vor 10secs losgelassen → WLAN-Credentials f%uuml;r 10 Sekunden anzeigen
+        // Button wurde vor 10secs losgelassen → WLAN-Credentials für 10 Sekunden anzeigen
         if (!resetStarted) {            
             delay(3000);
         }
@@ -1273,7 +1269,12 @@ static float lastMinuteAngle = 0.0f;
 // updateClock Funktion
 void updateClock() {
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return;
+    if (!getLocalTime(&timeinfo)) {
+        // Keine gültige Uhrzeit verfügbar, auf 0:00:00 setzen
+        timeinfo.tm_hour = 0;
+        timeinfo.tm_min = 0;
+        timeinfo.tm_sec = 0;
+    }
 
     int orientation = preferences.getUChar("tftRotation", 0);
 
@@ -1411,14 +1412,14 @@ void updateClock() {
 /// Helligkeit aktualisieren
 void updateBrightness() {
 
-    // Wenn Helligkeit ge&auml;ndert → neu zeichnen
+    // Wenn Helligkeit geändert → neu zeichnen
     if (currentBrightness != lastAppliedBrightness) {
         loadClockFace();
         loadHandSprites();
         lastAppliedBrightness = currentBrightness;
     }
 
-    // Pr%uuml;fen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
+    // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
     bool withinDayWindow = false;
     
         struct tm timeinfo;
@@ -1429,7 +1430,7 @@ void updateBrightness() {
                 withinDayWindow = (h >= brightStartHour && h < brightEndHour);
             }
             else {
-                // %uuml;ber Mitternacht z.B. 20..6
+                // über Mitternacht z.B. 20..6
                 withinDayWindow = (h >= brightStartHour || h < brightEndHour);
             }
         }
@@ -1439,7 +1440,7 @@ void updateBrightness() {
     if (withinDayWindow) {
         targetBrightness = maxBrightness;
 #ifdef TFT_Backlight
-        // sanfte Erh&ouml;hung, falls gew%uuml;nscht (&auml;hnlich wie ADC-Rampen)
+        // sanfte Erhöhung, falls gewünscht (ähnlich wie ADC-Rampen)
         if (currentBrightness < targetBrightness) currentBrightness++;
         else if (currentBrightness > targetBrightness) currentBrightness--;
 #else
@@ -1520,7 +1521,7 @@ int getAdjustedAdcValue(int rawValue) {
 
 /// Easing-Funktion f%uuml;r sanfte Animationen
 float easeInOutSine(float t) {
-    // Intensit&auml;t steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
+    // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
     float intensity = 0.5f;
     return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
 }
@@ -1606,7 +1607,7 @@ void checkNightlyTimeSync() {
     }
 }
 
-// %uuml;berpr%uuml;ft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
+// überpüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
 void checkWiFiReconnect() {
     static unsigned long lastAttempt = 0;
     if (WiFi.status() == WL_CONNECTED) return;
@@ -1630,24 +1631,24 @@ void clearTFT() {
 }
 
 
-/// <summary>
-/// Startet einen WLAN-Access-Point mit dem Namen und Passwort 'clock123' und zeigt Verbindungsinformationen auf dem Display an.
-/// </summary>
+
+// Startet einen WLAN-Access-Point mit dem Namen und Passwort 'clock123' und zeigt Verbindungsinformationen auf dem Display an.
+
 void startAP() {
 #ifdef TFT_Backlight
     ledcWrite(TFT_Backlight, 255);
 #endif
 
-    // 1. WLAN-Scan durchf%uuml;hren
+    // 1. WLAN-Scan durchführen
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
     tft.setTextSize(TFT_TEXT_SIZE);
     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     tft.println("WLAN-Scan...");
     int n = WiFi.scanNetworks();
-    delay(100); // Kurze Pause f%uuml;r Anzeige
+    delay(100); // Kurze Pause für Anzeige
 
-    // foundNetworks f%uuml;llen
+    // foundNetworks füllen
     foundNetworkCount = 0;
     for (int i = 0; i < n && i < MAX_NETWORKS; i++) {
         foundNetworks[i].ssid = WiFi.SSID(i);
@@ -1690,10 +1691,8 @@ bool connectWiFi(int number, bool verbose_mode) {
     }
 #endif
     if (wifi_ssid[number] == "") return false;
-
-    DEBUG_PRINTLN(wifi_ssid[number]);
-               
-    DEBUG_PRINTLN("[WiFi] Trying SSID " + (String)number);
+         
+    DEBUG_PRINTLN("[WiFi] Trying SSID " + (String)number) + ": " + wifi_ssid[number];
 
     if (verbose_mode) {
         clearTFT();
@@ -1710,9 +1709,10 @@ bool connectWiFi(int number, bool verbose_mode) {
     }
 
     WiFi.disconnect();
-    //WiFi.enableIPv6();
+    WiFi.mode(WIFI_MODE_NULL);
+    
     WiFi.mode(WIFI_STA);
-      // MAC-Adresse holen    
+    // MAC-Adresse holen    
     WiFi.macAddress(mac);
 
     snprintf(hostname, sizeof(hostname), "clock_%02X%02X%02X",
@@ -1802,66 +1802,63 @@ void showWlanCredentials(String wlan) {
 /// Initialisiert die Zeitsynchronisierung %uuml;ber NTP und stellt die Zeitzone ein. Bei Fehlern werden bis zu 10 Versuche unternommen, um die Zeit zu erhalten. Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
 /// </summary>
 void setupNTP() {
-    
     if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) {
         DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
         return;
     }
-
-    bool verbose_mode = false;
-     
-    if (verbose_mode) {
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(10, (CLOCK_HEIGHT / 2));
-    }
-
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
+    for (int i = 0; i < numServers; i++) {
+       
+        DEBUG_PRINTLN("[NTP] Trying server: " + String(ntpServers[i]));
+        configTzTime(timezone.c_str(), ntpServers[i]);
+        struct tm timeinfo;
+        if (getLocalTime(&timeinfo, 5000)) {
+            DEBUG_PRINTLN("[NTP] Time synchronized successfully.");
+            return;
+        }
+        DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + String(ntpServers[i]));
+    }
+    handleNTPFailure();
+}
+void handleNTPFailure() {
+    DEBUG_PRINTLN("[NTP] Handling NTP synchronization failure...");
 
-    DEBUG_PRINTLN("[NTP] " + timezone);
-    setTimezone(timezone);
+    // Use the last known time as a fallback
     struct tm timeinfo;
-    int attempts = 0;
-    delay(100);
-    while (!getLocalTime(&timeinfo, 5000) && attempts < 10) {
-        attempts++;
-        if (verbose_mode) {
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_RED, TFT_BLACK);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2));
-            tft.printf("NTP failed (%d/10)", attempts);            
-        }
-        DEBUG_PRINTF("[NTP] Attempt %d/10 failed to get time from NTP server.\n", attempts);
-        delay(100);
+    if (getLocalTime(&timeinfo)) {
+        char timeStr[32];
+        strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+        DEBUG_PRINTLN("[NTP] Using last known time: " + String(timeStr));
     }
-    if (attempts >= 10) {
-        if (verbose_mode) {
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_RED, TFT_BLACK);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2));
-            tft.println("NTP timeout! Using last known time.");
-            DEBUG_PRINTF("[NTP] Failed to get time from NTP server after 10 attempts. Using last known time.\n");
-            delay(5000);
-        }
-        
-        delay(100);
+    else {
+        DEBUG_PRINTLN("[NTP] No valid time available. Clock may be inaccurate.");
+    }
+
+    // Optionally, schedule a retry later
+    scheduleNTPRetry();
+}
+
+void scheduleNTPRetry() {
+    lastNTPRetry = millis();
+    DEBUG_PRINTLN("[NTP] Scheduled retry in 30 minutes.");
+}
+
+void checkNTPRetry() {
+    if (WiFi.status() != WL_CONNECTED) {
+        DEBUG_PRINTLN("[NTP] Skipping retry: Not connected to WiFi.");
+        lastNTPRetry = millis();
+        return;
+    }
+    if (lastNTPRetry > 0 && millis() - lastNTPRetry >= retryIntervalNTPms) {
+        DEBUG_PRINTLN("[NTP] Retrying NTP synchronization...");
+        setupNTP();
+        lastNTPRetry = millis();
     }
 }
 
-/// <summary>
-/// Setzt die Zeitzone und konfiguriert die Zeitsynchronisation entsprechend.   
-/// </summary>
-/// <param name="tz">Die zu setzende Zeitzone als String.</param>
-void setTimezone(String tz) {
-    preferences.putString("timezone", tz);
+ 
 
-  
-    configTzTime(tz.c_str(), ntpServer1.c_str(), ntpServer2.c_str(), "de.pool.ntp.org");    
-
-    DEBUG_PRINTLN("Set Timezone: " + tz);
-}
-
-// Generiert den HTML-Header f%uuml;r die Weboberfl&auml;che
+// Generiert den HTML-Header für die Weboberfläche
 String generateHtmlHeader() {
     String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
     html += "<style>body{font-family:Arial;text-align:center;}input,select,button{margin:10px;padding:10px;width:80%;}";
@@ -1871,13 +1868,13 @@ String generateHtmlHeader() {
     html += "th, td { padding: 10px; text-align: center; border: 1px solid #cccccc; } "; // Tabellenzellen 
     html += "li { text-align: left; } "; // <li> linksb%uuml;ndig formatieren
     html += "</style></head><body>";
-    // Seite ben&ouml;tigt JavaScript
+    // Seite benötigt JavaScript
     html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>JavaScript is disabled. This page requires JavaScript to work properly!</div></noscript>";
     return html;
 }
 
 
-/// Generiert den HTML-Statusabschnitt f%uuml;r die Weboberfl&auml;che
+/// Generiert den HTML-Statusabschnitt für die Weboberfläche
 String generateHtmlStatus() {
     size_t total = LittleFS.totalBytes();
     size_t used = LittleFS.usedBytes();
@@ -2051,17 +2048,21 @@ void setupWebServer() {
         if (webserver.hasArg("timeZone")) {
             String tz = webserver.arg("timeZone");
             preferences.putString("timezone", tz);
-            setTimezone(tz);
+            timezone = tz;
             setupNTP();
         }
         if (webserver.hasArg("ntpServer1")) {
-            ntpServer1 = webserver.arg("ntpServer1");
-            preferences.putString("ntpServer1", ntpServer1);
+            strncpy(ntpServers[0], webserver.arg("ntpServer1").c_str(), sizeof(ntpServers[0]) - 1);
+            ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
+            preferences.putString("ntpServer1", ntpServers[0]);
         }
         if (webserver.hasArg("ntpServer2")) {
-            ntpServer2 = webserver.arg("ntpServer2");
-            preferences.putString("ntpServer2", ntpServer2);
+            strncpy(ntpServers[1], webserver.arg("ntpServer2").c_str(), sizeof(ntpServers[1]) - 1);
+            ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0'; // Null-terminieren
+            preferences.putString("ntpServer1", ntpServers[1]);
         }
+
+
         if (webserver.hasArg("hubSize")) {
             hub_size = webserver.arg("hubSize").toInt();
             preferences.putUInt("centerSize", hub_size);
@@ -2070,7 +2071,7 @@ void setupWebServer() {
             uint32_t rgb = strtoul(webserver.arg("hubColor").c_str(), NULL, 16); // 24-Bit RGB
             DEBUG_PRINTLN("[API] Received hubColor: " + webserver.arg("hubColor") + " -> " + String(rgb, HEX));
             uint8_t r = (rgb >> 16) & 0xFF; // Rot extrahieren
-            uint8_t g = (rgb >> 8) & 0xFF;  // Gr%uuml;n extrahieren
+            uint8_t g = (rgb >> 8) & 0xFF;  // Grün extrahieren
             uint8_t b = rgb & 0xFF;         // Blau extrahieren
 
             // Konvertiere RGB888 zu RGB565
@@ -2089,14 +2090,14 @@ void setupWebServer() {
             String rotationArg = webserver.arg("rotation");
             uint8_t tftRotation = 0;
 
-            // Pr%uuml;fe, ob der Wert in Grad angegeben ist
+            // Prüfe, ob der Wert in Grad angegeben ist
             if (rotationArg == "0" || rotationArg == "90" || rotationArg == "180" || rotationArg == "270") {
                 if (rotationArg == "0") tftRotation = 0;
                 else if (rotationArg == "90") tftRotation = 1;
                 else if (rotationArg == "180") tftRotation = 2;
                 else if (rotationArg == "270") tftRotation = 3;
             }
-            // Pr%uuml;fe, ob der Wert als Index (0-3) angegeben ist
+            // Prüfe, ob der Wert als Index (0-3) angegeben ist
             else {
                 tftRotation = rotationArg.toInt();
             }
@@ -2204,7 +2205,7 @@ void setupWebServer() {
         html += "</form>";
         html += "<hr>";
 
-        // Gef%uuml;llte Presets anzeigen
+        // Gefüllte Presets anzeigen
         html += "<h3>" + translate("Edit Presets") + "</h3>";
         html += "<form method='POST' action='/save_presets'>";
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -2291,20 +2292,24 @@ void setupWebServer() {
     // NTP Server und Zeitzone setzen
     webserver.on("/set_timezone", HTTP_POST, []() {
         if (webserver.hasArg("ntpServer1")) {
-            ntpServer1 = webserver.arg("ntpServer1");
-            preferences.putString("ntpServer1", ntpServer1);
-            DEBUG_PRINTLN("[NTP] NTP Server1 set to: " + ntpServer1);                          
+            strncpy(ntpServers[0], webserver.arg("ntpServer1").c_str(), sizeof(ntpServers[0]) - 1);
+            ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Ensure null-termination
+            preferences.putString("ntpServer1", ntpServers[0]);
+            DEBUG_PRINTLN("[NTP] NTP Server1 set to: " + String(ntpServers[0]));
         }
         if (webserver.hasArg("ntpServer2")) {
-            ntpServer2 = webserver.arg("ntpServer2");
-            preferences.putString("ntpServer2", ntpServer2);
-            DEBUG_PRINTLN("[NTP] NTP Server2 set to: " + ntpServer2);            
+            strncpy(ntpServers[1], webserver.arg("ntpServer2").c_str(), sizeof(ntpServers[1]) - 1);
+            ntpServers[0][sizeof(ntpServers[1]) - 1] = '\0'; // Ensure null-termination
+            preferences.putString("ntpServer2", ntpServers[1]);
+            DEBUG_PRINTLN("[NTP] NTP Server2 set to: " + String(ntpServers[1]));
         }
+
+         
 
         if (webserver.hasArg("timezone")) {
             String tz = webserver.arg("timezone");
             preferences.putString("timezone", tz);
-            setTimezone(tz);
+            setupNTP();
         }
             
         webserver.send(200, "text/html",
@@ -2328,7 +2333,7 @@ void setupWebServer() {
         } tzList[] = {
             {"Germany (DST auto)", TIMEZONE_DEFAULT},
             {"Germany (fixed summer time)", "CEST-2"},
-            {"Germany (fixed winter time)", "CET-1"},           
+            {"Germany (fixed winter time)", "CET-1"},
             {"UK (DST auto)", "GMT0BST,M3.5.0/1,M10.5.0"},
             {"UK (fixed summer time)", "BST-1"},
             {"UK (fixed winter time)", "GMT0"},
@@ -2358,13 +2363,13 @@ void setupWebServer() {
         };
 
         String html = generateHtmlHeader();
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
         html += "<form method='POST' action='/set_timezone'>";
 
-        html += "NTP Server1: <input type='text' name='ntpServer1' value='" + ntpServer1 + "'><br>";
-        html += "NTP Server2: <input type='text' name='ntpServer2' value='" + ntpServer2 + "'><br><br>";
+        html += "NTP Server1: <input type='text' name='ntpServer1' value='" + String(ntpServers[0]) + "'><br>";
+        html += "NTP Server2: <input type='text' name='ntpServer2' value='" + String(ntpServers[1]) + "'><br><br>";
 
         // Kombiniertes Select + Input
         html += translate("Timezone") + ": <br><select id = 'tz_select' style = 'width: 400px;' onchange = \"document.getElementById('tz_input').value=this.value\">";
@@ -2395,8 +2400,8 @@ void setupWebServer() {
         String oldName = webserver.arg("file");
         String html = generateHtmlHeader();
         
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("Rename File") + "</h2>";
         html += "<form action='/rename' method='POST'>";
         html += "<input type='hidden' name='old' value='" + oldName + "'>";
@@ -2454,7 +2459,7 @@ void setupWebServer() {
         html += translate("Height") + ": <input name = 'h' type = 'number' value = '" + String(CLOCK_HEIGHT) + "' required><br>";
         html += "<button type='submit'>" + translate("Scale and Save") + "</button></form>";
         html += "<br><br>";
-       // html += generateNavigation(); // Navigation einf%uuml;gen
+       // html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
@@ -2526,8 +2531,8 @@ void setupWebServer() {
     // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_POST, []() {
         String html = generateHtmlHeader();
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
         if (photoresistorFound) {
@@ -2618,7 +2623,7 @@ void setupWebServer() {
         }
 
         html += "<br><br>";
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
@@ -2626,8 +2631,8 @@ void setupWebServer() {
     // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_GET, []() {
         String html = generateHtmlHeader();
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
         if (photoresistorFound) {
@@ -2728,7 +2733,7 @@ void setupWebServer() {
         maxBrightness = (uint8_t)webserver.arg("maxBrightness").toInt();
         minBrightness = (uint8_t)webserver.arg("minBrightness").toInt();
 
-        // neue: Zeitabh&auml;ngige Helligkeit speichern
+        // neue: Zeitabhängige Helligkeit speichern
         
         
         brightStartHour = (uint8_t)constrain(webserver.arg("brightStart").toInt(), 0, 23);
@@ -2763,8 +2768,8 @@ void setupWebServer() {
     webserver.on("/files", HTTP_GET, []() {
         String html = generateHtmlHeader();
         
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
 
         html += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th align = left>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>Info</th><th>" + translate("Action") + "</th></tr>";
 
@@ -2783,7 +2788,7 @@ void setupWebServer() {
             file = root.openNextFile();
         }
         html += "</table><br><br>";
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
@@ -2798,8 +2803,8 @@ void setupWebServer() {
 
         String html = generateHtmlHeader();
 
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
 
         html += "<h2>ESP System Status</h2><ul>";
 
@@ -2939,14 +2944,14 @@ void setupWebServer() {
         html += "<li><a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
 
         html += "</ul>";        
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
         webserver.on("/preview_defaultface", HTTP_GET, []() {
             const int headerSize = 54;
-            const int rowSize = ((CLOCK_WIDTH * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel f%uuml;r RGB888
+            const int rowSize = ((CLOCK_WIDTH * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel für RGB888
             const int dataSize = rowSize * CLOCK_HEIGHT;
             const int fileSize = headerSize + dataSize;
 
@@ -2984,7 +2989,7 @@ void setupWebServer() {
                     uint8_t b = (px << 3) & 0xF8; // untere 5 Bits
 
                     rowPtr[x * 3 + 0] = b; // Blau
-                    rowPtr[x * 3 + 1] = g; // Gr%uuml;n
+                    rowPtr[x * 3 + 1] = g; // Grün
                     rowPtr[x * 3 + 2] = r; // Rot
                 }
             }
@@ -3003,8 +3008,8 @@ void setupWebServer() {
             String html = generateHtmlHeader();
 
 
-            html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-            html += generateNavigation(); // Navigation einf%uuml;gen
+            html += generateHtmlStatus(); // Statusleiste einfügen
+            html += generateNavigation(); // Navigation einfügen
             html += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>" + translate("Preview/Set") + "</th></tr>";
 
             // Add built-in default face
@@ -3062,7 +3067,7 @@ void setupWebServer() {
             }
 
 
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateNavigation(); // Navigation einfügen
         html += "</body> </html>";
         webserver.send(200, "text/html", html);
         });
@@ -3086,7 +3091,7 @@ void setupWebServer() {
             json += "]";
         }
         else {
-            // im AP-Modus die letzten Scan-Ergebnisse zur%uuml;ckgeben
+            // im AP-Modus die letzten Scan-Ergebnisse zurückgeben
             json = "[";
             for (int i = 0; i < foundNetworkCount; ++i) {
                 if (i > 0) json += ",";
@@ -3111,8 +3116,8 @@ void setupWebServer() {
 
         String html = generateHtmlHeader();
                 
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
 
         html += "<h2>" + translate("Clock Setup") + "</h2>";
 
@@ -3226,7 +3231,7 @@ void setupWebServer() {
         html += "          });";
         html += "          select2.innerHTML = select1.innerHTML;";
         html += "        });";
-        html += "      }, 2000);"; // 2 Sekunden warten f%uuml;r Scan
+        html += "      }, 2000);"; // 2 Sekunden warten für Scan
         html += "    });";
         html += "};";
 
@@ -3269,7 +3274,7 @@ void setupWebServer() {
         html += "});";
         html += "</script>";
 
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateNavigation(); // Navigation einfügen
 
 
         html += "</body></html>";
@@ -3352,7 +3357,7 @@ void setupWebServer() {
         webserver.send(404, "text/plain", "File not found");
         });
 
-        // Datei l&ouml;schen
+        // Datei löschen
         webserver.on("/delete", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String path = webserver.arg("file");
@@ -3391,8 +3396,8 @@ void setupWebServer() {
             size_t used = LittleFS.usedBytes();
 
         String html = generateHtmlHeader();
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th colspan = 2>Preview / Set</th></tr>";
 
         String activeSet = preferences.getString("handset", "");
@@ -3471,7 +3476,7 @@ void setupWebServer() {
             html += "<button type='submit'>" + translate("Upload to Set") + "</button></form>";
         }
         html += "<br><br>";
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateNavigation(); // Navigation einfügen
         
         html += "<br><br>";
         html += "</body></html>";
@@ -3505,7 +3510,7 @@ void setupWebServer() {
         //  Handsets Datei-Upload verarbeiten
         webserver.on("/uploadhandset", HTTP_POST, []() {
         if (uploadSuccess) {
-            // Sicherheitspr%uuml;fung auf Dateinamenmuster
+            // Sicherheitsprüfung auf Dateinamenmuster
             if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
                 String errorHtml = "<!DOCTYPE html><html><head><title>Upload Failed</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
                 errorHtml += "<h2>Upload failed</h2>";
@@ -3672,7 +3677,7 @@ void handleFileUpload() {
     }
 }
 
-// L&auml;dt eine BMP-Datei in einen Sprite ohne PSRAM
+// Lädt eine BMP-Datei in einen Sprite ohne PSRAM
 bool loadBmpToSprite(TFT_eSprite* sprite, const char* filename) {
 
     if (psramAvailable) {
@@ -3720,7 +3725,7 @@ bool loadBmpToSprite(TFT_eSprite* sprite, const char* filename) {
 
 
 
-// L&auml;dt eine BMP-Datei in einen Sprite unter Verwendung von PSRAM und rotiert das Bild basierend auf der Display-Rotation
+// Lädt eine BMP-Datei in einen Sprite unter Verwendung von PSRAM und rotiert das Bild basierend auf der Display-Rotation
 bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
 
     
@@ -3749,7 +3754,7 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
     bmp.seek(offset);
 
     
-    // Tempor&auml;rer Buffer f%uuml;r die Bitmap-Daten
+    // Temporärer Buffer für die Bitmap-Daten
     uint16_t* tempBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
     if (!tempBuffer) {
         DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden f%uuml;r Bitmap-Daten!");
@@ -3796,7 +3801,7 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
                 break;
             }
 
-            // Korrektur f%uuml;r invertierte Darstellung
+            // Korrektur für invertierte Darstellung
             newY = height - newY - 1;
 
             if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
@@ -3806,8 +3811,8 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
     }
 
     // 5. In den Sprite pushen
-    sprite->setSwapBytes(true); // Byte-Reihenfolge f%uuml;r TFT_eSPI korrigieren
-    sprite->fillSprite(TFT_BLACK); // Hintergrund l&ouml;schen
+    sprite->setSwapBytes(true); // Byte-Reihenfolge für TFT_eSPI korrigieren
+    sprite->fillSprite(TFT_BLACK); // Hintergrund löschen
     for (int y = 0; y < height; y++) {
         sprite->pushImage(0, y, width, 1, &rotatedBuffer[y * width]);
     }
@@ -3828,7 +3833,7 @@ float rotatedAngle(float angle, int orientation) {
     return angle;
 }
 
-// %uuml;berpr%uuml;ft, ob die BMP-Datei das erwartete Format hat
+//überprüft, ob die BMP-Datei das erwartete Format hat
 bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) {
     File bmpFile = LittleFS.open(filename, "r");
     if (!bmpFile) {
@@ -3864,7 +3869,7 @@ bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int
     return true;
 }
 
-// Liest die BMP-Header-Informationen und gibt sie als String zur%uuml;ck
+// Liest die BMP-Header-Informationen und gibt sie als String zurück
 String getBmpInfo(const String& filename) {
     // Normalisiere Pfad (einfach und eindeutig)
     String file = filename;
@@ -3888,7 +3893,7 @@ String getBmpInfo(const String& filename) {
     return String(abs(width)) + "&nbsp;x&nbsp;" + String(abs(height)) + " / " + String(bpp) + " bpp";
 }
 
-// Skaliert eine BMP-Datei auf die gew%uuml;nschte Gr&ouml;ße und speichert sie
+// Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
 bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
     DEBUG_PRINTLN("[BMP Scale] Scaling BMP: " + String(sourcePath) + " to " + String(targetPath));
     File bmp = LittleFS.open(sourcePath, "r");
@@ -3940,7 +3945,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
             uint16_t pixel = 0;
 
             if (bpp == 16) {
-                // 16 bpp (RGB565) → direkt %uuml;bernehmen
+                // 16 bpp (RGB565) → direkt übernehmen
                 uint16_t* row16 = (uint16_t*)rowBuf;
                 pixel = row16[srcX];
             }
@@ -4005,14 +4010,15 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     return true;
 }
 
-// --- Funktion: L&ouml;scht die gespeicherten WiFi-Konfigurationen ---
+// --- Funktion: Löscht die gespeicherten WiFi-Konfigurationen ---
 void eraseWiFiConfig() {
     // WLAN trennen und komplett deaktivieren
-    WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten l&ouml;schen
+    WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen    
+    delay(100);
     WiFi.mode(WIFI_OFF);
     delay(1000);
 
-    // Zus&auml;tzlich: Manuell NVS-Eintr&auml;ge f%uuml;r WiFi l&ouml;schen
+    // Zusätzlich: Manuell NVS-Einträge für WiFi löschen
     nvs_handle_t nvsHandle;
     esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvsHandle);
     if (err == ESP_OK) {
@@ -4026,12 +4032,12 @@ void eraseWiFiConfig() {
     }
 }
 
-// --- Funktion: L&ouml;scht den gesamten NVS-Speicher ---
+// --- Funktion: Löscht den gesamten NVS-Speicher ---
 void eraseAllNVS() {
-    // L&ouml;scht gesamten NVS-Speicher
+    // Löscht gesamten NVS-Speicher
     esp_err_t result = nvs_flash_erase();
     if (result == ESP_OK) {
-        DEBUG_PRINTLN("Kompletter NVS-Speicher gel&ouml;scht (inkl. WiFi, Preferences).");
+        DEBUG_PRINTLN("Kompletter NVS-Speicher gelöscht (inkl. WiFi, Preferences).");
         nvs_flash_init();  // Wichtig: Danach wieder initialisieren!
     }
     else {
@@ -4039,7 +4045,7 @@ void eraseAllNVS() {
     }
 }
 
-// --- Funktion: F%uuml;hrt einen Factory Reset durch ---
+// --- Funktion: F%ührt einen Factory Reset durch ---
 void factoryReset() {
     tft.fillScreen(TFT_BLACK);
     preferences.begin("clock", false);
@@ -4058,7 +4064,7 @@ void factoryReset() {
          
 }
 
-// --- Funktion: F%uuml;hrt einen Reboot durch mit Anzeige ---
+// --- Funktion: führt einen Reboot durch mit Anzeige ---
 void esp_reboot() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -4072,7 +4078,7 @@ void esp_reboot() {
 }
 
 
-// --- Funktion: Pr%uuml;ft, ob ein w&ouml;chentlicher Neustart f&auml;llig ist ---
+// --- Funktion: Prüft, ob ein wöchentlicher Neustart fällig ist ---
 void checkWeeklyRestart() {
 
     struct tm timeinfo;
@@ -4103,7 +4109,7 @@ void checkWeeklyRestart() {
 }
 
 
-// --- Funktion: Scannt verf%uuml;gbare WLANs und speichert sie im Cache ---
+// --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
 void scanAndCacheNetworks() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -4128,9 +4134,9 @@ void scanAndCacheNetworks() {
     digitalWrite(LED_BOARD, LOW);
 }
 
-// --- Funktion: Wechselt zum n&auml;chsten Preset ---
+// --- Funktion: Wechselt zum nächsten Preset ---
 void switchToNextPreset() {
-    // Sammle alle g%uuml;ltigen Presets
+    // Sammle alle gültigen Presets
     std::vector<int> validPresets;
     for (int i = 0; i < MAX_PRESETS; i++) {
         if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
@@ -4153,11 +4159,11 @@ void switchToNextPreset() {
         }
     }
 
-    // W&auml;hle das n&auml;chste Preset
+    // Wähle das nächste Preset
     int nextIndex = (currentIndex + 1) % validPresets.size();
     int nextPresetIndex = validPresets[nextIndex];
 
-    // Lade das n&auml;chste Preset
+    // Lade das nächste Preset
     String nextPresetUrl = presets[nextPresetIndex].url;
 
     // Sicherstellen, dass die URL ab "/api" beginnt
@@ -4217,7 +4223,6 @@ void switchToNextPreset() {
         }
         else if (key == "timeZone") {
             preferences.putString("timezone", value);
-            setTimezone(value);
             setupNTP();
         }
         else if (key == "hubSize") {
@@ -4277,7 +4282,7 @@ void switchToNextBackground() {
     if (root) {
         File f = root.openNextFile();
         while (f) {
-            String name = f.name(); // meist mit f%uuml;hrendem '/'
+            String name = f.name(); // meist mit führendem '/'
             // Akzeptiere sowohl "/face_..." als auch "face_..."
             if (name.startsWith("/")) {
                 if (name.startsWith("/face_") && name.endsWith(".bmp")) {
@@ -4321,7 +4326,7 @@ void switchToNextBackground() {
         if (faces[i] == sel) { idx = (int)i; break; }
     }
 
-    // 5) Wenn nicht gefunden: versuche eine tolerantere Suche (ohne f%uuml;hrenden '/')
+    // 5) Wenn nicht gefunden: versuche eine tolerantere Suche (ohne führenden '/')
     if (idx < 0) {
         String selNoSlash = sel;
         if (selNoSlash.startsWith("/")) selNoSlash = selNoSlash.substring(1);
@@ -4332,7 +4337,7 @@ void switchToNextBackground() {
         }
     }
 
-    // 6) W&auml;hle n&auml;chstes Element:
+    // 6) Wähle nächstes Element:
     int next;
     if (idx < 0) {
         // Falls aktuelle Auswahl unbekannt ist, w&auml;hle erstes user-face (wenn default an pos 0) sonst 0
@@ -4343,7 +4348,7 @@ void switchToNextBackground() {
         next = (idx + 1) % (int)faces.size();
     }
 
-    // 7) %uuml;bernehme und speichere
+    // 7) übernehme und speichere
     selectedBackground = faces[next];
     preferences.putString("background", selectedBackground);
 
@@ -4359,7 +4364,7 @@ void switchToNextBackground() {
     updateClock();
 }
 
-// --- Funktion: Touch pr%uuml;fen (nicht-blockierend, mit Entprellung) ---
+// --- Funktion: Touch prüfen (nicht-blockierend, mit Entprellung) ---
 void checkTouchInput() {
 
     uint16_t var = touchRead(TOUCH_PIN);
@@ -4382,7 +4387,7 @@ void checkTouchInput() {
 }
 
 
-// Validiert den geladenen Preferences-Eintrag f%uuml;r background und repariert falls n&ouml;tig
+// Validiert den geladenen Preferences-Eintrag für background und repariert falls nötig
 static void validateSelectedBackground() {
     // Normalisieren
     selectedBackground.trim();
@@ -4410,7 +4415,7 @@ static void validateSelectedBackground() {
         }
     }
 
-    // Pr%uuml;fe BMP-Format (Gr&ouml;ße / bpp)
+    // Prüfe BMP-Format (Größe / bpp)
     if (!checkBmpFormat(selectedBackground)) {
         DEBUG_PRINTLN("[BG] BMP format invalid: " + selectedBackground);
         selectedBackground = "/face_default.bmp";
@@ -4422,14 +4427,14 @@ static void validateSelectedBackground() {
     DEBUG_PRINTLN("[BG] Background OK: " + selectedBackground);
 }
 
-// Aktualisiert die Zeigerbreiten und l&auml;dt die Zeiger-Sprites neu
+// Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
 void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) {
     // Aktualisiere die globalen Breiten
     hourHandWidth = newHourWidth;
     minuteHandWidth = newMinuteWidth;
     secondHandWidth = newSecondWidth;
 
-    // Alte Sprites l&ouml;schen
+    // Alte Sprites löschen
     hourHandSprite.deleteSprite();
     minuteHandSprite.deleteSprite();
     secondHandSprite.deleteSprite();
