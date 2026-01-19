@@ -24,9 +24,14 @@
 
 // Debug-Makros
 #ifdef DEBUG
-#define DEBUG_PRINT(x) Serial.print(x)
-#define DEBUG_PRINTLN(x) Serial.println(x)
-#define DEBUG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#define DEBUG_PRINT(x) { Serial.print(x); logToFile(String(x)); }
+#define DEBUG_PRINTLN(x) { Serial.println(x); logToFile(String(x)); }
+#define DEBUG_PRINTF(...) { \
+    char buffer[256]; /* Puffer für die formatierte Nachricht */ \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    Serial.print(buffer); \
+    logToFile(String(buffer)); \
+}
 #else
 #define DEBUG_PRINT(x)
 #define DEBUG_PRINTLN(x)
@@ -166,6 +171,9 @@ unsigned long lastNTPRetry = 0;
 const unsigned long retryIntervalNTPms = 10 * 60 * 1000; // 10 Minuten
 
 String timezone = TIMEZONE_DEFAULT;
+
+bool loggingEnabled = false;  
+String logFileName = "/log.log";
 
 char ntpServers[4][64] = { NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3, "fritz.box"};
 const int numServers = sizeof(ntpServers) / sizeof(ntpServers[0]);
@@ -450,7 +458,17 @@ void setup() {
         delay(10);
     }
 
-    DEBUG_PRINTLN("[Setup] Start");
+    if (!LittleFS.begin(true)) {        
+            Serial.println("[LittleFS] Mount Failed");
+    }
+
+    preferences.begin("clock", false);
+
+    setLogFileName();
+
+    
+
+    DEBUG_PRINTLN("[SETUP] start");
 
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
@@ -460,7 +478,7 @@ void setup() {
     tft_type = "ILI9341";
 #endif
 
-    preferences.begin("clock", false);
+    
 
     // Pr%uuml;fen, ob PSRAM vorhanden ist
     if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
@@ -474,7 +492,7 @@ void setup() {
         preferences.putUChar("tftRotation", 0);
 #endif
     }
-#ifndef GC9D01 // wird nur bei Display GC9D01 ben&ouml;tigt
+#ifndef GC9D01 // wird nur bei Display GC9D01 benötigt
     psramAvailable = false;
 #endif
 
@@ -543,10 +561,15 @@ void setup() {
         preferences.putBool("adcInverted", false);
         preferences.putBool("useTouch", false);
 
+        preferences.putBool("loggingEnabled", false);
+
+
         preferences.end();
         preferences.begin("clock", false);
     }
 
+    loggingEnabled = preferences.getBool("loggingEnabled", false);
+    
     currentLanguage = preferences.getString("language", "en");
 
     
@@ -557,9 +580,7 @@ void setup() {
     ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0'; // Null-terminieren
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
-    // setTimezone(timezone);
-    setupNTP();
-
+    
     DEBUG_PRINTLN("[NTP] Aktuelle NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
     DEBUG_PRINTLN("Zeitzone eingestellt auf: " + timezone);
 
@@ -570,7 +591,7 @@ void setup() {
     // Nabe
     uint32_t hub_color_RGB = preferences.getLong("centerColor", 0xEC0016); //DB red
     hub_color = tft.color565((hub_color_RGB >> 16) & 0xFF, (hub_color_RGB >> 8) & 0xFF, hub_color_RGB & 0xFF);
-    DEBUG_PRINTF("[HUB.] Color RGB: #%06X 565: 0x%04X\n", hub_color_RGB, hub_color);
+    // DEBUG_PRINTF("[HUB] Color RGB: #%06X 565: 0x%04X", hub_color_RGB, hub_color);
     hub_size = preferences.getUInt("centerSize", 6);
 
     lowThreshold = preferences.getInt("lowThreshold", 40);
@@ -612,16 +633,19 @@ void setup() {
     delay(100);
     adc_max = analogRead(ADC_PIN);
 
-    DEBUG_PRINTF("ADC min: %d max: %d\n", adc_min, adc_max);
+    DEBUG_PRINTF("ADC min: %d max: %d", adc_min, adc_max);
+    Serial.println();
 
     if (adc_min < 1000 && adc_max > 2000) {
+        DEBUG_PRINTF("ADC act: %d", analogRead(ADC_PIN));
+        Serial.println();
         DEBUG_PRINTLN("found photoresistor");
         digitalWrite(ADC_GND, 0);
         digitalWrite(ADC_3V, 1);
         use_adc = true;
         photoresistorFound = true;
         // evtl überschreiben
-        use_adc = preferences.getBool("use_adc", true);
+        use_adc = preferences.getBool("use_adc", true);        
     }
     else {
         pinMode(ADC_GND, INPUT);
@@ -641,18 +665,7 @@ void setup() {
 
     pinMode(LED_BOARD, OUTPUT); digitalWrite(LED_BOARD, HIGH);
 
-    if (!LittleFS.begin(true)) {
-        DEBUG_PRINTLN("[LittleFS] Mount Failed");
-    }
-    /* else {
-        DEBUG_PRINTLN("[LittleFS] Listing all files in root:");
-        File root = LittleFS.open("/");
-        File entry = root.openNextFile();
-        while (entry) {
-            DEBUG_PRINTF(" - %s (%d bytes)  ", entry.name(), entry.size());
-            entry = root.openNextFile();
-        }
-    } */
+    Serial.println("debug is:" + String(loggingEnabled ? "enabled" : "disabled"));
 
     tft.init();
     delay(50);
@@ -1578,34 +1591,40 @@ void checkNightlyTimeSync() {
     static bool triggered3 = false;
 
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return;
+    if (!getLocalTime(&timeinfo)) {
+        DEBUG_PRINTLN("[TIME SYNC] Failed to get local time.");
+        return;
+    }
 
-    /*if (timeinfo.tm_sec == 30) {
-        delay(1000);
-        DEBUG_PRINTLN("[TIME SYNC] Time sync triggered");
-        WiFi.disconnect();
-        wifi_ssid = "asdfghj";
-        wifi_ssid[1] = "asdfghj";
-    }*/
-
+    //  DEBUG_PRINTF("[TIME SYNC] Current time: %02d:%02d:%02d\n", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 
     if (timeinfo.tm_hour == 2 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered2) {
         DEBUG_PRINTLN("[TIME SYNC] Triggered at 02:00:05");
-        setupNTP();
-        triggered2 = true;
+        if (setupNTP()) { // Optional: Überprüfen, ob die Synchronisation erfolgreich war
+            triggered2 = true;
+        }
+        else {
+            DEBUG_PRINTLN("[TIME SYNC] NTP synchronization failed at 02:00:05");
+        }
     }
 
     if (timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered3) {
         DEBUG_PRINTLN("[TIME SYNC] Triggered at 03:00:05");
-        setupNTP();
-        triggered3 = true;
+        if (setupNTP()) {
+            triggered3 = true;
+        }
+        else {
+            DEBUG_PRINTLN("[TIME SYNC] NTP synchronization failed at 03:00:05");
+        }
     }
 
     if (timeinfo.tm_hour == 4 && triggered2 && triggered3) {
+        DEBUG_PRINTLN("[TIME SYNC] Resetting triggers for the next night.");
         triggered2 = false;
         triggered3 = false;
     }
 }
+
 
 // überpüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
 void checkWiFiReconnect() {
@@ -1725,7 +1744,7 @@ bool connectWiFi(int number, bool verbose_mode) {
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
          
-        DEBUG_PRINT(".");
+        Serial.print(".");
         if (verbose_mode) {
             animateCursor(tft, 20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
         }
@@ -1734,6 +1753,7 @@ bool connectWiFi(int number, bool verbose_mode) {
         }
 
     }
+    Serial.println();
     if (WiFi.status() == WL_CONNECTED) {
 
         // mDNS initialisieren
@@ -1744,11 +1764,12 @@ bool connectWiFi(int number, bool verbose_mode) {
             MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80
         }
 
-        DEBUG_PRINTLN("\n[WiFi] Connected to: " + wifi_ssid[number]);
+        DEBUG_PRINTLN("[WiFi] Connected to: " + wifi_ssid[number]);
         DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
         String fullHostname = String(hostname) + ".local";
-        pingHostname = Ping.ping(fullHostname.c_str(),3);
-        DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
+        pingHostname = true;
+     //   pingHostname = Ping.ping(fullHostname.c_str(),3);
+     //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
 
         if (verbose_mode) {
             showWlanCredentials(wifi_ssid[number]);           
@@ -1801,10 +1822,10 @@ void showWlanCredentials(String wlan) {
 /// <summary>
 /// Initialisiert die Zeitsynchronisierung %uuml;ber NTP und stellt die Zeitzone ein. Bei Fehlern werden bis zu 10 Versuche unternommen, um die Zeit zu erhalten. Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
 /// </summary>
-void setupNTP() {
+boolean setupNTP() {
     if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) {
         DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
-        return;
+        return true;
     }
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
     for (int i = 0; i < numServers; i++) {
@@ -1814,16 +1835,17 @@ void setupNTP() {
         struct tm timeinfo;
         if (getLocalTime(&timeinfo, 5000)) {
             DEBUG_PRINTLN("[NTP] Time synchronized successfully.");
-            return;
+            return true;
         }
         DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + String(ntpServers[i]));
     }
     handleNTPFailure();
 }
+
 void handleNTPFailure() {
     DEBUG_PRINTLN("[NTP] Handling NTP synchronization failure...");
 
-    // Use the last known time as a fallback
+    // Versuche, die letzte bekannte Zeit zu verwenden
     struct tm timeinfo;
     if (getLocalTime(&timeinfo)) {
         char timeStr[32];
@@ -1831,13 +1853,26 @@ void handleNTPFailure() {
         DEBUG_PRINTLN("[NTP] Using last known time: " + String(timeStr));
     }
     else {
-        DEBUG_PRINTLN("[NTP] No valid time available. Clock may be inaccurate.");
+        // Wenn keine gültige Zeit verfügbar ist, auf 12:00 Uhr setzen
+        DEBUG_PRINTLN("[NTP] No valid time available. Setting time to 12:00.");
+        timeinfo.tm_hour = 12;
+        timeinfo.tm_min = 0;
+        timeinfo.tm_sec = 0;
+        timeinfo.tm_year = 126; // Jahr 2026 (1900 + 126)
+        timeinfo.tm_mon = 0;    // Januar
+        timeinfo.tm_mday = 1;   // 1. Tag des Monats
+        setTimeStruct(timeinfo); // Funktion, um die Zeit zu setzen
     }
-
     // Optionally, schedule a retry later
     scheduleNTPRetry();
 }
 
+void setTimeStruct(const struct tm& timeinfo) {
+    timeval tv = { mktime(const_cast<struct tm*>(&timeinfo)), 0 }; // Konvertiere `tm` in `time_t`
+    settimeofday(&tv, nullptr); // Setze die Systemzeit
+    DEBUG_PRINTLN("[NTP] Time manually set to: " + String(asctime(&timeinfo)));
+
+}
 void scheduleNTPRetry() {
     lastNTPRetry = millis();
     DEBUG_PRINTLN("[NTP] Scheduled retry in 30 minutes.");
@@ -2502,6 +2537,10 @@ void setupWebServer() {
 
         if (useTouch) enableTouch();
          else disableTouch();
+
+        // Logging-Einstellung speichern
+        loggingEnabled = webserver.hasArg("loggingEnabled");
+        preferences.putBool("loggingEnabled", loggingEnabled);
         
         preferences.putBool("stationMode", stationMode);
         preferences.putBool("showSecondHand", showSecondHand);
@@ -2781,8 +2820,17 @@ void setupWebServer() {
             html += "<tr><td align=left>" + name + "</td><td align=right>" + String(file.size()) + "</td>";
             html += "<td align=right>" + String(info) + "</td>";
             html += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"Delete " + name + "?\")'>" + translate("Delete") + "</a> ";
-            html += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
-            html += "<a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
+            // Scale-Option nur für .bmp-Dateien anzeigen
+            if (name.endsWith(".bmp")) {
+                html += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
+                html += "<a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
+            } 
+            else {
+                html += translate("Scale") + " ";
+                html += translate("Rename") + " ";
+            }
+            
+            html += "<a href='/file?name=" + name + "'>" + translate("View") + "</a> "; // "View"-Link für Logdateien
             html += "</td></tr>";
 
             file = root.openNextFile();
@@ -3111,6 +3159,7 @@ void setupWebServer() {
         });
 
 
+      
         // Hauptseite - WLAN Einstellungen
         webserver.on("/", HTTP_GET, []() {
 
@@ -3185,6 +3234,10 @@ void setupWebServer() {
             html += preferences.getBool("useTouch", false) ? "checked" : "";
             html += "> " + translate("Enable Touch") + "</td>";
 
+            html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+            html += loggingEnabled ? "checked" : "";
+            html += "> Logging aktivieren</td>";
+
             html += "<td>Rotation: <select name='rotation'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
@@ -3193,6 +3246,10 @@ void setupWebServer() {
                 html += ">" + String(rotationLabels[i]) + "</option>";
             }
             html += "</select></td>";
+
+            html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+            html += loggingEnabled ? "checked" : "";
+            html += "> Logging aktivieren</td>";
 
             html += "<td valign=bottom><button type='submit'>" + translate("Apply") + "</button></td>";
             html += "</tr></table></form>";
@@ -3376,18 +3433,30 @@ void setupWebServer() {
 
         // Datei anzeigen (BMP)
         webserver.on("/file", HTTP_GET, []() {
-        if (webserver.hasArg("name")) {
-            String path = webserver.arg("name");
-            if (!path.startsWith("/")) path = "/" + path;
-            if (LittleFS.exists(path)) {
-                File f = LittleFS.open(path, "r");
-                webserver.streamFile(f, "image/bmp");
-                f.close();
-                return;
+            if (webserver.hasArg("name")) {
+                String path = webserver.arg("name");
+                if (!path.startsWith("/")) path = "/" + path;
+
+                if (LittleFS.exists(path)) {
+                    File file = LittleFS.open(path, "r");
+
+                    // Prüfe den Dateityp basierend auf der Dateiendung
+                    if (path.endsWith(".log")) {
+                        webserver.streamFile(file, "text/plain"); // Logdateien als Text senden
+                    }
+                    else if (path.endsWith(".bmp")) {
+                        webserver.streamFile(file, "image/bmp"); // BMP-Dateien als Bild senden
+                    }
+                    else {
+                        webserver.streamFile(file, "application/octet-stream"); // Andere Dateien als Binärdaten senden
+                    }
+
+                    file.close();
+                    return;
+                }
             }
-        }
-        webserver.send(404, "text/plain", "File not found");
-        });
+            webserver.send(404, "text/plain", "File not found");
+            });
 
         // Hand-Sets verwalten
         webserver.on("/handsets", HTTP_GET, []() {
@@ -4496,3 +4565,89 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
     if (secondWidth > HAND_WIDTH) secondWidth = HAND_WIDTH;
 
 }
+
+// ####################################################################
+// ### LOG-FUNKTIONEN #################################################
+
+void setLogFileName() {
+    int logFileNumber = preferences.getInt("logFileNumber", 0);
+    logFileNumber++;
+    preferences.putInt("logFileNumber", logFileNumber);
+
+    char formattedLogFileName[20];
+    sprintf(formattedLogFileName, "/log_%04d.log", logFileNumber);
+    logFileName = String(formattedLogFileName);
+
+
+    // Überprüfen, ob Anzahl Logfiles > 9 ist
+    if (logFileNumber > 9) {
+        char oldLogFileName[20];
+        sprintf(oldLogFileName, "/log_%04d.log", logFileNumber - 9);
+        if (LittleFS.exists(oldLogFileName)) {
+            LittleFS.remove(oldLogFileName);
+            Serial.println("[LOG] Alte Logdatei gelöscht: " + String(oldLogFileName));
+        }
+    }
+}
+
+void logToFile(const String& message) {
+
+    if (!loggingEnabled) {
+        return; // Logging ist deaktiviert
+
+    }
+    // Überprüfe, ob LittleFS gemountet ist
+    if (!LittleFS.begin()) {
+        Serial.println("[LOG] LittleFS ist nicht gemountet. Log wird nicht geschrieben.");
+        return;
+    }
+
+    // Überprüfe, ob die Nachricht leer ist oder nur aus Leerzeichen/Zeilenumbrüchen besteht
+    String trimmedMessage = message;
+    trimmedMessage.trim(); // Entfernt führende und nachfolgende Leerzeichen sowie \n, \r
+    if (trimmedMessage.isEmpty()) {
+        return; // Nachricht nicht schreiben
+    }
+
+    // Überprüfe, ob genügend Speicherplatz verfügbar ist
+    size_t freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
+    if (freeSpace < 10 * 1024) { // Weniger als 10 KB frei
+        Serial.println("[LOG] Nicht genügend Speicherplatz im LittleFS. Log wird nicht geschrieben.");
+        return;
+    }
+
+    // Überprüfe die Größe des aktuellen Logfiles
+    File currentLogFile = LittleFS.open(logFileName, FILE_READ);
+    if (currentLogFile) {
+        size_t fileSize = currentLogFile.size();
+        currentLogFile.close();
+
+        if (fileSize > 10 * 1024) { // Wenn die Datei größer als 10 KB ist
+            setLogFileName(); // Neues Logfile erstellen
+        }
+    }
+
+    // Öffne die Datei im Anhängemodus (append)
+    File logFile = LittleFS.open(logFileName, FILE_APPEND);
+    if (!logFile) {
+        Serial.println("[LOG] Fehler beim Öffnen der Logdatei.");
+        return;
+    }
+
+    // Zeitstempel generieren
+    char timestamp[32];
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo, 1)) {
+        strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S] ", &timeinfo);
+    }
+    else {
+        snprintf(timestamp, sizeof(timestamp), "[%lu ms] ", millis());
+    }
+
+    // Schreibe Zeitstempel und Nachricht in die Datei
+    logFile.print(timestamp);
+    logFile.println(message);
+    logFile.close();
+}
+
+
