@@ -175,6 +175,8 @@ const unsigned long retryIntervalNTPms = 10 * 60 * 1000; // 10 Minuten
 
 String timezone = TIMEZONE_DEFAULT;
 
+unsigned long lastCheck = 0;
+
 bool loggingEnabled = false;  
 String logFileName = "/log.log";
 
@@ -270,6 +272,7 @@ struct WifiNetwork {
 #define MAX_NETWORKS 15
 WifiNetwork foundNetworks[MAX_NETWORKS];
 int foundNetworkCount = 0;
+bool isScanning = false;
 
 //Übersetzungen fÜr verschiedene Sprachen
 std::map<String, std::map<String, String>> translations = {
@@ -736,7 +739,7 @@ void setup() {
     wifi_ssid[1] = preferences.getString("ssid2", "");
     wifi_pass[1] = preferences.getString("pass2", "");
 
-    scanAndCacheNetworks();
+    // scanAndCacheNetworks();
 
 
     if (digitalRead(BUTTON1) == HIGH) {
@@ -789,6 +792,8 @@ void setup() {
     }
 
     loadPresets();
+
+    startWiFiScan(); // Starte den Scan, falls nicht bereits aktiv
     
 }
 
@@ -944,6 +949,9 @@ void loop() {
     webserver.handleClient();
 
     if (WiFi.getMode() == WIFI_STA) {
+
+        
+        checkWiFiScan(); // Überprüfe den Status des Scans
 
         checkWiFiReconnect();
         updateClock();
@@ -1276,7 +1284,7 @@ void checkButton() {
 // Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
 float shortestAngleDiff(float from, float to) {
     float diff = fmodf(to - from + 360.0f, 360.0f); // Modulo 360, um Werte im Bereich [0, 360) zu halten
-    if (diff > 180.0f) diff -= 360.0f;             // K%uuml;rzeste Richtung w&auml;hlen
+    if (diff > 180.0f) diff -= 360.0f;             // Kürzeste Richtung wählen
     return diff;
 }
 
@@ -1543,7 +1551,7 @@ float easeInOutSine(float t) {
     return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
 }
 
-/// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zur%uuml;ck.
+/// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
 String encodeBmpToBase64(const uint16_t* data, int width, int height) {
     const int headerSize = 54;
     const int rowSize = ((width * 2 + 3) / 4) * 4;
@@ -1604,25 +1612,19 @@ void checkNightlyTimeSync() {
 
     if (timeinfo.tm_hour == 2 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered2) {
         DEBUG_PRINTLN("[TIME SYNC] Triggered at 02:00:05");
-        if (setupNTP()) { // Optional: Überprüfen, ob die Synchronisation erfolgreich war
-            triggered2 = true;
-        }
-        else {
-            DEBUG_PRINTLN("[TIME SYNC] NTP synchronization failed at 02:00:05");
-        }
+        checkNtpOffset();
+        lastCheck = millis();
+        triggered2 = true;        
     }
 
     if (timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered3) {
-        DEBUG_PRINTLN("[TIME SYNC] Triggered at 03:00:05");
-        if (setupNTP()) {
-            triggered3 = true;
-        }
-        else {
-            DEBUG_PRINTLN("[TIME SYNC] NTP synchronization failed at 03:00:05");
-        }
+        DEBUG_PRINTLN("[TIME SYNC] Triggered at 03:00:05"); 
+        checkNtpOffset();
+        lastCheck = millis();
+        triggered3 = true;
     }
 
-    if (timeinfo.tm_hour == 4 && triggered2 && triggered3) {
+    if (timeinfo.tm_hour == 4) {
         DEBUG_PRINTLN("[TIME SYNC] Resetting triggers for the next night.");
         triggered2 = false;
         triggered3 = false;
@@ -1722,7 +1724,7 @@ bool connectWiFi(int number, bool verbose_mode) {
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
         tft.setTextSize(TFT_TEXT_SIZE / 2);
-        tft.setCursor(70, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+        tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
         tft.println(String(version));
 
         tft.setTextSize(TFT_TEXT_SIZE);
@@ -1784,10 +1786,11 @@ bool connectWiFi(int number, bool verbose_mode) {
             showWlanCredentials(wifi_ssid[number]);           
         }
 
-        
-        preferences.putInt("lastWLan", number);
-        DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number);
-        
+        if (preferences.getInt("lastWLan", -1) != number) {
+            preferences.putInt("lastWLan", number);        
+            DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number);
+        }
+
         delay(100);
         if (!WiFi.softAPgetStationNum()) updateClock();
         return true;
@@ -1812,7 +1815,7 @@ void showWlanCredentials(String wlan) {
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
     tft.setTextSize(TFT_TEXT_SIZE/2);
-    tft.setCursor(70, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+    tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
     tft.println(String(version));
 
     tft.setTextSize(TFT_TEXT_SIZE);
@@ -1854,6 +1857,30 @@ boolean setupNTP() {
         DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + String(ntpServers[i]));
     }
     handleNTPFailure();
+}
+
+void checkNtpOffset() {
+    struct tm localTime;
+    if (!getLocalTime(&localTime)) {
+        DEBUG_PRINTLN("[NTP] Failed to get local time.");
+        return;
+    }
+
+    // Hole die aktuelle Zeit vom NTP-Server
+    time_t beforeSync = mktime(&localTime); // Lokale Zeit vor der Synchronisation
+    setupNTP(); // Synchronisiere die Zeit mit dem NTP-Server
+    time_t afterSync = time(nullptr); // Zeit nach der Synchronisation
+
+    // Berechne die Abweichung
+    long offset = difftime(afterSync, beforeSync);
+
+    // Ausgabe der Abweichung
+    if (offset == 0) {
+        DEBUG_PRINTLN("[NTP] Keine Abweichung zur lokalen Zeit.");
+    }
+    else {
+        DEBUG_PRINTF("[NTP] Abweichung zur lokalen Zeit: %ld Sekunden\n", offset);
+    }
 }
 
 void handleNTPFailure() {
@@ -4189,6 +4216,43 @@ void checkWeeklyRestart() {
 }
 
 
+void startWiFiScan() {
+    if (!isScanning) {
+        DEBUG_PRINTLN("[WiFi] Starting asynchronous scan...");
+        WiFi.scanNetworks(true); // Asynchroner Scan
+        isScanning = true;
+    }
+}
+
+void checkWiFiScan() {
+    if (isScanning) {
+        int scanStatus = WiFi.scanComplete();
+        if (scanStatus == WIFI_SCAN_RUNNING) {
+            // Scan läuft noch
+            // DEBUG_PRINTLN("[WiFi] Scan in progress...");
+        }
+        else if (scanStatus >= 0) {
+            // Scan abgeschlossen
+            DEBUG_PRINTLN("[WiFi] Scan complete. Found networks: " + String(scanStatus));
+            for (int i = 0; i < scanStatus && i <= MAX_NETWORKS; i++) {
+                foundNetworks[i].ssid = WiFi.SSID(i);
+                foundNetworks[i].rssi = WiFi.RSSI(i);
+                foundNetworks[i].enc = WiFi.encryptionType(i);
+                foundNetworkCount++;
+                DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+
+            }
+            DEBUG_PRINTLN("[WiFi] done");
+            WiFi.scanDelete(); // Ergebnisse löschen
+            isScanning = false;
+        }
+        else {
+            // Fehler beim Scan
+            DEBUG_PRINTLN("[WiFi] Scan failed with error: " + String(scanStatus));
+            isScanning = false;
+        }
+    }
+}
 // --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
 void scanAndCacheNetworks() {
     tft.fillScreen(TFT_BLACK);
@@ -4197,20 +4261,20 @@ void scanAndCacheNetworks() {
     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     tft.println("WLAN-Scan...");
 
-    DEBUG_PRINTLN("Scanning for WiFi networks...");
+    DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks...");
     digitalWrite(LED_BOARD, HIGH);
     int n = WiFi.scanNetworks();
     foundNetworkCount = 0;
-    for (int i = 0; i < n && i < MAX_NETWORKS; i++) {
+    for (int i = 0; i < n && i <= MAX_NETWORKS; i++) {
         foundNetworks[i].ssid = WiFi.SSID(i);
         foundNetworks[i].rssi = WiFi.RSSI(i);
         foundNetworks[i].enc = WiFi.encryptionType(i);
         foundNetworkCount++;
 
-        DEBUG_PRINTLN("  " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+        DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
 
     }    
-    DEBUG_PRINTLN("done.");
+    DEBUG_PRINTLN("[WiFi] done.");
     digitalWrite(LED_BOARD, LOW);
 }
 
