@@ -147,6 +147,9 @@ DNSServer dnsServer;
 
 String currentLanguage = "de"; // Standardmäßig Deutsch
 
+char version[32]; // Build-Version
+
+
 // --- Touch / Debounce State ---
 unsigned long touchLastMillis = 0;
 const unsigned long TOUCH_DEBOUNCE_MS = 300;
@@ -443,7 +446,8 @@ std::map<String, std::map<String, String>> translations = {
         { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?"},
         { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?" },
         {"Rename File", "Datei umbenennen"},
-        { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"}
+        { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"},
+        { "Enable Logging" , "Logging aktivieren"}
 
     }}
 };
@@ -466,7 +470,7 @@ void setup() {
 
     setLogFileName();
 
-    
+    sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
     DEBUG_PRINTLN("[SETUP] start");
 
@@ -1716,6 +1720,11 @@ bool connectWiFi(int number, bool verbose_mode) {
     if (verbose_mode) {
         clearTFT();
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
+
+        tft.setTextSize(TFT_TEXT_SIZE / 2);
+        tft.setCursor(70, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+        tft.println(String(version));
+
         tft.setTextSize(TFT_TEXT_SIZE);
         tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
         tft.println("Connect to SSID:");
@@ -1801,12 +1810,17 @@ void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
 void showWlanCredentials(String wlan) {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
+
+    tft.setTextSize(TFT_TEXT_SIZE/2);
+    tft.setCursor(70, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+    tft.println(String(version));
+
     tft.setTextSize(TFT_TEXT_SIZE);
     tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
     tft.println("Connected to SSID");
     tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     if (wlan.length() > 15) {
-        wlan.substring(0, 15);
+        tft.print(wlan.substring(0, 15));
         tft.println("...");
     }
     else tft.println(wlan);
@@ -2845,10 +2859,7 @@ void setupWebServer() {
 
     // Systemstatus Seite
     webserver.on("/status", HTTP_GET, []() {
-
-        char version[32];
-        sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
-
+               
         String html = generateHtmlHeader();
 
         html += generateHtmlStatus(); // Statusleiste einfügen
@@ -3236,7 +3247,7 @@ void setupWebServer() {
 
             html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
             html += loggingEnabled ? "checked" : "";
-            html += "> Logging aktivieren</td>";
+            html += "> " + translate("enable logging") + "</td>";
 
             html += "<td>Rotation: <select name='rotation'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
@@ -3247,9 +3258,9 @@ void setupWebServer() {
             }
             html += "</select></td>";
 
-            html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
-            html += loggingEnabled ? "checked" : "";
-            html += "> Logging aktivieren</td>";
+           // html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+           // html += loggingEnabled ? "checked" : "";
+           // html += "> Logging aktivieren</td>";
 
             html += "<td valign=bottom><button type='submit'>" + translate("Apply") + "</button></td>";
             html += "</tr></table></form>";
