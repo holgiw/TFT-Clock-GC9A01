@@ -1,5 +1,5 @@
 // howl@gmx.de
-// stationsuhr 05/2025 - 12/2025
+// stationsuhr 05/2025 - 01/2026
 // 
 // https://github.com/holgiw?tab=repositories
 // 
@@ -60,6 +60,7 @@
 #include <map>
 
 #include "build_defs.h"
+
 
 TFT_eSPI tft = TFT_eSPI();
 WebServer webserver(80);
@@ -275,185 +276,9 @@ int foundNetworkCount = 0;
 bool isScanning = false;
 
 //Übersetzungen fÜr verschiedene Sprachen
-std::map<String, std::map<String, String>> translations = {
+#include "translation.h"
 
-    {"de", { // Deutsch
-        {"Main", "Start"},
-        {"Connected to", "Verbunden mit"},
-        { "Connecting to", "Verbinde mit"},
-        {"Connection failed", "Verbindung fehlgeschlagen"},
-        {"IP Address", "IP Adresse"},
-        {"SSID", "SSID"},
-        {"Password", "Passwort"},
-        {"Alternative WiFi","alternatives WiFi"},
-        {"WiFi Settings", "WLAN Einstellungen"},
-        { "Save Settings", "Einstellungen speichern"},
-        {"WiFi Networks", "WLAN Netzwerke"},
-        {"Scan", "Scannen"},
-        {"Refresh", "Aktualisieren"},
-        {"Available Networks", "Verf%uuml;gbare Netzwerke"},
-        {"Signal Strength", "Signalst&auml;rke"},
-        {"Encryption", "Verschl%uuml;sselung"},
-        {"Storage used", "Speicher belegt"},
-        {"Free", "Frei"},
-        {"Total", "Gesamt"},
-        { "Used", "Belegt"},
-        { "Save", "speichern"},
-        {"Brightness", "Helligkeit"},
-        {"Language", "Sprache"},
-        {"Time Settings", "Zeiteinstellungen"},
-        {"NTP Server 1", "NTP Server 1"},
-        {"NTP Server 2", "NTP Server 2"},
-        {"Timezone", "Zeitzone"},
-        {"Clock Settings", "Uhreinstellungen"},
-        {"Handset", "Zeigersatz"},
-        {"Background", "Hintergrund"},
-        {"Display Settings", "Anzeigeeinstellungen"},
-        {"Station Mode", "Station Modus"},
-        {"Show Second Hand", "Sekundenzeiger anzeigen"},
-        {"Smooth Minute Hand", "Sanfter Minutenzeiger"},
-        {"Photoresistor Settings", "Fotowiderstand Einstellungen"},
-        {"Min Brightness", "Minimale Helligkeit"},
-        {"Max Brightness", "Maximale Helligkeit"},
-        {"Low Light Threshold", "Schwellenwert f%uuml;r dunkles Licht"},
-        {"High Light Threshold", "Schwellenwert f%uuml;r helles Licht"},
-        {"Center Color", "Nabenfarbe"},
-        {"Center Size", "Nabengr&ouml;ße"},
-        {"Rebooting...", "Starte neu..."},
-        {"Reboot", "Neustart"},
-        {"Factory&nbsp;Reset", "Werkseinstellungen"},
-        {"File&nbsp;Manager", "Dateimanager"},
-        {"Upload File", "Datei hochladen"},
-        { "Choose File", "Datei ausw&auml;hlen"},
-        {"No file selected", "Keine Datei ausgew&auml;hlt"},
-        {"Upload", "Hochladen"},
-        {"Delete", "L&ouml;schen"},
-        {"File deleted", "Datei gel&ouml;scht"},
-        {"File upload failed", "Datei-Upload fehlgeschlagen"},
-        {"File uploaded successfully", "Datei erfolgreich hochgeladen"},
-        {"File already exists", "Datei existiert bereits"},
-        {"File too large", "Datei zu groß"},
-        { "rename", "Umbenennen" },
-        { "Disconnected", "Getrennt" },
-        { "Settings", "Einstellungen" },
-        { "settings", "Einstellungen" },
-        { "save", "Speichern" },
-        { "brightness", "Helligkeit" },
-        { "timezone", "Zeitzone" },
-        { "NTP&nbsp;Timezone", "NTP Zeitzone" },
-        { "Select&nbsp;File", "Datei ausw&auml;hlen" },
-        { "No&nbsp;File&nbsp;Selected", "Keine Datei ausgew&auml;hlt" },
-        { "Upload&nbsp;File", "Datei hochladen" },
-        { "Delete&nbsp;File", "Datei l&ouml;schen" },
-        { "Are you sure you want to delete", "M&ouml;chten Sie wirklich l&ouml;schen" },
-        { "Cancel", "Abbrechen" },
-        { "Confirm", "Best&auml;tigen" },
-        { "File&nbsp;Manager", "Dateimanager" },
-        { "Clock&nbsp;Face", "Zifferblatt" },
-        { "Hand&nbsp;Set", "Zeiger" },
-        { "Use&nbsp;Touch&nbsp;Control", "Touch verwenden" },
-        { "Min&nbsp;Brightness", "Minimale Helligkeit" },
-        { "Max&nbsp;Brightness", "Maximale Helligkeit" },
-        { "Presets","Uhren Sets" },
-        { "Select&nbsp;Preset","Set ausw&auml;hlen" },
-        { "Default","Standard" },
-        { "Clock Seetup", "Einstellungen" },
-        { "Rescan Networks", "WLan Netzwerke neu scannen" },
-        { "SSID", "SSID" },
-        { "Password", "Passwort" },
-        { "Connect", "Verbinden" },
-        { "WiFi&nbsp;Settings", "WLAN Einstellungen" },
-        { "Time&nbsp;Settings", "Zeiteinstellungen" },
-        { "NTP&nbsp;Server&nbsp;1", "NTP Server 1" },
-        { "NTP&nbsp;Server&nbsp;2", "NTP Server 2" },
-        { "Clock&nbsp;Settings", "Uhreinstellungen" },
-        { "Display&nbsp;Settings", "Anzeigeeinstellungen" },
-        { "Photoresistor&nbsp;Settings", "Fotowiderstand Einstellungen" },
-        { "Center&nbsp;Color", "Nabenfarbe" },
-        { "Center&nbsp;Size", "Nabengr&ouml;ße" },
-        { "Primary WiFi", "Prim&auml;res WLAN Netzwerk" },
-        { "Alternative Network", "Alternatives WLAN Netzwerk" },
-        { "Station&nbsp;Mode", "Station Modus" },
-        { "Show&nbsp;Second&nbsp;Hand", "Sekundenzeiger anzeigen" },
-        { "Smooth&nbsp;Minute&nbsp;Hand", "Sanfter Minutenzeiger" },
-        { "Password is hidden.Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten" },
-        { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben" },
-        { "No WiFi networks found", "Keine WLAN Netzwerke gefunden" },
-        { "Signal&nbsp;Strength", "Signalst&auml;rke" },
-        { "Save WiFi settings and reboot", "WLAN Einstellungen speichern und neu starten" },
-        { "Train Station Mode", "Bahnhof Modus" },
-        { "Show Seconds", "Sekundenzeiger anzeigen" },
-        { "Enable Touch", "Touch Pin verwenden" },
-        { "Apply", "Anwenden" },
-        { "select network","Netzwerk ausw&auml;hlen" },
-        { "Manage Clock Face Files", "Zifferbl&auml;tter verwalten" },
-        { "Manage Hand Set Files", "Zeigersatz Dateien verwalten" },
-        { "Rename", "Umbenennen" },
-        { "Enter new name for", "Neuen Namen eingeben f%uuml;r" },
-        { "New name", "Neuer Name" },
-        { "New Name", "Neuer Name" },
-        { "File renamed successfully", "Datei erfolgreich umbenannt" },
-        { "File rename failed", "Datei-Umbenennung fehlgeschlagen" },
-        { "Download Additional Clock Faces", "Zus&auml;tzliche Zifferbl&auml;tter herunterladen" },
-        { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Zifferbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')" },
-        { "Unzip the file and upload the contents to the /clockfaces and /handsets directories using the File Manager", "Entpacken Sie die Datei und laden Sie den Inhalt mit dem Dateimanager in die Verzeichnisse /clockfaces und /handsets hoch" },
-        { "After downloading, upload the extracted BMP files using the form below", "Nach dem Herunterladen k&ouml;nnen Sie die extrahierten BMP-Dateien mit dem untenstehenden Formular hochladen" },
-        { "Upload New Clock Face", "neue Zifferbl&auml;tter hochladen" },
-        { "Requirements","Anforderungen" },
-        { "name must start with face_ and end with .bmp","Name muss mit face_ beginnen" },
-        { "size must be","Gr&ouml;&szlig;e muss sein" },
-        { "Clock Setup", "Uhr Einstellungen" },
-        { "name must start with", "Name muss beginnen mit" },
-        { "Manage Clock Hand Sets", "Zeigers&auml;tze verwalten" },
-        { "Preview/Set","Vorschau/Setzen" },
-        { "Upload New Hand Set", "Neuen Zeigersatz hochladen" },
-        { "name must start with", "Name muss starten mit" },
-        { "Upload New Hand Set", "Neuen Zeigersatz hochladen" },
-        { "Upload to Set", "Set hochladen" },
-        { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Farbe (RGB hex, z.B. FF0000 = Rot, 000000 = Schwarz, EC0016 = DB rot)" },
-        { "Centre point", "Mittelpunkt" },
-        { "Size", "Gr&ouml;%szlig;e" },
-        { "Warning: Not enough free space to upload new hand sets!Free up some space first","Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben" },
-        { "Pivot point","Drehpunkt bei" },
-        { "Preset","Set" },
-        { "Manage Presets", "Manage Uhren Sets" },
-        { "Preset Name", "Set Name" },
-        { "Create New Preset","Erstelle neues Set" },
-        { "Edit Presets", "editiere Sets" },
-        { "Save Presets", "speichere Sets" },
-        { "Create Preset from Current Settings", "Erzeuge ein Set aus den aktuellen Einstellungen" },
-        { "For custom timezones, select a preset or enter your own value above", "F&uuml;r benutzerdefinierte Zeitzonen w&auml;hlen Sie eine Voreinstellung aus oder geben Sie oben Ihren eigenen Wert ein" },
-        { "Save Timezone","Zeitzone speichern" },
-        { "NTP Server / Timezone (DST String)", "NTP Server / Zeitzone (DST)" },
-        { "Low Threshold", "untere Helligkeitsschwelle" },
-        { "High Threshold","obere Helligkeitsschwelle" },
-        { "Full brightness from (hour, 0-23)", "volle Helligkeit ab Stunde (0-23)" },
-        { "Full brightness until (hour, 0-23)", "volle Helligkeit bis Stunde (0-23)" },
-        { "Current ADC Value", "aktueller ADC Wert"},
-        { "Current Brightness", "aktuelle Helligkeit"},
-        { "Light (for Threshold)", "Licht (f&uuml;r Helligkeitsschwelle"},
-        { "Brightness Settings", "Helligkeit Einstellungen"},
-        { "Enable Auto Brightness", "automatische Einstellung"},
-        { "Invert ADC Reading", "invertiere ADC Werte"},
-        { "All Files on LittleFS", "alle Dateien im FileSystem"},
-        { "Scale and Save BMP", "skaliere und speichere das BMP"},
-        { "Filename", "Dateiname"},
-        { "Size(bytes)","Gr&ouml;&szlig;e (Bytes)"},
-        { "Action", "Aktion"},
-        { "Scale", "skalieren"},
-        { "Source", "Quelle" },
-        { "Target", "Ziel" },
-        { "Width", "Breite" },
-        { "Height", "H&ouml;he" },
-        { "Scale and Save", "skalieren und speichern"},
-        { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?"},
-        { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?" },
-        {"Rename File", "Datei umbenennen"},
-        { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"},
-        { "Enable Logging" , "Logging aktivieren"}
 
-    }}
-};
 
 // Setup-Funktion
 void setup() {
@@ -464,18 +289,28 @@ void setup() {
     while (!Serial && (millis() - serialStart < 1000)) {
         delay(10);
     }
+    delay(1500); // Warten, bis die serielle Verbindung hergestellt ist
 
-    if (!LittleFS.begin(true)) {        
-            Serial.println("[LittleFS] Mount Failed");
+    if (!LittleFS.begin(true)) {
+        Serial.println("[LittleFS] Mount Failed");
     }
 
-    preferences.begin("clock", false);
 
-    setLogFileName();
+    preferences.begin("clock", false);
 
     sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
     DEBUG_PRINTLN("[SETUP] start");
+    DEBUG_PRINTLN(String("[SETUP] Build-Version: ") + version);
+
+    if (preferences.getString("version", "") != String(version)) {
+        DEBUG_PRINTLN("[Preferences] Version change detected, updating version in preferences...");
+        preferences.putString("version", String(version));
+        deleteAllLogFiles();
+    }
+    setLogFileName();
+
+
 
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
     tft_type = "GC9A01";
@@ -485,7 +320,7 @@ void setup() {
     tft_type = "ILI9341";
 #endif
 
-    
+
 
     // Pr%uuml;fen, ob PSRAM vorhanden ist
     if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
@@ -575,11 +410,12 @@ void setup() {
         preferences.begin("clock", false);
     }
 
+
     loggingEnabled = preferences.getBool("loggingEnabled", false);
-    
+
     currentLanguage = preferences.getString("language", "en");
 
-    
+
     strncpy(ntpServers[0], preferences.getString("ntpServer1", NTP_SERVER_1).c_str(), sizeof(ntpServers[0]) - 1);
     ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
 
@@ -587,7 +423,7 @@ void setup() {
     ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0'; // Null-terminieren
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
-    
+
     DEBUG_PRINTLN("[NTP] Aktuelle NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
     DEBUG_PRINTLN("Zeitzone eingestellt auf: " + timezone);
 
@@ -652,7 +488,7 @@ void setup() {
         use_adc = true;
         photoresistorFound = true;
         // evtl überschreiben
-        use_adc = preferences.getBool("use_adc", true);        
+        use_adc = preferences.getBool("use_adc", true);
     }
     else {
         pinMode(ADC_GND, INPUT);
@@ -794,26 +630,9 @@ void setup() {
     loadPresets();
 
     startWiFiScan(); // Starte den Scan, falls nicht bereits aktiv
-    
+
 }
 
-void loadLanguage() {
-    currentLanguage = preferences.getString("language", "en");
-}
-void saveLanguage(String lang) {
-    currentLanguage = lang;
-    preferences.putString("language", lang);
-}
-String translate(const String& key) {
-
-    if (currentLanguage == "en") return key;  // Englisch: Schüssel zurückgeben
-
-    if (translations.count(currentLanguage) && translations[currentLanguage].count(key)) {
-        return translations[currentLanguage][key];
-    }
-   
-    return key; // Fallback: Schlüssel zurückgeben
-}
 
 void enableTouch() {
     touchEnabled = true;
@@ -1624,8 +1443,7 @@ void checkNightlyTimeSync() {
         triggered3 = true;
     }
 
-    if (timeinfo.tm_hour == 4) {
-        DEBUG_PRINTLN("[TIME SYNC] Resetting triggers for the next night.");
+    if (timeinfo.tm_hour > 3 && (triggered2 || triggered3)) {       
         triggered2 = false;
         triggered3 = false;
     }
@@ -1932,7 +1750,6 @@ void checkNTPRetry() {
     }
 }
 
- 
 
 // Generiert den HTML-Header für die Weboberfläche
 String generateHtmlHeader() {
@@ -1958,13 +1775,13 @@ String generateHtmlStatus() {
     if (WiFi.getMode() == WIFI_STA) {
         html = translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong>";
         html += "<br>" + translate("IP Address") + ": <strong>" + WiFi.localIP().toString() + " </strong> ";
-        if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + String(hostname) + ".local</strong>";                
+        if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + String(hostname) + ".local</strong>";
     }
     else html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
-    
-    html += "<br>" + translate("Storage used") +": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+
+    html += "<br>" + translate("Storage used") + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
     html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)<hr>";
-    return html;    
+    return html;
 }
 
 
@@ -2038,7 +1855,7 @@ String generateNavigation() {
 void setupWebServer() {
 
     // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
-     
+
     // DB
     // http://192.168.0.214/api/setMode?face=face_db_uhr.bmp&handSet=0&hubSize=6&hubColor=ff0000showSecondHand=1&stationMode=true&smoothMinute=false&rotation=2
 
@@ -2053,8 +1870,8 @@ void setupWebServer() {
     webserver.on("/setLanguage", HTTP_POST, []() {
         if (webserver.hasArg("lang")) {
             String lang = webserver.arg("lang");
-            if (lang == "en") { 
-                saveLanguage(lang); 
+            if (lang == "en") {
+                saveLanguage(lang);
                 // webserver.send(200, "text/plain", "Language updated to " + lang);
                 webserver.sendHeader("Location", "/", true);
                 webserver.send(302, "text/plain", "");
@@ -2112,7 +1929,7 @@ void setupWebServer() {
             if (!face.startsWith("/")) face = "/" + face;
             if (face == "/face_default.bmp" || LittleFS.exists(face)) {
                 preferences.putString("background", face);
-                selectedBackground = face;                
+                selectedBackground = face;
             }
         }
 
@@ -2214,7 +2031,7 @@ void setupWebServer() {
                 return;
             }
         }
-        
+
         webserver.send(200, "text/plain", "ok");
         });
 
@@ -2227,14 +2044,14 @@ void setupWebServer() {
 
         // Links oben anzeigen
         html += "<div style='text-align:center;'>";
-       
+
         if (pingHostname) {
-            if(currentLanguage == "de") html += "<p>Benutze den Hostnamen <strong>" + String(hostname) + ".local</strong> anstelle der IP Adresse f&uuml;r bessere Erreichbarkeit..</p>";
+            if (currentLanguage == "de") html += "<p>Benutze den Hostnamen <strong>" + String(hostname) + ".local</strong> anstelle der IP Adresse f&uuml;r bessere Erreichbarkeit..</p>";
             else html += "<p>Use the host name <strong>" + String(hostname) + ".local</strong> instead of the IP address for better reliability.</p>";
         }
-        
+
         html += "<ul style='list-style-type:none; padding:0; display:inline-block; text-align:left;'>";
-       
+
         String espIP = "http://" + WiFi.localIP().toString(); // Aktuelle IP-Adresse des ESP
         String espHost = "http://" + String(hostname) + ".local"; // Aktueller Hostname des ESP
 
@@ -2277,7 +2094,7 @@ void setupWebServer() {
         html += "<hr>";
         html += "<h3>" + translate("Create New Preset") + "</h3>";
         html += "<form method='POST' action='/api/createPreset'>";
-        html += "<button type='submit'>" + translate("Create Preset from Current Settings") +"</button>";
+        html += "<button type='submit'>" + translate("Create Preset from Current Settings") + "</button>";
         html += "</form>";
         html += "<hr>";
 
@@ -2310,7 +2127,7 @@ void setupWebServer() {
             }
         }
 
-       
+
         html += "<button type='submit'>" + translate("Save Presets") + "</button>";
         html += "</form><hr>";
 
@@ -2380,25 +2197,25 @@ void setupWebServer() {
             DEBUG_PRINTLN("[NTP] NTP Server2 set to: " + String(ntpServers[1]));
         }
 
-         
+
 
         if (webserver.hasArg("timezone")) {
             String tz = webserver.arg("timezone");
             preferences.putString("timezone", tz);
             setupNTP();
         }
-            
+
         webserver.send(200, "text/html",
-                "<!DOCTYPE html><html><head>"
-                "<meta http-equiv='refresh' content='0; url=/' />"
-                "<title>NTP / Timezone Updated</title></head>"
-                "<body><h2>NTP / Timezone updated</h2>"
-                "</body></html>");      
+            "<!DOCTYPE html><html><head>"
+            "<meta http-equiv='refresh' content='0; url=/' />"
+            "<title>NTP / Timezone Updated</title></head>"
+            "<body><h2>NTP / Timezone updated</h2>"
+            "</body></html>");
 
         setupNTP();
         });
 
-     
+
     // NTP Server und Zeitzone Formular
     webserver.on("/timezone_form", HTTP_GET, []() {
         String timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
@@ -2460,7 +2277,7 @@ void setupWebServer() {
 
         html += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
         html += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
-      //  html += generateNavigation(); // Navigation einf%uuml;gen
+        //  html += generateNavigation(); // Navigation einf%uuml;gen
         html += "<br><br>";
         html += "</form></body></html>";
         webserver.send(200, "text/html", html);
@@ -2475,7 +2292,7 @@ void setupWebServer() {
 
         String oldName = webserver.arg("file");
         String html = generateHtmlHeader();
-        
+
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("Rename File") + "</h2>";
@@ -2531,11 +2348,11 @@ void setupWebServer() {
         html += "<form action='/scalebmp_run' method='GET'>";
         html += translate("Source") + ": <input name = 'src' value = '/" + src + "' readonly><br>";
         html += translate("Target") + ": <input name = 'dst' value = '/scaled_" + src + "'><br>";
-        html += translate("Width") + ": <input name='w' type='number' value='" + String(CLOCK_WIDTH) +"' required><br>";
+        html += translate("Width") + ": <input name='w' type='number' value='" + String(CLOCK_WIDTH) + "' required><br>";
         html += translate("Height") + ": <input name = 'h' type = 'number' value = '" + String(CLOCK_HEIGHT) + "' required><br>";
         html += "<button type='submit'>" + translate("Scale and Save") + "</button></form>";
         html += "<br><br>";
-       // html += generateNavigation(); // Navigation einfügen
+        // html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
@@ -2554,7 +2371,7 @@ void setupWebServer() {
 
         bool ok = scaleAndSaveBmp(src.c_str(), dst.c_str(), w, h);
         if (ok) {
-            webserver.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Scaling successful") +"!</h3><p>" + translate("Saved as") + ": " + dst + "</p><a href = '/files'>" + translate("Back") + " </a></body></html>");
+            webserver.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Scaling successful") + "!</h3><p>" + translate("Saved as") + ": " + dst + "</p><a href = '/files'>" + translate("Back") + " </a></body></html>");
         }
         else {
             webserver.send(500, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Failed to scale BMP") + "</h3><p>Check source file and format.</p><a href='/files'>Back</a></body></html>");
@@ -2566,8 +2383,8 @@ void setupWebServer() {
         // Save to Preferences
 
         stationMode = preferences.getBool("stationMode", false);
-        showSecondHand = preferences.getBool("showSecondHand", true);   
-        smoothMinute = preferences.getBool("smoothMinute", false);  
+        showSecondHand = preferences.getBool("showSecondHand", true);
+        smoothMinute = preferences.getBool("smoothMinute", false);
 
         stationMode = webserver.hasArg("stationMode");
         showSecondHand = webserver.hasArg("showSecondHand");
@@ -2577,12 +2394,12 @@ void setupWebServer() {
         preferences.putBool("useTouch", useTouch);
 
         if (useTouch) enableTouch();
-         else disableTouch();
+        else disableTouch();
 
         // Logging-Einstellung speichern
         loggingEnabled = webserver.hasArg("loggingEnabled");
         preferences.putBool("loggingEnabled", loggingEnabled);
-        
+
         preferences.putBool("stationMode", stationMode);
         preferences.putBool("showSecondHand", showSecondHand);
         preferences.putBool("smoothMinute", smoothMinute);
@@ -2599,7 +2416,7 @@ void setupWebServer() {
 
             freeClockFaceBuffer();
             loadClockFace();      // neu zeichnen mit neuer Ausrichtung
-            loadHandSprites();            
+            loadHandSprites();
         }
 
         webserver.send(200, "text/html",
@@ -2607,7 +2424,7 @@ void setupWebServer() {
             "<body style='font-family:Arial;text-align:center;'><h2>Saved</h2><p>Back...</p></body></html>");
         });
 
-   
+
     // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_POST, []() {
         String html = generateHtmlHeader();
@@ -2617,7 +2434,7 @@ void setupWebServer() {
 
         if (photoresistorFound) {
             html += "<table style='margin:auto;text-align:left;'><tr>";
-            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(use_adc ? "checked" : "") + "> " + translate("Enable Auto Brightness") +"</label></td>";
+            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(use_adc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
 
             html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
             html += "</tr></table><hr><br>";
@@ -2626,27 +2443,27 @@ void setupWebServer() {
             html += "<label>" + translate("High Threshold") + " (0 - 100 %) :</label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
         }
 
-        html += "<label>" + translate("Min Brightness") +" (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
+        html += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
 
         html += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
 
-        
-        html += "<label>" + translate("Full brightness from (hour, 0-23)") +":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
+
+        html += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
         html += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
         html += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
         html += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
-       
+
 #endif
-        
+
 
         html += "<button type='submit'>" + translate("Save") + "</button></form>";
 
         if (photoresistorFound) {
             html += "<br>";
             html += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
-            html += "<strong>" + translate("Current Brightness") +":</strong> " + String(currentBrightness) + " / 255<br>";
+            html += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
             html += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
 
             html += "<br>";
@@ -2666,7 +2483,7 @@ void setupWebServer() {
             html += "const minBrightness = " + String(minBrightness) + ";\n";
             html += "const maxBrightness = " + String(maxBrightness) + ";\n";
             html += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
-            
+
             html += "function computeBrightness(gamma) {\n";
             html += "  return avg.map(val => {\n";
             html += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
@@ -2730,9 +2547,9 @@ void setupWebServer() {
 
         html += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
 
-       
+
         html += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
-        html += "<label>" + translate("Full brightness until (hour, 0-23)") +":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
+        html += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
         html += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
         html += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
@@ -2797,7 +2614,7 @@ void setupWebServer() {
             html += "</script>\n";
 #endif
         }
-        
+
         html += generateNavigation(); // Navigation einf%uuml;gen    
         html += "<br><br></body></html>";
         webserver.send(200, "text/html", html);
@@ -2809,13 +2626,13 @@ void setupWebServer() {
         adcInverted = webserver.hasArg("adcInverted");
         lowThreshold = webserver.arg("lowThreshold").toInt();
         highThreshold = webserver.arg("highThreshold").toInt();
-        
+
         maxBrightness = (uint8_t)webserver.arg("maxBrightness").toInt();
         minBrightness = (uint8_t)webserver.arg("minBrightness").toInt();
 
         // neue: Zeitabhängige Helligkeit speichern
-        
-        
+
+
         brightStartHour = (uint8_t)constrain(webserver.arg("brightStart").toInt(), 0, 23);
         brightEndHour = (uint8_t)constrain(webserver.arg("brightEnd").toInt(), 0, 23);
 
@@ -2828,12 +2645,12 @@ void setupWebServer() {
         preferences.putBool("adcInverted", adcInverted);
         preferences.putInt("lowThreshold", lowThreshold);
         preferences.putInt("highThreshold", highThreshold);
-       
-        preferences.putUChar("maxBrightness", maxBrightness);        
+
+        preferences.putUChar("maxBrightness", maxBrightness);
         preferences.putUChar("minBrightness", minBrightness);
-         
+
         // persist time-based settings
-       
+
         preferences.putUChar("brightStart", brightStartHour);
         preferences.putUChar("brightEnd", brightEndHour);
 
@@ -2847,7 +2664,7 @@ void setupWebServer() {
     // Alle Dateien auflisten
     webserver.on("/files", HTTP_GET, []() {
         String html = generateHtmlHeader();
-        
+
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
 
@@ -2865,12 +2682,12 @@ void setupWebServer() {
             if (name.endsWith(".bmp")) {
                 html += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
                 html += "<a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
-            } 
+            }
             else {
                 html += translate("Scale") + " ";
                 html += translate("Rename") + " ";
             }
-            
+
             html += "<a href='/file?name=" + name + "'>" + translate("View") + "</a> "; // "View"-Link für Logdateien
             html += "</td></tr>";
 
@@ -2886,7 +2703,7 @@ void setupWebServer() {
 
     // Systemstatus Seite
     webserver.on("/status", HTTP_GET, []() {
-               
+
         String html = generateHtmlHeader();
 
         html += generateHtmlStatus(); // Statusleiste einfügen
@@ -2898,7 +2715,7 @@ void setupWebServer() {
         String tzDesc;
 
         tzDesc = tzLabel;
-         
+
         struct tm timeinfo;
         if (getLocalTime(&timeinfo)) {
             char nowStr[32];
@@ -2917,13 +2734,13 @@ void setupWebServer() {
 
             html += "<br>";
         }
-        
+
         html += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
 
 
         html += "<li>TFT Driver: " + tft_type + "</li>";
 
-        html += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";       
+        html += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
 
         html += "<br>";
         html += "<li>ChipModel: " + String(ESP.getChipModel()) + "</li>";
@@ -2936,52 +2753,53 @@ void setupWebServer() {
         html += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
         html += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
         html += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
-        html += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";  
+        html += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
         html += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
-        html += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";   
+        html += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
 
         html += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
-        
+
         html += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
         html += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
         html += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li><br>";
         html += "<li>Free Sketch Space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li><br>";
 
-        html += "<li>PSRam size: " + String(ESP.getPsramSize() /1024) + " kB</li>";
+        html += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
         html += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li>";
         // html += "<li>PSRam used: " + String(psramAvailable == true ? "true" : "false") + "</li><br>";
-         
-       
+
+
         html += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
-        html += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";   
-        html += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";   
-              
-        
+        html += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
+        html += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
+
+
         if (photoresistorFound) {
             html += "<li>Photoresistor found on GPIO " + String(ADC_PIN) + "</li>";
             html += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
-        } else { 
+        }
+        else {
             html += "<li>Photoresistor not found on GPIO " + String(ADC_PIN) + "</li><br>";
         }
-         
+
 
 
         html += "<li>TFT_SCLK: " + String(TFT_SCLK) + "</li>";
         //html += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
-        html += "<li>TFT_MOSI: " + String(TFT_MOSI) + "</li>";  
-        html += "<li>TFT_CS: " + String(TFT_CS) + "</li>";  
-        html += "<li>TFT_DC: " + String(TFT_DC) + "</li>";  
+        html += "<li>TFT_MOSI: " + String(TFT_MOSI) + "</li>";
+        html += "<li>TFT_CS: " + String(TFT_CS) + "</li>";
+        html += "<li>TFT_DC: " + String(TFT_DC) + "</li>";
         html += "<li>TFT_RST: " + String(TFT_RST) + "</li><br>";
 
-        html += "<li>BUTTON: " + String(BUTTON1) + "</li>";           
+        html += "<li>BUTTON: " + String(BUTTON1) + "</li>";
         html += "<li>LED_BOARD: " + String(LED_BOARD) + "</li>";
         html += "<li>TOUCH_PIN: " + String(TOUCH_PIN) + "</li>";
-        html += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";  
-        
-         
+        html += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
+
+
         html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
-        html += "<li>ADC(photoresistor): " + String(ADC_PIN) + "</li>";        
-        html += "<li>ADC_GND: " + String(ADC_GND) + "</li>"; 
+        html += "<li>ADC(photoresistor): " + String(ADC_PIN) + "</li>";
+        html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";
         if (photoresistorFound) {
             html += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
         }
@@ -2990,16 +2808,16 @@ void setupWebServer() {
 #ifndef TFT_Backlight 
         html += "<li>TFT_Backlight: none</li>";
 #else
-        html += "<li>TFT_Backlight: " + String(TFT_Backlight) + "</li>";  
+        html += "<li>TFT_Backlight: " + String(TFT_Backlight) + "</li>";
 #endif
         html += "<br>";
 
-        
+
         html += "<li><h3>Actual Preferences</h3></li><ul>";
         html += "<li><b>ssid</b>: " + preferences.getString("ssid1", "") + "</li>";
         html += "<li><b>ssid2</b>: " + preferences.getString("ssid2", "") + "</li>";
         html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
-        html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";   
+        html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";
         html += "<li><b>timezone</b>: " + preferences.getString("timezone", TIMEZONE_DEFAULT) + "</li>";
         html += "<li><b>background</b>: " + preferences.getString("background", "/faces/default") + "</li>";
         html += "<li><b>handset</b>: " + preferences.getString("handset", "") + "</li>";
@@ -3015,10 +2833,10 @@ void setupWebServer() {
         html += "<li><b>stationMode</b>: " + String(preferences.getBool("stationMode", true) ? "true" : "false") + "</li>";
         html += "<li><b>showSecondhand</b>: " + String(preferences.getBool("showSecondHand", true) ? "true" : "false") + "</li>";
         html += "<li><b>smoothMinute</b>: " + String(preferences.getBool("smoothMinute", false) ? "true" : "false") + "</li>";
-        
+
         html += "<li><b>minBrightness</b>: " + String(preferences.getUChar("minBrightness", 100)) + "</li>";
         html += "<li><b>maxBrightness</b>: " + String(preferences.getUChar("maxBrightness", 255)) + "</li>";
-        
+
         html += "<li><b>lowThreshold</b>: " + String(preferences.getInt("lowThreshold", 40)) + "</li>";
         html += "<li><b>highThreshold</b>: " + String(preferences.getInt("highThreshold", 60)) + "</li>";
         html += "<li><b>adc Inverted</b>: " + String(preferences.getBool("adcInverted", false) ? "true" : "false") + "</li>";
@@ -3026,131 +2844,131 @@ void setupWebServer() {
         html += "</ul>";
         html += "</br>";
         html += "<li>Contact: holger.wagenlehner@gmx.de</li>";
-        
+
         html += "<li><a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
 
-        html += "</ul>";        
+        html += "</ul>";
         html += generateNavigation(); // Navigation einfügen
         html += "</body></html>";
         webserver.send(200, "text/html", html);
         });
 
-        webserver.on("/preview_defaultface", HTTP_GET, []() {
-            const int headerSize = 54;
-            const int rowSize = ((CLOCK_WIDTH * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel für RGB888
-            const int dataSize = rowSize * CLOCK_HEIGHT;
-            const int fileSize = headerSize + dataSize;
+    webserver.on("/preview_defaultface", HTTP_GET, []() {
+        const int headerSize = 54;
+        const int rowSize = ((CLOCK_WIDTH * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel für RGB888
+        const int dataSize = rowSize * CLOCK_HEIGHT;
+        const int fileSize = headerSize + dataSize;
 
-            uint8_t* bmpData = new uint8_t[fileSize];
-            memset(bmpData, 0, fileSize);
+        uint8_t* bmpData = new uint8_t[fileSize];
+        memset(bmpData, 0, fileSize);
 
-            // BMP-Header
-            bmpData[0] = 'B'; bmpData[1] = 'M';
-            *(uint32_t*)&bmpData[2] = fileSize;
-            *(uint32_t*)&bmpData[10] = headerSize;
-            *(uint32_t*)&bmpData[14] = 40;
-            *(int32_t*)&bmpData[18] = CLOCK_WIDTH;
-            *(int32_t*)&bmpData[22] = -CLOCK_HEIGHT; // Top-down BMP
-            *(uint16_t*)&bmpData[26] = 1;
-            *(uint16_t*)&bmpData[28] = 24; // 24-Bit Farbtiefe
-            *(uint32_t*)&bmpData[34] = dataSize;
+        // BMP-Header
+        bmpData[0] = 'B'; bmpData[1] = 'M';
+        *(uint32_t*)&bmpData[2] = fileSize;
+        *(uint32_t*)&bmpData[10] = headerSize;
+        *(uint32_t*)&bmpData[14] = 40;
+        *(int32_t*)&bmpData[18] = CLOCK_WIDTH;
+        *(int32_t*)&bmpData[22] = -CLOCK_HEIGHT; // Top-down BMP
+        *(uint16_t*)&bmpData[26] = 1;
+        *(uint16_t*)&bmpData[28] = 24; // 24-Bit Farbtiefe
+        *(uint32_t*)&bmpData[34] = dataSize;
 
-            // Pixel-Daten (RGB565 → RGB888)
-            for (int y = 0; y < CLOCK_HEIGHT; y++) {
-                uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
-                for (int x = 0; x < CLOCK_WIDTH; x++) {
-                    uint16_t px = clockFace[y * CLOCK_WIDTH + x];
+        // Pixel-Daten (RGB565 ? RGB888)
+        for (int y = 0; y < CLOCK_HEIGHT; y++) {
+            uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
+            for (int x = 0; x < CLOCK_WIDTH; x++) {
+                uint16_t px = clockFace[y * CLOCK_WIDTH + x];
 
-                    // Transparente Farbe ersetzen
-                    if (px == TRANSPARENT_COLOR) {
-                        rowPtr[x * 3 + 0] = 255; // Blau
-                        rowPtr[x * 3 + 1] = 255; // Gr%uuml;n
-                        rowPtr[x * 3 + 2] = 255; // Rot
-                        continue;
-                    }
-
-                    // RGB565 → RGB888
-                    uint8_t r = (px >> 8) & 0xF8; // obere 5 Bits
-                    uint8_t g = (px >> 3) & 0xFC; // mittlere 6 Bits
-                    uint8_t b = (px << 3) & 0xF8; // untere 5 Bits
-
-                    rowPtr[x * 3 + 0] = b; // Blau
-                    rowPtr[x * 3 + 1] = g; // Grün
-                    rowPtr[x * 3 + 2] = r; // Rot
+                // Transparente Farbe ersetzen
+                if (px == TRANSPARENT_COLOR) {
+                    rowPtr[x * 3 + 0] = 255; // Blau
+                    rowPtr[x * 3 + 1] = 255; // Gr%uuml;n
+                    rowPtr[x * 3 + 2] = 255; // Rot
+                    continue;
                 }
+
+                // RGB565 ? RGB888
+                uint8_t r = (px >> 8) & 0xF8; // obere 5 Bits
+                uint8_t g = (px >> 3) & 0xFC; // mittlere 6 Bits
+                uint8_t b = (px << 3) & 0xF8; // untere 5 Bits
+
+                rowPtr[x * 3 + 0] = b; // Blau
+                rowPtr[x * 3 + 1] = g; // Grün
+                rowPtr[x * 3 + 2] = r; // Rot
             }
+        }
 
-            webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
-            delete[] bmpData;
-            });
+        webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
+        delete[] bmpData;
+        });
 
-        // Uhr-Gesichter verwalten
-        webserver.on("/listfilesFaces", HTTP_GET, []() {
+    // Uhr-Gesichter verwalten
+    webserver.on("/listfilesFaces", HTTP_GET, []() {
 
-            size_t total = LittleFS.totalBytes();
-            size_t used = LittleFS.usedBytes();
-
-
-            String html = generateHtmlHeader();
+        size_t total = LittleFS.totalBytes();
+        size_t used = LittleFS.usedBytes();
 
 
-            html += generateHtmlStatus(); // Statusleiste einfügen
-            html += generateNavigation(); // Navigation einfügen
-            html += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>" + translate("Preview/Set") + "</th></tr>";
-
-            // Add built-in default face
-            html += "<tr><td>";
-            html += "<a href='/setbackground?file=face_default.bmp'>";
-            html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-            html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH  + " x " + (String)TFT_HEIGHT + " / "  + "16 bpp"; + " </small> </td>";
-            html += "</tr>";
-
-            File root = LittleFS.open("/");
-            File file = root.openNextFile();
+        String html = generateHtmlHeader();
 
 
-            bool anyFile = false;
-            while (file) {
-                String name = file.name();
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
+        html += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>" + translate("Preview/Set") + "</th></tr>";
 
-              //  DEBUG_PRINTLN(name);
+        // Add built-in default face
+        html += "<tr><td>";
+        html += "<a href='/setbackground?file=face_default.bmp'>";
+        html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+        html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp"; +" </small> </td>";
+        html += "</tr>";
 
-                if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
-                    anyFile = true;
-                    String shortName = name;
-                    String info = getBmpInfo(name);
-                    html += "<tr><td>";
-                    html += "<a href='/setbackground?file=" + shortName + "'>";
-                    html += "<img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-                    html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
-                }
-                file = root.openNextFile();
+        File root = LittleFS.open("/");
+        File file = root.openNextFile();
+
+
+        bool anyFile = false;
+        while (file) {
+            String name = file.name();
+
+            //  DEBUG_PRINTLN(name);
+
+            if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
+                anyFile = true;
+                String shortName = name;
+                String info = getBmpInfo(name);
+                html += "<tr><td>";
+                html += "<a href='/setbackground?file=" + shortName + "'>";
+                html += "<img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+                html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
             }
+            file = root.openNextFile();
+        }
 
-            if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
-            html += "</table><hr>";
+        if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
+        html += "</table><hr>";
 
-            // Hinweis und Download-Link f%uuml;r die ZIP-Datei
-            html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
-            html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-            html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
-            html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") +".</small><hr>";
+        // Hinweis und Download-Link f%uuml;r die ZIP-Datei
+        html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
+        html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
+        html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
+        html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
 
-            if (used + (TFT_WIDTH * TFT_HEIGHT * 2) + 54  > total) {
-                html += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new clock faces! Free up some space first") + ".</div><br><br>";
-            }
-            else {
+        if (used + (TFT_WIDTH * TFT_HEIGHT * 2) + 54 > total) {
+            html += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new clock faces! Free up some space first") + ".</div><br><br>";
+        }
+        else {
 
-                html += "<h3>" + translate("Upload New Clock Face") + "</h3>";
-                html += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16 - bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
+            html += "<h3>" + translate("Upload New Clock Face") + "</h3>";
+            html += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16 - bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
 
-                html += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
-                html += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
+            html += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
+            html += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
 
-                html += "<button type='submit'>" + translate("Upload") + " BMP</button>";
-                html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
-                html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
-            }
+            html += "<button type='submit'>" + translate("Upload") + " BMP</button>";
+            html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
+            html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
+        }
 
 
         html += generateNavigation(); // Navigation einfügen
@@ -3158,10 +2976,10 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
-        // WLAN Netzwerke scannen
-        webserver.on("/api/scanwifi", HTTP_GET, []() {
+    // WLAN Netzwerke scannen
+    webserver.on("/api/scanwifi", HTTP_GET, []() {
         String json = "";
-        
+
         // beim Aufruf alle Netzwerke scannen
         if (WiFi.getMode() == WIFI_STA) {
             //int n = WiFi.scanNetworks();
@@ -3191,18 +3009,18 @@ void setupWebServer() {
         webserver.send(200, "application/json", json);
         });
 
-        webserver.on("/api/rescanwifi", HTTP_POST, []() {
+    webserver.on("/api/rescanwifi", HTTP_POST, []() {
         scanAndCacheNetworks();
         webserver.send(200, "application/json", "{\"status\":\"ok\"}");
         });
 
 
-      
-        // Hauptseite - WLAN Einstellungen
-        webserver.on("/", HTTP_GET, []() {
+
+    // Hauptseite - WLAN Einstellungen
+    webserver.on("/", HTTP_GET, []() {
 
         String html = generateHtmlHeader();
-                
+
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
 
@@ -3215,13 +3033,13 @@ void setupWebServer() {
         html += "<button id='rescanBtn' type='button'>" + translate("Rescan Networks") + "</button><br>";
 
         html += "<h3>" + translate("Primary WiFi") + "</h3>";
-        
+
         html += "<label for='ssid1'>SSID1:</label><br>";
         html += "<select id='ssid_select' onchange=\"document.getElementById('ssid1').value=this.value\">";
-       // html += "<option value=''>WLAN-Scan in progress</option>";
+        // html += "<option value=''>WLAN-Scan in progress</option>";
         html += "</select><br>";
         html += "<input name='ssid1' id='ssid1' placeholder='SSID 1' value='" + wifi_ssid[0] + "'><br>";
-        html += "<small>" + translate("You can also enter an SSID manually") +".</small><br>";
+        html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
 
         html += "<input name='pass1' id='pass1' placeholder='Password 1' type='password' value=''><br>";
         if (WiFi.getMode() == WIFI_STA) {
@@ -3229,10 +3047,10 @@ void setupWebServer() {
         }
         html += "<br><hr><br>";
 
-        html += "<h3>"+ translate("Alternative WiFi") + "</h3>";
+        html += "<h3>" + translate("Alternative WiFi") + "</h3>";
         html += "<label for='ssid2'>SSID2:</label><br>";
         html += "<select id='ssid2_select' onchange=\"document.getElementById('ssid2').value=this.value\">";
-      //  html += "<option value=''>WLAN-Scan in progress</option>";
+        //  html += "<option value=''>WLAN-Scan in progress</option>";
         html += "</select><br>";
         html += "<input name='ssid2' id='ssid2' placeholder='SSID 2' value='" + wifi_ssid[1] + "'><br>";
         html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
@@ -3250,7 +3068,7 @@ void setupWebServer() {
 
 
             html += "<form action='/applydisplaysettings' method='POST'>";
-            
+
             html += "<table style='margin:auto;text-align:left;'><tr>";
 
             html += "<td><input type='checkbox' name='stationMode' value='1' ";
@@ -3285,9 +3103,9 @@ void setupWebServer() {
             }
             html += "</select></td>";
 
-           // html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
-           // html += loggingEnabled ? "checked" : "";
-           // html += "> Logging aktivieren</td>";
+            // html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+            // html += loggingEnabled ? "checked" : "";
+            // html += "> Logging aktivieren</td>";
 
             html += "<td valign=bottom><button type='submit'>" + translate("Apply") + "</button></td>";
             html += "</tr></table></form>";
@@ -3306,9 +3124,9 @@ void setupWebServer() {
 
         }
 
-        
 
-        
+
+
         html += "<script>";
         html += "document.getElementById('rescanBtn').onclick = function() {";
         html += "  fetch('/api/rescanwifi', {method: 'POST'})";
@@ -3376,8 +3194,8 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
-        // Speichern der WiFi-Einstellungen
-        webserver.on("/save", HTTP_POST, []() {
+    // Speichern der WiFi-Einstellungen
+    webserver.on("/save", HTTP_POST, []() {
         if (webserver.hasArg("ssid1")) {
             if (webserver.arg("ssid1") != "") preferences.putString("ssid1", webserver.arg("ssid1"));
             if (webserver.arg("pass1") != "") preferences.putString("pass1", webserver.arg("pass1"));
@@ -3389,7 +3207,8 @@ void setupWebServer() {
                 webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
                     "<h2>Settings saved</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
-            } else {
+            }
+            else {
                 webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
                     "<h2>Settings saved</h2><p>Please connect to your home network and go to the ESP website at http:// IPADDRESS</p></body></html>");
@@ -3398,13 +3217,13 @@ void setupWebServer() {
         }
         });
 
-        // Upload-Formular anzeigen
-        webserver.on("/upload", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'>Back to file list</a>");
+    // Upload-Formular anzeigen
+    webserver.on("/upload", HTTP_GET, []() {
+        webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'>Back to file list</a>");
         });
 
-        // Datei-Upload verarbeiten
-        webserver.on("/upload", HTTP_POST, []() {
+    // Datei-Upload verarbeiten
+    webserver.on("/upload", HTTP_POST, []() {
         if (uploadSuccess) {
             webserver.sendHeader("Location", "/listfilesFaces", true);
             webserver.send(302, "text/plain", "");
@@ -3413,14 +3232,14 @@ void setupWebServer() {
             String errorHtml = "<!DOCTYPE html><html><head><title>Upload Failed</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
             errorHtml += "<h2>Upload failed</h2>";
             errorHtml += "<p>Only .bmp files starting with <code>face_</code> or <code>hand_</code> are accepted.</p>";
-            errorHtml += "<p>Please also check the available space</p>";            
+            errorHtml += "<p>Please also check the available space</p>";
             errorHtml += "<a href='/upload'>Try again</a></body></html>";
             webserver.send(400, "text/html", errorHtml);
         }
         }, handleFileUpload);
 
-        // Hintergrundbild setzen
-        webserver.on("/setbackground", HTTP_GET, []() {
+    // Hintergrundbild setzen
+    webserver.on("/setbackground", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String file = webserver.arg("file");
             file.replace("..", "");
@@ -3452,8 +3271,8 @@ void setupWebServer() {
         webserver.send(404, "text/plain", "File not found");
         });
 
-        // Datei löschen
-        webserver.on("/delete", HTTP_GET, []() {
+    // Datei löschen
+    webserver.on("/delete", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String path = webserver.arg("file");
             path.replace("..", "");
@@ -3469,38 +3288,38 @@ void setupWebServer() {
         }
         });
 
-        // Datei anzeigen (BMP)
-        webserver.on("/file", HTTP_GET, []() {
-            if (webserver.hasArg("name")) {
-                String path = webserver.arg("name");
-                if (!path.startsWith("/")) path = "/" + path;
+    // Datei anzeigen (BMP)
+    webserver.on("/file", HTTP_GET, []() {
+        if (webserver.hasArg("name")) {
+            String path = webserver.arg("name");
+            if (!path.startsWith("/")) path = "/" + path;
 
-                if (LittleFS.exists(path)) {
-                    File file = LittleFS.open(path, "r");
+            if (LittleFS.exists(path)) {
+                File file = LittleFS.open(path, "r");
 
-                    // Prüfe den Dateityp basierend auf der Dateiendung
-                    if (path.endsWith(".log")) {
-                        webserver.streamFile(file, "text/plain"); // Logdateien als Text senden
-                    }
-                    else if (path.endsWith(".bmp")) {
-                        webserver.streamFile(file, "image/bmp"); // BMP-Dateien als Bild senden
-                    }
-                    else {
-                        webserver.streamFile(file, "application/octet-stream"); // Andere Dateien als Binärdaten senden
-                    }
-
-                    file.close();
-                    return;
+                // Prüfe den Dateityp basierend auf der Dateiendung
+                if (path.endsWith(".log")) {
+                    webserver.streamFile(file, "text/plain"); // Logdateien als Text senden
                 }
+                else if (path.endsWith(".bmp")) {
+                    webserver.streamFile(file, "image/bmp"); // BMP-Dateien als Bild senden
+                }
+                else {
+                    webserver.streamFile(file, "application/octet-stream"); // Andere Dateien als Binärdaten senden
+                }
+
+                file.close();
+                return;
             }
-            webserver.send(404, "text/plain", "File not found");
-            });
+        }
+        webserver.send(404, "text/plain", "File not found");
+        });
 
-        // Hand-Sets verwalten
-        webserver.on("/handsets", HTTP_GET, []() {
+    // Hand-Sets verwalten
+    webserver.on("/handsets", HTTP_GET, []() {
 
-            size_t total = LittleFS.totalBytes();
-            size_t used = LittleFS.usedBytes();
+        size_t total = LittleFS.totalBytes();
+        size_t used = LittleFS.usedBytes();
 
         String html = generateHtmlHeader();
         html += generateHtmlStatus(); // Statusleiste einfügen
@@ -3530,7 +3349,7 @@ void setupWebServer() {
         String handHourBase64 = encodeBmpToBase64(handHour, HAND_WIDTH, HAND_HEIGHT);
         String handMinuteBase64 = encodeBmpToBase64(handMinute, HAND_WIDTH, HAND_HEIGHT);
         String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_HEIGHT);
-        
+
 
 
         // Always show default as built-in
@@ -3542,7 +3361,7 @@ void setupWebServer() {
         html += "</a>";
         html += "</td></tr>";
 
-        
+
         for (const String& set : foundSets) {
             html += "<tr><td>" + set + (set == activeSet ? " (active)" : "") + "</td><td>";
             String hourPath = "/hand_set" + set + "_hour.bmp";
@@ -3553,15 +3372,15 @@ void setupWebServer() {
             html += LittleFS.exists(minutePath) ? "<img src='/file?name=" + minutePath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
             html += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
             html += "</a>";
-                
+
 
             html += "</td>";
-         
-            html +="</tr>";
+
+            html += "</tr>";
         }
-        
+
         html += "</table><hr>";
-               
+
         uint8_t hub_size = preferences.getUInt("centerSize", 6);
         uint32_t hub_color_rgb = preferences.getLong("centerColor", 0xEC0016);
 
@@ -3584,14 +3403,14 @@ void setupWebServer() {
         }
         html += "<br><br>";
         html += generateNavigation(); // Navigation einfügen
-        
+
         html += "<br><br>";
         html += "</body></html>";
         //DEBUG_PRINTLN(html);
         webserver.send(200, "text/html", html);
         });
 
-        webserver.on("/setcenter", HTTP_POST, []() {
+    webserver.on("/setcenter", HTTP_POST, []() {
         if (webserver.hasArg("size") && webserver.hasArg("color")) {
             hub_size = webserver.arg("size").toInt();
             uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16);
@@ -3614,8 +3433,8 @@ void setupWebServer() {
             "<h2>Centre point updated</h2><p>back to handsets in 3 seconds</p></body></html>");
         });
 
-        //  Handsets Datei-Upload verarbeiten
-        webserver.on("/uploadhandset", HTTP_POST, []() {
+    //  Handsets Datei-Upload verarbeiten
+    webserver.on("/uploadhandset", HTTP_POST, []() {
         if (uploadSuccess) {
             // Sicherheitsprüfung auf Dateinamenmuster
             if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
@@ -3627,12 +3446,12 @@ void setupWebServer() {
                 return;
             }
             String set = webserver.arg("set");
-          //  String target = server.arg("target");
+            //  String target = server.arg("target");
             String dir = "/";
             if (!LittleFS.exists(dir)) LittleFS.mkdir(dir);
-          //  String finalPath = "/hand_set" + set + "_" + target + ".bmp";
-          //  LittleFS.rename(uploadFilePath, finalPath);
-          //  DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + finalPath);
+            //  String finalPath = "/hand_set" + set + "_" + target + ".bmp";
+            //  LittleFS.rename(uploadFilePath, finalPath);
+            //  DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + finalPath);
             DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + uploadFilePath);
             webserver.sendHeader("Location", "/handsets", true);
             webserver.send(302, "text/plain", "");
@@ -3643,8 +3462,8 @@ void setupWebServer() {
         }, handleFileUpload);
 
 
-        // Handset setzen
-        webserver.on("/sethandset", HTTP_GET, []() {
+    // Handset setzen
+    webserver.on("/sethandset", HTTP_GET, []() {
         if (webserver.hasArg("set")) {
             String chosen = webserver.arg("set");
             preferences.putString("handset", chosen);
@@ -3661,8 +3480,8 @@ void setupWebServer() {
         }
         });
 
-        // Handset l&ouml;schen
-        webserver.on("/deletehandset", HTTP_GET, []() {
+    // Handset l&ouml;schen
+    webserver.on("/deletehandset", HTTP_GET, []() {
         if (webserver.hasArg("set")) {
             String set = webserver.arg("set");
             String targets[] = { "hour", "minute", "second" };
@@ -3682,19 +3501,19 @@ void setupWebServer() {
         }
         });
 
-        // ESP neu starten
-        webserver.on("/reboot", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>" + translate("Rebooting...") + "</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
+    // ESP neu starten
+    webserver.on("/reboot", HTTP_GET, []() {
+        webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>" + translate("Rebooting...") + "</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
         esp_reboot();
-        }); 
-            
-        // Factory Reset    
-        webserver.on("/factoryReset", HTTP_GET, []() {
-          factoryReset();
         });
 
-        // Sofortige Zeitsynchronisation
-        webserver.on("/syncnow", HTTP_POST, []() {
+    // Factory Reset    
+    webserver.on("/factoryReset", HTTP_GET, []() {
+        factoryReset();
+        });
+
+    // Sofortige Zeitsynchronisation
+    webserver.on("/syncnow", HTTP_POST, []() {
         setupNTP();
         struct tm timeinfo;
         getLocalTime(&timeinfo);
@@ -3710,6 +3529,9 @@ void setupWebServer() {
         });
 
 }
+
+
+
 
 
 // Handhabt den Datei-Upload
@@ -4643,11 +4465,38 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
 
 // ####################################################################
 // ### LOG-FUNKTIONEN #################################################
+void deleteAllLogFiles() {
+    
+    File root = LittleFS.open("/");
+    File file = root.openNextFile();
+
+    while (file) {
+        String fileName = file.name();
+        file.close(); // Datei schließen, bevor sie gelöscht wird
+
+        if (fileName.endsWith(".log")) {
+            if (LittleFS.remove("/" + fileName)) {
+                DEBUG_PRINTLN("[LOG] Successfully deleted: " + fileName);
+            }
+        }
+        file = root.openNextFile(); // Nächste Datei öffnen
+    }
+    preferences.putInt("logFileNumber", 1); // Log-Dateinummer zurücksetzen
+}
 
 void setLogFileName() {
+
+    
     int logFileNumber = preferences.getInt("logFileNumber", 0);
     logFileNumber++;
     preferences.putInt("logFileNumber", logFileNumber);
+
+    if (logFileNumber > 99) {
+        logFileNumber = 1;
+        preferences.putInt("logFileNumber", logFileNumber);
+        preferences.putBool("loggingEnabled", false); // Logging deaktivieren
+        deleteAllLogFiles();
+    }
 
     char formattedLogFileName[20];
     sprintf(formattedLogFileName, "/log_%04d.log", logFileNumber);
@@ -4666,11 +4515,10 @@ void setLogFileName() {
 }
 
 void logToFile(const String& message) {
-
     if (!loggingEnabled) {
         return; // Logging ist deaktiviert
-
     }
+
     // Überprüfe, ob LittleFS gemountet ist
     if (!LittleFS.begin()) {
         Serial.println("[LOG] LittleFS ist nicht gemountet. Log wird nicht geschrieben.");
@@ -4712,6 +4560,11 @@ void logToFile(const String& message) {
     // Zeitstempel generieren
     char timestamp[32];
     struct tm timeinfo;
+
+    // Zeitzone aus den Preferences abrufen
+    String timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
+    configTzTime(timezone.c_str(), ntpServers[0]); // Zeitzone anwenden
+
     if (getLocalTime(&timeinfo, 1)) {
         strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S] ", &timeinfo);
     }
@@ -4724,5 +4577,3 @@ void logToFile(const String& message) {
     logFile.println(message);
     logFile.close();
 }
-
-
