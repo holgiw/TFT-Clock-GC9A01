@@ -25,8 +25,8 @@
 ---
 5. WiFi and NTP Integration
 •	WiFi:
-•	Supports two WiFi networks (primary and secondary).
-•	Automatically reconnects if the connection is lost.
+•	Supports up to 15 WiFi networks.
+•	Automatically reconnects if the connection is lost (configurable).
 •	NTP (Network Time Protocol):
 •	Automatically synchronizes time with an NTP server.
 •	Nightly time synchronization at 02:00 and 03:00.
@@ -42,10 +42,11 @@
 •	Uses the LittleFS filesystem to:
 •	Store custom clock faces and hands.
 •	Manage files (e.g., upload, rename, delete).
+• Logging
 ---
 8. Time Zone Customization
 •	Supports various time zones:
-•	Automatic daylight saving time (e.g., CET/CEST).
+•	Automatic daylight saving time (e.g. CET/CEST).
 •	Permanent summer or winter time.
 ---
 9. Hardware Integration
