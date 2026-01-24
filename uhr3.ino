@@ -817,8 +817,7 @@ void loop() {
     if (softAPIP) {
         dnsServer.processNextRequest();
     }
-
-    checkNTPRetry();
+       
 
     webserver.handleClient();
 
@@ -827,7 +826,8 @@ void loop() {
         updateClock();
         
       //  checkWiFiScan(); // Überprüfe den Status des Scans
-        if (!wifiActive) {
+        if (wifiActive) {
+            checkNTPRetry();
             checkWiFiReconnect();
             checkNightlyTimeSync();
             checkWeeklyRestart();
