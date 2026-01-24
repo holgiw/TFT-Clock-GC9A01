@@ -110,7 +110,7 @@ std::map<String, std::map<String, String>> translations = {
         { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben" },
         { "No WiFi networks found", "Keine WLAN Netzwerke gefunden" },
         { "Signal&nbsp;Strength", "Signalst&auml;rke" },
-        { "Save WiFi settings and reboot", "WLAN Einstellungen speichern und neu starten" },
+        { "Save WiFi settings", "WLAN Einstellungen speichern" },
         { "Train Station Mode", "Bahnhof Modus" },
         { "Show Seconds", "Sekundenzeiger anzeigen" },
         { "Enable Touch", "Touch Pin verwenden" },
@@ -180,7 +180,10 @@ std::map<String, std::map<String, String>> translations = {
         { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?" },
         {"Rename File", "Datei umbenennen"},
         { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"},
-        { "Enable Logging" , "Logging aktivieren"}
+        { "Enable Logging" , "Logging aktivieren"},
+        { "Reconnect WiFi" , "Wifi neu verbinden" }
+
+        
 
     }}
 };

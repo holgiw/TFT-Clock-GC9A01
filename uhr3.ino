@@ -160,6 +160,8 @@ bool touchEnabled = false;
 unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
 bool useTouch = false; // Touch verwenden
 
+bool wifiActive = true;    
+
 String tft_type = "UNKNOWN";
 
 TFT_eSprite backgroundSprite = TFT_eSprite(&tft);
@@ -167,8 +169,9 @@ TFT_eSprite hourHandSprite = TFT_eSprite(&tft);
 TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
 TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 
-String wifi_ssid[2];
-String wifi_pass[2];
+#define MAX_WLAN 15
+String wifi_ssid[MAX_WLAN];
+String wifi_pass[MAX_WLAN];
 
 unsigned long lastNTPRetry = 0;
 //const unsigned long retryIntervalNTPms = 12 * 60 * 60 * 1000; // 12h
@@ -270,7 +273,7 @@ struct WifiNetwork {
     int rssi;
     int enc;
 };
-#define MAX_NETWORKS 15
+#define MAX_NETWORKS MAX_WLAN
 WifiNetwork foundNetworks[MAX_NETWORKS];
 int foundNetworkCount = 0;
 bool isScanning = false;
@@ -294,6 +297,9 @@ void setup() {
     if (!LittleFS.begin(true)) {
         Serial.println("[LittleFS] Mount Failed");
     }
+
+
+    
 
 
     preferences.begin("clock", false);
@@ -349,10 +355,19 @@ void setup() {
 
         preferences.putString("language", "en");
 
-        preferences.putString("ssid1", "");
-        preferences.putString("pass1", "");
-        preferences.putString("ssid2", "");
-        preferences.putString("pass2", "");
+        preferences.putBool("wifiActive", true);
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String ssid_key = "ssid" + String(i - 1);
+            String pass_key = "pass" + String(i - 1);                       
+
+            preferences.putString(ssid_key.c_str(), "");
+            preferences.putString(pass_key.c_str(), "");
+        }
+        
+
+
+
         preferences.putInt("lastWLan", 0);
 
         preferences.putString("ntpServer1", NTP_SERVER_1);
@@ -415,6 +430,7 @@ void setup() {
 
     currentLanguage = preferences.getString("language", "en");
 
+    wifiActive = preferences.getBool("wifiActive", true);   
 
     strncpy(ntpServers[0], preferences.getString("ntpServer1", NTP_SERVER_1).c_str(), sizeof(ntpServers[0]) - 1);
     ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
@@ -424,8 +440,8 @@ void setup() {
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
-    DEBUG_PRINTLN("[NTP] Aktuelle NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
-    DEBUG_PRINTLN("Zeitzone eingestellt auf: " + timezone);
+    DEBUG_PRINTLN("[NTP] NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
+    DEBUG_PRINTLN("timezone is: " + timezone);
 
     stationMode = preferences.getBool("stationMode", true);
     smoothMinute = preferences.getBool("smoothMinute", false);
@@ -570,23 +586,34 @@ void setup() {
     loadClockFace();
     loadHandSprites();
 
-    wifi_ssid[0] = preferences.getString("ssid1", "");
-    wifi_pass[0] = preferences.getString("pass1", "");
-    wifi_ssid[1] = preferences.getString("ssid2", "");
-    wifi_pass[1] = preferences.getString("pass2", "");
 
-    // scanAndCacheNetworks();
+    // Schleife mit sizeof, um die Anzahl der Elemente im Array zu berechnen
+    for (int i = 0; i < MAX_WLAN; i++) {
 
+        // Dynamisch berechnete Schlüssel
+        String ssidKey = "ssid" + String(i + 1);
+        String passKey = "pass" + String(i + 1);
 
+        // Werte speichern
+        wifi_ssid[i] = preferences.getString(ssidKey.c_str(), "");
+        wifi_pass[i] = preferences.getString(passKey.c_str(), "");
+    }
+
+    scanAndCacheNetworks();
+
+   
     if (digitalRead(BUTTON1) == HIGH) {
-        wifi_ssid[0] = "";
-        wifi_pass[0] = "";
-        wifi_ssid[1] = "";
-        wifi_pass[1] = "";
+        for (int i = 0; i < MAX_WLAN; i++) {
+            // Dynamisch berechnete Schlüssel
+            String ssidKey = "ssid" + String(i + 1);
+            String passKey = "pass" + String(i + 1);
+            wifi_ssid[i] = "";
+            wifi_pass[i] = "";
+        }
         startAP();
     }
-    // Neu: wenn noch keine SSID gespeichert → sofort AP starten (erleichtert Erstkonfiguration)
-    else if (wifi_ssid[0].length() == 0 && wifi_ssid[1].length() == 0) {
+    // wenn noch keine SSID1 gespeichert → sofort AP starten (erleichtert Erstkonfiguration)
+    else if (wifi_ssid[0].length() == 0) {
         DEBUG_PRINTLN("[WiFi] No stored credentials — starting AP for configuration");
         startAP();
     }
@@ -594,24 +621,52 @@ void setup() {
 
         DEBUG_PRINTLN("[TFT] Selected background: " + selectedBackground);
 
-        uint32_t number = preferences.getInt("lastWLan");
-        DEBUG_PRINTLN("[WiFi] Last successful WLAN number: " + String(number));
+        uint32_t number = preferences.getInt("lastWLan", 0);
+        DEBUG_PRINTLN("[WiFi] Last successful WLAN number: " + String(number + 1) + " " + wifi_ssid[number]);
 
-        if (number > 1) number = 0;
-        if (number == 0) {
-            if (!connectWiFi(0, true)) {
-                if (!connectWiFi(1, true)) {
-                    startAP();
-                }
+        
+        bool foundLastSSID = false;
+        for (int i = 0; i < MAX_NETWORKS; i++) {
+            if (wifi_ssid[number] == foundNetworks[i].ssid) {
+                DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + foundNetworks[i].ssid);
+                foundLastSSID = true;
+                break;
             }
         }
-        else {
-            if (!connectWiFi(1, true)) {
-                if (!connectWiFi(0, true)) {
-                    startAP();
-                }
+
+
+        if (!foundLastSSID or !connectWiFi(number, true)) {
+           
+            // Wenn Verbindung fehlschlägt, scannen und vergleichen
+            DEBUG_PRINTLN("[WiFi] Connection failed. Scanning for available networks...");
+
+
+            for (int i = 0; i < MAX_NETWORKS; i++) {
+                String availableSSID = foundNetworks[i].ssid;
+                if (availableSSID == "") continue;
+                DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
+                for (int j = 0; j < MAX_WLAN; j++) {
+
+                    if (j == number) continue; // überspringe bereits versuchte SSID
+                    if (trim(wifi_ssid[j]) == "") continue; // überspringe leere SSID
+
+                    DEBUG_PRINTLN("vergleiche " + wifi_ssid[j] + " mit " + availableSSID);
+                                        
+                    if (wifi_ssid[j] == availableSSID) {
+                        DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
+                        if (connectWiFi(j, true)) {
+                            DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials.");
+                            preferences.putInt("lastWLan", j);
+                            return;
+                        }
+                    }
+
+                }                
             }
-        }
+            DEBUG_PRINTLN("[WiFi] No matching networks found.");
+            startAP();
+        }          
+
     }
 
 
@@ -629,7 +684,7 @@ void setup() {
 
     loadPresets();
 
-    startWiFiScan(); // Starte den Scan, falls nicht bereits aktiv
+    //startWiFiScan(); // Starte den Scan, falls nicht bereits aktiv
 
 }
 
@@ -769,14 +824,14 @@ void loop() {
 
     if (WiFi.getMode() == WIFI_STA) {
 
-        
-        checkWiFiScan(); // Überprüfe den Status des Scans
-
-        checkWiFiReconnect();
         updateClock();
-
-        checkNightlyTimeSync();
-        checkWeeklyRestart();
+        
+      //  checkWiFiScan(); // Überprüfe den Status des Scans
+        if (!wifiActive) {
+            checkWiFiReconnect();
+            checkNightlyTimeSync();
+            checkWeeklyRestart();
+        }
         initial = false;
     }
 
@@ -1461,9 +1516,8 @@ void checkWiFiReconnect() {
 
     DEBUG_PRINTLN("[WiFi] Disconnected. Attempting reconnect...");
     WiFi.disconnect();
-    if (!connectWiFi(0, false)) {
-         connectWiFi(1, false);
-    }
+    connectWiFi(preferences.getInt("lastWlan",0), false);
+    
 }
 
 
@@ -1534,8 +1588,9 @@ bool connectWiFi(int number, bool verbose_mode) {
     }
 #endif
     if (wifi_ssid[number] == "") return false;
-         
-    DEBUG_PRINTLN("[WiFi] Trying SSID " + (String)number) + ": " + wifi_ssid[number];
+
+             
+    DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
 
     if (verbose_mode) {
         clearTFT();
@@ -1547,7 +1602,7 @@ bool connectWiFi(int number, bool verbose_mode) {
 
         tft.setTextSize(TFT_TEXT_SIZE);
         tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("Connect to SSID:");
+        tft.println("Connect to SSID" + String(number+1));
         tft.setCursor(20, (CLOCK_HEIGHT / 2));
 
         if (wifi_ssid[number].length() > 15) {
@@ -1569,6 +1624,7 @@ bool connectWiFi(int number, bool verbose_mode) {
     WiFi.setHostname(hostname);
     DEBUG_PRINTLN("[WiFi] Hostname set to: " + String(hostname));
 
+    
     WiFi.begin(wifi_ssid[number].c_str(), wifi_pass[number].c_str());
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
@@ -1606,7 +1662,7 @@ bool connectWiFi(int number, bool verbose_mode) {
 
         if (preferences.getInt("lastWLan", -1) != number) {
             preferences.putInt("lastWLan", number);        
-            DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number);
+            DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number+1);
         }
 
         delay(100);
@@ -1614,8 +1670,9 @@ bool connectWiFi(int number, bool verbose_mode) {
         return true;
     }
 
+    return false;
 
-    return false;    
+    
 }
 
 // Animation w&auml;hrend WLAN-Verbindung
@@ -1694,10 +1751,10 @@ void checkNtpOffset() {
 
     // Ausgabe der Abweichung
     if (offset == 0) {
-        DEBUG_PRINTLN("[NTP] Keine Abweichung zur lokalen Zeit.");
+        DEBUG_PRINTLN("[NTP] No deviation from local time.");
     }
     else {
-        DEBUG_PRINTF("[NTP] Abweichung zur lokalen Zeit: %ld Sekunden\n", offset);
+        DEBUG_PRINTF("[NTP] Difference from local time: %ld sec\n", offset);
     }
 }
 
@@ -1739,7 +1796,7 @@ void scheduleNTPRetry() {
 
 void checkNTPRetry() {
     if (WiFi.status() != WL_CONNECTED) {
-        DEBUG_PRINTLN("[NTP] Skipping retry: Not connected to WiFi.");
+        //DEBUG_PRINTLN("[NTP] Skipping retry: Not connected to WiFi.");
         lastNTPRetry = millis();
         return;
     }
@@ -1895,11 +1952,17 @@ void setupWebServer() {
         });
 
     webserver.on("/api/resetWiFi", HTTP_GET, []() {
-        // L&ouml;sche nur die WiFi-Einstellungen
-        preferences.putString("ssid1", "");
-        preferences.putString("pass1", "");
-        preferences.putString("ssid2", "");
-        preferences.putString("pass2", "");
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            // Dynamisch berechnete Schlüssel
+            String ssidKey = "ssid" + String(i + 1);
+            String passKey = "pass" + String(i + 1);
+
+            preferences.putString(ssidKey.c_str(), "");
+            preferences.putString(passKey.c_str(), "");             
+        }
+
+
         eraseWiFiConfig();
 
         // Sende eine Best&auml;tigung zur%uuml;ck
@@ -2400,6 +2463,9 @@ void setupWebServer() {
         loggingEnabled = webserver.hasArg("loggingEnabled");
         preferences.putBool("loggingEnabled", loggingEnabled);
 
+        wifiActive = webserver.hasArg("wifiActive");
+        preferences.putBool("wifiActive", wifiActive);  
+
         preferences.putBool("stationMode", stationMode);
         preferences.putBool("showSecondHand", showSecondHand);
         preferences.putBool("smoothMinute", smoothMinute);
@@ -2798,7 +2864,7 @@ void setupWebServer() {
 
 
         html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
-        html += "<li>ADC(photoresistor): " + String(ADC_PIN) + "</li>";
+        html += "<li>ADC (photoresistor): " + String(ADC_PIN) + "</li>";
         html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";
         if (photoresistorFound) {
             html += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
@@ -2814,8 +2880,22 @@ void setupWebServer() {
 
 
         html += "<li><h3>Actual Preferences</h3></li><ul>";
-        html += "<li><b>ssid</b>: " + preferences.getString("ssid1", "") + "</li>";
-        html += "<li><b>ssid2</b>: " + preferences.getString("ssid2", "") + "</li>";
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            // Dynamisch berechnete Schlüssel
+            String ssidKey = "ssid" + String(i + 1);
+
+            if (preferences.getString(ssidKey.c_str(), "") != "") {
+                if (preferences.getInt("lastWLan") != i) {
+                    html += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
+                }
+                else {
+                    html += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
+                }
+            }
+    
+        }
+
         html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
         html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";
         html += "<li><b>timezone</b>: " + preferences.getString("timezone", TIMEZONE_DEFAULT) + "</li>";
@@ -3032,37 +3112,42 @@ void setupWebServer() {
 
         html += "<button id='rescanBtn' type='button'>" + translate("Rescan Networks") + "</button><br>";
 
-        html += "<h3>" + translate("Primary WiFi") + "</h3>";
 
-        html += "<label for='ssid1'>SSID1:</label><br>";
-        html += "<select id='ssid_select' onchange=\"document.getElementById('ssid1').value=this.value\">";
-        // html += "<option value=''>WLAN-Scan in progress</option>";
-        html += "</select><br>";
-        html += "<input name='ssid1' id='ssid1' placeholder='SSID 1' value='" + wifi_ssid[0] + "'><br>";
-        html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
 
-        html += "<input name='pass1' id='pass1' placeholder='Password 1' type='password' value=''><br>";
-        if (WiFi.getMode() == WIFI_STA) {
-            html += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
+        for (int i = 0; i < MAX_WLAN; i++) {
+            // Dynamisch berechnete Schlüssel
+            String ssidKey = "ssid" + String(i + 1);
+            String passKey = "pass" + String(i + 1);
+            String ssid_select = "ssid_select" + String(i + 1);
+            wifi_ssid[i] = preferences.getString(ssidKey.c_str(), "");
+
+            String upperSsidKey = ssidKey; // Kopie erstellen
+            upperSsidKey.toUpperCase();    // Kopie in Großbuchstaben umwandeln
+            html += "<h3>" + upperSsidKey + "</h3>";
+
+            // html += "<label for='" + ssidKey + "'>" + ssidKey + ":</label><br>";
+            html += "<select id='" + ssid_select + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\">";
+            // html += "<option value=''>WLAN-Scan in progress</option>";
+            html += "</select><br>";
+            html += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifi_ssid[i] + "'><br>";
+            html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
+
+            html += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value=''><br>";
+            if (WiFi.getMode() == WIFI_STA) {
+                html += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
+            }
+            html += "<br><hr><br>";
+
+            if (wifi_ssid[i] == "") {
+                break; // Keine weiteren SSIDs, Schleife beenden
+            }
         }
-        html += "<br><hr><br>";
 
-        html += "<h3>" + translate("Alternative WiFi") + "</h3>";
-        html += "<label for='ssid2'>SSID2:</label><br>";
-        html += "<select id='ssid2_select' onchange=\"document.getElementById('ssid2').value=this.value\">";
-        //  html += "<option value=''>WLAN-Scan in progress</option>";
-        html += "</select><br>";
-        html += "<input name='ssid2' id='ssid2' placeholder='SSID 2' value='" + wifi_ssid[1] + "'><br>";
-        html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
-
-        html += "<input name='pass2' placeholder='Password 2' type='password' value=''><br>";
-        if (WiFi.getMode() == WIFI_STA) {
-            html += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
-        }
+        
         html += "<br><br>";
 
 
-        html += "<button type='submit'>" + translate("Save WiFi settings and reboot") + "</button></form><hr>";
+        html += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
 
         if (WiFi.getMode() == WIFI_STA) {
 
@@ -3083,6 +3168,11 @@ void setupWebServer() {
             html += preferences.getBool("smoothMinute", true) ? "checked" : "";
             html += "> " + translate("Smooth Minute Hand") + "</td>";
 
+            html += "<td><input type='checkbox' name='wifiActive' value='1' ";
+            html += wifiActive ? "checked" : "";
+            html += "> " + translate("Reconnect WiFi") + "</td>";
+
+
             html += "</tr><tr>";
 
             // Neue Checkbox f%uuml;r Touch-Freigabe
@@ -3094,6 +3184,7 @@ void setupWebServer() {
             html += loggingEnabled ? "checked" : "";
             html += "> " + translate("enable logging") + "</td>";
 
+            
             html += "<td>Rotation: <select name='rotation'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
@@ -3140,50 +3231,61 @@ void setupWebServer() {
         html += "            var opt = document.createElement('option');";
         html += "            opt.value = net.ssid;";
         html += "            opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
-        html += "            select1.appendChild(opt);";
-        html += "          });";
-        html += "          select2.innerHTML = select1.innerHTML;";
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String ssidKey = "ssid" + String(i + 1);
+            String select = "select" + String(i + 1);
+            html += "            " + select + ".appendChild(opt);";
+            if (preferences.getString(ssidKey.c_str(), "") == "") {
+                break; // Keine weiteren SSIDs, Schleife beenden
+            }
+        }
+
+        html += "          });";        
+
         html += "        });";
         html += "      }, 2000);"; // 2 Sekunden warten für Scan
         html += "    });";
         html += "};";
 
         html += "window.addEventListener('DOMContentLoaded', function() {";
-        html += "  var select1 = document.getElementById('ssid_select');";
-        html += "  var input1 = document.getElementById('ssid1');";
-        html += "  var current1 = input1.value;";
-        html += "  select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
-        html += "  fetch('/api/scanwifi')";
-        html += "    .then(response => response.json())";
-        html += "    .then(data => {";
-        html += "      select1.innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
-        html += "      data.forEach(function(net) {";
-        html += "        var opt = document.createElement('option');";
-        html += "        opt.value = net.ssid;";
-        html += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
-        html += "        if(net.ssid === current1) opt.selected = true;";
-        html += "        select1.appendChild(opt);";
-        html += "      });";
-        html += "    })";
-        html += "    .catch(() => { select1.innerHTML = \"<option>Scan failed</option>\"; });";
+        for (int i = 0; i < MAX_WLAN; i++) {
 
-        html += "  var select2 = document.getElementById('ssid2_select');";
-        html += "  var input2 = document.getElementById('ssid2');";
-        html += "  var current2 = input2.value;";
-        html += "  select2.innerHTML = \"<option>WLAN scan in progress...</option>\";";
-        html += "  fetch('/api/scanwifi')";
-        html += "    .then(response => response.json())";
-        html += "    .then(data => {";
-        html += "      select2.innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
-        html += "      data.forEach(function(net) {";
-        html += "        var opt = document.createElement('option');";
-        html += "        opt.value = net.ssid;";
-        html += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
-        html += "        if(net.ssid === current2) opt.selected = true;";
-        html += "        select2.appendChild(opt);";
-        html += "      });";
-        html += "    })";
-        html += "    .catch(() => { select2.innerHTML = \"<option>" + translate("Scan failed") + "</option>\"; });";
+           
+
+            // Dynamisch berechnete Schlüssel
+            String ssidKey = "ssid" + String(i + 1);
+            String passKey = "pass" + String(i + 1);
+            String select = "select" + String(i + 1); 
+            String input = "input" + String(i + 1);
+            String current = "current" + String(i + 1); 
+            String ssid_select = "ssid_select" + String(i + 1);
+            
+                        
+
+            html += "  var " + select + " = document.getElementById('" + ssid_select + "');";
+            html += "  var " + input + " = document.getElementById('ssid1');";
+            html += "  var " + current + " = " + input + ".value;";
+            html += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
+            html += "  fetch('/api/scanwifi')";
+            html += "    .then(response => response.json())";
+            html += "    .then(data => {";
+            html += "      " + select + ".innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
+            html += "      data.forEach(function(net) {";
+            html += "        var opt = document.createElement('option');";
+            html += "        opt.value = net.ssid;";
+            html += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
+            html += "        if(net.ssid === " + current + ") opt.selected = true;";
+            html += "        " + select + ".appendChild(opt);";
+            html += "      });";
+            html += "    })";
+            html += "    .catch(() => { " + select + ".innerHTML = \"<option>Scan failed</option>\"; });";
+
+            if (preferences.getString(ssidKey.c_str(), "") == "") {
+                break; // Keine weiteren SSIDs, Schleife beenden
+            }
+
+        }
         html += "});";
         html += "</script>";
 
@@ -3196,25 +3298,66 @@ void setupWebServer() {
 
     // Speichern der WiFi-Einstellungen
     webserver.on("/save", HTTP_POST, []() {
-        if (webserver.hasArg("ssid1")) {
-            if (webserver.arg("ssid1") != "") preferences.putString("ssid1", webserver.arg("ssid1"));
-            if (webserver.arg("pass1") != "") preferences.putString("pass1", webserver.arg("pass1"));
+        //if (webserver.hasArg("ssid1")) {
 
-            if (webserver.arg("ssid2") != "") preferences.putString("ssid2", webserver.arg("ssid2"));
-            if (webserver.arg("pass2") != "") preferences.putString("pass2", webserver.arg("pass2"));
+            for (int i = 0; i < MAX_WLAN; i++) {
+                // Dynamisch berechnete Schlüssel
+                String ssidKey = "ssid" + String(i + 1);
+                String passKey = "pass" + String(i + 1);
+
+                preferences.putString(ssidKey.c_str(), webserver.arg(ssidKey));                
+                if (webserver.arg(passKey) != "") preferences.putString(passKey.c_str(), webserver.arg(passKey));                
+            }
+
+
+            // leere Einträge aussortieren
+            String tempSsid[MAX_WLAN];
+            String tempPass[MAX_WLAN];
+
+
+            int j = 0;
+            for (int i = 0; i < MAX_WLAN; i++) {
+
+                // Dynamisch berechnete Schlüssel
+                String ssidKey = "ssid" + String(i + 1);
+                String passKey = "pass" + String(i + 1);
+
+                String ssid = trim(preferences.getString(ssidKey.c_str(), ""));                
+                if (ssid.length() > 0) {
+                    tempSsid[j] = preferences.getString(ssidKey.c_str(), "");
+                    tempPass[j] = preferences.getString(passKey.c_str(), "");                    
+                    j++;
+                }
+            }
+
+            for (int i = 0; i < MAX_WLAN; i++) {
+                // Dynamisch berechnete Schlüssel
+                String ssidKey = "ssid" + String(i + 1);
+                String passKey = "pass" + String(i + 1);
+
+                preferences.putString(ssidKey.c_str(), tempSsid[i]);
+                preferences.putString(passKey.c_str(), tempPass[i]);   
+
+                wifi_ssid[i] = tempSsid[i];
+                wifi_pass[i] = tempPass[i];
+            }
+
+
+            
 
             if (WiFi.getMode() == WIFI_STA) {
-                webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'>"
+                webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/'>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
-                    "<h2>Settings saved</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
+                    "<h2>Settings saved</h2><p>.</p></body></html>");
             }
             else {
                 webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
                     "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
                     "<h2>Settings saved</h2><p>Please connect to your home network and go to the ESP website at http:// IPADDRESS</p></body></html>");
+
+                esp_reboot();
             }
-            esp_reboot();
-        }
+       // }
         });
 
     // Upload-Formular anzeigen
@@ -4038,7 +4181,7 @@ void checkWeeklyRestart() {
 }
 
 
-void startWiFiScan() {
+void startWiFiScan__() {
     if (!isScanning) {
         DEBUG_PRINTLN("[WiFi] Starting asynchronous scan...");
         WiFi.scanNetworks(true); // Asynchroner Scan
@@ -4046,7 +4189,7 @@ void startWiFiScan() {
     }
 }
 
-void checkWiFiScan() {
+void checkWiFiScan__() {
     if (isScanning) {
         int scanStatus = WiFi.scanComplete();
         if (scanStatus == WIFI_SCAN_RUNNING) {
@@ -4096,6 +4239,7 @@ void scanAndCacheNetworks() {
         DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
 
     }    
+    WiFi.scanDelete(); // Ergebnisse löschen
     DEBUG_PRINTLN("[WiFi] done.");
     digitalWrite(LED_BOARD, LOW);
 }
@@ -4481,7 +4625,7 @@ void deleteAllLogFiles() {
         }
         file = root.openNextFile(); // Nächste Datei öffnen
     }
-    preferences.putInt("logFileNumber", 1); // Log-Dateinummer zurücksetzen
+    preferences.putInt("logFileNumber", 0); // Log-Dateinummer zurücksetzen
 }
 
 void setLogFileName() {
@@ -4576,4 +4720,23 @@ void logToFile(const String& message) {
     logFile.print(timestamp);
     logFile.println(message);
     logFile.close();
+}
+
+// eigenes trim function, da Arduino String keine trim()-Methode hat
+String trim(const String& str) {
+    int start = 0;
+    int end = str.length() - 1;
+
+    // Führende Leerzeichen entfernen
+    while (start <= end && isspace(str[start])) {
+        start++;
+    }
+
+    // Nachfolgende Leerzeichen entfernen
+    while (end >= start && isspace(str[end])) {
+        end--;
+    }
+
+    // Substring zurückgeben, der keine führenden oder nachfolgenden Leerzeichen enthält
+    return str.substring(start, end + 1);
 }
