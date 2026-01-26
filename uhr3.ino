@@ -826,7 +826,7 @@ void loop() {
         updateClock();
         
       //  checkWiFiScan(); // Überprüfe den Status des Scans
-        if (wifiActive) {
+        if (wifiActive || WiFi.isConnected()) {
             checkNTPRetry();
             checkWiFiReconnect();
             checkNightlyTimeSync();
@@ -1655,7 +1655,7 @@ bool connectWiFi(int number, bool verbose_mode) {
         pingHostname = true;
      //   pingHostname = Ping.ping(fullHostname.c_str(),3);
      //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
-
+        
         if (verbose_mode) {
             showWlanCredentials(wifi_ssid[number]);           
         }
@@ -1831,8 +1831,8 @@ String generateHtmlStatus() {
     String html;
     if (WiFi.getMode() == WIFI_STA) {
         html = translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong>";
-        html += "<br>" + translate("IP Address") + ": <strong>" + WiFi.localIP().toString() + " </strong> ";
-        if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + String(hostname) + ".local</strong>";
+        html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" + WiFi.localIP().toString() + "'>http://" + WiFi.localIP().toString() +"</a></strong> ";
+        if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + "<a href='http://" + hostname + ".local'>http://" + hostname + ".local</a>" + "</strong>";
     }
     else html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
 
