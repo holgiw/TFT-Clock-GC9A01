@@ -1874,9 +1874,9 @@ String generateNavigation() {
         String confirmMessage; // Optional: Bestätigungsnachricht
     } navItems[] = {
         {"/", translate("Main"), ""},
-        {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
-        {"/handsets", translate("Hand&nbsp;Set"), ""},
         {"/presets", translate("Presets"), ""},
+        {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
+        {"/handsets", translate("Hand&nbsp;Set"), ""},        
         {"/timezone_form", translate("NTP&nbsp;Timezone"), ""},
         {"/brightness", translate("Brightness"), ""},
         {"/status", "Status", ""},
@@ -3168,17 +3168,20 @@ void setupWebServer() {
             html += preferences.getBool("smoothMinute", true) ? "checked" : "";
             html += "> " + translate("Smooth Minute Hand") + "</td>";
 
-            html += "<td><input type='checkbox' name='wifiActive' value='1' ";
-            html += wifiActive ? "checked" : "";
-            html += "> " + translate("Reconnect WiFi") + "</td>";
-
+            
+            html += "<td>&nbsp;</td>"; // leeres Feld
 
             html += "</tr><tr>";
 
             // Neue Checkbox f%uuml;r Touch-Freigabe
-            html += "<td><input type='checkbox' name='useTouch' value='1' ";
-            html += preferences.getBool("useTouch", false) ? "checked" : "";
-            html += "> " + translate("Enable Touch") + "</td>";
+            //html += "<td><input type='checkbox' name='useTouch' value='1' ";
+            //html += preferences.getBool("useTouch", false) ? "checked" : "";
+            //html += "> " + translate("Enable Touch") + "</td>";
+
+            html += "<td><input type='checkbox' name='wifiActive' value='1' ";
+            html += wifiActive ? "checked" : "";
+            html += "> " + translate("Reconnect WiFi") + "</td>";
+            
 
             html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
             html += loggingEnabled ? "checked" : "";
