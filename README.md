@@ -30,6 +30,7 @@
 •	NTP (Network Time Protocol):
 •	Automatically synchronizes time with an NTP server.
 •	Nightly time synchronization at 02:00 and 03:00.
+WPS supported
 ---
 6. Web Interface
 •	A built-in web interface allows:
