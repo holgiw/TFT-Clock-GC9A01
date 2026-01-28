@@ -20,7 +20,7 @@
 //#define ILI9341 
 
 
- #define DEBUG
+// #define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
@@ -58,6 +58,7 @@
 #include <ESPMDNS.h>
 #include <ESPping.h>
 #include <map>
+
 
 #include "build_defs.h"
 
@@ -282,6 +283,28 @@ bool isScanning = false;
 #include "translation.h"
 
 
+#include <esp_wps.h>
+
+// WPS-Typ definieren (Push-Button-Methode)
+#define ESP_WPS_MODE WPS_TYPE_PBC
+
+// WPS-Initialisierung
+esp_wps_config_t wps_config = WPS_CONFIG_INIT_DEFAULT(ESP_WPS_MODE);
+
+void startWPS() {
+    if (esp_wifi_wps_enable(&wps_config) == ESP_OK) {
+        if (esp_wifi_wps_start(0) == ESP_OK) {
+            Serial.println("WPS gestartet. Bitte WPS-Taste am Router drücken.");
+        }
+        else {
+            Serial.println("WPS konnte nicht gestartet werden.");
+        }
+    }
+    else {
+        Serial.println("WPS konnte nicht aktiviert werden.");
+    }
+}
+
 
 // Setup-Funktion
 void setup() {
@@ -292,15 +315,13 @@ void setup() {
     while (!Serial && (millis() - serialStart < 1000)) {
         delay(10);
     }
-    delay(1500); // Warten, bis die serielle Verbindung hergestellt ist
+    // delay(1500); // Warten, bis die serielle Verbindung hergestellt ist
 
     if (!LittleFS.begin(true)) {
         Serial.println("[LittleFS] Mount Failed");
     }
 
-
-    
-
+    // delay(1000);
 
     preferences.begin("clock", false);
 
@@ -358,8 +379,8 @@ void setup() {
         preferences.putBool("wifiActive", true);
 
         for (int i = 0; i < MAX_WLAN; i++) {
-            String ssid_key = "ssid" + String(i - 1);
-            String pass_key = "pass" + String(i - 1);                       
+            String ssid_key = "ssid" + String(i + 1);
+            String pass_key = "pass" + String(i + 1);                       
 
             preferences.putString(ssid_key.c_str(), "");
             preferences.putString(pass_key.c_str(), "");
@@ -1535,6 +1556,67 @@ void startAP() {
 #ifdef TFT_Backlight
     ledcWrite(TFT_Backlight, 255);
 #endif
+
+
+
+    // WLAN im Station-Modus starten
+    WiFi.mode(WIFI_MODE_STA);
+    WiFi.begin();
+
+    for (int i = 0; i < 10; i++) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    // leeres oder letztes WLAN finden
+    String ssidKey;
+    String passKey;
+
+    for (int i = 0; i < MAX_WLAN; i++) {
+        // Dynamisch berechnete Schlüssel
+        ssidKey = "ssid" + String(i + 1);
+        passKey = "pass" + String(i + 1);
+                
+        if (preferences.getString(ssidKey.c_str(), "") == "" or i == MAX_WLAN - 1) {
+            break; // Beende die Schleife, wenn ein leerer oder der letzte SSID-Eintrag gefunden wird
+        }        
+    }
+
+    
+                
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.setTextSize(TFT_TEXT_SIZE);
+    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+    tft.println("check for WPS...");
+
+                
+    startWPS(); // WPS starten  
+
+    delay(5000); // Warte auf WPS-Verbindung
+    if (WiFi.status() == WL_CONNECTED) {
+        DEBUG_PRINTLN("Verbunden mit dem Netzwerk!");
+        DEBUG_PRINTLN("SSID: " + WiFi.SSID());
+        // Serial.println("Passwort: " + WiFi.psk());
+        // WPS deaktivieren, um Speicherplatz zu sparen
+        esp_wifi_wps_disable();
+
+        preferences.putString(ssidKey.c_str(), WiFi.SSID());
+        preferences.putString(passKey.c_str(), WiFi.psk());
+
+        DEBUG_PRINTLN("[WPS] Saved credentials: " + WiFi.SSID() + " in " + ssidKey.c_str());
+
+        tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+        tft.println(WiFi.SSID());
+
+        tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+        tft.println("found WPS... reboot");
+        
+        delay(2000);
+        esp_reboot();
+    }
+    
+
 
     // 1. WLAN-Scan durchführen
     tft.fillScreen(TFT_BLACK);
@@ -3127,7 +3209,7 @@ void setupWebServer() {
 
             // html += "<label for='" + ssidKey + "'>" + ssidKey + ":</label><br>";
             html += "<select id='" + ssid_select + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\">";
-            // html += "<option value=''>WLAN-Scan in progress</option>";
+            
             html += "</select><br>";
             html += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifi_ssid[i] + "'><br>";
             html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
