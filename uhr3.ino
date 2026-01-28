@@ -20,7 +20,7 @@
 //#define ILI9341 
 
 
-// #define DEBUG
+#define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
@@ -58,6 +58,7 @@
 #include <ESPMDNS.h>
 #include <ESPping.h>
 #include <map>
+#include <esp_wps.h>
 
 
 #include "build_defs.h"
@@ -282,8 +283,6 @@ bool isScanning = false;
 //Übersetzungen fÜr verschiedene Sprachen
 #include "translation.h"
 
-
-#include <esp_wps.h>
 
 // WPS-Typ definieren (Push-Button-Methode)
 #define ESP_WPS_MODE WPS_TYPE_PBC
