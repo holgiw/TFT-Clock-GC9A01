@@ -835,7 +835,7 @@ void loop() {
   
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
-       // dnsServer.processNextRequest();
+        dnsServer.processNextRequest();
     }
        
 
@@ -850,16 +850,16 @@ void loop() {
         
       //  checkWiFiScan(); // Überprüfe den Status des Scans
         if (wifiActive || WiFi.isConnected()) {
-         //   checkNTPRetry();
-         //   checkWiFiReconnect();
-         //   checkNightlyTimeSync();
-         //   checkWeeklyRestart();
+            checkNTPRetry();
+            checkWiFiReconnect();
+            checkNightlyTimeSync();
+            checkWeeklyRestart();
         }
         initial = false;
     }
 
-    // checkButton();
-    // updateBrightness();
+     checkButton();
+     updateBrightness();
 
     if (useTouch) {
         // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
@@ -1599,14 +1599,16 @@ void startAP() {
                     
     startWPS(); // WPS starten  
 
-    delay(5000); // Warte auf WPS-Verbindung
+    
+    long wpsWaitMillis = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= 15000) { 
+        delay(100);
+    }
     if (WiFi.status() == WL_CONNECTED) {
         DEBUG_PRINTLN("[WPS] Verbunden mit dem Netzwerk!");
         DEBUG_PRINTLN("[WPS] SSID: " + WiFi.SSID());
         // Serial.println("Passwort: " + WiFi.psk());
-        // WPS deaktivieren, um Speicherplatz zu sparen
-        esp_wifi_wps_disable();
-
+        
         preferences.putString(ssidKey.c_str(), WiFi.SSID());
         preferences.putString(passKey.c_str(), WiFi.psk());
 
@@ -1623,7 +1625,9 @@ void startAP() {
         delay(2000);
         esp_reboot();
     }
-    
+
+    // WPS deaktivieren, um Speicherplatz zu sparen
+    esp_wifi_wps_disable();
 
 
     // 1. WLAN-Scan durchführen
