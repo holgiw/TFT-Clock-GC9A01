@@ -20,7 +20,7 @@
 //#define ILI9341 
 
 
- #define DEBUG
+#define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
@@ -171,7 +171,7 @@ TFT_eSprite hourHandSprite = TFT_eSprite(&tft);
 TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
 TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 
-#define MAX_WLAN 10
+#define MAX_WLAN 15
 String wifi_ssid[MAX_WLAN];
 String wifi_pass[MAX_WLAN];
 
@@ -275,7 +275,8 @@ struct WifiNetwork {
     int rssi;
     int enc;
 };
-WifiNetwork foundNetworks[MAX_WLAN];
+#define MAX_NETWORKS MAX_WLAN
+WifiNetwork foundNetworks[MAX_NETWORKS];
 int foundNetworkCount = 0;
 bool isScanning = false;
 
@@ -347,7 +348,7 @@ void setup() {
 
 
 
-    // Prüfen, ob PSRAM vorhanden ist
+    // Pr%uuml;fen, ob PSRAM vorhanden ist
     if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
         psramAvailable = true;
         DEBUG_PRINTLN("[INFO] PSRAM gefunden.");
@@ -645,7 +646,7 @@ void setup() {
 
         
         bool foundLastSSID = false;
-        for (int i = 0; i < MAX_WLAN; i++) {
+        for (int i = 0; i < MAX_NETWORKS; i++) {
             if (wifi_ssid[number] == foundNetworks[i].ssid) {
                 DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + foundNetworks[i].ssid);
                 foundLastSSID = true;
@@ -660,7 +661,7 @@ void setup() {
             DEBUG_PRINTLN("[WiFi] Connection failed. Scanning for available networks...");
 
 
-            for (int i = 0; i < MAX_WLAN; i++) {
+            for (int i = 0; i < MAX_NETWORKS; i++) {
                 String availableSSID = foundNetworks[i].ssid;
                 if (availableSSID == "") continue;
                 DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
@@ -832,34 +833,30 @@ void createPresetFromPreferences() {
 // Haupt-Loop
 void loop() {
 
-  
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
-       // dnsServer.processNextRequest();
+        dnsServer.processNextRequest();
     }
        
 
-     webserver.handleClient();
+    webserver.handleClient();
 
-     
     if (WiFi.getMode() == WIFI_STA) {
 
-       updateClock();
-
-      
+        updateClock();
         
       //  checkWiFiScan(); // Überprüfe den Status des Scans
         if (wifiActive || WiFi.isConnected()) {
-         //   checkNTPRetry();
-         //   checkWiFiReconnect();
-         //   checkNightlyTimeSync();
-         //   checkWeeklyRestart();
+            checkNTPRetry();
+            checkWiFiReconnect();
+            checkNightlyTimeSync();
+            checkWeeklyRestart();
         }
         initial = false;
     }
 
-    // checkButton();
-    // updateBrightness();
+    checkButton();
+    updateBrightness();
 
     if (useTouch) {
         // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
@@ -877,7 +874,7 @@ void loop() {
     // restart im AP Mode nach 30 Minuten
     if (softAPIP == true) {
         if (millis() - softAPIPstart > (30 * 60000)) {
-          //  ESP.restart();
+            ESP.restart();
         }
     }
 
@@ -976,7 +973,6 @@ void loadClockFace() {
     parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
     updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
 
-    
     // Buffer ins Sprite kopieren (mit Helligkeit)
     for (int y = 0; y < CLOCK_HEIGHT; y++) {
         for (int x = 0; x < CLOCK_WIDTH; x++) {
@@ -984,6 +980,7 @@ void loadClockFace() {
         }
         backgroundSprite.pushImage(0, y, CLOCK_WIDTH, 1, rowBuffer);
     }
+
 }
 
 // Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
@@ -1169,7 +1166,7 @@ void checkButton() {
             }
             delay(10);  
         }
-        // Button wurde vor 10secs losgelassen → WLAN-Credentials für 3 Sekunden anzeigen
+        // Button wurde vor 10secs losgelassen → WLAN-Credentials für 10 Sekunden anzeigen
         if (!resetStarted) {            
             delay(3000);
         }
@@ -1228,7 +1225,6 @@ void updateClock() {
         backgroundSprite.pushSprite(0, 0);
     }
 
-
     if (stationMode) {
         if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
             stationTick++;
@@ -1259,7 +1255,6 @@ void updateClock() {
         minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);   
     }
 
-  
     if (!stationMode) {
         secAngle = rotatedAngle(secAngle, orientation);
           
@@ -1301,12 +1296,13 @@ void updateClock() {
         minAngle = lastMinuteAngle;
     }
          
-   
+    
+
     float targetHourAngle = rotatedAngle(hourAngle, orientation);
     float hourAngleDiff = shortestAngleDiff(lastHourAngle, targetHourAngle);
 
     if (fabs(hourAngleDiff) > 0.05f) {
-        lastHourAngle += hourAngleDiff * 0.1f;  // Glättungsfaktor
+        lastHourAngle += hourAngleDiff * 0.1f;  // Gl&auml;ttungsfaktor
     }
     else {
         lastHourAngle = targetHourAngle;
@@ -1316,15 +1312,12 @@ void updateClock() {
 
     loadClockFace();
 
-   
-
     hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
     minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
     if (showSecondHand) {
         secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
     }
-
-   
+    
     // Nabe (hub)
     if (hub_size > 0 && hub_color > 0) {
         backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
@@ -1564,6 +1557,7 @@ void startAP() {
 #endif
 
 
+
     // WLAN im Station-Modus starten
     WiFi.mode(WIFI_MODE_STA);
     WiFi.begin();
@@ -1573,19 +1567,18 @@ void startAP() {
         Serial.print(".");
     }
 
-    // WPS versuchen, wenn möglich
     // leeres oder letztes WLAN finden
     String ssidKey;
     String passKey;
 
-    int lastWlanNr = 0;
-    for (lastWlanNr = 0; lastWlanNr < MAX_WLAN; lastWlanNr++) {
+    int wlanNr = 0;
+    for (wlanNr = 0; wlanNr < MAX_WLAN; wlanNr++) {
         // Dynamisch berechnete Schlüssel
-        ssidKey = "ssid" + String(lastWlanNr + 1);
-        passKey = "pass" + String(lastWlanNr + 1);
+        ssidKey = "ssid" + String(wlanNr + 1);
+        passKey = "pass" + String(wlanNr + 1);
                 
         if (preferences.getString(ssidKey.c_str(), "") == "") {
-            break; // Beende die Schleife, wenn ein leerer  gefunden wird, ansonsten letzter
+            break; // Beende die Schleife, wenn ein leerer oder der letzte SSID-Eintrag gefunden wird
         }        
     }
 
@@ -1596,21 +1589,21 @@ void startAP() {
     tft.setTextSize(TFT_TEXT_SIZE);
     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     tft.println("check for WPS...");
-                    
+
+                
     startWPS(); // WPS starten  
 
     delay(5000); // Warte auf WPS-Verbindung
     if (WiFi.status() == WL_CONNECTED) {
-        DEBUG_PRINTLN("[WPS] Verbunden mit dem Netzwerk!");
-        DEBUG_PRINTLN("[WPS] SSID: " + WiFi.SSID());
+        DEBUG_PRINTLN("Verbunden mit dem Netzwerk!");
+        DEBUG_PRINTLN("SSID: " + WiFi.SSID());
         // Serial.println("Passwort: " + WiFi.psk());
         // WPS deaktivieren, um Speicherplatz zu sparen
         esp_wifi_wps_disable();
 
         preferences.putString(ssidKey.c_str(), WiFi.SSID());
         preferences.putString(passKey.c_str(), WiFi.psk());
-
-        preferences.putInt("lastWLan", lastWlanNr);
+        preferences.putInt("lastWlan", wlanNr);
 
         DEBUG_PRINTLN("[WPS] Saved credentials: " + WiFi.SSID() + " in " + ssidKey.c_str());
 
@@ -1637,7 +1630,7 @@ void startAP() {
 
     // foundNetworks füllen
     foundNetworkCount = 0;
-    for (int i = 0; i < n && i < MAX_WLAN; i++) {
+    for (int i = 0; i < n && i < MAX_NETWORKS; i++) {
         foundNetworks[i].ssid = WiFi.SSID(i);
         foundNetworks[i].rssi = WiFi.RSSI(i);
         foundNetworks[i].enc = WiFi.encryptionType(i);
@@ -1733,7 +1726,7 @@ bool connectWiFi(int number, bool verbose_mode) {
 
         // mDNS initialisieren
         if (!MDNS.begin(hostname)) {
-            DEBUG_PRINTLN("[WIFI] Error starting mDNS");
+            DEBUG_PRINTLN("Error starting mDNS");
         }
         else {
             MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80
@@ -1752,19 +1745,20 @@ bool connectWiFi(int number, bool verbose_mode) {
 
         if (preferences.getInt("lastWLan", -1) != number) {
             preferences.putInt("lastWLan", number);        
-            DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number + 1);
+            DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number+1);
         }
-              
 
-      //  if (!WiFi.softAPgetStationNum()) updateClock();
-
+        delay(100);
+        if (!WiFi.softAPgetStationNum()) updateClock();
         return true;
     }
 
-    return false;    
+    return false;
+
+    
 }
 
-// Animation während WLAN-Verbindung
+// Animation w&auml;hrend WLAN-Verbindung
 void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
     tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
     tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
@@ -1800,12 +1794,10 @@ void showWlanCredentials(String wlan) {
     }
 }
 
-
-// Initialisiert die Zeitsynchronisierung über NTP und stellt die Zeitzone ein. 
-// Bei Fehlern werden bis zu 10 Versuche unternommen, um die Zeit zu erhalten. 
-// Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
+/// <summary>
+/// Initialisiert die Zeitsynchronisierung %uuml;ber NTP und stellt die Zeitzone ein. Bei Fehlern werden bis zu 10 Versuche unternommen, um die Zeit zu erhalten. Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
+/// </summary>
 boolean setupNTP() {
-
     if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) {
         DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
         return true;
@@ -1817,7 +1809,6 @@ boolean setupNTP() {
         configTzTime(timezone.c_str(), ntpServers[i]);
         struct tm timeinfo;
         if (getLocalTime(&timeinfo, 5000)) {
-
             DEBUG_PRINTLN("[NTP] Time synchronized successfully.");
             return true;
         }
@@ -1827,9 +1818,6 @@ boolean setupNTP() {
 }
 
 void checkNtpOffset() {
-
-    return;
-
     struct tm localTime;
     if (!getLocalTime(&localTime)) {
         DEBUG_PRINTLN("[NTP] Failed to get local time.");
@@ -1914,8 +1902,7 @@ String generateHtmlHeader() {
     html += "li { text-align: left; } "; // <li> linksb%uuml;ndig formatieren
     html += "</style></head><body>";
     // Seite benötigt JavaScript
-    html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" + 
-            translate("JavaScript is disabled.This page requires JavaScript to work properly!") + "</div></noscript>";
+    html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>JavaScript is disabled. This page requires JavaScript to work properly!</div></noscript>";
     return html;
 }
 
@@ -1944,8 +1931,8 @@ String generateLanguageSelector() {
     String html = "<form method='POST' action='/setLanguage'>";
     html += "<label for='lang'>Language/Sprache:</label>";
     html += "<select name='lang'>";
-    html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
-    html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
+    html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">English</option>";
+    html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch</option>";
     html += "</select>";
     html += "<button type='submit'>" + translate("save") + "</button>";
     html += "</form><hr>";
@@ -2061,7 +2048,7 @@ void setupWebServer() {
 
         eraseWiFiConfig();
 
-        // Sende eine Bestätigung zur%uuml;ck
+        // Sende eine Best&auml;tigung zur%uuml;ck
         webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
         DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
@@ -4270,7 +4257,7 @@ void checkWeeklyRestart() {
 
 
         if (currentWeek != lastResetWeek) {
-            DEBUG_PRINTF("→ Wöchentlicher Reboot in Woche %d\n", currentWeek);
+            DEBUG_PRINTF("→ W&ouml;chentlicher Reboot in Woche %d\n", currentWeek);
             preferences.putInt("last_reset_week", currentWeek);
             preferences.end();
             delay(1000);
@@ -4298,7 +4285,7 @@ void checkWiFiScan__() {
         else if (scanStatus >= 0) {
             // Scan abgeschlossen
             DEBUG_PRINTLN("[WiFi] Scan complete. Found networks: " + String(scanStatus));
-            for (int i = 0; i < scanStatus && i <= MAX_WLAN; i++) {
+            for (int i = 0; i < scanStatus && i <= MAX_NETWORKS; i++) {
                 foundNetworks[i].ssid = WiFi.SSID(i);
                 foundNetworks[i].rssi = WiFi.RSSI(i);
                 foundNetworks[i].enc = WiFi.encryptionType(i);
@@ -4319,7 +4306,6 @@ void checkWiFiScan__() {
 }
 // --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
 void scanAndCacheNetworks() {
-    
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
     tft.setTextSize(TFT_TEXT_SIZE);
@@ -4329,10 +4315,8 @@ void scanAndCacheNetworks() {
     DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks...");
     digitalWrite(LED_BOARD, HIGH);
     int n = WiFi.scanNetworks();
-    DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
-    if (n > MAX_WLAN)  n = MAX_WLAN;
     foundNetworkCount = 0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n && i < MAX_NETWORKS; i++) {
         foundNetworks[i].ssid = WiFi.SSID(i);
         foundNetworks[i].rssi = WiFi.RSSI(i);
         foundNetworks[i].enc = WiFi.encryptionType(i);
@@ -4641,7 +4625,6 @@ static void validateSelectedBackground() {
 
 // Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
 void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) {
-
     // Aktualisiere die globalen Breiten
     hourHandWidth = newHourWidth;
     minuteHandWidth = newMinuteWidth;
