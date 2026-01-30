@@ -20,7 +20,7 @@
 //#define ILI9341 
 
 
- #define DEBUG
+ // #define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
