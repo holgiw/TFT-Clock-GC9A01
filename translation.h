@@ -181,7 +181,8 @@ std::map<String, std::map<String, String>> translations = {
         {"Rename File", "Datei umbenennen"},
         { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"},
         { "Enable Logging" , "Logging aktivieren"},
-        { "Reconnect WiFi" , "Wifi neu verbinden" }
+        { "Reconnect WiFi" , "Wifi neu verbinden" },
+        { "JavaScript is disabled.This page requires JavaScript to work properly!" , "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!" }
 
         
 
