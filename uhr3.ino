@@ -20,7 +20,7 @@
 //#define ILI9341 
 
 
- // #define DEBUG
+#define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
@@ -40,8 +40,7 @@
 
 // time server & timezone default
 #define NTP_SERVER_1 "pool.ntp.org"
-#define NTP_SERVER_2 "time.nist.gov"
-#define NTP_SERVER_3 "time.google.com"
+#define NTP_SERVER_2 "ptbtime1.ptb.de"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Central European Time
 
 
@@ -171,12 +170,16 @@ TFT_eSprite hourHandSprite = TFT_eSprite(&tft);
 TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
 TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 
-#define MAX_WLAN 10
+#define MAX_WLAN 15
 String wifi_ssid[MAX_WLAN];
 String wifi_pass[MAX_WLAN];
 
+#define NOT_CONNECTED 0
+#define CONNECTED 1
+#define CONNECTED_NO_INTERNET 2
+
 unsigned long lastNTPRetry = 0;
-//const unsigned long retryIntervalNTPms = 12 * 60 * 60 * 1000; // 12h
+
 const unsigned long retryIntervalNTPms = 10 * 60 * 1000; // 10 Minuten
 
 String timezone = TIMEZONE_DEFAULT;
@@ -186,8 +189,7 @@ unsigned long lastCheck = 0;
 bool loggingEnabled = false;  
 String logFileName = "/log.log";
 
-char ntpServers[4][64] = { NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3, "fritz.box"};
-const int numServers = sizeof(ntpServers) / sizeof(ntpServers[0]);
+char ntpServers[MAX_WLAN][64];
 
 bool initial = true;
 
@@ -451,11 +453,14 @@ void setup() {
 
     wifiActive = preferences.getBool("wifiActive", true);   
 
-    strncpy(ntpServers[0], preferences.getString("ntpServer1", NTP_SERVER_1).c_str(), sizeof(ntpServers[0]) - 1);
+
+    strncpy(ntpServers[0], NTP_SERVER_1, sizeof(ntpServers[0]) - 1);
     ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
 
-    strncpy(ntpServers[1], preferences.getString("ntpServer2", NTP_SERVER_2).c_str(), sizeof(ntpServers[1]) - 1);
-    ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0'; // Null-terminieren
+    strncpy(ntpServers[1], NTP_SERVER_2, sizeof(ntpServers[0]) - 1);
+    ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
+
+
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
@@ -654,7 +659,7 @@ void setup() {
         }
 
 
-        if (!foundLastSSID or !connectWiFi(number, true)) {
+        if (!foundLastSSID or connectWiFi(number, true) != CONNECTED) {
            
             // Wenn Verbindung fehlschlägt, scannen und vergleichen
             DEBUG_PRINTLN("[WiFi] Connection failed. Scanning for available networks...");
@@ -663,17 +668,17 @@ void setup() {
             for (int i = 0; i < MAX_WLAN; i++) {
                 String availableSSID = foundNetworks[i].ssid;
                 if (availableSSID == "") continue;
-                DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
+              //  DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
                 for (int j = 0; j < MAX_WLAN; j++) {
 
                     if (j == number) continue; // überspringe bereits versuchte SSID
                     if (trim(wifi_ssid[j]) == "") continue; // überspringe leere SSID
 
-                    DEBUG_PRINTLN("vergleiche " + wifi_ssid[j] + " mit " + availableSSID);
+                   // DEBUG_PRINTLN("vergleiche " + wifi_ssid[j] + " mit " + availableSSID);
                                         
                     if (wifi_ssid[j] == availableSSID) {
                         DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
-                        if (connectWiFi(j, true)) {
+                        if (connectWiFi(j, true) == CONNECTED) {
                             DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials.");
                             preferences.putInt("lastWLan", j);
                             return;
@@ -1674,14 +1679,15 @@ void startAP() {
 }
 
 
+
 // connect wifi
-bool connectWiFi(int number, bool verbose_mode) {
+int connectWiFi(int number, bool verbose_mode) {
 #ifdef TFT_Backlight
     if (verbose_mode) {
         ledcWrite(TFT_Backlight, 255);
     }
 #endif
-    if (wifi_ssid[number] == "") return false;
+    if (wifi_ssid[number] == "") return NOT_CONNECTED;
 
              
     DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
@@ -1750,6 +1756,32 @@ bool connectWiFi(int number, bool verbose_mode) {
      //   pingHostname = Ping.ping(fullHostname.c_str(),3);
      //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
         
+        bool internetReachable = false;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String server = ntpServers[i];
+            if (server == "") continue;
+            DEBUG_PRINTLN("[PING] Pinging NTP server: " + server);
+
+            // Ping den Server und prüfe, ob er erreichbar ist
+            if (!Ping.ping(server.c_str(),1)) {
+                if (!Ping.ping(server.c_str(),5)) {
+                    DEBUG_PRINTLN("[PING] Server " + server + " is unreachable.");
+                }                
+            } 
+            else {
+                internetReachable = true;
+                break; // Beende die Schleife, wenn ein Server erreichbar ist
+            }
+        }
+
+        DEBUG_PRINTLN("[PING] Internet reachable: " + String(internetReachable ? "yes" : "no"));
+
+        if (!internetReachable) {
+            // Setze eine Statusvariable oder führe eine Aktion aus, wenn das Internet nicht erreichbar ist
+            DEBUG_PRINTLN("[WiFi] Internet not reachable after connection.");
+            return CONNECTED_NO_INTERNET;
+        }
+
         if (verbose_mode) {
             showWlanCredentials(wifi_ssid[number]);           
         }
@@ -1762,10 +1794,10 @@ bool connectWiFi(int number, bool verbose_mode) {
 
       //  if (!WiFi.softAPgetStationNum()) updateClock();
 
-        return true;
+        return CONNECTED;
     }
 
-    return false;    
+    return NOT_CONNECTED;
 }
 
 // Animation während WLAN-Verbindung
@@ -1787,8 +1819,8 @@ void showWlanCredentials(String wlan) {
     tft.println(String(version));
 
     tft.setTextSize(TFT_TEXT_SIZE);
-    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-    tft.println("Connected to SSID");
+    tft.setCursor(14, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+    tft.println("Connected to SSID" + String(preferences.getInt("lastWLan", -1) + 1));
     tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
     if (wlan.length() > 15) {
         tft.print(wlan.substring(0, 15));
@@ -1805,8 +1837,7 @@ void showWlanCredentials(String wlan) {
 }
 
 
-// Initialisiert die Zeitsynchronisierung über NTP und stellt die Zeitzone ein. 
-// Bei Fehlern werden bis zu 10 Versuche unternommen, um die Zeit zu erhalten. 
+// Initialisiert die Zeitsynchronisierung über NTP und stellt die Zeitzone ein.
 // Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
 boolean setupNTP() {
 
@@ -1815,8 +1846,8 @@ boolean setupNTP() {
         return true;
     }
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
-    for (int i = 0; i < numServers; i++) {
-       
+    for (int i = 0; i < MAX_WLAN; i++) {
+        if (ntpServers[i] == "") continue;
         DEBUG_PRINTLN("[NTP] Trying server: " + String(ntpServers[i]));
         configTzTime(timezone.c_str(), ntpServers[i]);
         struct tm timeinfo;
@@ -2107,15 +2138,15 @@ void setupWebServer() {
             timezone = tz;
             setupNTP();
         }
-        if (webserver.hasArg("ntpServer1")) {
-            strncpy(ntpServers[0], webserver.arg("ntpServer1").c_str(), sizeof(ntpServers[0]) - 1);
-            ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
-            preferences.putString("ntpServer1", ntpServers[0]);
-        }
-        if (webserver.hasArg("ntpServer2")) {
-            strncpy(ntpServers[1], webserver.arg("ntpServer2").c_str(), sizeof(ntpServers[1]) - 1);
-            ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0'; // Null-terminieren
-            preferences.putString("ntpServer1", ntpServers[1]);
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String argName = "ntpServer" + String(i + 1);
+            if (webserver.hasArg(argName)) {
+                strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
+                ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
+                preferences.putString(argName.c_str(), ntpServers[i]);
+                DEBUG_PRINTLN("[API] Received " + argName + ": " + String(ntpServers[i]));  
+            }
         }
 
 
@@ -2347,18 +2378,35 @@ void setupWebServer() {
 
     // NTP Server und Zeitzone setzen
     webserver.on("/set_timezone", HTTP_POST, []() {
-        if (webserver.hasArg("ntpServer1")) {
-            strncpy(ntpServers[0], webserver.arg("ntpServer1").c_str(), sizeof(ntpServers[0]) - 1);
-            ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Ensure null-termination
-            preferences.putString("ntpServer1", ntpServers[0]);
-            DEBUG_PRINTLN("[NTP] NTP Server1 set to: " + String(ntpServers[0]));
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String argName = "ntpServer" + String(i + 1);
+            if (webserver.hasArg(argName)) {
+                strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
+                ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Ensure null-termination
+                preferences.putString(argName.c_str(), ntpServers[i]);
+                DEBUG_PRINTLN("[NTP] " + argName + " set to: " + String(ntpServers[i]));
+            }
         }
-        if (webserver.hasArg("ntpServer2")) {
-            strncpy(ntpServers[1], webserver.arg("ntpServer2").c_str(), sizeof(ntpServers[1]) - 1);
-            ntpServers[0][sizeof(ntpServers[1]) - 1] = '\0'; // Ensure null-termination
-            preferences.putString("ntpServer2", ntpServers[1]);
-            DEBUG_PRINTLN("[NTP] NTP Server2 set to: " + String(ntpServers[1]));
+
+        int writeIndex = 0; // Index, an den die nächste gültige NTP-Server-Adresse geschrieben wird
+
+        for (int readIndex = 0; readIndex < MAX_WLAN; readIndex++) {
+            if (strlen(ntpServers[readIndex]) > 0) { // Nur nicht-leere Einträge berücksichtigen
+                if (writeIndex != readIndex) {
+                    strncpy(ntpServers[writeIndex], ntpServers[readIndex], sizeof(ntpServers[writeIndex]) - 1);
+                    ntpServers[writeIndex][sizeof(ntpServers[writeIndex]) - 1] = '\0'; // Null-terminieren
+                    memset(ntpServers[readIndex], 0, sizeof(ntpServers[readIndex])); // Ursprünglichen Eintrag löschen
+                }
+                writeIndex++;
+            }
         }
+
+        // Leere Einträge am Ende sicherstellen
+        for (int i = writeIndex; i < MAX_WLAN; i++) {
+            memset(ntpServers[i], 0, sizeof(ntpServers[i]));
+        }
+
 
 
 
@@ -2368,15 +2416,17 @@ void setupWebServer() {
             setupNTP();
         }
 
+
         webserver.send(200, "text/html",
             "<!DOCTYPE html><html><head>"
-            "<meta http-equiv='refresh' content='0; url=/' />"
+            "<meta http-equiv='refresh' content='0; url=/timezone_form' />"
             "<title>NTP / Timezone Updated</title></head>"
             "<body><h2>NTP / Timezone updated</h2>"
-            "</body></html>");
-
-        setupNTP();
-        });
+            "</body></html>");            
+        }
+        
+        
+        );
 
 
     // NTP Server und Zeitzone Formular
@@ -2424,8 +2474,16 @@ void setupWebServer() {
         html += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
         html += "<form method='POST' action='/set_timezone'>";
 
-        html += "NTP Server1: <input type='text' name='ntpServer1' value='" + String(ntpServers[0]) + "'><br>";
-        html += "NTP Server2: <input type='text' name='ntpServer2' value='" + String(ntpServers[1]) + "'><br><br>";
+        for (int i = 0; i < MAX_WLAN; i++) {
+                html += "NTP Server" + String(i + 1) + " : <input type = 'text' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "'><br>";
+                if (trim(ntpServers[i]) == "") {
+                    break;
+            }
+        }
+
+
+        //html += "NTP Server1: <input type='text' name='ntpServer1' value='" + String(ntpServers[0]) + "'><br>";
+        //html += "NTP Server2: <input type='text' name='ntpServer2' value='" + String(ntpServers[1]) + "'><br><br>";
 
         // Kombiniertes Select + Input
         html += translate("Timezone") + ": <br><select id = 'tz_select' style = 'width: 400px;' onchange = \"document.getElementById('tz_input').value=this.value\">";
@@ -2996,8 +3054,14 @@ void setupWebServer() {
     
         }
 
-        html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
-        html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (preferences.getString(("ntpServer" + String(i + 1)).c_str(), "") != "") {
+                html += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString(("ntpServer" + String(i + 1)).c_str(), "") + "</li>";
+            }
+        }
+
+       // html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
+       // html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";
         html += "<li><b>timezone</b>: " + preferences.getString("timezone", TIMEZONE_DEFAULT) + "</li>";
         html += "<li><b>background</b>: " + preferences.getString("background", "/faces/default") + "</li>";
         html += "<li><b>handset</b>: " + preferences.getString("handset", "") + "</li>";
@@ -4333,8 +4397,12 @@ void scanAndCacheNetworks() {
     DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks...");
     digitalWrite(LED_BOARD, HIGH);
     int n = WiFi.scanNetworks();
-    DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
-    if (n > MAX_WLAN)  n = MAX_WLAN;
+    DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");    
+    if (n > MAX_WLAN) {
+        DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
+        n = MAX_WLAN;
+    }
+
     foundNetworkCount = 0;
     for (int i = 0; i < n; i++) {
         foundNetworks[i].ssid = WiFi.SSID(i);
