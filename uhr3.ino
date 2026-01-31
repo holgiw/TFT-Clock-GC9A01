@@ -33,9 +33,14 @@
     logToFile(String(buffer)); \
 }
 #else
-#define DEBUG_PRINT(x)
-#define DEBUG_PRINTLN(x)
-#define DEBUG_PRINTF(...)
+#define DEBUG_PRINT(x) { logToFile(String(x)); }
+#define DEBUG_PRINTLN(x) { logToFile(String(x)); }
+#define DEBUG_PRINTF(...) { \
+    char buffer[256]; /* Puffer für die formatierte Nachricht */ \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    Serial.print(buffer); \
+    logToFile(String(buffer)); \
+}
 #endif
 
 // time server & timezone default
@@ -311,6 +316,8 @@ void setup() {
 
     Serial.begin(115200);
 
+   //  startWiFiScan();
+
     unsigned long serialStart = millis();
     while (!Serial && (millis() - serialStart < 1000)) {
         delay(10);
@@ -454,18 +461,13 @@ void setup() {
     wifiActive = preferences.getBool("wifiActive", true);   
 
 
-    strncpy(ntpServers[0], NTP_SERVER_1, sizeof(ntpServers[0]) - 1);
-    ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
-
-    strncpy(ntpServers[1], NTP_SERVER_2, sizeof(ntpServers[0]) - 1);
-    ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0'; // Null-terminieren
-
-
+    // NTP-Server initialisieren
+    initializeNtpServers();
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
-    DEBUG_PRINTLN("[NTP] NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
-    DEBUG_PRINTLN("timezone is: " + timezone);
+   // DEBUG_PRINTLN("[NTP] NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
+    DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
 
     stationMode = preferences.getBool("stationMode", true);
     smoothMinute = preferences.getBool("smoothMinute", false);
@@ -516,13 +518,13 @@ void setup() {
     delay(100);
     adc_max = analogRead(ADC_PIN);
 
-    DEBUG_PRINTF("ADC min: %d max: %d", adc_min, adc_max);
+    DEBUG_PRINTF("[ADC] min: %d max: %d", adc_min, adc_max);
     Serial.println();
 
     if (adc_min < 1000 && adc_max > 2000) {
-        DEBUG_PRINTF("ADC act: %d", analogRead(ADC_PIN));
+        DEBUG_PRINTF("[ADC] act: %d", analogRead(ADC_PIN));
         Serial.println();
-        DEBUG_PRINTLN("found photoresistor");
+        DEBUG_PRINTLN("[ADC] Found photoresistor");
         digitalWrite(ADC_GND, 0);
         digitalWrite(ADC_3V, 1);
         use_adc = true;
@@ -625,6 +627,13 @@ void setup() {
 
     scanAndCacheNetworks();
 
+    /*
+    while (isScanning) {
+        checkWiFiScan();
+        delay(100);
+    }
+    DEBUG_PRINTLN("[WiFi] Scan complete");
+    */
    
     if (digitalRead(BUTTON1) == HIGH) {
         for (int i = 0; i < MAX_WLAN; i++) {
@@ -710,8 +719,34 @@ void setup() {
 
     //startWiFiScan(); // Starte den Scan, falls nicht bereits aktiv
 
+
 }
 
+// Initialisiere die NTP-Server
+void initializeNtpServers() {
+    for (int i = 0; i < MAX_WLAN; i++) {
+        String ntpServerKey = "ntpServer" + String(i + 1);
+        String ntpServerValue = preferences.getString(ntpServerKey.c_str(), "");
+        if (ntpServerValue.isEmpty()) {
+            // Standardwerte setzen, falls keine gespeicherten Werte vorhanden sind
+            if (i == 0) {
+                strncpy(ntpServers[i], NTP_SERVER_1, sizeof(ntpServers[i]) - 1);
+            }
+            else if (i == 1) {
+                strncpy(ntpServers[i], NTP_SERVER_2, sizeof(ntpServers[i]) - 1);
+            }
+            else {
+                ntpServers[i][0] = '\0'; // Leerer Eintrag
+            }
+        }
+        else {
+            // Gespeicherte Werte laden
+            strncpy(ntpServers[i], ntpServerValue.c_str(), sizeof(ntpServers[i]) - 1);
+            DEBUG_PRINTLN("[NTP] Loaded NTP server " + String(i + 1) + ": " + String(ntpServers[i]));
+        }
+        ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
+    }
+}
 
 void enableTouch() {
     touchEnabled = true;
@@ -1540,16 +1575,16 @@ void checkNightlyTimeSync() {
 // überpüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
 void checkWiFiReconnect() {
     static unsigned long lastAttempt = 0;
-    if (WiFi.status() == WL_CONNECTED) return;
-
+    
     unsigned long now = millis();
-    if (now - lastAttempt < 300000) return;
+    if (now - lastAttempt < 10 * 60 * 1000) return;
     lastAttempt = now;
+
+    if (WiFi.status() == WL_CONNECTED && isInternetReachable()) return;
 
     DEBUG_PRINTLN("[WiFi] Disconnected. Attempting reconnect...");
     WiFi.disconnect();
-    connectWiFi(preferences.getInt("lastWlan",0), false);
-    
+    connectWiFi(preferences.getInt("lastWlan",0), false);    
 }
 
 
@@ -1690,7 +1725,7 @@ int connectWiFi(int number, bool verbose_mode) {
     if (wifi_ssid[number] == "") return NOT_CONNECTED;
 
              
-    DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
+    // DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
 
     if (verbose_mode) {
         clearTFT();
@@ -1710,6 +1745,8 @@ int connectWiFi(int number, bool verbose_mode) {
             tft.println("...");
         } else tft.println(wifi_ssid[number]);
     }
+
+    DEBUG_PRINTLN("[WiFi] Connect to: " + wifi_ssid[number]);
 
     WiFi.disconnect();
     WiFi.mode(WIFI_MODE_NULL);
@@ -1752,31 +1789,13 @@ int connectWiFi(int number, bool verbose_mode) {
         DEBUG_PRINTLN("[WiFi] Connected to: " + wifi_ssid[number]);
         DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
         String fullHostname = String(hostname) + ".local";
-        pingHostname = true;
-     //   pingHostname = Ping.ping(fullHostname.c_str(),3);
-     //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
-        
-        bool internetReachable = false;
-        for (int i = 0; i < MAX_WLAN; i++) {
-            String server = ntpServers[i];
-            if (server == "") continue;
-            DEBUG_PRINTLN("[PING] Pinging NTP server: " + server);
+        //   pingHostname = true;
+        //   pingHostname = Ping.ping(fullHostname.c_str(),3);
+        //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
 
-            // Ping den Server und prüfe, ob er erreichbar ist
-            if (!Ping.ping(server.c_str(),1)) {
-                if (!Ping.ping(server.c_str(),5)) {
-                    DEBUG_PRINTLN("[PING] Server " + server + " is unreachable.");
-                }                
-            } 
-            else {
-                internetReachable = true;
-                break; // Beende die Schleife, wenn ein Server erreichbar ist
-            }
-        }
 
-        DEBUG_PRINTLN("[PING] Internet reachable: " + String(internetReachable ? "yes" : "no"));
 
-        if (!internetReachable) {
+        if (!isInternetReachable()) {
             // Setze eine Statusvariable oder führe eine Aktion aus, wenn das Internet nicht erreichbar ist
             DEBUG_PRINTLN("[WiFi] Internet not reachable after connection.");
             return CONNECTED_NO_INTERNET;
@@ -1800,6 +1819,27 @@ int connectWiFi(int number, bool verbose_mode) {
     return NOT_CONNECTED;
 }
 
+bool isInternetReachable() {
+    
+    for (int i = 0; i < MAX_WLAN; i++) {
+        String server = ntpServers[i];
+        if (server == "") continue;
+        DEBUG_PRINTLN("[PING] Pinging NTP server: " + server);
+
+        // Ping den Server und prüfe, ob er erreichbar ist
+        if (!Ping.ping(server.c_str(), 1)) {
+            if (!Ping.ping(server.c_str(), 5)) {
+                DEBUG_PRINTLN("[PING] Server " + server + " is unreachable.");
+            }
+        }
+        else {
+            DEBUG_PRINTLN("[PING] Server " + server + " is reachable.");
+            return true; // Beende die Schleife, wenn ein Server erreichbar ist
+        }
+    }
+
+    return false;
+}
 // Animation während WLAN-Verbindung
 void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
     tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
@@ -3608,7 +3648,7 @@ void setupWebServer() {
                 File file = LittleFS.open(path, "r");
 
                 // Prüfe den Dateityp basierend auf der Dateiendung
-                if (path.endsWith(".log")) {
+                if (path.endsWith(".log") || path.endsWith(".txt")) {
                     webserver.streamFile(file, "text/plain"); // Logdateien als Text senden
                 }
                 else if (path.endsWith(".bmp")) {
@@ -4348,25 +4388,41 @@ void checkWeeklyRestart() {
 }
 
 
-void startWiFiScan__() {
+void startWiFiScan() {
     if (!isScanning) {
+        isScanning = true;
+        // Setze den WiFi-Modus auf Station
+        WiFi.mode(WIFI_STA);
+
+        // Starte das WiFi-Subsystem (ohne Verbindung zu einem Netzwerk)
+        WiFi.begin();
+
+        // Warte kurz, um sicherzustellen, dass das WiFi-Subsystem initialisiert ist
+        delay(250);
         DEBUG_PRINTLN("[WiFi] Starting asynchronous scan...");
         WiFi.scanNetworks(true); // Asynchroner Scan
-        isScanning = true;
+        delay(1000);
     }
 }
 
-void checkWiFiScan__() {
+void checkWiFiScan() {
     if (isScanning) {
         int scanStatus = WiFi.scanComplete();
         if (scanStatus == WIFI_SCAN_RUNNING) {
             // Scan läuft noch
-            // DEBUG_PRINTLN("[WiFi] Scan in progress...");
+            DEBUG_PRINTLN("[WiFi] Scan in progress...");
         }
         else if (scanStatus >= 0) {
             // Scan abgeschlossen
-            DEBUG_PRINTLN("[WiFi] Scan complete. Found networks: " + String(scanStatus));
-            for (int i = 0; i < scanStatus && i <= MAX_WLAN; i++) {
+
+            int n = scanStatus; 
+            DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
+            if (n > MAX_WLAN) {
+                DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
+                n = MAX_WLAN;
+            }
+           
+            for (int i = 0; i < n; i++) {
                 foundNetworks[i].ssid = WiFi.SSID(i);
                 foundNetworks[i].rssi = WiFi.RSSI(i);
                 foundNetworks[i].enc = WiFi.encryptionType(i);
@@ -4382,6 +4438,7 @@ void checkWiFiScan__() {
             // Fehler beim Scan
             DEBUG_PRINTLN("[WiFi] Scan failed with error: " + String(scanStatus));
             isScanning = false;
+            scanAndCacheNetworks();
         }
     }
 }
@@ -4818,14 +4875,14 @@ void setLogFileName() {
     }
 
     char formattedLogFileName[20];
-    sprintf(formattedLogFileName, "/log_%04d.log", logFileNumber);
+    sprintf(formattedLogFileName, "/log_%02d.log", logFileNumber);
     logFileName = String(formattedLogFileName);
 
 
     // Überprüfen, ob Anzahl Logfiles > 9 ist
     if (logFileNumber > 9) {
         char oldLogFileName[20];
-        sprintf(oldLogFileName, "/log_%04d.log", logFileNumber - 9);
+        sprintf(oldLogFileName, "/log_%02d.log", logFileNumber - 9);
         if (LittleFS.exists(oldLogFileName)) {
             LittleFS.remove(oldLogFileName);
             Serial.println("[LOG] Alte Logdatei gelöscht: " + String(oldLogFileName));
@@ -4884,11 +4941,16 @@ void logToFile(const String& message) {
     String timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
     configTzTime(timezone.c_str(), ntpServers[0]); // Zeitzone anwenden
 
+    // Berechne die Millisekunden relativ zur aktuellen Sekunde
+    unsigned long currentMillis = millis();
+    unsigned long millisInSecond = currentMillis % 1000;
+
     if (getLocalTime(&timeinfo, 1)) {
-        strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S] ", &timeinfo);
+        strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S", &timeinfo);
+        snprintf(timestamp + strlen(timestamp), sizeof(timestamp) - strlen(timestamp), ".%03lu] ", millisInSecond);
     }
     else {
-        snprintf(timestamp, sizeof(timestamp), "[%lu ms] ", millis());
+        snprintf(timestamp, sizeof(timestamp), "[%lu ms] ", currentMillis);
     }
 
     // Schreibe Zeitstempel und Nachricht in die Datei
