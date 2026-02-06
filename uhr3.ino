@@ -12,6 +12,8 @@
 
 // Prozessor
 #define ESP32_S2  //only ESP32-S2 supported
+//#define ESP32_C3 
+
 
 // select TFT
 #define GC9A01
@@ -47,6 +49,8 @@
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "ptbtime1.ptb.de"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Central European Time
+
+#define DEFAULT_PING_SERVER "8.8.8.8"
 
 
 #include <WiFi.h>
@@ -185,7 +189,7 @@ String wifi_pass[MAX_WLAN];
 
 unsigned long lastNTPRetry = 0;
 
-const unsigned long retryIntervalNTPms = 10 * 60 * 1000; // 10 Minuten
+const unsigned long retryIntervalNTPms = 60 * 60 * 1000; // 60 Minuten
 
 String timezone = TIMEZONE_DEFAULT;
 
@@ -232,8 +236,7 @@ uint16_t rowBuffer[CLOCK_WIDTH];
 static bool psramAvailable = false;
 
 bool adcInverted = false; // Standardmäßig nicht invertiert
-uint16_t adc_min = 0;
-uint16_t adc_max = 0;   
+
 bool use_adc = false; 
 bool photoresistorFound = false;
 
@@ -316,19 +319,22 @@ void setup() {
 
     Serial.begin(115200);
 
-   //  startWiFiScan();
+    //  startWiFiScan();
 
+#if defined DEBUG
     unsigned long serialStart = millis();
     while (!Serial && (millis() - serialStart < 1000)) {
         delay(10);
     }
     // delay(1500); // Warten, bis die serielle Verbindung hergestellt ist
+#endif  
 
     if (!LittleFS.begin(true)) {
         Serial.println("[LittleFS] Mount Failed");
     }
 
-    // delay(1000);
+    DEBUG_PRINTLN("[SETUP] Initializing...");
+
 
     preferences.begin("clock", false);
 
@@ -393,8 +399,7 @@ void setup() {
             preferences.putString(pass_key.c_str(), "");
         }
         
-
-
+        preferences.putString("pingServer", DEFAULT_PING_SERVER);
 
         preferences.putInt("lastWLan", 0);
 
@@ -502,37 +507,43 @@ void setup() {
 
     // auf Fotowiderstand prüfen
 #ifdef ADC_3V
+
+    uint16_t adc_min = 0;
+    uint16_t adc_max = 0;
+    uint16_t adc_act = 0;
+
     analogReadResolution(12);
 
     // ADC +3,3 / GND über GPIO
     pinMode(ADC_GND, OUTPUT);
     pinMode(ADC_3V, OUTPUT);
 
-    digitalWrite(ADC_GND, false);
-    digitalWrite(ADC_3V, false);
-    delay(100);
+    digitalWrite(ADC_GND, LOW);
+    digitalWrite(ADC_3V, LOW);
+    delay(10);
     adc_min = analogRead(ADC_PIN);
 
-    digitalWrite(ADC_GND, true);
-    digitalWrite(ADC_3V, true);
-    delay(100);
+    digitalWrite(ADC_GND, HIGH);
+    digitalWrite(ADC_3V, HIGH);
+    delay(10);
     adc_max = analogRead(ADC_PIN);
 
-    DEBUG_PRINTF("[ADC] min: %d max: %d", adc_min, adc_max);
-    Serial.println();
+    digitalWrite(ADC_GND, LOW);
+    digitalWrite(ADC_3V, HIGH);
+    delay(10);
+    adc_act = analogRead(ADC_PIN);
 
-    if (adc_min < 1000 && adc_max > 2000) {
-        DEBUG_PRINTF("[ADC] act: %d", analogRead(ADC_PIN));
-        Serial.println();
-        DEBUG_PRINTLN("[ADC] Found photoresistor");
-        digitalWrite(ADC_GND, 0);
-        digitalWrite(ADC_3V, 1);
+    DEBUG_PRINTF("[ADC] min: %d max: %d act: %d", adc_min, adc_max, adc_act);
+    Serial.println("");
+
+    if (abs(adc_min - adc_max) > 1000) {        
+        DEBUG_PRINTLN("[ADC] Found photoresistor");        
         use_adc = true;
         photoresistorFound = true;
         // evtl überschreiben
         use_adc = preferences.getBool("use_adc", true);
     }
-    else {
+    if (!use_adc) {
         pinMode(ADC_GND, INPUT);
         pinMode(ADC_3V, INPUT);
         use_adc = false;
@@ -545,15 +556,12 @@ void setup() {
     minBrightness = preferences.getUChar("minBrightness", 100);
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
-    //  smoothMinute = preferences.getBool("smoothMinute", false);
-    //  DEBUG_PRINTLN("[SETUP] smoothMinute: " + String(smoothMinute));    
-
     pinMode(LED_BOARD, OUTPUT); digitalWrite(LED_BOARD, HIGH);
 
     Serial.println("debug is:" + String(loggingEnabled ? "enabled" : "disabled"));
 
     tft.init();
-    delay(50);
+    delay(75);
 
     tft.fillScreen(TFT_BLACK);
 
@@ -567,7 +575,6 @@ void setup() {
     }
 
     selectedBackground = preferences.getString("background", "/face_default.bmp");
-
 
     validateSelectedBackground();
 
@@ -613,20 +620,24 @@ void setup() {
     loadHandSprites();
 
 
-    // Schleife mit sizeof, um die Anzahl der Elemente im Array zu berechnen
+    // WLAN-Zugangsdaten laden
     for (int i = 0; i < MAX_WLAN; i++) {
-
         // Dynamisch berechnete Schlüssel
         String ssidKey = "ssid" + String(i + 1);
         String passKey = "pass" + String(i + 1);
 
         // Werte speichern
-        wifi_ssid[i] = preferences.getString(ssidKey.c_str(), "");
-        wifi_pass[i] = preferences.getString(passKey.c_str(), "");
+        if (digitalRead(BUTTON1) == HIGH) {
+            wifi_ssid[i] = "";
+            wifi_pass[i] = "";
+        }
+        else {
+            wifi_ssid[i] = preferences.getString(ssidKey.c_str(), "");
+            wifi_pass[i] = preferences.getString(passKey.c_str(), "");
+        }
     }
 
-    scanAndCacheNetworks();
-
+   
     /*
     while (isScanning) {
         checkWiFiScan();
@@ -635,75 +646,62 @@ void setup() {
     DEBUG_PRINTLN("[WiFi] Scan complete");
     */
    
-    if (digitalRead(BUTTON1) == HIGH) {
-        for (int i = 0; i < MAX_WLAN; i++) {
-            // Dynamisch berechnete Schlüssel
-            String ssidKey = "ssid" + String(i + 1);
-            String passKey = "pass" + String(i + 1);
-            wifi_ssid[i] = "";
-            wifi_pass[i] = "";
-        }
+    // AP starten, wenn Taste gedrückt oder keine SSID gespeichert
+    if (digitalRead(BUTTON1) == HIGH || wifi_ssid[0].length() == 0) {
         startAP();
     }
-    // wenn noch keine SSID1 gespeichert → sofort AP starten (erleichtert Erstkonfiguration)
-    else if (wifi_ssid[0].length() == 0) {
-        DEBUG_PRINTLN("[WiFi] No stored credentials — starting AP for configuration");
-        startAP();
-    }
-    else {
-
-        DEBUG_PRINTLN("[TFT] Selected background: " + selectedBackground);
-
-        uint32_t number = preferences.getInt("lastWLan", 0);
-        DEBUG_PRINTLN("[WiFi] Last successful WLAN number: " + String(number + 1) + " " + wifi_ssid[number]);
+    
+    // WLAN-Netzwerke scannen und cachen
+    scanAndCacheNetworks();
+   
+    
+    uint32_t number = preferences.getInt("lastWLan", 0);
+    DEBUG_PRINTLN("[WiFi] Last successful WLAN number: " + String(number + 1) + " " + wifi_ssid[number]);
 
         
-        bool foundLastSSID = false;
-        for (int i = 0; i < MAX_WLAN; i++) {
-            if (wifi_ssid[number] == foundNetworks[i].ssid) {
-                DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + foundNetworks[i].ssid);
-                foundLastSSID = true;
-                break;
-            }
+    bool foundLastSSID = false;
+    for (int i = 0; i < MAX_WLAN; i++) {
+        if (wifi_ssid[number] == foundNetworks[i].ssid) {
+            DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + foundNetworks[i].ssid);
+            foundLastSSID = true;
+            break;
         }
-
-
-        if (!foundLastSSID or connectWiFi(number, true) != CONNECTED) {
-           
-            // Wenn Verbindung fehlschlägt, scannen und vergleichen
-            DEBUG_PRINTLN("[WiFi] Connection failed. Scanning for available networks...");
-
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-                String availableSSID = foundNetworks[i].ssid;
-                if (availableSSID == "") continue;
-              //  DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
-                for (int j = 0; j < MAX_WLAN; j++) {
-
-                    if (j == number) continue; // überspringe bereits versuchte SSID
-                    if (trim(wifi_ssid[j]) == "") continue; // überspringe leere SSID
-
-                   // DEBUG_PRINTLN("vergleiche " + wifi_ssid[j] + " mit " + availableSSID);
-                                        
-                    if (wifi_ssid[j] == availableSSID) {
-                        DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
-                        if (connectWiFi(j, true) == CONNECTED) {
-                            DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials.");
-                            preferences.putInt("lastWLan", j);
-                            return;
-                        }
-                    }
-
-                }                
-            }
-            DEBUG_PRINTLN("[WiFi] No matching networks found.");
-            startAP();
-        }          
-
     }
 
 
-    //if (WiFi.getMode() != WIFI_STA) startAP();
+    if (!foundLastSSID or connectWiFi(number, true) != CONNECTED) {
+
+        // Wenn Verbindung fehlschlägt, scannen und vergleichen
+        DEBUG_PRINTLN("[WiFi] Connection failed. Scanning for available networks...");
+
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String availableSSID = foundNetworks[i].ssid;
+            if (availableSSID == "") continue;
+            //  DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
+            for (int j = 0; j < MAX_WLAN; j++) {
+
+                if (j == number) continue; // überspringe bereits versuchte SSID
+                if (trim(wifi_ssid[j]) == "") continue; // überspringe leere SSID
+
+                // DEBUG_PRINTLN("vergleiche " + wifi_ssid[j] + " mit " + availableSSID);
+
+                if (wifi_ssid[j] == availableSSID) {
+                    DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
+                    if (connectWiFi(j, true) == CONNECTED) {
+                        DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials.");
+                        preferences.putInt("lastWLan", j);
+                        return;
+                    }
+                }
+
+            }
+        }
+        DEBUG_PRINTLN("[WiFi] No matching networks found.");
+        startAP();
+    }
+
+
     setupNTP();
     setupWebServer();
     webserver.begin();
@@ -916,19 +914,15 @@ void loop() {
 
     // restart im AP Mode nach 30 Minuten
     if (softAPIP == true) {
-        if (millis() - softAPIPstart > (30 * 60000)) {
-          //  ESP.restart();
+        if (millis() - softAPIPstart > (30 * 60 * 1000)) {
+            ESP.restart();
         }
     }
 
 }
 
-/// <summary>
-/// Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
-/// </summary>
-/// <param name="pixel">Der 16-Bit-Farbwert des Pixels, der angepasst werden soll.</param>
-/// <returns>Der angepasste 16-Bit-Farbwert des Pixels, basierend auf der aktuellen Helligkeit. Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, wird der urspr%uuml;ngliche Wert zur%uuml;ckgegeben.</returns>
- 
+
+// Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
 uint16_t setPixelBrightness(uint16_t pixel) {
 
 #ifdef TFT_Backlight
@@ -960,9 +954,8 @@ uint16_t setPixelBrightness(uint16_t pixel) {
 
 
 
-/// <summary>
-/// Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.           
-/// </summary>  
+// Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.
+
 void loadClockFace() {
     // Prüfen, ob Buffer schon existiert
     if (!clockFaceBuffer) {
@@ -1315,7 +1308,7 @@ void updateClock() {
             float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
             float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
 
-            // Sicherstellen, dass der Zeiger immer vorw&auml;rts l&auml;uft
+            // Sicherstellen, dass der Zeiger immer vorwärts läuft
             if (angleDiff < -180.0f) angleDiff += 360.0f;
             if (angleDiff > 180.0f) angleDiff -= 360.0f;
 
@@ -1354,9 +1347,7 @@ void updateClock() {
     hourAngle = lastHourAngle;
 
 
-    loadClockFace();
-
-   
+    loadClockFace();   
 
     hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
     minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
@@ -1368,8 +1359,6 @@ void updateClock() {
     // Nabe (hub)
     if (hub_size > 0 && hub_color > 0) {
         backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
-        // DEBUG_PRINTLN("[HUB] Drawn hub with size " + String(hub_size));
-        // DEBUG_PRINTLN("[HUB] Color: " + String(hub_color, HEX));
     }
 
     backgroundSprite.pushSprite(0, 0);
@@ -1485,7 +1474,7 @@ int getAdjustedAdcValue(int rawValue) {
     return rawValue; // Standardwert
 }
 
-/// Easing-Funktion f%uuml;r sanfte Animationen
+/// Easing-Funktion für sanfte Animationen
 float easeInOutSine(float t) {
     // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
     float intensity = 0.5f;
@@ -1572,12 +1561,12 @@ void checkNightlyTimeSync() {
 }
 
 
-// überpüft die WiFi-Verbindung und versucht, sie alle 5 Minuten wiederherzustellen, wenn sie getrennt ist.
+// überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
 void checkWiFiReconnect() {
     static unsigned long lastAttempt = 0;
     
     unsigned long now = millis();
-    if (now - lastAttempt < 10 * 60 * 1000) return;
+    if (now - lastAttempt < 30 * 60 * 1000) return;
     lastAttempt = now;
 
     if (WiFi.status() == WL_CONNECTED && isInternetReachable()) return;
@@ -1789,7 +1778,7 @@ int connectWiFi(int number, bool verbose_mode) {
         DEBUG_PRINTLN("[WiFi] Connected to: " + wifi_ssid[number]);
         DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
         String fullHostname = String(hostname) + ".local";
-        //   pingHostname = true;
+        pingHostname = true;
         //   pingHostname = Ping.ping(fullHostname.c_str(),3);
         //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
 
@@ -1807,7 +1796,7 @@ int connectWiFi(int number, bool verbose_mode) {
 
         if (preferences.getInt("lastWLan", -1) != number) {
             preferences.putInt("lastWLan", number);        
-            DEBUG_PRINTLN("[WiFi] set lastWLan: " + (String)number + 1);
+            DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)number + 1);
         }
               
 
@@ -1820,26 +1809,27 @@ int connectWiFi(int number, bool verbose_mode) {
 }
 
 bool isInternetReachable() {
-    
-    for (int i = 0; i < MAX_WLAN; i++) {
-        String server = ntpServers[i];
-        if (server == "") continue;
-        DEBUG_PRINTLN("[PING] Pinging NTP server: " + server);
+ 
+    String pingServer = preferences.getString("pingServer", DEFAULT_PING_SERVER);
+         
+    // DEBUG_PRINTLN("[PING] Pinging server: " + pingServer);
 
-        // Ping den Server und prüfe, ob er erreichbar ist
-        if (!Ping.ping(server.c_str(), 1)) {
-            if (!Ping.ping(server.c_str(), 5)) {
-                DEBUG_PRINTLN("[PING] Server " + server + " is unreachable.");
-            }
-        }
-        else {
-            DEBUG_PRINTLN("[PING] Server " + server + " is reachable.");
-            return true; // Beende die Schleife, wenn ein Server erreichbar ist
+    // Ping den Server und prüfe, ob er erreichbar ist
+    if (!Ping.ping(pingServer.c_str(), 1)) {
+        if (!Ping.ping(pingServer.c_str(), 5)) {
+            DEBUG_PRINTLN("[PING] Server " + pingServer + " is unreachable.");
+            return false;
         }
     }
-
+    else {
+        DEBUG_PRINTLN("[PING] Server " + pingServer + " is reachable.");
+        return true; // Beende die Schleife, wenn ein Server erreichbar ist
+    }
+     
     return false;
 }
+
+
 // Animation während WLAN-Verbindung
 void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
     tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
@@ -1888,12 +1878,12 @@ boolean setupNTP() {
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
     for (int i = 0; i < MAX_WLAN; i++) {
         if (ntpServers[i] == "") continue;
-        DEBUG_PRINTLN("[NTP] Trying server: " + String(ntpServers[i]));
+        //DEBUG_PRINTLN("[NTP] Trying server: " + String(ntpServers[i]));
         configTzTime(timezone.c_str(), ntpServers[i]);
         struct tm timeinfo;
         if (getLocalTime(&timeinfo, 5000)) {
 
-            DEBUG_PRINTLN("[NTP] Time synchronized successfully.");
+            DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + String(ntpServers[i]));
             return true;
         }
         DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + String(ntpServers[i]));
@@ -1971,7 +1961,7 @@ void checkNTPRetry() {
         return;
     }
     if (lastNTPRetry > 0 && millis() - lastNTPRetry >= retryIntervalNTPms) {
-        DEBUG_PRINTLN("[NTP] Retrying NTP synchronization...");
+        // DEBUG_PRINTLN("[NTP] Retrying NTP synchronization...");
         setupNTP();
         lastNTPRetry = millis();
     }
@@ -2092,7 +2082,7 @@ void setupWebServer() {
 
 
 
-    // API zum Zur%uuml;cksetzen der WiFi-Einstellungen
+    // API zum Zurücksetzen der WiFi-Einstellungen
     // http://192.168.0.214/api/resetWiFi  
 
     webserver.on("/setLanguage", HTTP_POST, []() {
@@ -2249,6 +2239,11 @@ void setupWebServer() {
             String arg = webserver.arg("smoothMinute");
             smoothMinute = (arg == "1" || arg.equalsIgnoreCase("true")); // Konvertiere zu bool 
             preferences.putBool("smoothMinute", smoothMinute);
+        }
+
+        if (webserver.hasArg("pingServer")) {
+            String arg = webserver.arg("pingServer");
+            preferences.putString("pingServer", arg);
         }
 
         freeClockFaceBuffer();
@@ -2643,13 +2638,19 @@ void setupWebServer() {
     webserver.on("/applydisplaysettings", HTTP_POST, []() {
         // Save to Preferences
 
+        if (webserver.hasArg("pingServer")) {
+            preferences.putString("pingServer", webserver.arg("pingServer"));
+        }
+
         stationMode = preferences.getBool("stationMode", false);
         showSecondHand = preferences.getBool("showSecondHand", true);
         smoothMinute = preferences.getBool("smoothMinute", false);
 
+
         stationMode = webserver.hasArg("stationMode");
         showSecondHand = webserver.hasArg("showSecondHand");
         smoothMinute = webserver.hasArg("smoothMinute");
+
 
         useTouch = webserver.hasArg("useTouch");
         preferences.putBool("useTouch", useTouch);
@@ -3020,7 +3021,7 @@ void setupWebServer() {
         html += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
         html += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
         html += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
-
+        
         html += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
 
         html += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
@@ -3099,6 +3100,8 @@ void setupWebServer() {
                 html += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString(("ntpServer" + String(i + 1)).c_str(), "") + "</li>";
             }
         }
+       
+        html += "<li><b>pingServer</b>: " + preferences.getString("pingServer", DEFAULT_PING_SERVER) + "</li>";
 
        // html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
        // html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";
@@ -3263,33 +3266,18 @@ void setupWebServer() {
     // WLAN Netzwerke scannen
     webserver.on("/api/scanwifi", HTTP_GET, []() {
         String json = "";
-
-        // beim Aufruf alle Netzwerke scannen
-        if (WiFi.getMode() == WIFI_STA) {
-            //int n = WiFi.scanNetworks();
-             // JSON immer aus foundNetworks erzeugen
-            json = "[";
-            for (int i = 0; i < foundNetworkCount; ++i) {
-                if (i > 0) json += ",";
-                json += "{\"ssid\":\"" + foundNetworks[i].ssid + "\"";
-                json += ",\"rssi\":" + String(foundNetworks[i].rssi);
-                json += ",\"enc\":" + String(foundNetworks[i].enc);
-                json += "}";
-            }
-            json += "]";
+               
+        // die letzten Scan-Ergebnisse zurückgeben
+        json = "[";
+        for (int i = 0; i < foundNetworkCount; ++i) {
+            if (i > 0) json += ",";
+            json += "{\"ssid\":\"" + foundNetworks[i].ssid + "\"";
+            json += ",\"rssi\":" + String(foundNetworks[i].rssi);
+            json += ",\"enc\":" + String(foundNetworks[i].enc);
+            json += "}";
         }
-        else {
-            // im AP-Modus die letzten Scan-Ergebnisse zurückgeben
-            json = "[";
-            for (int i = 0; i < foundNetworkCount; ++i) {
-                if (i > 0) json += ",";
-                json += "{\"ssid\":\"" + foundNetworks[i].ssid + "\"";
-                json += ",\"rssi\":" + String(foundNetworks[i].rssi);
-                json += ",\"enc\":" + String(foundNetworks[i].enc);
-                json += "}";
-            }
-            json += "]";
-        }
+        json += "]";
+        
         webserver.send(200, "application/json", json);
         });
 
@@ -3372,8 +3360,9 @@ void setupWebServer() {
             html += preferences.getBool("smoothMinute", true) ? "checked" : "";
             html += "> " + translate("Smooth Minute Hand") + "</td>";
 
-            
-            html += "<td>&nbsp;</td>"; // leeres Feld
+            String pingServer = preferences.getString("pingServer", DEFAULT_PING_SERVER);
+            html += "<td><input type='text' name='pingServer' value='" + pingServer + "'>";
+            html += translate("Ping Server") + "</td>";
 
             html += "</tr><tr>";
 
@@ -3830,7 +3819,7 @@ void setupWebServer() {
         }
         });
 
-    // Handset l&ouml;schen
+    // Handset löschen
     webserver.on("/deletehandset", HTTP_GET, []() {
         if (webserver.hasArg("set")) {
             String set = webserver.arg("set");
@@ -4036,7 +4025,7 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
     // Temporärer Buffer für die Bitmap-Daten
     uint16_t* tempBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
     if (!tempBuffer) {
-        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden f%uuml;r Bitmap-Daten!");
+        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden für Bitmap-Daten!");
         bmp.close();
         return false;
     }
@@ -4048,7 +4037,7 @@ bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
     // Neuen Buffer erstellen, der rotiert ist
     uint16_t* rotatedBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
     if (!rotatedBuffer) {
-        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden f%uuml;r Rotation!");
+        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden für Rotation!");
         free(tempBuffer);
         bmp.close();
         return false;
@@ -4304,10 +4293,10 @@ void eraseWiFiConfig() {
         nvs_erase_all(nvsHandle);
         nvs_commit(nvsHandle);
         nvs_close(nvsHandle);
-        DEBUG_PRINTLN("WiFi-NVS-Eintr&auml;ge gel&ouml;scht.");
+        DEBUG_PRINTLN("WiFi-NVS-Eintr&auml;ge gelöscht.");
     }
     else {
-        DEBUG_PRINTF("Fehler beim &ouml;ffnen des NVS-WiFi-Handles: %s\n", esp_err_to_name(err));
+        DEBUG_PRINTF("Fehler beim öffnen des NVS-WiFi-Handles: %s\n", esp_err_to_name(err));
     }
 }
 
@@ -4324,7 +4313,7 @@ void eraseAllNVS() {
     }
 }
 
-// --- Funktion: F%ührt einen Factory Reset durch ---
+// --- Funktion: Führt einen Factory Reset durch ---
 void factoryReset() {
     tft.fillScreen(TFT_BLACK);
     preferences.begin("clock", false);
@@ -4339,8 +4328,7 @@ void factoryReset() {
     eraseAllNVS();
     delay(2000);
     DEBUG_PRINTLN(">>> Neustart...");
-    esp_reboot();
-         
+    esp_reboot();         
 }
 
 // --- Funktion: führt einen Reboot durch mit Anzeige ---
@@ -4454,7 +4442,7 @@ void scanAndCacheNetworks() {
     DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks...");
     digitalWrite(LED_BOARD, HIGH);
     int n = WiFi.scanNetworks();
-    DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");    
+    DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks:");    
     if (n > MAX_WLAN) {
         DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
         n = MAX_WLAN;
@@ -4467,9 +4455,11 @@ void scanAndCacheNetworks() {
         foundNetworks[i].enc = WiFi.encryptionType(i);
         foundNetworkCount++;
 
-        DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
-
+        DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid +
+                      " (" + String(foundNetworks[i].rssi) + " dBm) " + 
+                      (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
     }    
+
     WiFi.scanDelete(); // Ergebnisse löschen
     DEBUG_PRINTLN("[WiFi] done.");
     digitalWrite(LED_BOARD, LOW);
@@ -4860,8 +4850,8 @@ void deleteAllLogFiles() {
     preferences.putInt("logFileNumber", 0); // Log-Dateinummer zurücksetzen
 }
 
-void setLogFileName() {
 
+void setLogFileName() {
     
     int logFileNumber = preferences.getInt("logFileNumber", 0);
     logFileNumber++;
