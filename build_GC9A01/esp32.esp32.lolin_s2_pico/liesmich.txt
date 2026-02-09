@@ -1,4 +1,6 @@
-Flashen des ESP unter Windows:
+#######################################################################################
+# Flashen unter Windows (10,11) getestet
+
 
 Nach dem Download die .zip Datei auspacken.
 DOS Fenster öffnen und mit cd in das Verzeichnis stellen.
@@ -40,3 +42,45 @@ LED_BOARD: 15 (eingebaut)
 ADC_VCC: 1
 ADC(photoresistor): 2
 ADC_GND: 4 
+
+
+#######################################################################################
+# Flashen unter Linux (LMDE)
+
+# einmalige Vorbereitungen:
+# User zur dialout Gruppe hinzufügen
+sudo usermod -a -G dialout $USER
+
+# python3 installieren
+sudo apt install python3-pip
+
+# esptool installieren
+sudo pip3 install esptool --break-system-packages
+
+# udev installieren 
+sudo apt update && sudo apt upgrade udev
+
+# Linux neu booten oder User abmelden/anmelden !!!
+
+# ESP anstecken und serielle Schnittstelle suchen mit:
+# z.b ttyACM0
+dmesg | grep ttyUSB
+dmesg | tail -n 20
+
+
+#######################################################################################
+# ESP flashen mit neuer Firmware
+# in das heruntergeladene Archiv stellen, z.b.
+cd esp32.esp32.lolin_s2_pico/
+
+# ESP im Bootmodus (Reset und Boot drücken, Reset loslassen und Boot kurz danach loslassen)
+
+# hier serielle Schnittstelle anpassen
+# optional: Chip löschen (nicht empfohlen)
+esptool --port /dev/ttyACM0 erase_flash
+
+# hier serielle Schnittstelle anpassen
+# ESP flashen
+esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr3.ino.bootloader.bin 0x8000 uhr3.ino.partitions.bin 0x10000 uhr3.ino.bin
+
+
