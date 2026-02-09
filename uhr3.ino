@@ -4351,7 +4351,8 @@ void checkWeeklyRestart() {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) return;
 
-    if (timeinfo.tm_wday == 0 && timeinfo.tm_hour == 3 && timeinfo.tm_min == 5) {
+    if (timeinfo.tm_wday == 0 && 
+        timeinfo.tm_hour == 3 && timeinfo.tm_min == 5 && timeinfo.tm_sec == 5) {
 
         lastResetWeek = preferences.getInt("last_reset_week", -1);
 
@@ -4366,9 +4367,11 @@ void checkWeeklyRestart() {
 
 
         if (currentWeek != lastResetWeek) {
-            DEBUG_PRINTF("→ Wöchentlicher Reboot in Woche %d\n", currentWeek);
+            DEBUG_PRINTF("Woechentlicher Reboot in Woche %d\n", currentWeek);
             preferences.putInt("last_reset_week", currentWeek);
             preferences.end();
+            delay(1000);
+            DEBUG_PRINTLN("reboot now...");
             delay(1000);
             ESP.restart();
         }
