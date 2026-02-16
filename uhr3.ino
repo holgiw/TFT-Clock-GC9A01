@@ -1,5 +1,5 @@
 // howl@gmx.de
-// stationsuhr 05/2025 - 01/2026
+// stationsuhr 05/2025 - 02/2026
 // 
 // https://github.com/holgiw?tab=repositories
 // 
@@ -12,8 +12,7 @@
 
 // Prozessor
 #define ESP32_S2  //only ESP32-S2 supported
-//#define ESP32_C3 
-
+//#define ESP32_S3 
 
 // select TFT
 #define GC9A01
@@ -50,12 +49,23 @@
 #define NTP_SERVER_2 "ptbtime1.ptb.de"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Central European Time
 
-#define DEFAULT_PING_SERVER "8.8.8.8"
+#define DEFAULT_PING_SERVER "1.1.1.1:80"
+
+#define WAIT_1s 1000 // 1 Sekunde in Millisekunden
+#define WAIT_3s 3000 // 3 Sekunden in Millisekunden
+#define WAIT_5s 5000 // 5 Sekunden in Millisekunden
+#define WAIT_10s 10000 // 10 Sekunden in Millisekunden
+#define WAIT_15s 15000 // 15 Sekunden in Millisekunden
+#define WAIT_30s 30000 // 30 Sekunden in Millisekunden
+#define WAIT_1m 60000 // 1 Minute in Millisekunden
+#define WAIT_5m 300000 // 5 Minuten in Millisekunden 
+#define WAIT_10m 600000 // 10 Minuten in Millisekunden
+#define WAIT_30m 1800000 // 30 Minuten in Millisekunden
+#define WAIT_1h 3600000 // 1 Stunde in Millisekunden
 
 
 #include <WiFi.h>
-#include <WebServer.h>
-// #include <ESPAsyncWebServer.h> // inkompatibel mit ide 3.0.0
+#include <WebServer.h> 
 #include <TFT_eSPI.h>
 #include <Preferences.h>
 #include <LittleFS.h>/
@@ -63,21 +73,20 @@
 #include <base64.h>
 #include "nvs_flash.h"
 #include <DNSServer.h>
-#include <ESPMDNS.h>
-#include <ESPping.h>
+//#include <ESPMDNS.h>
 #include <map>
 #include <esp_wps.h>
-
+#include <Wire.h>
+#include <RTClib.h>
 
 #include "build_defs.h"
-
 
 TFT_eSPI tft = TFT_eSPI();
 WebServer webserver(80);
 Preferences preferences;
 DNSServer dnsServer;
-
-
+RTC_DS3231 rtc;
+ 
 #ifdef ESP32_S2  // Lolin S2 Pico
 // ##############################################################################
 // wires
@@ -95,12 +104,10 @@ DNSServer dnsServer;
 #define ADC_GND 4
 
 #define BUTTON1 16
+//#define BUTTON1 0 // funktioniert nicht
 
 // Touch 
 #define TOUCH_PIN 9
-
-// Transparent in R5G6B5 RGB(16)
-#define TRANSPARENT_COLOR 0x0120    
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)  
 #define TFT_Backlight 3  // Backlight
@@ -109,6 +116,30 @@ DNSServer dnsServer;
 #define BACKLIGHT_RESOLUTION 8 
 #endif
     
+#endif
+
+#ifdef ESP32_S3  // Lolin S3
+// ##############################################################################
+// wires
+//               ESP32 PIN    TFT
+//               3.3V         vcc     3v3             red
+//               GND          gnd     ground          blue
+//  see C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\user_setups\Setup304__ESP32S3_GC9D01.h
+// or   https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
+
+
+// #define LED_BOARD 15 // BUILTIN LED
+
+//#define ADC_3V 1
+//#define ADC_PIN 2
+//#define ADC_GND 4
+
+//#define BUTTON1 16
+
+// Touch 
+//#define TOUCH_PIN 9
+
+
 #endif
 
 #if defined GC9A01 || defined(GC9A01_WITH_BACKLIGHT) 
@@ -156,10 +187,15 @@ DNSServer dnsServer;
 #define TFT_TEXT_SIZE 2
 #endif
 
+// Transparent in R5G6B5 RGB(16)
+#define TRANSPARENT_COLOR 0x0120    
+
 String currentLanguage = "de"; // Standardmäßig Deutsch
 
 char version[32]; // Build-Version
 
+
+unsigned long lastNTPUpdate = 0; // Zeitpunkt des letzten RTC-Updates
 
 // --- Touch / Debounce State ---
 unsigned long touchLastMillis = 0;
@@ -169,6 +205,9 @@ bool touchLastState = false;
 bool touchEnabled = false;
 unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
 bool useTouch = false; // Touch verwenden
+
+#define SDA_PIN 39
+#define SCL_PIN 37
 
 bool wifiActive = true;    
 
@@ -187,9 +226,12 @@ String wifi_pass[MAX_WLAN];
 #define CONNECTED 1
 #define CONNECTED_NO_INTERNET 2
 
+
+struct tm timeinfo;
+
 unsigned long lastNTPRetry = 0;
 
-const unsigned long retryIntervalNTPms = 60 * 60 * 1000; // 60 Minuten
+
 
 String timezone = TIMEZONE_DEFAULT;
 
@@ -199,6 +241,14 @@ bool loggingEnabled = false;
 String logFileName = "/log.log";
 
 char ntpServers[MAX_WLAN][64];
+
+#define RTC_NOT_AVAILABLE 0
+#define RTC_AVAILABLE 1
+#define RTC_AVAILABLE_BUT_INVALID 2
+
+int rtc_ok = RTC_NOT_AVAILABLE;
+
+String i2c_adr = "";
 
 bool initial = true;
 
@@ -229,7 +279,7 @@ bool firstRun = true;
 
 uint8_t tftRotation = 0;
 
-float fastSecond = 972.0f;  // Geschwindigkeit des Sekundenzeigers gegenüber der realen Zeit 
+float fastSecond = 972.0f;  // Geschwindigkeit des Sekundenzeigers gegenüber der realen Sekunde
 
 uint16_t rowBuffer[CLOCK_WIDTH];
 
@@ -285,7 +335,7 @@ struct WifiNetwork {
     int rssi;
     int enc;
 };
-WifiNetwork foundNetworks[MAX_WLAN];
+WifiNetwork availableNetworks[MAX_WLAN];
 int foundNetworkCount = 0;
 bool isScanning = false;
 
@@ -301,15 +351,15 @@ esp_wps_config_t wps_config = WPS_CONFIG_INIT_DEFAULT(ESP_WPS_MODE);
 
 void startWPS() {
     if (esp_wifi_wps_enable(&wps_config) == ESP_OK) {
-        if (esp_wifi_wps_start(0) == ESP_OK) {
-            Serial.println("WPS gestartet. Bitte WPS-Taste am Router drücken.");
+        if (esp_wifi_wps_start(0) == ESP_OK) {           
+            DEBUG_PRINTLN("[WPS] WPS started. Please press the WPS button on the router.");
         }
         else {
-            Serial.println("WPS konnte nicht gestartet werden.");
+            DEBUG_PRINTLN("[WPS] WPS could not be started");
         }
     }
     else {
-        Serial.println("WPS konnte nicht aktiviert werden.");
+        DEBUG_PRINTLN("[WPS] WPS could not be activated");
     }
 }
 
@@ -317,27 +367,37 @@ void startWPS() {
 // Setup-Funktion
 void setup() {
 
+    setLED_on();
+
     Serial.begin(115200);
 
-    //  startWiFiScan();
+    // async WLAN-Scan starten, damit die Netzwerke bereits erkannt werden, wenn der Nutzer das erste Mal die WLAN-Einstellungen öffnet   
+    startWiFiScan();
+
+    memset(&timeinfo, 0, sizeof(timeinfo));
 
 #if defined DEBUG
     unsigned long serialStart = millis();
-    while (!Serial && (millis() - serialStart < 1000)) {
-        delay(10);
+    while (!Serial && (millis() - serialStart < WAIT_5s)) {
+        delay(1);
     }
-    // delay(1500); // Warten, bis die serielle Verbindung hergestellt ist
+   
 #endif  
 
     if (!LittleFS.begin(true)) {
         Serial.println("[LittleFS] Mount Failed");
     }
-
-    DEBUG_PRINTLN("[SETUP] Initializing...");
-
-
+    
     preferences.begin("clock", false);
 
+
+    
+    // workaround neuer Parameter
+    String pingServer = preferences.getString("pingServer","#");
+    if (pingServer.startsWith("8.8.8.8") or pingServer == "#") {
+        preferences.putString("pingServer","1.1.1.1:80");
+    }
+        
     sprintf(version, "%d-%02d-%02d %02d:%02d%:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
     DEBUG_PRINTLN("[SETUP] start");
@@ -348,8 +408,47 @@ void setup() {
         preferences.putString("version", String(version));
         deleteAllLogFiles();
     }
-    setLogFileName();
+    logFileName = getLogFileName();
+    loggingEnabled = preferences.getBool("loggingEnabled", false);
 
+    DEBUG_PRINTLN("[SETUP] Initializing...");
+    
+    // I2C-Scanner starten, um RTC zu erkennen
+    Wire.begin(SDA_PIN, SCL_PIN);
+    if (i2cScan() == 1) {
+
+        if (rtc.begin()) {
+
+            DateTime compileTime(F(__DATE__), F(__TIME__)); // Kompilierzeit
+
+            DEBUG_PRINTLN("[RTC] found RTC.");
+
+            // Überprüfen, ob die RTC eine gültige Zeit zurückgibt
+            DateTime now = rtc.now();
+
+            if (rtc.lostPower()) {
+                DEBUG_PRINTLN("[RTC] RTC lost power.");
+                rtc_ok = RTC_AVAILABLE_BUT_INVALID;
+            } else if (rtc.now() > compileTime) {
+                DEBUG_PRINTLN("[RTC] RTC is running and returning valid time.");
+                rtc_ok = RTC_AVAILABLE;
+                loadTimeFromRTC();
+            } else {
+                DEBUG_PRINTLN("[RTC] RTC time is less than compilation time.");
+                rtc_ok = RTC_AVAILABLE_BUT_INVALID;
+            }
+
+            rtc.disable32K(); // 32kHz-Output deaktivieren, wird nicht benötigt
+            DEBUG_PRINTLN("[RTC] Temperature: " + String(rtc.getTemperature()) + " C");
+        } else {            
+            DEBUG_PRINTLN("[RTC] RTC not found.");   
+            rtc_ok = RTC_NOT_AVAILABLE;
+        }
+    }
+    else {
+        Wire.end();
+        rtc_ok = RTC_NOT_AVAILABLE;
+    }
 
 
 #if defined GC9A01 || defined (GC9A01_WITH_BACKLIGHT)
@@ -365,11 +464,11 @@ void setup() {
     // Prüfen, ob PSRAM vorhanden ist
     if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
         psramAvailable = true;
-        DEBUG_PRINTLN("[INFO] PSRAM gefunden.");
+        DEBUG_PRINTLN("[INFO] found PSRAM.");
     }
     else {
         psramAvailable = false;
-        DEBUG_PRINTLN("[INFO] Kein PSRAM gefunden, Hardware-Rotation wird verwendet.");
+        DEBUG_PRINTLN("[INFO] no PSRAM, use Hardware-Rotation.");
 #ifdef GC9D01
         preferences.putUChar("tftRotation", 0);
 #endif
@@ -379,8 +478,8 @@ void setup() {
 #endif
 
 
-
-#define MAGIC_NUMBER 42
+    
+#define MAGIC_NUMBER 42  // Erster Start: Alle Preferences mit Standardwerten belegen    
 
     if (preferences.getInt("firstStart", 0) != MAGIC_NUMBER) {
         DEBUG_PRINTLN("[Preferences] First start detected, initializing...");
@@ -424,7 +523,7 @@ void setup() {
 #endif
         preferences.putUChar("maxBrightness", 255);
 
-        preferences.putFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur f%uuml;r Helligkeit
+        preferences.putFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur für Helligkeit
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
         preferences.putInt("lowThreshold", 1);
@@ -451,15 +550,14 @@ void setup() {
         preferences.putBool("adcInverted", false);
         preferences.putBool("useTouch", false);
 
-        preferences.putBool("loggingEnabled", false);
-
+        preferences.putInt("logFileNumber", 0);
+        preferences.putBool("loggingEnabled", true);
 
         preferences.end();
         preferences.begin("clock", false);
     }
 
-
-    loggingEnabled = preferences.getBool("loggingEnabled", false);
+       
 
     currentLanguage = preferences.getString("language", "en");
 
@@ -471,7 +569,6 @@ void setup() {
 
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
 
-   // DEBUG_PRINTLN("[NTP] NTP-Server: " + String(ntpServers[0]) + " / " + String(ntpServers[1]));
     DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
 
     stationMode = preferences.getBool("stationMode", true);
@@ -481,7 +578,6 @@ void setup() {
     // Nabe
     uint32_t hub_color_RGB = preferences.getLong("centerColor", 0xEC0016); //DB red
     hub_color = tft.color565((hub_color_RGB >> 16) & 0xFF, (hub_color_RGB >> 8) & 0xFF, hub_color_RGB & 0xFF);
-    // DEBUG_PRINTF("[HUB] Color RGB: #%06X 565: 0x%04X", hub_color_RGB, hub_color);
     hub_size = preferences.getUInt("centerSize", 6);
 
     lowThreshold = preferences.getInt("lowThreshold", 40);
@@ -489,10 +585,10 @@ void setup() {
     minBrightness = preferences.getUChar("minBrightness", 100);
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
-    // Zeitabh&auml;ngige Helligkeit aus Preferences
+    // Zeitabhängige Helligkeit aus Preferences
 
-    brightStartHour = preferences.getUChar("brightStart", 8);
-    brightEndHour = preferences.getUChar("brightEnd", 22);
+    brightStartHour = preferences.getUChar("brightStart", 7);
+    brightEndHour = preferences.getUChar("brightEnd", 21);
 
     adcInverted = preferences.getBool("adcInverted", false);
 
@@ -500,10 +596,12 @@ void setup() {
 
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT) 
-    gammaBrightness = preferences.getFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur f%uuml;r Helligkeit
+    gammaBrightness = preferences.getFloat("gammaBrightness", 2.2f);  // Gamma-Korrektur für Helligkeit
 #endif
 
+#ifdef BUTTON1
     pinMode(BUTTON1, INPUT_PULLDOWN);
+#endif
 
     // auf Fotowiderstand prüfen
 #ifdef ADC_3V
@@ -556,9 +654,7 @@ void setup() {
     minBrightness = preferences.getUChar("minBrightness", 100);
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
-    pinMode(LED_BOARD, OUTPUT); digitalWrite(LED_BOARD, HIGH);
-
-    Serial.println("debug is:" + String(loggingEnabled ? "enabled" : "disabled"));
+    Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
 
     tft.init();
     delay(75);
@@ -621,62 +717,83 @@ void setup() {
 
 
     // WLAN-Zugangsdaten laden
-    for (int i = 0; i < MAX_WLAN; i++) {
-        // Dynamisch berechnete Schlüssel
-        String ssidKey = "ssid" + String(i + 1);
-        String passKey = "pass" + String(i + 1);
+    for (int i = 0; i < MAX_WLAN; i++) {        
 
-        // Werte speichern
+#ifdef BUTTON1
         if (digitalRead(BUTTON1) == HIGH) {
             wifi_ssid[i] = "";
             wifi_pass[i] = "";
+            continue;
         }
-        else {
-            wifi_ssid[i] = preferences.getString(ssidKey.c_str(), "");
-            wifi_pass[i] = preferences.getString(passKey.c_str(), "");
-        }
+#endif   
+        // Dynamisch berechnete Schlüssel
+        String ssidKey = "ssid" + String(i + 1);
+        String passKey = "pass" + String(i + 1);
+        wifi_ssid[i] = preferences.getString(ssidKey.c_str(), "");
+        wifi_pass[i] = preferences.getString(passKey.c_str(), "");
     }
 
-   
-    /*
-    while (isScanning) {
-        checkWiFiScan();
-        delay(100);
-    }
-    DEBUG_PRINTLN("[WiFi] Scan complete");
-    */
-   
+    
+#ifdef BUTTON1
     // AP starten, wenn Taste gedrückt oder keine SSID gespeichert
     if (digitalRead(BUTTON1) == HIGH || wifi_ssid[0].length() == 0) {
         startAP();
     }
+#else
+    // AP starten, wenn keine SSID gespeichert
+    if (wifi_ssid[0].length() == 0) {
+        startAP();
+    }
+
+#endif
     
     // WLAN-Netzwerke scannen und cachen
-    scanAndCacheNetworks();
+    //scanAndCacheNetworks();
+
+    while (isScanning) {
+        checkWiFiScan();
+        delay(10);
+        Serial.print(".");
+    }
+    Serial.println("");
+    // DEBUG_PRINTLN("[WiFi] Scan complete");
+
    
     
     uint32_t number = preferences.getInt("lastWLan", 0);
-    DEBUG_PRINTLN("[WiFi] Last successful WLAN number: " + String(number + 1) + " " + wifi_ssid[number]);
+    DEBUG_PRINTLN("[WiFi] Last successful WLAN number: (" + String(number + 1) + ") " + wifi_ssid[number]);
 
-        
+  
+    // ist die letzte SSID im Scan vorhanden?   
     bool foundLastSSID = false;
     for (int i = 0; i < MAX_WLAN; i++) {
-        if (wifi_ssid[number] == foundNetworks[i].ssid) {
-            DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + foundNetworks[i].ssid);
+        if (wifi_ssid[number] == availableNetworks[i].ssid) {
+            DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + availableNetworks[i].ssid);
             foundLastSSID = true;
             break;
         }
     }
-
-
+    if (foundLastSSID == false) {
+        DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan...");
+        startWiFiScan();
+        delay(100); // Kurze Verzögerung, damit der Scan starten kann
+        while (isScanning) {
+            checkWiFiScan();
+            delay(50);
+            Serial.print(".");
+        }
+        Serial.println("");
+    }
+   
+    // versuche Verbindung mit der letzten SSID
     if (!foundLastSSID or connectWiFi(number, true) != CONNECTED) {
 
         // Wenn Verbindung fehlschlägt, scannen und vergleichen
-        DEBUG_PRINTLN("[WiFi] Connection failed. Scanning for available networks...");
+        DEBUG_PRINTLN("[WiFi] Connection failed. Looking for available networks...");
 
-
+        // Durchsuche gefundene Netzwerke nach gespeicherten SSIDs  
         for (int i = 0; i < MAX_WLAN; i++) {
-            String availableSSID = foundNetworks[i].ssid;
+            String availableSSID = availableNetworks[i].ssid;
             if (availableSSID == "") continue;
             //  DEBUG_PRINTLN("Gefundenes Netzwerk: " + availableSSID);
             for (int j = 0; j < MAX_WLAN; j++) {
@@ -698,16 +815,26 @@ void setup() {
             }
         }
         DEBUG_PRINTLN("[WiFi] No matching networks found.");
-        startAP();
+
+
+        if (rtc_ok == RTC_AVAILABLE) {
+            loadTimeFromRTC();
+            return;
+        }
+
+
+        // // Alle Verbindungsversuche fehlgeschlagen, starte AP wenn RTC nicht verfügbar oder ungültig
+        if (rtc_ok != RTC_AVAILABLE) {   
+            DEBUG_PRINTLN("[WiFi] Starting Access Point due to failed connections and no valid RTC.");
+            startAP();
+        }
     }
 
 
     setupNTP();
     setupWebServer();
     webserver.begin();
-
-    digitalWrite(LED_BOARD, LOW);
-
+  
     if (useTouch) {
         // Touch-Eingang initialisieren
         enableTouch();
@@ -715,10 +842,44 @@ void setup() {
 
     loadPresets();
 
-    //startWiFiScan(); // Starte den Scan, falls nicht bereits aktiv
-
-
+    setLED_off();
 }
+
+
+
+
+// Lädt die Zeit vom RTC-Modul und setzt die Systemzeit entsprechend
+void loadTimeFromRTC() {
+    if (rtc_ok == RTC_AVAILABLE) {
+
+        DateTime now = rtc.now(); // DS3231 lesen
+
+        // RTClib liefert Year/Month/Day usw. "normal" (2026, 2, 11, ...)
+        struct tm tm_rtc = {};
+        tm_rtc.tm_year = now.year() - 1900;
+        tm_rtc.tm_mon = now.month() - 1;
+        tm_rtc.tm_mday = now.day();
+        tm_rtc.tm_hour = now.hour();
+        tm_rtc.tm_min = now.minute();
+        tm_rtc.tm_sec = now.second();
+        tm_rtc.tm_isdst = -1; // Sommerzeit automatisch
+
+        time_t t = mktime(&tm_rtc); // -> Unix time (lokale Interpretation je nach TZ!)
+
+        // ESP32-Systemzeit setzen
+        struct timeval tv;
+        tv.tv_sec = t;
+        tv.tv_usec = 0;
+        settimeofday(&tv, nullptr);
+
+        // Optional: globales timeinfo aktualisieren
+        time_t now_esp = time(nullptr);
+        localtime_r(&now_esp, &timeinfo);
+
+        DEBUG_PRINTLN("[RTC] Time loaded from RTC and system time set.");
+    }
+}
+
 
 // Initialisiere die NTP-Server
 void initializeNtpServers() {
@@ -746,24 +907,31 @@ void initializeNtpServers() {
     }
 }
 
+
+// Touch-Funktionalität aktivieren/deaktivieren
 void enableTouch() {
+#ifdef TOUCH_PIN
     touchEnabled = true;
     pinMode(TOUCH_PIN, INPUT_PULLDOWN);
 
     // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
     touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
     DEBUG_PRINTLN("[TOUCH] Touch aktiviert.");
+#endif
 }
 
+// Touch-Funktionalität deaktivieren
 void disableTouch() {
+#ifdef TOUCH_PIN
     touchEnabled = false;
     pinMode(TOUCH_PIN, INPUT);
     DEBUG_PRINTLN("[TOUCH] Touch deaktiviert.");
+#endif
 }
 
 
 
-
+// Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
 void loadPresets() {
     String espIP = "http://" + WiFi.localIP().toString(); // Aktuelle IP-Adresse des ESP32
 
@@ -787,6 +955,8 @@ void loadPresets() {
     }
 }
 
+
+// Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
 void savePresets() {
     String espIP = "http://" + WiFi.localIP().toString(); // Aktuelle IP-Adresse des ESP32
 
@@ -810,6 +980,7 @@ void savePresets() {
     }
 }
 
+// Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
 void createPresetFromPreferences() {
     // Suche das erste leere Preset
     int presetIndex = -1;
@@ -853,7 +1024,7 @@ void createPresetFromPreferences() {
     url += "&hubColor=" + String(hubColor, HEX);
 
     // Speichere das Preset
-    String presetName = "Preset_" + String(presetIndex + 1);
+    String presetName = String(presetIndex + 1) + "_Preset";
     presets[presetIndex].name = presetName;
     presets[presetIndex].url = url;
 
@@ -867,10 +1038,17 @@ void createPresetFromPreferences() {
     DEBUG_PRINTLN("[Preset] URL: " + url);
 }
 
-// Haupt-Loop
+
+
+// Main-Loop
 void loop() {
 
-  
+    // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
+    if (millis() - lastNTPUpdate > WAIT_1h) {
+        setupNTP();
+        lastNTPUpdate = millis();
+    }
+     
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
         dnsServer.processNextRequest();
@@ -880,7 +1058,7 @@ void loop() {
      webserver.handleClient();
 
      
-    if (WiFi.getMode() == WIFI_STA) {
+    if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE) {
 
        updateClock();
 
@@ -914,7 +1092,7 @@ void loop() {
 
     // restart im AP Mode nach 30 Minuten
     if (softAPIP == true) {
-        if (millis() - softAPIPstart > (30 * 60 * 1000)) {
+        if (millis() - softAPIPstart > WAIT_30m) {
             ESP.restart();
         }
     }
@@ -961,16 +1139,16 @@ void loadClockFace() {
     if (!clockFaceBuffer) {
         size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
         if (psramFound() and ESP.getFreePsram() > bufSize) {
-            DEBUG_PRINTLN("[clockFaceBuffer] allocate psram");
+            DEBUG_PRINTLN("[PSRAM] Allocate psram");
             clockFaceBuffer = (uint16_t*)ps_malloc(bufSize);
         }
         else {
             DEBUG_PRINTLN("allocte ram: " + bufSize);
-            DEBUG_PRINTLN("[clockFaceBuffer] allocate ram");
+            DEBUG_PRINTLN("[PSRAM] Allocate ram");
             clockFaceBuffer = (uint16_t*)malloc(bufSize);
         }
         if (!clockFaceBuffer) {
-            DEBUG_PRINTLN("Fehler: clockFaceBuffer konnte nicht allokiert werden!");
+            DEBUG_PRINTLN("[PSRAM] Error: couldnt allocate clockFaceBuffer RAM!");
             return;
         }
 
@@ -1163,6 +1341,7 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 // Button prüfen und ggf. Anzeige oder Factory Reset auslösen
 void checkButton() {
     bool resetStarted = false;
+#ifdef BUTTON1
     if (digitalRead(BUTTON1) == HIGH) {
 
         uint8_t secs = 5;
@@ -1175,7 +1354,7 @@ void checkButton() {
 
         // Blockierender Loop während Button gedrückt
         while (digitalRead(BUTTON1) == HIGH) {
-            if (millis() - pressStart > 10000 && millis() - pressStart < 15000) {
+            if (millis() - pressStart > WAIT_10s && millis() - pressStart < WAIT_15s) {
                 resetStarted = true;
                 tft.fillScreen(TFT_RED);
                 tft.setTextColor(TFT_WHITE, TFT_RED);
@@ -1185,18 +1364,18 @@ void checkButton() {
 
                 tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
                 tft.printf("in %d secs", secs);
-                delay(1000);
+                delay(WAIT_1s);
                 if (secs > 0) secs--;
             }
 
-            if (millis() - pressStart > 15000) {
+            if (millis() - pressStart > WAIT_15s) {
                 // 15 Sekunden überschritten → Factory Reset
                 tft.fillScreen(TFT_RED);
                 tft.setTextColor(TFT_WHITE, TFT_RED);
                 tft.setTextSize(TFT_TEXT_SIZE);
                 tft.setCursor(20, CLOCK_HEIGHT / 2);
                 tft.println("Factory Reset...");
-                delay(1000);
+                delay(WAIT_1s);
                 factoryReset();  
                 return;    
             }
@@ -1204,10 +1383,11 @@ void checkButton() {
         }
         // Button wurde vor 10secs losgelassen → WLAN-Credentials für 3 Sekunden anzeigen
         if (!resetStarted) {            
-            delay(3000);
+            delay(WAIT_3s);
         }
         
     }
+#endif
 }
 
 
@@ -1223,13 +1403,22 @@ static float lastMinuteAngle = 0.0f;
 
 // updateClock Funktion
 void updateClock() {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        // Keine gültige Uhrzeit verfügbar, auf 0:00:00 setzen
-        timeinfo.tm_hour = 0;
-        timeinfo.tm_min = 0;
-        timeinfo.tm_sec = 0;
+   // struct tm timeinfo;
+    if (!getLocalTime(&timeinfo, 100)) {
+        // Keine gültige Uhrzeit verfügbar
+        loadTimeFromRTC();
     }
+
+
+    static unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
+    if (rtc_ok == RTC_AVAILABLE) {            
+        // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
+        if (millis() - lastRTCUpdate >= WAIT_1h) {            
+            loadTimeFromRTC();
+            lastRTCUpdate = millis();
+        }
+    }
+    
 
     int orientation = preferences.getUChar("tftRotation", 0);
 
@@ -1244,7 +1433,10 @@ void updateClock() {
     unsigned long currentMillis = millis();
 
     if (firstRun) {
-        stationTick = timeinfo.tm_sec;
+        stationTick = timeinfo.tm_sec + 2;
+        if (stationTick >= 60) {
+            stationTick = 60;
+        }   
         stationLastMillis = millis();
         stationWaiting = false;
         firstRun = false;
@@ -1261,7 +1453,7 @@ void updateClock() {
         backgroundSprite.pushSprite(0, 0);
     }
 
-
+    // Station Mode: Sekundenzeiger springt nicht, sondern läuft in 672ms Schritten mit sanfter Bewegung dazwischen
     if (stationMode) {
         if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
             stationTick++;
@@ -1292,7 +1484,7 @@ void updateClock() {
         minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);   
     }
 
-  
+    // Normaler Modus: Sekundenzeiger läuft normal, Minutenzeiger kann optional sanft laufen
     if (!stationMode) {
         secAngle = rotatedAngle(secAngle, orientation);
           
@@ -1313,7 +1505,6 @@ void updateClock() {
             if (angleDiff > 180.0f) angleDiff -= 360.0f;
 
             lastMinuteAngle += angleDiff * 0.01f;  // noch feinere Bewegung
-
         }
         else {
             // Normale Minutenanzeige mit sanfter Korrektur bei Wechsel
@@ -1357,14 +1548,15 @@ void updateClock() {
 
    
     // Nabe (hub)
-    if (hub_size > 0 && hub_color > 0) {
-        backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
+    if (hub_size > 0) {
+       backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hub_size, setPixelBrightness(hub_color));
     }
 
     backgroundSprite.pushSprite(0, 0);
 }
  
-/// Helligkeit aktualisieren
+// Aktualisiert die Helligkeit des Displays basierend auf der aktuellen Einstellung, 
+// dem ADC-Wert (falls aktiviert) und dem Tageszeitfenster für volle Helligkeit.
 void updateBrightness() {
 
     // Wenn Helligkeit geändert → neu zeichnen
@@ -1377,18 +1569,18 @@ void updateBrightness() {
     // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
     bool withinDayWindow = false;
     
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo)) {
-            int h = timeinfo.tm_hour;
-            if (brightStartHour <= brightEndHour) {
-                // normaler Bereich z.B. 8..20
-                withinDayWindow = (h >= brightStartHour && h < brightEndHour);
-            }
-            else {
-                // über Mitternacht z.B. 20..6
-                withinDayWindow = (h >= brightStartHour || h < brightEndHour);
-            }
+    // struct tm timeinfo;
+    if (getLocalTime(&timeinfo, 100)) {
+        int h = timeinfo.tm_hour;
+        if (brightStartHour <= brightEndHour) {
+            // normaler Bereich z.B. 8..20
+            withinDayWindow = (h >= brightStartHour && h < brightEndHour);
         }
+        else {
+            // über Mitternacht z.B. 20..6
+            withinDayWindow = (h >= brightStartHour || h < brightEndHour);
+        }
+    }
     
 
     // Wenn Zeitfenster aktiv und wir innerhalb davon sind: volle Helligkeit erzwingen
@@ -1403,10 +1595,13 @@ void updateBrightness() {
 #endif
     }
     else {
+#ifdef ADC_PIN
         // Normale Auto-Brightness oder statische Helligkeit
         if (use_adc) {
 
+
             int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
+
             // DEBUG_PRINTF("[ADC] Raw value: %d\n", adcRaw);
 
             if (initial) {
@@ -1458,6 +1653,7 @@ void updateBrightness() {
             currentBrightness = maxBrightness;
             targetBrightness = currentBrightness;
         }
+#endif // hier 
     }
 
 #ifdef TFT_Backlight
@@ -1467,7 +1663,7 @@ void updateBrightness() {
 }
 
 // Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
-int getAdjustedAdcValue(int rawValue) {
+uint16_t getAdjustedAdcValue(int rawValue) {
     if (adcInverted) {
         return 4096 - rawValue; // Invertiere den Wert
     }
@@ -1481,7 +1677,7 @@ float easeInOutSine(float t) {
     return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
 }
 
-/// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
+// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
 String encodeBmpToBase64(const uint16_t* data, int width, int height) {
     const int headerSize = 54;
     const int rowSize = ((width * 2 + 3) / 4) * 4;
@@ -1532,26 +1728,18 @@ void checkNightlyTimeSync() {
     static bool triggered2 = false;
     static bool triggered3 = false;
 
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        DEBUG_PRINTLN("[TIME SYNC] Failed to get local time.");
-        return;
-    }
-
-    //  DEBUG_PRINTF("[TIME SYNC] Current time: %02d:%02d:%02d\n", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-
     if (timeinfo.tm_hour == 2 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered2) {
-        DEBUG_PRINTLN("[TIME SYNC] Triggered at 02:00:05");
-        checkNtpOffset();
+        DEBUG_PRINTLN("[TIME SYNC] Triggered at 02:00:05");        
         lastCheck = millis();
-        triggered2 = true;        
+        triggered2 = true;    
+        setupNTP();
     }
 
     if (timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 5 && !triggered3) {
-        DEBUG_PRINTLN("[TIME SYNC] Triggered at 03:00:05"); 
-        checkNtpOffset();
+        DEBUG_PRINTLN("[TIME SYNC] Triggered at 03:00:05");         
         lastCheck = millis();
         triggered3 = true;
+        setupNTP();
     }
 
     if (timeinfo.tm_hour > 3 && (triggered2 || triggered3)) {       
@@ -1562,15 +1750,28 @@ void checkNightlyTimeSync() {
 
 
 // überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
-void checkWiFiReconnect() {
+bool checkWiFiReconnect() {
     static unsigned long lastAttempt = 0;
     
     unsigned long now = millis();
-    if (now - lastAttempt < 30 * 60 * 1000) return;
+    if (now - lastAttempt < WAIT_1h) return true;
     lastAttempt = now;
 
-    if (WiFi.status() == WL_CONNECTED && isInternetReachable()) return;
+    String pingServer = preferences.getString("pingServer", "");
 
+    if (WiFi.status() == WL_CONNECTED) {
+        if (pingServer == "") {
+            return true; // Kein Ping-Server konfiguriert, Verbindung als in Ordnung betrachten
+        }
+        if (isInternetReachable(pingServer)) {
+            return true; // Verbindung ist in Ordnung
+        }
+        else {
+            // DEBUG_PRINTLN("[WiFi] Connected to WiFi but no internet. Attempting reconnect...");
+            // return false; // Verbindung hat kein Internet, Reconnect versuchen
+        }
+    }
+     
     DEBUG_PRINTLN("[WiFi] Disconnected. Attempting reconnect...");
     WiFi.disconnect();
     connectWiFi(preferences.getInt("lastWlan",0), false);    
@@ -1597,11 +1798,7 @@ void startAP() {
     WiFi.mode(WIFI_MODE_STA);
     WiFi.begin();
 
-    for (int i = 0; i < 10; i++) {
-        delay(500);
-        Serial.print(".");
-    }
-
+    
     // WPS versuchen, wenn möglich
     // leeres oder letztes WLAN finden
     String ssidKey;
@@ -1616,9 +1813,7 @@ void startAP() {
         if (preferences.getString(ssidKey.c_str(), "") == "") {
             break; // Beende die Schleife, wenn ein leerer  gefunden wird, ansonsten letzter
         }        
-    }
-
-    
+    }    
                 
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -1627,10 +1822,9 @@ void startAP() {
     tft.println("check for WPS...");
                     
     startWPS(); // WPS starten  
-
     
     long wpsWaitMillis = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= 15000) { 
+    while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_15s) { 
         delay(100);
     }
     if (WiFi.status() == WL_CONNECTED) {
@@ -1651,7 +1845,7 @@ void startAP() {
         tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
         tft.println("found WPS... reboot");
         
-        delay(2000);
+        delay(WAIT_5s);
         esp_reboot();
     }
 
@@ -1659,7 +1853,7 @@ void startAP() {
     esp_wifi_wps_disable();
 
 
-    // 1. WLAN-Scan durchführen
+    // WLAN-Scan durchführen
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
     tft.setTextSize(TFT_TEXT_SIZE);
@@ -1668,12 +1862,12 @@ void startAP() {
     int n = WiFi.scanNetworks();
     delay(100); // Kurze Pause für Anzeige
 
-    // foundNetworks füllen
+    // availableNetworks füllen
     foundNetworkCount = 0;
     for (int i = 0; i < n && i < MAX_WLAN; i++) {
-        foundNetworks[i].ssid = WiFi.SSID(i);
-        foundNetworks[i].rssi = WiFi.RSSI(i);
-        foundNetworks[i].enc = WiFi.encryptionType(i);
+        availableNetworks[i].ssid = WiFi.SSID(i);
+        availableNetworks[i].rssi = WiFi.RSSI(i);
+        availableNetworks[i].enc = WiFi.encryptionType(i);
         foundNetworkCount++;
     }
 
@@ -1704,18 +1898,24 @@ void startAP() {
 
 
 
-// connect wifi
+// Versucht, eine Verbindung zum WLAN herzustellen, basierend auf den gespeicherten SSID- und Passwort-Paaren. 
+// Zeigt während des Verbindungsversuchs Informationen auf dem Display an und überprüft die 
+// Internet-Konnektivität nach erfolgreicher Verbindung.
 int connectWiFi(int number, bool verbose_mode) {
 #ifdef TFT_Backlight
     if (verbose_mode) {
         ledcWrite(TFT_Backlight, 255);
     }
 #endif
-    if (wifi_ssid[number] == "") return NOT_CONNECTED;
+    if (wifi_ssid[number] == "") {
+       // DEBUG_PRINTLN("[WiFi] SSID " + String(number + 1) + " is empty, skipping.");
+        return NOT_CONNECTED;
+    }
 
-             
+                 
     // DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
 
+    // Wenn verbose_mode aktiviert ist, zeige die Verbindungsinformationen auf dem Display an
     if (verbose_mode) {
         clearTFT();
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -1750,30 +1950,43 @@ int connectWiFi(int number, bool verbose_mode) {
     WiFi.setHostname(hostname);
     DEBUG_PRINTLN("[WiFi] Hostname set to: " + String(hostname));
 
+    uint16_t waitTime = WAIT_30s; // 30 Sekunden
+    if (rtc_ok == RTC_AVAILABLE) {
+        waitTime = WAIT_15s; // 15 Sekunden
+    }
     
+    
+    DEBUG_PRINTLN("[WiFi] Attempting connection with a timeout of " + String(waitTime / 1000) + " seconds...");
     WiFi.begin(wifi_ssid[number].c_str(), wifi_pass[number].c_str());
     unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
+    while (WiFi.status() != WL_CONNECTED && millis() - start < waitTime) {
          
         Serial.print(".");
         if (verbose_mode) {
             animateCursor(tft, 20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
         }
         else {
-            delay(100);
+            updateClock();
+           // delay(100);
         }
 
     }
     Serial.println();
+
+    if (WiFi.status() != WL_CONNECTED) {
+        DEBUG_PRINTLN("[WiFi] Connection failed or timed out.");       
+    } else {
+        DEBUG_PRINTLN("[WiFi] Connected successfully.");
+    }
+    
     if (WiFi.status() == WL_CONNECTED) {
 
         // mDNS initialisieren
-        if (!MDNS.begin(hostname)) {
-            DEBUG_PRINTLN("[WIFI] Error starting mDNS");
-        }
-        else {
-            MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80
-        }
+   //     if (!MDNS.begin(hostname)) {
+   //         DEBUG_PRINTLN("[WIFI] Error starting mDNS");
+   //     }
+   //     else {
+   //         MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80   }
 
         DEBUG_PRINTLN("[WiFi] Connected to: " + wifi_ssid[number]);
         DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
@@ -1783,8 +1996,12 @@ int connectWiFi(int number, bool verbose_mode) {
         //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
 
 
-
-        if (!isInternetReachable()) {
+        String pingServer = preferences.getString("pingServer", "");
+        if (pingServer == "") {
+            DEBUG_PRINTLN("[WiFi] No ping server configured, skipping internet connectivity check.");
+            return CONNECTED; // Kein Ping-Server konfiguriert, Verbindung als in Ordnung betrachten
+        }
+        if (!isInternetReachable(pingServer)) {
             // Setze eine Statusvariable oder führe eine Aktion aus, wenn das Internet nicht erreichbar ist
             DEBUG_PRINTLN("[WiFi] Internet not reachable after connection.");
             return CONNECTED_NO_INTERNET;
@@ -1796,10 +2013,9 @@ int connectWiFi(int number, bool verbose_mode) {
 
         if (preferences.getInt("lastWLan", -1) != number) {
             preferences.putInt("lastWLan", number);        
-            DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)number + 1);
+            DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
         }
               
-
       //  if (!WiFi.softAPgetStationNum()) updateClock();
 
         return CONNECTED;
@@ -1808,29 +2024,37 @@ int connectWiFi(int number, bool verbose_mode) {
     return NOT_CONNECTED;
 }
 
-bool isInternetReachable() {
- 
-    String pingServer = preferences.getString("pingServer", DEFAULT_PING_SERVER);
-         
-    // DEBUG_PRINTLN("[PING] Pinging server: " + pingServer);
 
-    // Ping den Server und prüfe, ob er erreichbar ist
-    if (!Ping.ping(pingServer.c_str(), 1)) {
-        if (!Ping.ping(pingServer.c_str(), 5)) {
-            DEBUG_PRINTLN("[PING] Server " + pingServer + " is unreachable.");
-            return false;
-        }
+// Prüft die Internet-Konnektivität durch Verbindungsversuch zu einem konfigurierten Server.    
+bool isInternetReachable(String pingServer) {
+
+    if (WiFi.status() != WL_CONNECTED) {
+        DEBUG_PRINTLN("[PING] WiFi not connected, skipping ping.");
+        return false;
     }
-    else {
-        DEBUG_PRINTLN("[PING] Server " + pingServer + " is reachable.");
-        return true; // Beende die Schleife, wenn ein Server erreichbar ist
+
+    WiFiClient client;    
+    
+    int pingPort = 80; // Standardport
+
+if (pingServer.indexOf(':') != -1) { 
+    int pingPort = pingServer.substring(pingServer.indexOf(':') + 1).toInt();
+    pingServer = pingServer.substring(0, pingServer.indexOf(':'));    
+} 
+// DEBUG_PRINTLN("[PING] Checking internet connectivity by connect to " + pingServer + ":" + pingPort); client.setTimeout(1);
+bool ok = client.connect(pingServer.c_str(), pingPort);
+    if (ok) {
+        DEBUG_PRINTLN("[PING] Successfully connected to " + pingServer + ":" + pingPort + " internet is reachable.");
+    } else {
+        DEBUG_PRINTLN("[PING] Failed to connect to " + pingServer + ":" + pingPort);
     }
-     
-    return false;
+
+    client.stop();
+    return ok;
 }
 
 
-// Animation während WLAN-Verbindung
+// Animation während Verbindungsversuchen
 void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
     tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
     tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
@@ -1839,7 +2063,7 @@ void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
 }
 
 
-// Anzeige WLAN Parameter
+// Anzeige WLAN Parameter auf dem TFT
 void showWlanCredentials(String wlan) {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -1850,19 +2074,24 @@ void showWlanCredentials(String wlan) {
 
     tft.setTextSize(TFT_TEXT_SIZE);
     tft.setCursor(14, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-    tft.println("Connected to SSID" + String(preferences.getInt("lastWLan", -1) + 1));
-    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-    if (wlan.length() > 15) {
-        tft.print(wlan.substring(0, 15));
-        tft.println("...");
-    }
-    else tft.println(wlan);
-    tft.setCursor(20, (CLOCK_HEIGHT / 2));
-    tft.println(WiFi.localIP());
+    if (WiFi.status() == WL_CONNECTED) {
+        tft.println("Connected to SSID" + String(preferences.getInt("lastWLan", -1) + 1));
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+        if (wlan.length() > 15) {
+            tft.print(wlan.substring(0, 15));
+            tft.println("...");
+        }
+        else tft.println(wlan);
+        tft.setCursor(20, (CLOCK_HEIGHT / 2));
+        tft.println(WiFi.localIP());
 
-    if (pingHostname) {
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-        tft.println(String(hostname) + ".local");
+        if (pingHostname) {
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+            tft.println(String(hostname) + ".local");
+        }       
+    }
+    else {
+        tft.println("Not connected");
     }
 }
 
@@ -1871,59 +2100,46 @@ void showWlanCredentials(String wlan) {
 // Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
 boolean setupNTP() {
 
+    Serial.println("[NTP] Setting up NTP...");
     if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) {
-        DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
+        //DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
         return true;
     }
+
     timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
+
     for (int i = 0; i < MAX_WLAN; i++) {
-        if (ntpServers[i] == "") continue;
+        String ntpServer = ntpServers[i];
+        if (ntpServer.length() == 0) continue;
         //DEBUG_PRINTLN("[NTP] Trying server: " + String(ntpServers[i]));
         configTzTime(timezone.c_str(), ntpServers[i]);
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo, 5000)) {
+        //  struct tm timeinfo;
+        if (getLocalTime(&timeinfo, 100)) {
 
-            DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + String(ntpServers[i]));
+            DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + ntpServer);
+
+            if (rtc_ok == RTC_AVAILABLE || rtc_ok == RTC_AVAILABLE_BUT_INVALID) {
+                // Setze die RTC mit der synchronisierten Zeit
+                rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                    timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
+                DEBUG_PRINTLN("[RTC] RTC updated with NTP time.");
+
+            }            
             return true;
         }
-        DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + String(ntpServers[i]));
+        DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + ntpServer);
     }
     handleNTPFailure();
+    return false;
 }
 
-void checkNtpOffset() {
-
-    return;
-
-    struct tm localTime;
-    if (!getLocalTime(&localTime)) {
-        DEBUG_PRINTLN("[NTP] Failed to get local time.");
-        return;
-    }
-
-    // Hole die aktuelle Zeit vom NTP-Server
-    time_t beforeSync = mktime(&localTime); // Lokale Zeit vor der Synchronisation
-    setupNTP(); // Synchronisiere die Zeit mit dem NTP-Server
-    time_t afterSync = time(nullptr); // Zeit nach der Synchronisation
-
-    // Berechne die Abweichung
-    long offset = difftime(afterSync, beforeSync);
-
-    // Ausgabe der Abweichung
-    if (offset == 0) {
-        DEBUG_PRINTLN("[NTP] No deviation from local time.");
-    }
-    else {
-        DEBUG_PRINTF("[NTP] Difference from local time: %ld sec\n", offset);
-    }
-}
-
+// Behandelt NTP-Synchronisierungsfehler, indem die letzte bekannte Zeit verwendet oder auf 12:00 Uhr gesetzt wird.
 void handleNTPFailure() {
     DEBUG_PRINTLN("[NTP] Handling NTP synchronization failure...");
 
     // Versuche, die letzte bekannte Zeit zu verwenden
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo)) {
+   // struct tm timeinfo;
+    if (getLocalTime(&timeinfo, 100)) {
         char timeStr[32];
         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
         DEBUG_PRINTLN("[NTP] Using last known time: " + String(timeStr));
@@ -1943,24 +2159,28 @@ void handleNTPFailure() {
     scheduleNTPRetry();
 }
 
+// Setzt die Systemzeit manuell anhand einer `tm`-Struktur. 
 void setTimeStruct(const struct tm& timeinfo) {
     timeval tv = { mktime(const_cast<struct tm*>(&timeinfo)), 0 }; // Konvertiere `tm` in `time_t`
     settimeofday(&tv, nullptr); // Setze die Systemzeit
     DEBUG_PRINTLN("[NTP] Time manually set to: " + String(asctime(&timeinfo)));
 
 }
+
+// Plant einen NTP-Wiederholungsversuch in 30 Minuten.
 void scheduleNTPRetry() {
     lastNTPRetry = millis();
     DEBUG_PRINTLN("[NTP] Scheduled retry in 30 minutes.");
 }
 
+// Überprüft, ob es Zeit für einen NTP-Wiederholungsversuch ist, und führt diesen gegebenenfalls durch.
 void checkNTPRetry() {
     if (WiFi.status() != WL_CONNECTED) {
         //DEBUG_PRINTLN("[NTP] Skipping retry: Not connected to WiFi.");
         lastNTPRetry = millis();
         return;
     }
-    if (lastNTPRetry > 0 && millis() - lastNTPRetry >= retryIntervalNTPms) {
+    if (lastNTPRetry > 0 && millis() - lastNTPRetry >= WAIT_1h) {
         // DEBUG_PRINTLN("[NTP] Retrying NTP synchronization...");
         setupNTP();
         lastNTPRetry = millis();
@@ -1976,7 +2196,7 @@ String generateHtmlHeader() {
     html += "hr { border: 0; height: 1px; background-color: #cccccc; margin: 20px 0; } ";
     html += "table { margin: auto; border-collapse: collapse; } "; // Tabellen zentrieren
     html += "th, td { padding: 10px; text-align: center; border: 1px solid #cccccc; } "; // Tabellenzellen 
-    html += "li { text-align: left; } "; // <li> linksb%uuml;ndig formatieren
+    html += "li { text-align: left; } "; // <li> linksbündig formatieren
     html += "</style></head><body>";
     // Seite benötigt JavaScript
     html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" + 
@@ -2003,8 +2223,8 @@ String generateHtmlStatus() {
 }
 
 
-// Navigationsleiste generieren
 
+// Sprachselector generieren
 String generateLanguageSelector() {
     String html = "<form method='POST' action='/setLanguage'>";
     html += "<label for='lang'>Language/Sprache:</label>";
@@ -2017,6 +2237,7 @@ String generateLanguageSelector() {
     return html;
 }
 
+// Navigationsleiste generieren
 String generateNavigation() {
     if (WiFi.getMode() != WIFI_STA) {
         DEBUG_PRINTLN("[HTML] Skipping HTML navigation.");
@@ -2067,9 +2288,7 @@ String generateNavigation() {
     return nav;
 }
 
-/// <summary> 
-/// Sets up the web server routes for clock face and hand set changes.
-/// </summary>
+// Webserver-API-Endpunkte einrichten
 void setupWebServer() {
 
     // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
@@ -2126,11 +2345,11 @@ void setupWebServer() {
 
         eraseWiFiConfig();
 
-        // Sende eine Bestätigung zur%uuml;ck
+        // Sende eine Bestätigung zurück
         webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
         DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
-        delay(1000);
+        delay(WAIT_1s);
         // Neustart des ESP
         esp_reboot();
 
@@ -2533,7 +2752,7 @@ void setupWebServer() {
 
         html += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
         html += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
-        //  html += generateNavigation(); // Navigation einf%uuml;gen
+        //  html += generateNavigation(); // Navigation einfügen
         html += "<br><br>";
         html += "</form></body></html>";
         webserver.send(200, "text/html", html);
@@ -2598,8 +2817,8 @@ void setupWebServer() {
         }
         String src = webserver.arg("file");
         String html = generateHtmlHeader();
-        html += generateHtmlStatus(); // Statusleiste einf%uuml;gen
-        html += generateNavigation(); // Navigation einf%uuml;gen
+        html += generateHtmlStatus(); // Statusleiste einfügen
+        html += generateNavigation(); // Navigation einfügen
         html += "<h2>" + translate("Scale and Save BMP") + "</h2>";
         html += "<form action='/scalebmp_run' method='GET'>";
         html += translate("Source") + ": <input name = 'src' value = '/" + src + "' readonly><br>";
@@ -2880,7 +3099,7 @@ void setupWebServer() {
 #endif
         }
 
-        html += generateNavigation(); // Navigation einf%uuml;gen    
+        html += generateNavigation(); // Navigation einfügen    
         html += "<br><br></body></html>";
         webserver.send(200, "text/html", html);
         });
@@ -2952,8 +3171,10 @@ void setupWebServer() {
                 html += translate("Scale") + " ";
                 html += translate("Rename") + " ";
             }
-
+                       
+            html += "<a href='/download?file=" + name + "'>" + translate("Download") + "</a> ";
             html += "<a href='/file?name=" + name + "'>" + translate("View") + "</a> "; // "View"-Link für Logdateien
+
             html += "</td></tr>";
 
             file = root.openNextFile();
@@ -2964,7 +3185,23 @@ void setupWebServer() {
         webserver.send(200, "text/html", html);
         });
 
+    webserver.on("/download", HTTP_GET, []() {
+        if (webserver.hasArg("file")) {
+            String path = webserver.arg("file");
+            if (!path.startsWith("/")) path = "/" + path;
 
+            if (LittleFS.exists(path)) {
+                File file = LittleFS.open(path, "r");
+
+                // Setze den Content-Disposition-Header, um den Dateinamen festzulegen
+                webserver.sendHeader("Content-Disposition", "attachment; filename=\"" + String(file.name()) + "\"");
+                webserver.streamFile(file, "application/octet-stream");
+                file.close();
+                return;
+            }
+        }
+        webserver.send(404, "text/plain", "File not found");
+        });
 
     // Systemstatus Seite
     webserver.on("/status", HTTP_GET, []() {
@@ -2981,8 +3218,8 @@ void setupWebServer() {
 
         tzDesc = tzLabel;
 
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo)) {
+       // struct tm timeinfo;
+        if (getLocalTime(&timeinfo, 100)) {
             char nowStr[32];
             strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
             html += "<li>Current Time: " + String(nowStr) + "</li>";
@@ -3001,7 +3238,6 @@ void setupWebServer() {
         }
 
         html += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
-
 
         html += "<li>TFT Driver: " + tft_type + "</li>";
 
@@ -3038,7 +3274,7 @@ void setupWebServer() {
         html += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
         html += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
 
-
+#ifdef ADC_PIN
         if (photoresistorFound) {
             html += "<li>Photoresistor found on GPIO " + String(ADC_PIN) + "</li>";
             html += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
@@ -3046,6 +3282,7 @@ void setupWebServer() {
         else {
             html += "<li>Photoresistor not found on GPIO " + String(ADC_PIN) + "</li><br>";
         }
+#endif
 
 
 
@@ -3056,18 +3293,30 @@ void setupWebServer() {
         html += "<li>TFT_DC: " + String(TFT_DC) + "</li>";
         html += "<li>TFT_RST: " + String(TFT_RST) + "</li><br>";
 
+        if (!i2c_adr.isEmpty()) {
+            html += "<li>I2C ADR: " + i2c_adr + "</li>";
+            html += "<li>I2C SDA: " + String(SDA_PIN) + "</li>";
+            html += "<li>I2C SDL: " + String(SCL_PIN) + "</li><br>";
+        }
+
+#ifdef BUTTON1
         html += "<li>BUTTON: " + String(BUTTON1) + "</li>";
+#endif
+#ifdef LED_BOARD
         html += "<li>LED_BOARD: " + String(LED_BOARD) + "</li>";
+#endif
+#ifdef TOUCH_PIN
         html += "<li>TOUCH_PIN: " + String(TOUCH_PIN) + "</li>";
         html += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
-
-
+#endif
+#ifdef ADC_PIN
         html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
         html += "<li>ADC (photoresistor): " + String(ADC_PIN) + "</li>";
         html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";
         if (photoresistorFound) {
             html += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
         }
+#endif
 
 
 #ifndef TFT_Backlight 
@@ -3101,10 +3350,8 @@ void setupWebServer() {
             }
         }
        
-        html += "<li><b>pingServer</b>: " + preferences.getString("pingServer", DEFAULT_PING_SERVER) + "</li>";
+        html += "<li><b>pingServer:port</b>: " + preferences.getString("pingServer", DEFAULT_PING_SERVER) + "</li>";
 
-       // html += "<li><b>ntpServer1</b>: " + preferences.getString("ntpServer1", NTP_SERVER_1) + "</li>";
-       // html += "<li><b>ntpServer2</b>: " + preferences.getString("ntpServer2", NTP_SERVER_2) + "</li>";
         html += "<li><b>timezone</b>: " + preferences.getString("timezone", TIMEZONE_DEFAULT) + "</li>";
         html += "<li><b>background</b>: " + preferences.getString("background", "/faces/default") + "</li>";
         html += "<li><b>handset</b>: " + preferences.getString("handset", "") + "</li>";
@@ -3169,7 +3416,7 @@ void setupWebServer() {
                 // Transparente Farbe ersetzen
                 if (px == TRANSPARENT_COLOR) {
                     rowPtr[x * 3 + 0] = 255; // Blau
-                    rowPtr[x * 3 + 1] = 255; // Gr%uuml;n
+                    rowPtr[x * 3 + 1] = 255; // Grün
                     rowPtr[x * 3 + 2] = 255; // Rot
                     continue;
                 }
@@ -3235,7 +3482,7 @@ void setupWebServer() {
         if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
         html += "</table><hr>";
 
-        // Hinweis und Download-Link f%uuml;r die ZIP-Datei
+        // Hinweis und Download-Link für die ZIP-Datei
         html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
         html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
         html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
@@ -3271,9 +3518,9 @@ void setupWebServer() {
         json = "[";
         for (int i = 0; i < foundNetworkCount; ++i) {
             if (i > 0) json += ",";
-            json += "{\"ssid\":\"" + foundNetworks[i].ssid + "\"";
-            json += ",\"rssi\":" + String(foundNetworks[i].rssi);
-            json += ",\"enc\":" + String(foundNetworks[i].enc);
+            json += "{\"ssid\":\"" + availableNetworks[i].ssid + "\"";
+            json += ",\"rssi\":" + String(availableNetworks[i].rssi);
+            json += ",\"enc\":" + String(availableNetworks[i].enc);
             json += "}";
         }
         json += "]";
@@ -3304,8 +3551,6 @@ void setupWebServer() {
 
         html += "<button id='rescanBtn' type='button'>" + translate("Rescan Networks") + "</button><br>";
 
-
-
         for (int i = 0; i < MAX_WLAN; i++) {
             // Dynamisch berechnete Schlüssel
             String ssidKey = "ssid" + String(i + 1);
@@ -3317,7 +3562,6 @@ void setupWebServer() {
             upperSsidKey.toUpperCase();    // Kopie in Großbuchstaben umwandeln
             html += "<h3>" + upperSsidKey + "</h3>";
 
-            // html += "<label for='" + ssidKey + "'>" + ssidKey + ":</label><br>";
             html += "<select id='" + ssid_select + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\">";
             
             html += "</select><br>";
@@ -3337,7 +3581,6 @@ void setupWebServer() {
 
         
         html += "<br><br>";
-
 
         html += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
 
@@ -3366,7 +3609,7 @@ void setupWebServer() {
 
             html += "</tr><tr>";
 
-            // Neue Checkbox f%uuml;r Touch-Freigabe
+            // Neue Checkbox für Touch-Freigabe
             //html += "<td><input type='checkbox' name='useTouch' value='1' ";
             //html += preferences.getBool("useTouch", false) ? "checked" : "";
             //html += "> " + translate("Enable Touch") + "</td>";
@@ -3854,8 +4097,8 @@ void setupWebServer() {
     // Sofortige Zeitsynchronisation
     webserver.on("/syncnow", HTTP_POST, []() {
         setupNTP();
-        struct tm timeinfo;
-        getLocalTime(&timeinfo);
+       // struct tm timeinfo;
+        getLocalTime(&timeinfo, 100);
 
         char timeStr[32];
         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
@@ -3945,153 +4188,8 @@ void handleFileUpload() {
     }
 }
 
-// Lädt eine BMP-Datei in einen Sprite ohne PSRAM
-bool loadBmpToSprite(TFT_eSprite* sprite, const char* filename) {
-
-    if (psramAvailable) {
-        return loadBmpToSprite_PS_RAM(sprite, filename);
-    }
-
-   
-    File bmp = LittleFS.open(filename, "r");
-    if (!bmp) return false;
-
-    uint8_t header[54];
-    if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
-        bmp.close();
-        return false;
-    }
-
-    int32_t width = *(int32_t*)&header[18];
-    int32_t height = *(int32_t*)&header[22];
-    uint16_t bpp = *(uint16_t*)&header[28];
-    uint32_t offset = *(uint32_t*)&header[10];
-
-    if (width != CLOCK_WIDTH || abs(height) != CLOCK_HEIGHT || bpp != 16) {
-        bmp.close();
-        return false;
-    }
-
-    bool flip = height > 0;
-    height = abs(height);
-
-    bmp.seek(offset);
-    for (int y = 0; y < height; y++) {
-        int row = flip ? height - 1 - y : y;
-        bmp.read((uint8_t*)rowBuffer, CLOCK_WIDTH * 2);
-
-        for (int x = 0; x < CLOCK_WIDTH; x++) {
-            rowBuffer[x] = setPixelBrightness(rowBuffer[x]);
-        }
-
-        sprite->pushImage(0, row, CLOCK_WIDTH, 1, rowBuffer);
-    }
-
-    bmp.close();
-    return true;
-}
 
 
-
-// Lädt eine BMP-Datei in einen Sprite unter Verwendung von PSRAM und rotiert das Bild basierend auf der Display-Rotation
-bool loadBmpToSprite_PS_RAM(TFT_eSprite* sprite, const char* filename) {
-
-    
-    File bmp = LittleFS.open(filename, "r");
-    if (!bmp) return false;
-
-    uint8_t header[54];
-    if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
-        bmp.close();
-        return false;
-    }
-
-    int32_t width = *(int32_t*)&header[18];
-    int32_t height = *(int32_t*)&header[22];
-    uint16_t bpp = *(uint16_t*)&header[28];
-    uint32_t offset = *(uint32_t*)&header[10];
-
-    if (width != CLOCK_WIDTH || abs(height) != CLOCK_HEIGHT || bpp != 16) {
-        bmp.close();
-        return false;
-    }
-
-    bool flip = height > 0;
-    height = abs(height);
-
-    bmp.seek(offset);
-
-    
-    // Temporärer Buffer für die Bitmap-Daten
-    uint16_t* tempBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
-    if (!tempBuffer) {
-        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden für Bitmap-Daten!");
-        bmp.close();
-        return false;
-    }
-
-    for (int y = 0; y < height; y++) {
-        bmp.read((uint8_t*)&tempBuffer[y * width], width * 2);
-    }
-
-    // Neuen Buffer erstellen, der rotiert ist
-    uint16_t* rotatedBuffer = (uint16_t*)ps_malloc(CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
-    if (!rotatedBuffer) {
-        DEBUG_PRINTLN("PSRAM konnte nicht allokiert werden für Rotation!");
-        free(tempBuffer);
-        bmp.close();
-        return false;
-    }
-    
-    tftRotation = preferences.getUChar("tftRotation", 0);
-       
-    // 4. Pixelrotation (Korrektur der Spiegelung und Drehung)
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            int newX = x, newY = y;
-
-            switch (tftRotation) {
-            case 0: // 0&deg;
-                newX = x;
-                newY = y;
-                break;
-            case 1: // 90&deg;
-                newX = y;
-                newY = width - x - 1;
-                break;
-            case 2: // 180&deg;
-                newX = width - x - 1;
-                newY = height - y - 1;
-                break;
-            case 3: // 270&deg;
-                newX = height - y - 1;
-                newY = x;
-                break;
-            }
-
-            // Korrektur für invertierte Darstellung
-            newY = height - newY - 1;
-
-            if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
-                rotatedBuffer[newY * width + newX] = setPixelBrightness(tempBuffer[y * width + x]);
-            }
-        }
-    }
-
-    // 5. In den Sprite pushen
-    sprite->setSwapBytes(true); // Byte-Reihenfolge für TFT_eSPI korrigieren
-    sprite->fillSprite(TFT_BLACK); // Hintergrund löschen
-    for (int y = 0; y < height; y++) {
-        sprite->pushImage(0, y, width, 1, &rotatedBuffer[y * width]);
-    }
-
-    // 6. Speicher freigeben
-    free(tempBuffer);
-    free(rotatedBuffer);
-
-    bmp.close();
-    return true;
-}
 
 // Rotiert die Zeiger basierend auf der Display-Rotation
 float rotatedAngle(float angle, int orientation) {
@@ -4101,7 +4199,7 @@ float rotatedAngle(float angle, int orientation) {
     return angle;
 }
 
-//überprüft, ob die BMP-Datei das erwartete Format hat
+// überprüft, ob die BMP-Datei das erwartete Format hat
 bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) {
     File bmpFile = LittleFS.open(filename, "r");
     if (!bmpFile) {
@@ -4251,20 +4349,27 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
 
     const int rowSize = ((outW * 2 + 3) / 4) * 4;
     const int dataSize = rowSize * outH;
-    const int fileSize = 54 + dataSize;
-    uint8_t bmpHeader[54] = { 0 };
+    const int fileSize = 66 + dataSize;
+    uint8_t bmpHeader[66] = { 0 };
 
     bmpHeader[0] = 'B'; bmpHeader[1] = 'M';
     *(uint32_t*)&bmpHeader[2] = fileSize;
-    *(uint32_t*)&bmpHeader[10] = 54;
+    *(uint32_t*)&bmpHeader[10] = 66;
     *(uint32_t*)&bmpHeader[14] = 40;
     *(int32_t*)&bmpHeader[18] = outW;
     *(int32_t*)&bmpHeader[22] = -outH; // Top-down BMP
     *(uint16_t*)&bmpHeader[26] = 1;
-    *(uint16_t*)&bmpHeader[28] = 16;
+
+    *(uint16_t*)&bmpHeader[28] = 16; // Set to 16 bpp for RGB565
+    *(uint32_t*)&bmpHeader[30] = 3; // Compression method: BI_BITFIELDS
     *(uint32_t*)&bmpHeader[34] = dataSize;
 
-    out.write(bmpHeader, 54);
+    // Add RGB565 color masks
+    *(uint32_t*)&bmpHeader[54] = 0xF800; // Red mask
+    *(uint32_t*)&bmpHeader[58] = 0x07E0; // Green mask
+    *(uint32_t*)&bmpHeader[62] = 0x001F; // Blue mask
+
+    out.write(bmpHeader, 66);
 
     for (int y = 0; y < outH; y++) {
         uint8_t rowOut[rowSize];
@@ -4284,7 +4389,7 @@ void eraseWiFiConfig() {
     WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen    
     delay(100);
     WiFi.mode(WIFI_OFF);
-    delay(1000);
+    delay(WAIT_1s);
 
     // Zusätzlich: Manuell NVS-Einträge für WiFi löschen
     nvs_handle_t nvsHandle;
@@ -4293,7 +4398,7 @@ void eraseWiFiConfig() {
         nvs_erase_all(nvsHandle);
         nvs_commit(nvsHandle);
         nvs_close(nvsHandle);
-        DEBUG_PRINTLN("WiFi-NVS-Eintr&auml;ge gelöscht.");
+        DEBUG_PRINTLN("WiFi-NVS-Einträge gelöscht.");
     }
     else {
         DEBUG_PRINTF("Fehler beim öffnen des NVS-WiFi-Handles: %s\n", esp_err_to_name(err));
@@ -4326,7 +4431,7 @@ void factoryReset() {
     LittleFS.end();
     eraseWiFiConfig();
     eraseAllNVS();
-    delay(2000);
+    delay(WAIT_5s);
     DEBUG_PRINTLN(">>> Neustart...");
     esp_reboot();         
 }
@@ -4338,7 +4443,7 @@ void esp_reboot() {
     tft.setTextSize(TFT_TEXT_SIZE);
     tft.setCursor(20, (CLOCK_HEIGHT / 2));
     tft.println("Rebooting...");
-    delay(900);
+    delay(WAIT_3s);
     tft.fillScreen(TFT_BLACK);
     delay(100);
     ESP.restart();
@@ -4348,7 +4453,7 @@ void esp_reboot() {
 // --- Funktion: Prüft, ob ein wöchentlicher Neustart fällig ist ---
 void checkWeeklyRestart() {
 
-    struct tm timeinfo;
+   // struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) return;
 
     if (timeinfo.tm_wday == 0 && 
@@ -4370,66 +4475,76 @@ void checkWeeklyRestart() {
             DEBUG_PRINTF("Woechentlicher Reboot in Woche %d\n", currentWeek);
             preferences.putInt("last_reset_week", currentWeek);
             preferences.end();
-            delay(1000);
+            delay(WAIT_1s);
             DEBUG_PRINTLN("reboot now...");
-            delay(1000);
+            delay(WAIT_1s);
             ESP.restart();
         }
     }
 }
 
-
+// --- Funktion: Startet einen asynchronen WiFi-Scan ---
 void startWiFiScan() {
     if (!isScanning) {
+      
         isScanning = true;
-        // Setze den WiFi-Modus auf Station
+
         WiFi.mode(WIFI_STA);
-
-        // Starte das WiFi-Subsystem (ohne Verbindung zu einem Netzwerk)
-        WiFi.begin();
-
-        // Warte kurz, um sicherzustellen, dass das WiFi-Subsystem initialisiert ist
-        delay(250);
+        WiFi.disconnect();
+        delay(10);
         DEBUG_PRINTLN("[WiFi] Starting asynchronous scan...");
         WiFi.scanNetworks(true); // Asynchroner Scan
-        delay(1000);
+        //delay(250);
     }
 }
 
+// --- Funktion: Überprüft den Status des WiFi-Scans und verarbeitet die Ergebnisse ---
 void checkWiFiScan() {
     if (isScanning) {
         int scanStatus = WiFi.scanComplete();
         if (scanStatus == WIFI_SCAN_RUNNING) {
             // Scan läuft noch
-            DEBUG_PRINTLN("[WiFi] Scan in progress...");
+            // DEBUG_PRINTLN("[WiFi] Scan in progress...");
         }
         else if (scanStatus >= 0) {
             // Scan abgeschlossen
 
+            // Vorherige Ergebnisse löschen
+            for (int i = 0; i < MAX_WLAN; i++) {
+                availableNetworks[i].ssid = "";  
+                availableNetworks[i].rssi = 0;
+                availableNetworks[i].enc = 0;
+            }
+
             int n = scanStatus; 
-            DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
+            DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks.");
             if (n > MAX_WLAN) {
-                DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
+                if (loggingEnabled) DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");            
                 n = MAX_WLAN;
             }
            
             for (int i = 0; i < n; i++) {
-                foundNetworks[i].ssid = WiFi.SSID(i);
-                foundNetworks[i].rssi = WiFi.RSSI(i);
-                foundNetworks[i].enc = WiFi.encryptionType(i);
+                availableNetworks[i].ssid = WiFi.SSID(i);
+                availableNetworks[i].rssi = WiFi.RSSI(i);
+                availableNetworks[i].enc = WiFi.encryptionType(i);
                 foundNetworkCount++;
-                DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid + " (" + String(foundNetworks[i].rssi) + " dBm) " + (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+                if (loggingEnabled) {
+                    DEBUG_PRINTLN("  [WiFi] " +
+                        availableNetworks[i].ssid + " (" +
+                        String(availableNetworks[i].rssi) + " dBm) " +
+                        (availableNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+                }
 
             }
-            DEBUG_PRINTLN("[WiFi] done");
             WiFi.scanDelete(); // Ergebnisse löschen
             isScanning = false;
+            DEBUG_PRINTLN("[WiFi] done");
         }
         else {
             // Fehler beim Scan
             DEBUG_PRINTLN("[WiFi] Scan failed with error: " + String(scanStatus));
             isScanning = false;
-            scanAndCacheNetworks();
+            //scanAndCacheNetworks();
         }
     }
 }
@@ -4443,7 +4558,9 @@ void scanAndCacheNetworks() {
     tft.println("WLAN-Scan...");
 
     DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks...");
-    digitalWrite(LED_BOARD, HIGH);
+#ifdef LED_BOARD
+ 
+#endif
     int n = WiFi.scanNetworks();
     DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks:");    
     if (n > MAX_WLAN) {
@@ -4453,20 +4570,38 @@ void scanAndCacheNetworks() {
 
     foundNetworkCount = 0;
     for (int i = 0; i < n; i++) {
-        foundNetworks[i].ssid = WiFi.SSID(i);
-        foundNetworks[i].rssi = WiFi.RSSI(i);
-        foundNetworks[i].enc = WiFi.encryptionType(i);
+        availableNetworks[i].ssid = WiFi.SSID(i);
+        availableNetworks[i].rssi = WiFi.RSSI(i);
+        availableNetworks[i].enc = WiFi.encryptionType(i);
         foundNetworkCount++;
 
-        DEBUG_PRINTLN("  [WiFi] " + foundNetworks[i].ssid +
-                      " (" + String(foundNetworks[i].rssi) + " dBm) " + 
-                      (foundNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+        DEBUG_PRINTLN("  [WiFi] " + availableNetworks[i].ssid +
+                      " (" + String(availableNetworks[i].rssi) + " dBm) " + 
+                      (availableNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
     }    
 
     WiFi.scanDelete(); // Ergebnisse löschen
     DEBUG_PRINTLN("[WiFi] done.");
-    digitalWrite(LED_BOARD, LOW);
+  
 }
+
+
+// --- Funktion: Schaltet die LED ein (wenn definiert) ---  
+void setLED_off() {
+#ifdef LED_BOARD
+    pinMode(LED_BOARD, OUTPUT);
+    digitalWrite(LED_BOARD, LOW);
+#endif
+}
+
+// --- Funktion: Schaltet die LED aus (wenn definiert) ---
+void setLED_on() {
+#ifdef LED_BOARD
+    pinMode(LED_BOARD, OUTPUT);
+    digitalWrite(LED_BOARD, HIGH);
+#endif
+}
+
 
 // --- Funktion: Wechselt zum nächsten Preset ---
 void switchToNextPreset() {
@@ -4607,7 +4742,7 @@ void switchToNextPreset() {
 }
 
 
-// --- Funktion: Wechselt zum n&auml;chsten Hintergrundbild ---
+// --- Funktion: Wechselt zum nächsten Hintergrundbild ---
 void switchToNextBackground() {
     std::vector<String> faces;
 
@@ -4674,7 +4809,7 @@ void switchToNextBackground() {
     // 6) Wähle nächstes Element:
     int next;
     if (idx < 0) {
-        // Falls aktuelle Auswahl unbekannt ist, w&auml;hle erstes user-face (wenn default an pos 0) sonst 0
+        // Falls aktuelle Auswahl unbekannt ist, wähle erstes user-face (wenn default an pos 0) sonst 0
         if (faces.size() > 1 && faces[0] == "/face_default.bmp") next = 1;
         else next = 0;
     }
@@ -4700,6 +4835,7 @@ void switchToNextBackground() {
 
 // --- Funktion: Touch prüfen (nicht-blockierend, mit Entprellung) ---
 void checkTouchInput() {
+#ifdef TOUCH_PIN
 
     uint16_t var = touchRead(TOUCH_PIN);
 
@@ -4718,6 +4854,7 @@ void checkTouchInput() {
         switchToNextPreset();
     }
     touchLastState = state;
+#endif
 }
 
 
@@ -4733,7 +4870,7 @@ static void validateSelectedBackground() {
     // LittleFS muss gemountet sein
     if (!LittleFS.exists(selectedBackground)) {
         DEBUG_PRINTLN("[BG] File not found: " + selectedBackground);
-        // Versuche tolerant auch ohne f%uuml;hrenden Slash (falls gespeichert ohne '/')
+        // Versuche tolerant auch ohne führenden Slash (falls gespeichert ohne '/')
         String withoutSlash = selectedBackground;
         if (withoutSlash.startsWith("/")) withoutSlash = withoutSlash.substring(1);
         if (LittleFS.exists("/" + withoutSlash)) {
@@ -4834,6 +4971,8 @@ void parseBackgroundFilename(const String& filename, int& hourWidth, int& minute
 
 // ####################################################################
 // ### LOG-FUNKTIONEN #################################################
+
+// Löscht alle Logdateien aus dem LittleFS  
 void deleteAllLogFiles() {
     
     File root = LittleFS.open("/");
@@ -4853,15 +4992,15 @@ void deleteAllLogFiles() {
     preferences.putInt("logFileNumber", 0); // Log-Dateinummer zurücksetzen
 }
 
-
-void setLogFileName() {
+// Generiert den nächsten Logdateinamen basierend auf der aktuellen Nummer in den Preferences
+String getLogFileName() {
     
     int logFileNumber = preferences.getInt("logFileNumber", 0);
     logFileNumber++;
     preferences.putInt("logFileNumber", logFileNumber);
 
-    if (logFileNumber > 99) {
-        logFileNumber = 1;
+    if (logFileNumber > 19) {
+        logFileNumber = 0;
         preferences.putInt("logFileNumber", logFileNumber);
         preferences.putBool("loggingEnabled", false); // Logging deaktivieren
         deleteAllLogFiles();
@@ -4869,7 +5008,7 @@ void setLogFileName() {
 
     char formattedLogFileName[20];
     sprintf(formattedLogFileName, "/log_%02d.log", logFileNumber);
-    logFileName = String(formattedLogFileName);
+    //logFileName = String(formattedLogFileName);
 
 
     // Überprüfen, ob Anzahl Logfiles > 9 ist
@@ -4878,16 +5017,18 @@ void setLogFileName() {
         sprintf(oldLogFileName, "/log_%02d.log", logFileNumber - 9);
         if (LittleFS.exists(oldLogFileName)) {
             LittleFS.remove(oldLogFileName);
-            Serial.println("[LOG] Alte Logdatei gelöscht: " + String(oldLogFileName));
+            DEBUG_PRINTLN("[LOG] Alte Logdatei gelöscht: " + String(oldLogFileName));
         }
     }
+    return formattedLogFileName;
 }
 
+// Schreibt eine Lognachricht in die aktuelle Logdatei, wenn Logging aktiviert ist
 void logToFile(const String& message) {
     if (!loggingEnabled) {
         return; // Logging ist deaktiviert
     }
-
+     
     // Überprüfe, ob LittleFS gemountet ist
     if (!LittleFS.begin()) {
         Serial.println("[LOG] LittleFS ist nicht gemountet. Log wird nicht geschrieben.");
@@ -4903,9 +5044,13 @@ void logToFile(const String& message) {
 
     // Überprüfe, ob genügend Speicherplatz verfügbar ist
     size_t freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
-    if (freeSpace < 10 * 1024) { // Weniger als 10 KB frei
-        Serial.println("[LOG] Nicht genügend Speicherplatz im LittleFS. Log wird nicht geschrieben.");
-        return;
+    if (freeSpace < 15 * 1024) { // Weniger als 15 KB frei        
+        deleteAllLogFiles(); // Alle Logdateien löschen, um Platz zu schaffen
+        freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
+        if (freeSpace < 10 * 1024) {
+            Serial.println("[LOG] Nicht genügend Speicherplatz im LittleFS. Log wird nicht geschrieben.");
+            return;
+        }
     }
 
     // Überprüfe die Größe des aktuellen Logfiles
@@ -4915,20 +5060,12 @@ void logToFile(const String& message) {
         currentLogFile.close();
 
         if (fileSize > 10 * 1024) { // Wenn die Datei größer als 10 KB ist
-            setLogFileName(); // Neues Logfile erstellen
+            logFileName = getLogFileName(); // Neues Logfile erstellen
         }
-    }
-
-    // Öffne die Datei im Anhängemodus (append)
-    File logFile = LittleFS.open(logFileName, FILE_APPEND);
-    if (!logFile) {
-        Serial.println("[LOG] Fehler beim Öffnen der Logdatei.");
-        return;
     }
 
     // Zeitstempel generieren
     char timestamp[32];
-    struct tm timeinfo;
 
     // Zeitzone aus den Preferences abrufen
     String timezone = preferences.getString("timezone", TIMEZONE_DEFAULT);
@@ -4938,7 +5075,7 @@ void logToFile(const String& message) {
     unsigned long currentMillis = millis();
     unsigned long millisInSecond = currentMillis % 1000;
 
-    if (getLocalTime(&timeinfo, 1)) {
+    if (WiFi.status() == WL_CONNECTED && getLocalTime(&timeinfo, 500)) {
         strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S", &timeinfo);
         snprintf(timestamp + strlen(timestamp), sizeof(timestamp) - strlen(timestamp), ".%03lu] ", millisInSecond);
     }
@@ -4946,13 +5083,19 @@ void logToFile(const String& message) {
         snprintf(timestamp, sizeof(timestamp), "[%lu ms] ", currentMillis);
     }
 
+    // Öffne die Datei im Anhängemodus (append)
+    File logFile = LittleFS.open(logFileName, FILE_APPEND);
+    if (!logFile) {
+        Serial.println("[LOG] Fehler beim Öffnen der Logdatei: " + logFileName);
+        return;
+    }
     // Schreibe Zeitstempel und Nachricht in die Datei
     logFile.print(timestamp);
     logFile.println(message);
     logFile.close();
 }
 
-// eigenes trim function, da Arduino String keine trim()-Methode hat
+// eigenes trim function
 String trim(const String& str) {
     int start = 0;
     int end = str.length() - 1;
@@ -4970,3 +5113,52 @@ String trim(const String& str) {
     // Substring zurückgeben, der keine führenden oder nachfolgenden Leerzeichen enthält
     return str.substring(start, end + 1);
 }
+
+// --- Funktion: Scannt den I2C-Bus nach Geräten und gibt die Anzahl der gefundenen Geräte zurück ---
+uint16_t i2cScan() {
+    byte error, address;
+    int nDevices = 0;
+    
+    int rtc_3231_adr = 0x68;
+    
+    i2c_adr = "";
+
+    // teste direkt auf 0x68
+    Wire.beginTransmission(rtc_3231_adr);
+    error = Wire.endTransmission();
+    if (error == 0) {        
+        i2c_adr = "0x68 (RTC DS3231)";
+        DEBUG_PRINTLN("[I2C] " + i2c_adr);
+        return 1;
+    }
+
+    DEBUG_PRINTLN("[I2C] Scanning I2C...");
+    
+    for (address = 1; address < 127; address++) {
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+        if (error == 0) {
+            DEBUG_PRINT("[I2C]   I2C device found at address 0x");
+            if (address < 16) {
+                DEBUG_PRINT("0");
+            }
+            DEBUG_PRINTLN(String(address, HEX) + " ");            
+        }
+        else if (error == 4) {
+            DEBUG_PRINT("[I2C] Unknow error at address 0x");
+            if (address < 16) {
+                DEBUG_PRINT("0");
+            }
+            DEBUG_PRINTLN(String(address, HEX) + " ");
+        }
+    }
+    if (nDevices == 0) {
+        DEBUG_PRINTLN("[I2C] No I2C devices found");
+    }
+    else {
+        DEBUG_PRINTLN("[I2C] done");
+    }
+
+    return nDevices;
+}
+

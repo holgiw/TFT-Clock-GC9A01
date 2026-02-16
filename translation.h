@@ -2,9 +2,6 @@
 #define TRANSLATION_H 
 
 
-
-
-
 std::map<String, std::map<String, String>> translations = {
 
     {"de", { // Deutsch
@@ -206,9 +203,6 @@ String translate(const String& key) {
 
     return key; // Fallback: Schlüssel zurückgeben
 }
-
-
-
 
 
 #endif // TRANSLATION_H
