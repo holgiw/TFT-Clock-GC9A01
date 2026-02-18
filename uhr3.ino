@@ -21,7 +21,7 @@
 //#define ILI9341 
 
 
-// #define DEBUG
+ // #define DEBUG
 
 // Debug-Makros
 #ifdef DEBUG
@@ -78,6 +78,7 @@
 #include <esp_wps.h>
 #include <Wire.h>
 #include <RTClib.h>
+#include <WiFiUdp.h>
 
 #include "build_defs.h"
 
@@ -86,6 +87,13 @@ WebServer webserver(80);
 Preferences preferences;
 DNSServer dnsServer;
 RTC_DS3231 rtc;
+WiFiUDP udp;
+
+// NTP-Server-Port
+const int NTP_PORT = 123;
+// NTP-Paketgröße
+const int NTP_PACKET_SIZE = 48;
+byte ntpPacket[NTP_PACKET_SIZE];
  
 #ifdef ESP32_S2  // Lolin S2 Pico
 // ##############################################################################
@@ -842,6 +850,12 @@ void setup() {
 
     loadPresets();
 
+    if (rtc_ok == RTC_AVAILABLE) {
+        // UDP starten
+        udp.begin(NTP_PORT);
+        DEBUG_PRINTLN("[NTPD] NTP Server started");
+    }
+
     setLED_off();
 }
 
@@ -1072,6 +1086,31 @@ void loop() {
             checkWeeklyRestart();
         }
         initial = false;
+    }
+
+    // NTP-Server anfragen bearbeiten
+    // win:  w32tm /stripchart /computer:192.168.0.214
+    if (WiFi.getMode() == WIFI_STA && rtc_ok == RTC_AVAILABLE) {
+        int packetSize = udp.parsePacket();
+        if (packetSize) {
+            // IP-Adresse des Clients abrufen
+            IPAddress clientIP = udp.remoteIP();
+            DEBUG_PRINTLN("[NTPD] Request from: " + clientIP.toString());
+            
+            // NTP-Paket lesen
+            udp.read(ntpPacket, NTP_PACKET_SIZE);
+
+            // Aktuelle Zeit holen
+            time_t currentTime = mktime(&timeinfo);
+
+            // Antwort erstellen
+            createNtpResponse(ntpPacket, currentTime);
+
+            // Antwort senden
+            udp.beginPacket(udp.remoteIP(), udp.remotePort());
+            udp.write(ntpPacket, NTP_PACKET_SIZE);
+            udp.endPacket();
+        }
     }
 
      checkButton();
@@ -1492,7 +1531,7 @@ void updateClock() {
 
         if (smoothMinute) {
             // Millisekunden einbeziehen
-            unsigned long currentMillis = millis();
+            /*unsigned long currentMillis = millis();
             int milliseconds = currentMillis % 1000;
             float smoothMinuteValue = timeinfo.tm_min + (timeinfo.tm_sec / 60.0f) + (milliseconds / 60000.0f);
 
@@ -1504,7 +1543,18 @@ void updateClock() {
             if (angleDiff < -180.0f) angleDiff += 360.0f;
             if (angleDiff > 180.0f) angleDiff -= 360.0f;
 
-            lastMinuteAngle += angleDiff * 0.01f;  // noch feinere Bewegung
+            lastMinuteAngle += angleDiff * 0.06f;  // noch feinere Bewegung
+            */
+
+            // Millisekunden einbeziehen
+            unsigned long currentMillis = millis();
+            int milliseconds = currentMillis % 1000;
+            float smoothMinuteValue = timeinfo.tm_min + (timeinfo.tm_sec / 60.0f) + (milliseconds / 60000.0f);
+
+            float rawMinAngle = smoothMinuteValue * 6.0f;
+            minAngle = rotatedAngle(rawMinAngle, orientation);
+            lastMinuteAngle = minAngle; // Direkt setzen, da wir den exakten Winkel berechnen   
+
         }
         else {
             // Normale Minutenanzeige mit sanfter Korrektur bei Wechsel
@@ -2207,6 +2257,7 @@ String generateHtmlHeader() {
 
 /// Generiert den HTML-Statusabschnitt für die Weboberfläche
 String generateHtmlStatus() {
+    setLED_on();
     size_t total = LittleFS.totalBytes();
     size_t used = LittleFS.usedBytes();
     String html;
@@ -2219,21 +2270,7 @@ String generateHtmlStatus() {
 
     html += "<br>" + translate("Storage used") + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
     html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)<hr>";
-    return html;
-}
-
-
-
-// Sprachselector generieren
-String generateLanguageSelector() {
-    String html = "<form method='POST' action='/setLanguage'>";
-    html += "<label for='lang'>Language/Sprache:</label>";
-    html += "<select name='lang'>";
-    html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
-    html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
-    html += "</select>";
-    html += "<button type='submit'>" + translate("save") + "</button>";
-    html += "</form><hr>";
+    setLED_off();
     return html;
 }
 
@@ -2285,7 +2322,22 @@ String generateNavigation() {
     }
 
     nav += "</div>";
+    
     return nav;
+}
+
+
+// Sprachselector generieren
+String generateLanguageSelector() {
+    String html = "<form method='POST' action='/setLanguage'>";
+    html += "<label for='lang'>Language/Sprache:</label>";
+    html += "<select name='lang'>";
+    html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
+    html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
+    html += "</select>";
+    html += "<button type='submit'>" + translate("save") + "</button>";
+    html += "</form><hr>";
+    return html;
 }
 
 // Webserver-API-Endpunkte einrichten
@@ -2303,7 +2355,7 @@ void setupWebServer() {
 
     // API zum Zurücksetzen der WiFi-Einstellungen
     // http://192.168.0.214/api/resetWiFi  
-
+   
     webserver.on("/setLanguage", HTTP_POST, []() {
         if (webserver.hasArg("lang")) {
             String lang = webserver.arg("lang");
@@ -5162,3 +5214,36 @@ uint16_t i2cScan() {
     return nDevices;
 }
 
+
+// Funktion, um ein NTP-Paket zu erstellen
+void createNtpResponse(byte* packet, time_t currentTime) {
+    memset(packet, 0, NTP_PACKET_SIZE);
+
+    // Flags und Stratum
+    packet[0] = 0b00100100; // LI, Version, Mode
+    packet[1] = 1;          // Stratum
+    packet[2] = 6;          // Poll Interval
+    packet[3] = 0xEC;       // Precision
+
+    // Root Delay und Root Dispersion
+    packet[4] = 0;
+    packet[5] = 0;
+    packet[6] = 0;
+    packet[7] = 0;
+
+    // Reference Identifier
+    packet[12] = 'L';
+    packet[13] = 'O';
+    packet[14] = 'C';
+    packet[15] = 'L';
+
+    // Reference Timestamp
+    time_t refTime = currentTime - 1; // Referenzzeit (1 Sekunde vorher)
+    uint32_t refSeconds = htonl((uint32_t)(refTime + 2208988800UL));
+    memcpy(&packet[16], &refSeconds, 4);
+
+    // Origin Timestamp (kann leer bleiben)
+    // Transmit Timestamp
+    uint32_t transmitSeconds = htonl((uint32_t)(currentTime + 2208988800UL));
+    memcpy(&packet[40], &transmitSeconds, 4);
+}
