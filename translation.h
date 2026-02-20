@@ -179,7 +179,10 @@ std::map<String, std::map<String, String>> translations = {
         { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist"},
         { "Enable Logging" , "Logging aktivieren"},
         { "Reconnect WiFi" , "Wifi neu verbinden" },
-        { "JavaScript is disabled.This page requires JavaScript to work properly!" , "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!" }
+        { "JavaScript is disabled.This page requires JavaScript to work properly!" , "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!" },
+        { "Are you sure you want to reset all saved WiFi networks?" , "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zurücksetzen möchten?" },
+        { "Reset WiFi Networks", "WLAN Netzwerke zurücksetzen" }
+
 
         
 
