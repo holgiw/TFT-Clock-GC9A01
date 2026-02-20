@@ -21,28 +21,9 @@
 //#define ILI9341 
 
 
- // #define DEBUG
-
-// Debug-Makros
-#ifdef DEBUG
-#define DEBUG_PRINT(x) { Serial.print(x); logToFile(String(x)); }
-#define DEBUG_PRINTLN(x) { Serial.println(x); logToFile(String(x)); }
-#define DEBUG_PRINTF(...) { \
-    char buffer[256]; /* Puffer für die formatierte Nachricht */ \
-    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
-    Serial.print(buffer); \
-    logToFile(String(buffer)); \
-}
-#else
-#define DEBUG_PRINT(x) { logToFile(String(x)); }
-#define DEBUG_PRINTLN(x) { logToFile(String(x)); }
-#define DEBUG_PRINTF(...) { \
-    char buffer[256]; /* Puffer für die formatierte Nachricht */ \
-    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
-    Serial.print(buffer); \
-    logToFile(String(buffer)); \
-}
-#endif
+#define DEBUG_PRINT(x)    { if (loggingEnabled) { Serial.print(x);   logToFile(String(x));}}
+#define DEBUG_PRINTLN(x)  { if (loggingEnabled) { Serial.println(x); logToFile(String(x));}}
+#define DEBUG_PRINTF(...) { if (loggingEnabled) { char buffer[128]; snprintf(buffer, sizeof(buffer), __VA_ARGS__); Serial.print(buffer); logToFile(String(buffer));}}
 
 // time server & timezone default
 #define NTP_SERVER_1 "pool.ntp.org"
@@ -384,16 +365,16 @@ void setup() {
 
     memset(&timeinfo, 0, sizeof(timeinfo));
 
-#if defined DEBUG
-    unsigned long serialStart = millis();
-    while (!Serial && (millis() - serialStart < WAIT_5s)) {
-        delay(1);
+    if (loggingEnabled) {
+        unsigned long serialStart = millis();
+        while (!Serial && (millis() - serialStart < WAIT_5s)) {
+            delay(1);
+        }
     }
-   
-#endif  
+
 
     if (!LittleFS.begin(true)) {
-        Serial.println("[LittleFS] Mount Failed");
+        if (loggingEnabled) Serial.println("[LittleFS] Mount Failed");
     }
     
     preferences.begin("clock", false);
@@ -640,7 +621,7 @@ void setup() {
     adc_act = analogRead(ADC_PIN);
 
     DEBUG_PRINTF("[ADC] min: %d max: %d act: %d", adc_min, adc_max, adc_act);
-    Serial.println("");
+    if (loggingEnabled) Serial.println("");
 
     if (abs(adc_min - adc_max) > 1000) {        
         DEBUG_PRINTLN("[ADC] Found photoresistor");        
@@ -662,7 +643,7 @@ void setup() {
     minBrightness = preferences.getUChar("minBrightness", 100);
     maxBrightness = preferences.getUChar("maxBrightness", 255);
 
-    Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
+    if (loggingEnabled)  Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
 
     tft.init();
     delay(75);
@@ -761,9 +742,9 @@ void setup() {
     while (isScanning) {
         checkWiFiScan();
         delay(10);
-        Serial.print(".");
+        if (loggingEnabled)  Serial.print(".");
     }
-    Serial.println("");
+    if (loggingEnabled) Serial.println("");
     // DEBUG_PRINTLN("[WiFi] Scan complete");
 
    
@@ -788,9 +769,9 @@ void setup() {
         while (isScanning) {
             checkWiFiScan();
             delay(50);
-            Serial.print(".");
+            if (loggingEnabled) Serial.print(".");
         }
-        Serial.println("");
+        if (loggingEnabled) Serial.println("");
     }
    
     // versuche Verbindung mit der letzten SSID
@@ -1052,33 +1033,56 @@ void createPresetFromPreferences() {
     DEBUG_PRINTLN("[Preset] URL: " + url);
 }
 
+void scanWPS() {
+    Serial.println("[WPS] ");
+    startWPS(); // WPS starten  
+
+    for (int i = 0; i < 1000000; i++) {
+
+        Serial.print(".");
+        long wpsWaitMillis = millis();
+        while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_10m) {
+            delay(100);
+        }
+        
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("");
+            Serial.println("SSID: " + WiFi.SSID());
+            Serial.println("PASS: " + WiFi.psk());
+            delay(5000); // 5 Sekunden warten, damit der Nutzer die Daten notieren kann
+            WiFi.disconnect(); // Verbindung trennen, damit der normale Verbindungsprozess mit den gespeicherten SSIDs funktioniert
+            startWPS(); // WPS erneut starten, damit es für zukünftige Verbindungsversuche bereit ist
+        }
+    }
+}
 
 
 // Main-Loop
 void loop() {
+
+    // scanWPS(); // WPS-Scan durchführen
+
 
     // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
     if (millis() - lastNTPUpdate > WAIT_1h) {
         setupNTP();
         lastNTPUpdate = millis();
     }
-     
+
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
         dnsServer.processNextRequest();
     }
-       
 
-     webserver.handleClient();
 
-     
+    webserver.handleClient();
+
+
     if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE) {
 
-       updateClock();
+        updateClock();
 
-      
-        
-      //  checkWiFiScan(); // Überprüfe den Status des Scans
+        //  checkWiFiScan(); // Überprüfe den Status des Scans
         if (wifiActive || WiFi.isConnected()) {
             checkNTPRetry();
             checkWiFiReconnect();
@@ -1086,6 +1090,7 @@ void loop() {
             checkWeeklyRestart();
         }
         initial = false;
+
     }
 
     // NTP-Server anfragen bearbeiten
@@ -1096,7 +1101,7 @@ void loop() {
             // IP-Adresse des Clients abrufen
             IPAddress clientIP = udp.remoteIP();
             DEBUG_PRINTLN("[NTPD] Request from: " + clientIP.toString());
-            
+
             // NTP-Paket lesen
             udp.read(ntpPacket, NTP_PACKET_SIZE);
 
@@ -1113,8 +1118,8 @@ void loop() {
         }
     }
 
-     checkButton();
-     updateBrightness();
+    checkButton();
+    updateBrightness();
 
     if (useTouch) {
         // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
@@ -1494,7 +1499,7 @@ void updateClock() {
 
     // Station Mode: Sekundenzeiger springt nicht, sondern läuft in 672ms Schritten mit sanfter Bewegung dazwischen
     if (stationMode) {
-        if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
+         if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
             stationTick++;
             stationLastMillis += fastSecond;
 
@@ -1944,6 +1949,7 @@ void startAP() {
 
     softAPIP = true;
     softAPIPstart = millis();
+      
 }
 
 
@@ -1971,7 +1977,13 @@ int connectWiFi(int number, bool verbose_mode) {
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
         tft.setTextSize(TFT_TEXT_SIZE / 2);
+#if defined GC9D01
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+#else
         tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+#endif
+
+
         tft.println(String(version));
 
         tft.setTextSize(TFT_TEXT_SIZE);
@@ -2011,7 +2023,7 @@ int connectWiFi(int number, bool verbose_mode) {
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < waitTime) {
          
-        Serial.print(".");
+        if (loggingEnabled) Serial.print(".");
         if (verbose_mode) {
             animateCursor(tft, 20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
         }
@@ -2021,7 +2033,7 @@ int connectWiFi(int number, bool verbose_mode) {
         }
 
     }
-    Serial.println();
+    if (loggingEnabled) Serial.println();
 
     if (WiFi.status() != WL_CONNECTED) {
         DEBUG_PRINTLN("[WiFi] Connection failed or timed out.");       
@@ -2119,7 +2131,11 @@ void showWlanCredentials(String wlan) {
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
     tft.setTextSize(TFT_TEXT_SIZE/2);
+#if defined GC9D01
+    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+#else
     tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+#endif
     tft.println(String(version));
 
     tft.setTextSize(TFT_TEXT_SIZE);
@@ -2150,7 +2166,7 @@ void showWlanCredentials(String wlan) {
 // Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
 boolean setupNTP() {
 
-    Serial.println("[NTP] Setting up NTP...");
+    if (loggingEnabled) Serial.println("[NTP] Setting up NTP...");
     if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) {
         //DEBUG_PRINTLN("[NTP] Skipping NTP setup: Not in STA mode or WiFi not connected.");
         return true;
@@ -2385,16 +2401,8 @@ void setupWebServer() {
 
     webserver.on("/api/resetWiFi", HTTP_GET, []() {
 
-        for (int i = 0; i < MAX_WLAN; i++) {
-            // Dynamisch berechnete Schlüssel
-            String ssidKey = "ssid" + String(i + 1);
-            String passKey = "pass" + String(i + 1);
-
-            preferences.putString(ssidKey.c_str(), "");
-            preferences.putString(passKey.c_str(), "");             
-        }
-
-
+        DEBUG_PRINTLN("[API] Received GET request to /api/resetWiFi, resetting WiFi settings...");
+               
         eraseWiFiConfig();
 
         // Sende eine Bestätigung zurück
@@ -2405,6 +2413,21 @@ void setupWebServer() {
         // Neustart des ESP
         esp_reboot();
 
+        });
+
+    // resetWifi POST API, um WiFi-Einstellungen zurückzusetzen
+    webserver.on("/api/resetWiFi", HTTP_POST, []() {
+        DEBUG_PRINTLN("[API] Received POST request to /api/resetWiFi, resetting WiFi settings...");
+       
+        eraseWiFiConfig();
+        // Sende eine Bestätigung zurück
+        webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
+        DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
+
+        preferences.end(); // Schließe die Preferences, um sicherzustellen, dass alle Änderungen gespeichert werden
+        delay(WAIT_1s);
+        // Neustart des ESP
+        esp_reboot();
         });
 
     webserver.on("/api/createPreset", HTTP_POST, []() {
@@ -2610,11 +2633,11 @@ void setupWebServer() {
                 int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
                 if (ipEnd != -1) {
                     displayUrl = espIP + displayUrl.substring(ipEnd); // Ersetze die IP
-                    DEBUG_PRINTLN("[HTML] 1 Replaced preset URL for display: " + displayUrl);
+                   // DEBUG_PRINTLN("[HTML] 1 Replaced preset URL for display: " + displayUrl);
                 }
                 else {
                     displayUrl = espIP; // Nur die IP ohne Pfad
-                    DEBUG_PRINTLN("[HTML] 2 Replaced preset URL for display: " + displayUrl);
+                   // DEBUG_PRINTLN("[HTML] 2 Replaced preset URL for display: " + displayUrl);
                 }
             }
             presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
@@ -3598,6 +3621,9 @@ void setupWebServer() {
         html += "<h2>" + translate("Clock Setup") + "</h2>";
 
         html += generateLanguageSelector();
+        html += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
+        html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button>";
+        html += "</form><br><br>";
 
         html += "<form action = '/save' method = 'POST'>";
 
@@ -4443,6 +4469,15 @@ void eraseWiFiConfig() {
     WiFi.mode(WIFI_OFF);
     delay(WAIT_1s);
 
+    for (int i = 0; i < MAX_WLAN; i++) {
+        // Dynamisch berechnete Schlüssel
+        String ssidKey = "ssid" + String(i + 1);
+        String passKey = "pass" + String(i + 1);
+
+        preferences.remove(ssidKey.c_str());
+        preferences.remove(passKey.c_str());
+    }
+
     // Zusätzlich: Manuell NVS-Einträge für WiFi löschen
     nvs_handle_t nvsHandle;
     esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvsHandle);
@@ -5083,7 +5118,7 @@ void logToFile(const String& message) {
      
     // Überprüfe, ob LittleFS gemountet ist
     if (!LittleFS.begin()) {
-        Serial.println("[LOG] LittleFS ist nicht gemountet. Log wird nicht geschrieben.");
+        if (loggingEnabled) Serial.println("[LOG] LittleFS ist nicht gemountet. Log wird nicht geschrieben.");
         return;
     }
 
@@ -5100,7 +5135,7 @@ void logToFile(const String& message) {
         deleteAllLogFiles(); // Alle Logdateien löschen, um Platz zu schaffen
         freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
         if (freeSpace < 10 * 1024) {
-            Serial.println("[LOG] Nicht genügend Speicherplatz im LittleFS. Log wird nicht geschrieben.");
+            if (loggingEnabled) Serial.println("[LOG] Nicht genügend Speicherplatz im LittleFS. Log wird nicht geschrieben.");
             return;
         }
     }
@@ -5138,7 +5173,7 @@ void logToFile(const String& message) {
     // Öffne die Datei im Anhängemodus (append)
     File logFile = LittleFS.open(logFileName, FILE_APPEND);
     if (!logFile) {
-        Serial.println("[LOG] Fehler beim Öffnen der Logdatei: " + logFileName);
+        if (loggingEnabled) Serial.println("[LOG] Fehler beim Öffnen der Logdatei: " + logFileName);
         return;
     }
     // Schreibe Zeitstempel und Nachricht in die Datei
