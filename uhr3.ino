@@ -14,15 +14,6 @@
 // 
 // Anpassungen in DCF77.cpp:   
 //  zeile: 22: change #include <TimeLib.h> 
-//  zeile  65: +  receivedTime          = false;
-//  zeile  95: +  if (!receivedTime) {
-//                  static bool toggle = true;
-//                  digitalWrite(15, toggle ? HIGH : LOW);
-//                  toggle = !toggle;
-//                 }
-//  zeile 317: +  receivedTime = true;	
-//  zeile 330: +  receivedTime = true;
-//
 //  add IRAM_ATTR   in: void IRAM_ATTR DCF77::int0handler() {
 
 // Prozessor
@@ -892,11 +883,18 @@ void setup() {
     dcf.Start();    
     pinMode(DCF77_DATAPIN, INPUT_PULLUP);
 
-   // attachInterrupt(DCF77_DATAPIN, toggleLED, CHANGE);
+    attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
 
 #endif
 
     setLED_off();
+}
+
+void IRAM_ATTR isr() {
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+    DCF77::int0handler();
+    if (!g_bDCFTimeFound) toggleLED();
+#endif
 }
 
 // Lädt die Zeit vom RTC-Modul und setzt die Systemzeit entsprechend
@@ -1205,7 +1203,7 @@ void loop() {
    
     // DCF77-Zeit abrufen
      getDCF77Time();
-    
+        
     // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
     if (millis() - lastNTPUpdate > WAIT_1h) {
         setupNTP();
