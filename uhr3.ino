@@ -10,6 +10,8 @@
 // Partition: Default 4MB NO OTA, 2MB, 2MB
 // TFT_eSPI: 2.5.34
 // 
+// DCF77: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+// 
 // Anpassungen in DCF77.cpp:   
 //  zeile: 22: change #include <TimeLib.h> 
 //  zeile  65: +  receivedTime          = false;
@@ -56,6 +58,7 @@
 #define WAIT_10m 600000 // 10 Minuten in Millisekunden
 #define WAIT_30m 1800000 // 30 Minuten in Millisekunden
 #define WAIT_1h 3600000 // 1 Stunde in Millisekunden
+#define WAIT_6h 21600000 // 6 Stunden in Millisekunden  
 
 
 #include <WiFi.h>
@@ -1130,7 +1133,7 @@ bool getDCF77Time() {
            //     DCFtime += 3600; // Eine Stunde hinzufügen
            // }
 
-            if (millis() - lastRTCUpdate > WAIT_1h || g_bDCFTimeFound == false) {
+            if (millis() - lastRTCUpdate > WAIT_6h || g_bDCFTimeFound == false) {
                 lastRTCUpdate = millis();
 
                 localtime_r(&DCFtime, &timeInfo); // Konvertiere time_t in struct tm
@@ -1220,7 +1223,7 @@ void loop() {
     webserver.handleClient();
 
 
-    if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE) {
+    if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
 
         updateClock();
 
@@ -1237,7 +1240,7 @@ void loop() {
 
     // NTP-Server anfragen bearbeiten
     // win:  w32tm /stripchart /computer:192.168.0.214
-    if (WiFi.getMode() == WIFI_STA && rtc_ok == RTC_AVAILABLE) {
+    if ((WiFi.getMode() == WIFI_STA && rtc_ok == RTC_AVAILABLE) || g_bDCFTimeFound) {
         int packetSize = udp.parsePacket();
         if (packetSize) {
             // IP-Adresse des Clients abrufen
