@@ -30,7 +30,7 @@
 •	NTP (Network Time Protocol):
 •	Automatically synchronizes time with an NTP server.
 •	Nightly time synchronization at 02:00 and 03:00.
-WPS supported
+• WPS supported
 ---
 6. Web Interface
 •	A built-in web interface allows:
@@ -60,7 +60,7 @@ WPS supported
 •	BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
 • API Interface
 • Up to 15 presets (faces, hands, behave)
-
+• DCF77 supported
 
 
 
