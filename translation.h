@@ -181,7 +181,10 @@ std::map<String, std::map<String, String>> translations = {
         { "Reconnect WiFi" , "Wifi neu verbinden" },
         { "JavaScript is disabled.This page requires JavaScript to work properly!" , "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!" },
         { "Are you sure you want to reset all saved WiFi networks?" , "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zurücksetzen möchten?" },
-        { "Reset WiFi Networks", "WLAN Netzwerke zurücksetzen" }
+        { "Reset WiFi Networks", "WLAN Netzwerke zurücksetzen" },
+        { "WiFi networks reset. Rebooting...", "WLAN Netzwerke zurückgesetzt. Starte neu..." } ,
+        { "DCF77 detected", "DCF77 erkannt"},
+        { "Waiting", "warte" }
 
 
         

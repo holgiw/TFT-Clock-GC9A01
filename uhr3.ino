@@ -156,7 +156,7 @@ RTC_DS3231 rtc;
 
 bool dcf77Flank = false; // false = fallende Flanke, true = steigende Flanke
 DCF77 dcf = DCF77(DCF77_DATAPIN, DCF77_DATAPIN, dcf77Flank);
-
+uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale 
 
 bool g_bDCFTimeFound = false;
 
@@ -777,6 +777,14 @@ void setup() {
     }
 
 #endif
+
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT        
+    dcf.Start();
+    pinMode(DCF77_DATAPIN, INPUT_PULLUP);
+
+    attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
+
+#endif
     
     // WLAN-Netzwerke scannen und cachen
     //scanAndCacheNetworks();
@@ -789,7 +797,11 @@ void setup() {
     if (loggingEnabled) Serial.println("");
     // DEBUG_PRINTLN("[WiFi] Scan complete");
 
-   
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE);
+    tft.setTextSize(TFT_TEXT_SIZE);
+    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+    tft.println(translate("Check WLan"));
     
     uint32_t number = preferences.getInt("lastWLan", 0);
     DEBUG_PRINTLN("[WiFi] Last successful WLAN number: (" + String(number + 1) + ") " + wifi_ssid[number]);
@@ -849,8 +861,36 @@ void setup() {
 
 
         if (rtc_ok == RTC_AVAILABLE) {
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_WHITE);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+            tft.println(translate("Check RTC"));
+            delay(1000);
             loadTimeFromRTC();
             return;
+        }
+
+        delay(3000);
+        if (dcf77Count >= 1) {
+            DEBUG_PRINTLN("[DCF77] DCF77 signal received during setup, waiting for valid time..");
+            tft.fillScreen(TFT_BLACK);            
+            tft.setTextColor(TFT_WHITE);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+            tft.println(translate("DCF77 detected"));
+
+            unsigned long startWait = millis();
+            while (millis() - startWait < WAIT_1h) { // Warte bis zu 1 Stunde auf gültige DCF77-Zeit
+                if (dcf.getUTCTime() > 0) {    
+                    g_bDCFTimeFound = true; // gültige Zeit gefunden    
+                    return;
+                }
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+                tft.print(translate("Waiting"));
+                tft.print("...");
+                delay(100);               
+            }
         }
 
 
@@ -879,14 +919,6 @@ void setup() {
         DEBUG_PRINTLN("[NTPD] NTP Server started");
     }
 
-#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT        
-    dcf.Start();    
-    pinMode(DCF77_DATAPIN, INPUT_PULLUP);
-
-    attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
-
-#endif
-
     setLED_off();
 }
 
@@ -894,6 +926,8 @@ void IRAM_ATTR isr() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
     DCF77::int0handler();
     if (!g_bDCFTimeFound) toggleLED();
+    dcf77Count++;
+    if (dcf77Count > 120) dcf77Count = 1;
 #endif
 }
 
@@ -1115,6 +1149,7 @@ bool getDCF77Time() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
     time_t DCFtime;
     if (millis() - lastDCFUpdate > WAIT_1s) {
+        // Serial.println(dcf77Count);
        
         lastDCFUpdate = millis(); // Timer zurücksetzen
          // DEBUG_PRINTLN("[DCF77] checking DCF77 time... ");
@@ -1203,7 +1238,7 @@ void loop() {
    
     // DCF77-Zeit abrufen
      getDCF77Time();
-        
+             
     // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
     if (millis() - lastNTPUpdate > WAIT_1h) {
         setupNTP();
@@ -1220,7 +1255,7 @@ void loop() {
 
     webserver.handleClient();
 
-
+    
     if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
 
         updateClock();
@@ -2112,7 +2147,7 @@ int connectWiFi(int number, bool verbose_mode) {
         return NOT_CONNECTED;
     }
 
-                 
+    
     // DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
 
     // Wenn verbose_mode aktiviert ist, zeige die Verbindungsinformationen auf dem Display an
