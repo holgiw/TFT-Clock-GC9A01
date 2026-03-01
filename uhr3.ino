@@ -270,6 +270,8 @@ int rtc_ok = RTC_NOT_AVAILABLE;
 
 String i2c_adr = "";
 
+String ipAddress = "";
+
 bool initial = true;
 
 String selectedBackground = "/face_default.bmp";
@@ -858,6 +860,7 @@ void setup() {
             }
         }
         DEBUG_PRINTLN("[WiFi] No matching networks found");
+        startAP();
 
 
         if (rtc_ok == RTC_AVAILABLE) {
@@ -1016,8 +1019,7 @@ void disableTouch() {
 
 // Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
 void loadPresets() {
-    String espIP = "http://" + WiFi.localIP().toString(); // Aktuelle IP-Adresse des ESP32
-
+     
     for (int i = 0; i < MAX_PRESETS; i++) {
         String nameKey = "preset" + String(i) + "_name";
         String urlKey = "preset" + String(i) + "_url";
@@ -1029,10 +1031,10 @@ void loadPresets() {
         if (presets[i].url.startsWith("http://")) {
             int ipEnd = presets[i].url.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
             if (ipEnd != -1) {
-                presets[i].url = espIP + presets[i].url.substring(ipEnd); // Ersetze die IP
+                presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
             }
             else {
-                presets[i].url = espIP; // Nur die IP ohne Pfad
+                presets[i].url = "http://" + ipAddress; // Nur die IP ohne Pfad
             }
         }
     }
@@ -1041,8 +1043,7 @@ void loadPresets() {
 
 // Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
 void savePresets() {
-    String espIP = "http://" + WiFi.localIP().toString(); // Aktuelle IP-Adresse des ESP32
-
+    
     for (int i = 0; i < MAX_PRESETS; i++) {
         String nameKey = "preset" + String(i) + "_name";
         String urlKey = "preset" + String(i) + "_url";
@@ -1051,10 +1052,10 @@ void savePresets() {
         if (presets[i].url.startsWith("http://")) {
             int ipEnd = presets[i].url.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
             if (ipEnd != -1) {
-                presets[i].url = espIP + presets[i].url.substring(ipEnd); // Ersetze die IP
+                presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
             }
             else {
-                presets[i].url = espIP; // Nur die IP ohne Pfad
+                presets[i].url = "http://" + ipAddress; // Nur die IP ohne Pfad
             }
         }
 
@@ -1092,10 +1093,13 @@ void createPresetFromPreferences() {
     uint32_t hubColor = preferences.getLong("centerColor", 0xEC0016);
 
     // Hole die aktuelle IP-Adresse des ESP
-    String espIP = "http://" + WiFi.localIP().toString();
+     
 
     // Erstelle die URL mit den aktuellen Einstellungen
-    String url = espIP + "/api/setMode?";
+    String url = "http://" + ipAddress + "/api/setMode?";
+    if (background.startsWith("/")) {
+        background = background.substring(1); // Entferne führenden Slash für die URL
+    }
     url += "face=" + background;
     url += "&handSet=" + handset;
     
@@ -1233,8 +1237,14 @@ void printTime(time_t rawTime) {
 // Main-Loop
 void loop() {
 
-     //scanWPS(); // WPS-Scan durchführen
+    //scanWPS(); // WPS-Scan durchführen
 
+    if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
+        ipAddress = WiFi.localIP().toString();
+    }
+    else {        
+        ipAddress = WiFi.softAPIP().toString();     
+    }
    
     // DCF77-Zeit abrufen
      getDCF77Time();
@@ -1249,19 +1259,19 @@ void loop() {
 
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
-        dnsServer.processNextRequest();
+       // dnsServer.processNextRequest();
     }
 
 
     webserver.handleClient();
 
     
-    if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
+  //  if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
 
         updateClock();
 
         //  checkWiFiScan(); // Überprüfe den Status des Scans
-        if (wifiActive || WiFi.isConnected()) {
+        if (wifiActive && WiFi.isConnected()) {
             checkNTPRetry();
             checkWiFiReconnect();
             checkNightlyTimeSync();
@@ -1269,7 +1279,7 @@ void loop() {
         }
         initial = false;
 
-    }
+  //  }
 
     // NTP-Server anfragen bearbeiten
     // win:  w32tm /stripchart /computer:192.168.0.214
@@ -1315,7 +1325,7 @@ void loop() {
     // restart im AP Mode nach 30 Minuten
     if (softAPIP == true) {
         if (millis() - softAPIPstart > WAIT_30m) {
-            ESP.restart();
+    //        ESP.restart();
         }
     }
 
@@ -1675,9 +1685,11 @@ void updateClock() {
         backgroundSprite.pushSprite(0, 0);
     }
 
+    
     // Station Mode: Sekundenzeiger springt nicht, sondern läuft in 672ms Schritten mit sanfter Bewegung dazwischen
     if (stationMode) {
-         if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
+        
+        if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
             stationTick++;
             stationLastMillis += fastSecond;
 
@@ -2128,6 +2140,8 @@ void startAP() {
 
     softAPIP = true;
     softAPIPstart = millis();
+
+    ipAddress = WiFi.softAPIP().toString();
       
 }
 
@@ -2146,6 +2160,8 @@ int connectWiFi(int number, bool verbose_mode) {
        // DEBUG_PRINTLN("[WiFi] SSID " + String(number + 1) + " is empty, skipping");
         return NOT_CONNECTED;
     }
+
+ 
 
     
     // DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifi_ssid[number]);
@@ -2466,7 +2482,7 @@ String generateHtmlStatus() {
     String html;
     if (WiFi.getMode() == WIFI_STA) {
         html = translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong>";
-        html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" + WiFi.localIP().toString() + "'>http://" + WiFi.localIP().toString() +"</a></strong> ";
+        html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" +  + "'>http://" + ipAddress +"</a></strong> ";
         if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + "<a href='http://" + hostname + ".local'>http://" + hostname + ".local</a>" + "</strong>";
     }
     else html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
@@ -2479,10 +2495,11 @@ String generateHtmlStatus() {
 
 // Navigationsleiste generieren
 String generateNavigation() {
-    if (WiFi.getMode() != WIFI_STA) {
+ /*   if (WiFi.getMode() != WIFI_STA) {
         DEBUG_PRINTLN("[HTML] Skipping HTML navigation");
         return "";
     }
+    */
 
     String nav = "<style>";
     nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
@@ -2627,10 +2644,10 @@ void setupWebServer() {
 
     // API zum Setzen von Uhrmodus und anderen Einstellungen
     webserver.on("/api/setMode", HTTP_GET, []() {
-
+        Serial.println("[API] Received GET request to /api/setMode with arguments");
         if (webserver.hasArg("face")) {
             String face = webserver.arg("face");
-            face.replace(".", "");
+           // face.replace(".", "");
             if (!face.startsWith("/")) face = "/" + face;
             if (face == "/face_default.bmp" || LittleFS.exists(face)) {
                 preferences.putString("background", face);
@@ -2763,7 +2780,7 @@ void setupWebServer() {
 
         html += "<ul style='list-style-type:none; padding:0; display:inline-block; text-align:left;'>";
 
-        String espIP = "http://" + WiFi.localIP().toString(); // Aktuelle IP-Adresse des ESP
+         
         String espHost = "http://" + String(hostname) + ".local"; // Aktueller Hostname des ESP
 
         html += "<table style='width:100%; border-collapse:collapse;'>";
@@ -2778,10 +2795,10 @@ void setupWebServer() {
                 if (displayUrl.startsWith("http://")) {
                     int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
                     if (ipEnd != -1) {
-                        displayUrl = espIP + displayUrl.substring(ipEnd); // Ersetze die IP
+                        displayUrl = "http://" + ipAddress + displayUrl.substring(ipEnd); // Ersetze die IP
                     }
                     else {
-                        displayUrl = espIP; // Nur die IP ohne Pfad
+                        displayUrl = "http://" + ipAddress; // Nur die IP ohne Pfad
                     }
                 }
                 displayUrl += "&source=preset";
@@ -2791,7 +2808,7 @@ void setupWebServer() {
                 html += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'><a href='" + displayUrl + "'>" + presets[i].name + "</a></td>";
                 String presetName = presets[i].name;
                 presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-                html += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'>" + espIP + "/api/setPreset?name=" + presetName;
+                html += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'>http://" + ipAddress + "/api/setPreset?name=" + presetName;
                 if (pingHostname) {
                     html += "<br>" + espHost + "/api/setPreset?name=" + presetName;
                 }
@@ -2820,14 +2837,24 @@ void setupWebServer() {
             if (displayUrl.startsWith("http://")) {
                 int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
                 if (ipEnd != -1) {
-                    displayUrl = espIP + displayUrl.substring(ipEnd); // Ersetze die IP
+                    displayUrl = "http://" + ipAddress + displayUrl.substring(ipEnd); // Ersetze die IP
                    // DEBUG_PRINTLN("[HTML] 1 Replaced preset URL for display: " + displayUrl);
                 }
                 else {
-                    displayUrl = espIP; // Nur die IP ohne Pfad
+                    displayUrl = "http://" + ipAddress; // Nur die IP ohne Pfad
                    // DEBUG_PRINTLN("[HTML] 2 Replaced preset URL for display: " + displayUrl);
                 }
             }
+            Serial.println(displayUrl);
+            // falschen Backslash entfernen, der sich manchmal in die URL einschleicht
+            int index = displayUrl.indexOf("/face_");
+            if (index > 1) {
+                Serial.println(displayUrl);
+                Serial.println("found /face_  an Stelle " + String(index));
+                displayUrl = displayUrl.substring(0, index) + displayUrl.substring(index + 1);      
+                Serial.println(displayUrl);   
+            }
+
             presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
             html += "<h4>" + translate("Preset") + " " + String(i + 1) + "</h4>";
             html += "Name: <input type='text' name='name" + String(i) + "' value='" + presets[i].name + "'><br>";
@@ -2863,6 +2890,7 @@ void setupWebServer() {
 
     // API zum Setzen eines Presets
     webserver.on("/api/setPreset", HTTP_GET, []() {
+        Serial.println("[API] Received request to /api/setPreset with args: " + webserver.arg("name"));
         if (!webserver.hasArg("name")) {
             webserver.send(400, "text/plain", "Missing 'name' parameter");
             return;
@@ -3724,8 +3752,8 @@ void setupWebServer() {
 
         // Add built-in default face
         html += "<tr><td>";
-        html += "<a href='/setbackground?file=face_default.bmp'>";
-        html += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+        html += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
+        html += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
         html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp" +" </small> </td>";
         html += "</tr>";
 
@@ -3744,7 +3772,7 @@ void setupWebServer() {
                 String shortName = name;
                 String info = getBmpInfo(name);
                 html += "<tr><td>";
-                html += "<a href='/setbackground?file=" + shortName + "'>";
+                html += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
                 html += "<img src='/file?name=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
                 html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
             }
@@ -3859,7 +3887,7 @@ void setupWebServer() {
 
         html += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
 
-        if (WiFi.getMode() == WIFI_STA) {
+        //if (WiFi.getMode() == WIFI_STA) {
 
 
             html += "<form action='/applydisplaysettings' method='POST'>";
@@ -3928,7 +3956,7 @@ void setupWebServer() {
             html += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
                */
 
-        }
+       // }
 
 
 
@@ -4098,9 +4126,10 @@ void setupWebServer() {
 
     // Hintergrundbild setzen
     webserver.on("/setbackground", HTTP_GET, []() {
+        Serial.println("setbackground");
         if (webserver.hasArg("file")) {
             String file = webserver.arg("file");
-            file.replace(".", "");
+        //    file.replace(".", "");
             if (!file.startsWith("/")) file = "/" + file;
 
             if (file == "/face_default.bmp") {
@@ -4126,7 +4155,7 @@ void setupWebServer() {
                 return;
             }
         }
-        webserver.send(404, "text/plain", "File not found");
+        webserver.send(404, "text/plain", "404 Site not found");
         });
 
     // Datei löschen
