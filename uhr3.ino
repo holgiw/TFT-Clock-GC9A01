@@ -4427,21 +4427,18 @@ void handleFileUpload() {
 
     if (upload.status == UPLOAD_FILE_START) {
         uploadFilePath = upload.filename;
-        uploadFilePath.replace(".", "");
-        uploadFilePath.replace("#", "_");
+       // uploadFilePath.replace(".", "");
+       // uploadFilePath.replace("#", "_");
 
         if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
 
         // Nur bestimmte Dateinamenmuster zulassen
         if (!uploadFilePath.endsWith(".bmp") ||
             !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set"))) {
-            DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp'");
+            DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp' : " + uploadFilePath);
             uploadSuccess = false;
             return;
         }
-
-        uploadFilePath.replace(".", "");
-        if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
 
         DEBUG_PRINTLN("[UPLOAD] Start: " + uploadFilePath);
         uploadFile = LittleFS.open(uploadFilePath, FILE_WRITE);
@@ -4830,7 +4827,7 @@ void checkWiFiScan() {
                 availableNetworks[i].enc = 0;
             }
 
-            int n = scanStatus; 
+            int16_t n = scanStatus; 
             DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
             if (n > MAX_WLAN) {
                 if (loggingEnabled) DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");            
