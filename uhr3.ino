@@ -21,9 +21,9 @@
 //#define ESP32_S3 
 
 // select TFT
-#define GC9A01
+//#define GC9A01
 //#define GC9A01_WITH_BACKLIGHT
-//#define GC9D01
+#define GC9D01
 //#define ILI9341 
 
 
@@ -104,6 +104,9 @@ byte ntpPacket[NTP_PACKET_SIZE];
 // I2C / RTC
 #define SDA_PIN 39
 #define SCL_PIN 37
+
+// SPI Chipselect für 2. identisches Display
+#define CS_2    18
 
 // DCF77
 #define DCF77_INTERRUPT 0 
@@ -228,7 +231,7 @@ bool touchEnabled = false;
 unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
 bool useTouch = false; // Touch verwenden
 
-
+bool cs = true;
 
 bool wifiActive = true;    
 
@@ -385,6 +388,23 @@ void startWPS() {
     }
 }
 
+#if defined CS_2
+void setCS_1(bool state) {
+    if (state == LOW) {
+        digitalWrite(CS_2, HIGH);
+    }
+    
+}
+
+void setCS_2(bool state) {
+    if (state == LOW) {
+        digitalWrite(CS_2, state);
+    }
+    
+}
+#endif
+
+
 
 // Setup-Funktion
 void setup() {
@@ -392,6 +412,15 @@ void setup() {
     setLED_on();
 
     Serial.begin(115200);
+
+    // pin 12 Chipselect auf output und Low 
+
+#if defined CS_2
+    pinMode(CS_2, OUTPUT);
+    
+    setCS_1(LOW);
+    setCS_2(HIGH);
+#endif
 
     // async WLAN-Scan starten, damit die Netzwerke bereits erkannt werden, wenn der Nutzer das erste Mal die WLAN-Einstellungen öffnet   
     startWiFiScan();
@@ -689,10 +718,15 @@ void setup() {
 
     if (loggingEnabled)  Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
 
-    tft.init();
-    delay(75);
+#if defined CS_2
+    digitalWrite(CS_2, LOW);
+#endif
 
+    tft.init();
+
+    delay(75);
     tft.fillScreen(TFT_BLACK);
+    
 
     tftRotation = preferences.getUChar("tftRotation", 0);
     if (tftRotation > 3) {
@@ -708,11 +742,21 @@ void setup() {
     validateSelectedBackground();
 
 #ifndef GC9D01
+#if defined CS_2
+    setCS_2(LOW);
+    tft.setRotation(tftRotation);
+    setCS_1(LOW);
+#endif
     tft.setRotation(tftRotation);
 #else
     if (!psramAvailable) {
         tftRotation = 0;
         preferences.putUChar("tftRotation", tftRotation);
+#if defined CS_2
+        setCS_2(LOW);
+        tft.setRotation(tftRotation);
+        setCS_1(LOW);
+#endif
         tft.setRotation(tftRotation);
         DEBUG_PRINTF("[TFT] Using stored rotation: %d\n", tftRotation);
     }
@@ -799,12 +843,18 @@ void setup() {
     if (loggingEnabled) Serial.println("");
     // DEBUG_PRINTLN("[WiFi] Scan complete");
 
+    ;
+
+   
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE);
     tft.setTextSize(TFT_TEXT_SIZE);
     tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
     tft.println(translate("Check WLan"));
     
+    
+
+
     uint32_t number = preferences.getInt("lastWLan", 0);
     DEBUG_PRINTLN("[WiFi] Last successful WLAN number: (" + String(number + 1) + ") " + wifi_ssid[number]);
 
@@ -1237,6 +1287,17 @@ void printTime(time_t rawTime) {
 // Main-Loop
 void loop() {
 
+    
+#if defined CS_2
+    cs = !cs;
+    if (cs == true) {
+        setCS_1(LOW);
+    }
+    else {
+        setCS_2(LOW);
+    }
+#endif
+
     //scanWPS(); // WPS-Scan durchführen
 
     if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
@@ -1328,6 +1389,32 @@ void loop() {
     //        ESP.restart();
         }
     }
+
+#ifdef ILI9341
+    // Datum und Uhrzeit auf dem TFT ausgeben
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(3);
+
+    // Uhrzeit auf dem TFT ausgeben
+    if (!preferences.getBool("secondHand", true)) {
+        tft.setCursor(50, 260);
+        tft.printf("%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    }
+    else {
+        tft.setCursor(80, 260);
+        if (timeinfo.tm_sec % 2 == 0) {
+            tft.printf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+        }
+        else {
+            tft.printf("%02d %02d", timeinfo.tm_hour, timeinfo.tm_min);
+        }
+        
+    }
+       
+    // Datum auf dem TFT ausgeben   
+    tft.setCursor(40, 290);
+    tft.printf("%02d.%02d.%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+#endif
 
 }
 
@@ -1587,6 +1674,7 @@ void checkButton() {
         // Blockierender Loop während Button gedrückt
         while (digitalRead(BUTTON1) == HIGH) {
             if (millis() - pressStart > WAIT_10s && millis() - pressStart < WAIT_15s) {
+                //setCS_1(LOW);
                 resetStarted = true;
                 tft.fillScreen(TFT_RED);
                 tft.setTextColor(TFT_WHITE, TFT_RED);
@@ -1601,6 +1689,7 @@ void checkButton() {
             }
 
             if (millis() - pressStart > WAIT_15s) {
+                //setCS_1(LOW);
                 // 15 Sekunden überschritten → Factory Reset
                 tft.fillScreen(TFT_RED);
                 tft.setTextColor(TFT_WHITE, TFT_RED);
@@ -1636,7 +1725,7 @@ static float lastMinuteAngle = 0.0f;
 // updateClock Funktion
 void updateClock() {
    // struct tm timeinfo;
-    if (!getLocalTime(&timeinfo, 100)) {
+    if (!getLocalTime(&timeinfo, 1000)) {
         // Keine gültige Uhrzeit verfügbar
         loadTimeFromRTC();
     }
@@ -2027,6 +2116,11 @@ bool checkWiFiReconnect() {
 
 // clear TFT display
 void clearTFT() {
+#if defined CS_2
+    setCS_2(LOW);
+    tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
+    setCS_1(LOW);
+#endif
     tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
 }
 
@@ -2060,7 +2154,9 @@ void startAP() {
             break; // Beende die Schleife, wenn ein leerer  gefunden wird, ansonsten letzter
         }        
     }    
-                
+    
+    //setCS_1(LOW);
+    tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
     tft.setTextSize(TFT_TEXT_SIZE);
@@ -2326,7 +2422,7 @@ void showWlanCredentials(String wlan) {
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
     tft.setTextSize(TFT_TEXT_SIZE/2);
-#if defined GC9D01
+#if defined(GC9D01)
     tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
 #else
     tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
@@ -3077,7 +3173,7 @@ void setupWebServer() {
             String oldName = webserver.arg("old");
             String newName = webserver.arg("new");
 
-            oldName.replace(".", ""); newName.replace(".", "");
+            //oldName.replace(".", ""); newName.replace(".", "");
             if (!oldName.startsWith("/")) oldName = "/" + oldName;
             if (!newName.startsWith("/")) newName = "/" + newName;
 
@@ -3579,40 +3675,54 @@ void setupWebServer() {
 
 
 
-        html += "<li>TFT_SCLK: " + String(TFT_SCLK) + "</li>";
+        html += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
         //html += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
-        html += "<li>TFT_MOSI: " + String(TFT_MOSI) + "</li>";
-        html += "<li>TFT_CS: " + String(TFT_CS) + "</li>";
-        html += "<li>TFT_DC: " + String(TFT_DC) + "</li>";
-        html += "<li>TFT_RST: " + String(TFT_RST) + "</li><br>";
+        html += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
+        html += "<li>TFT_CS GPIO: " + String(TFT_CS) + "</li>";
+#if defined CS_2
+        html += "<li>TFT_CS2 GPIO: " + String(CS_2) + "</li>";
+#endif
+
+
+        html += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
+        html += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
 
 #if defined SDA_PIN && defined SCL_PIN
         if (!i2c_adr.isEmpty()) {
             html += "<li>I2C ADR: " + i2c_adr + "</li>";
-            html += "<li>I2C SDA: " + String(SDA_PIN) + "</li>";
-            html += "<li>I2C SDL: " + String(SCL_PIN) + "</li><br>";
+            html += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
+            html += "<li>I2C SDL GPIO: " + String(SCL_PIN) + "</li><br>";
+        }
+        else {
+            html += "<li>I2C: no device found</li><br>";
         }
 #endif
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
-        html += "<li>DCF77 Data: " + String(DCF77_DATAPIN) + "</li>";  
+        if (dcf77Count == 0) {
+            html += "<li>DCF77: No signal received so far</li>";
+        }
+        else {
+            html += "<li>DCF77: Pulses received</li>";
+        }
+        html += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
         html += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
 #endif
 
 #ifdef BUTTON1
-        html += "<li>BUTTON: " + String(BUTTON1) + "</li>";
+        html += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
 #endif
 #ifdef LED_BOARD
-        html += "<li>LED_BOARD: " + String(LED_BOARD) + "</li>";
+        html += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
 #endif
 #ifdef TOUCH_PIN
-        html += "<li>TOUCH_PIN: " + String(TOUCH_PIN) + "</li>";
+        html += "<li>TOUCH_PIN GPIO: " + String(TOUCH_PIN) + "</li>";
         html += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
 #endif
 #ifdef ADC_PIN
-        html += "<li>ADC_VCC: " + String(ADC_3V) + "</li>";
-        html += "<li>ADC (photoresistor): " + String(ADC_PIN) + "</li>";
-        html += "<li>ADC_GND: " + String(ADC_GND) + "</li>";
+        html += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
+        html += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
+        html += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
         if (photoresistorFound) {
             html += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
         }
@@ -3622,7 +3732,7 @@ void setupWebServer() {
 #ifndef TFT_Backlight 
         html += "<li>TFT_Backlight: none</li>";
 #else
-        html += "<li>TFT_Backlight: " + String(TFT_Backlight) + "</li>";
+        html += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + "</li>";
 #endif
         html += "<br>";
 
@@ -3754,7 +3864,7 @@ void setupWebServer() {
         html += "<tr><td>";
         html += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
         html += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-        html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp" +" </small> </td>";
+        html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp" + " </small> </td>";
         html += "</tr>";
 
         File root = LittleFS.open("/");
@@ -3783,10 +3893,21 @@ void setupWebServer() {
         html += "</table><hr>";
 
         // Hinweis und Download-Link für die ZIP-Datei
-        html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
-        html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-        html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
-        html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
+        if (TFT_WIDTH == 240) {
+            html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
+            html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
+            html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
+            html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
+        }
+
+        if (TFT_WIDTH == 160) {
+            html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
+            html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
+            html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
+            html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
+        }
+
+
 
         if (used + (TFT_WIDTH * TFT_HEIGHT * 2) + 54 > total) {
             html += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new clock faces! Free up some space first") + ".</div><br><br>";
@@ -4162,7 +4283,7 @@ void setupWebServer() {
     webserver.on("/delete", HTTP_GET, []() {
         if (webserver.hasArg("file")) {
             String path = webserver.arg("file");
-            path.replace(".", "");
+            //path.replace(".", "");
             if (!path.startsWith("/")) path = "/" + path;
             if (LittleFS.exists(path)) {
                 LittleFS.remove(path);
@@ -4913,6 +5034,7 @@ void setLED_on() {
 #endif
 }
 
+
 // --- Funktion: LED toggeln
 void toggleLED() {
 #ifdef LED_BOARD
@@ -5009,7 +5131,7 @@ void switchToNextPreset() {
 
         // Wende die Einstellungen an
         if (key == "face") {
-            value.replace(".", "");
+            //value.replace(".", "");
             if (!value.startsWith("/")) value = "/" + value;
             if (value == "/face_default.bmp" || LittleFS.exists(value)) {
                 preferences.putString("background", value);
