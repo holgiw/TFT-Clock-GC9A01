@@ -21,10 +21,10 @@
 //#define ESP32_S3 
 
 // select TFT
-//#define GC9A01
+#define GC9A01
 //#define GC9A01_WITH_BACKLIGHT
-#define GC9D01
-//#define ILI9341 
+//#define GC9D01
+// #define ILI9341 
 
 
 #define DEBUG_PRINT(x)    { if (loggingEnabled) { Serial.print(x);   logToFile(String(x));}}
@@ -106,7 +106,7 @@ byte ntpPacket[NTP_PACKET_SIZE];
 #define SCL_PIN 37
 
 // SPI Chipselect für 2. identisches Display
-#define CS_2    18
+//#define CS_2    18
 
 // DCF77
 #define DCF77_INTERRUPT 0 
@@ -1331,13 +1331,18 @@ void loop() {
 
         updateClock();
 
+        checkWeeklyRestart();        
+
+        if (wifiActive && !WiFi.isConnected()) {         
+            checkWiFiReconnect();
+        }
+
         //  checkWiFiScan(); // Überprüfe den Status des Scans
         if (wifiActive && WiFi.isConnected()) {
             checkNTPRetry();
-            checkWiFiReconnect();
             checkNightlyTimeSync();
-            checkWeeklyRestart();
         }
+
         initial = false;
 
   //  }
@@ -2983,6 +2988,14 @@ void setupWebServer() {
 
         webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/presets'><title>Saved</title></head><body><h2>Presets saved</h2><p>Redirecting...</p></body></html>");
         });
+
+    // API zum Restart des ESP
+    webserver.on("/api/reboot", HTTP_GET, []() {
+        webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/status'><title>Rebooting</title></head><body><h2>Rebooting...</h2></body></html>");
+        delay(WAIT_1s);
+        esp_reboot();
+        });
+
 
     // API zum Setzen eines Presets
     webserver.on("/api/setPreset", HTTP_GET, []() {
