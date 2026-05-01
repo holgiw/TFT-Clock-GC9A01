@@ -24,8 +24,7 @@
 #define GC9A01
 //#define GC9A01_WITH_BACKLIGHT
 //#define GC9D01
-// #define ILI9341 
-
+//#define ILI9341 
 
 #define DEBUG_PRINT(x)    { if (loggingEnabled) { Serial.print(x);   logToFile(String(x));}}
 #define DEBUG_PRINTLN(x)  { if (loggingEnabled) { Serial.println(x); logToFile(String(x));}}
@@ -1287,7 +1286,7 @@ void printTime(time_t rawTime) {
 // Main-Loop
 void loop() {
 
-    
+
 #if defined CS_2
     cs = !cs;
     if (cs == true) {
@@ -1303,13 +1302,13 @@ void loop() {
     if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
         ipAddress = WiFi.localIP().toString();
     }
-    else {        
-        ipAddress = WiFi.softAPIP().toString();     
+    else {
+        ipAddress = WiFi.softAPIP().toString();
     }
-   
+
     // DCF77-Zeit abrufen
-     getDCF77Time();
-             
+    getDCF77Time();
+
     // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
     if (millis() - lastNTPUpdate > WAIT_1h) {
         setupNTP();
@@ -1320,35 +1319,35 @@ void loop() {
 
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
-       // dnsServer.processNextRequest();
+        // dnsServer.processNextRequest();
     }
 
 
     webserver.handleClient();
 
-    
-  //  if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
 
-        updateClock();
+    //  if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
 
-        checkWeeklyRestart();        
+    updateClock();
 
-        if (wifiActive && !WiFi.isConnected()) {         
-            checkWiFiReconnect();
-        }
+    checkWeeklyRestart();
 
-        //  checkWiFiScan(); // Überprüfe den Status des Scans
-        if (wifiActive && WiFi.isConnected()) {
-            checkNTPRetry();
-            checkNightlyTimeSync();
-        }
+    if (wifiActive && !WiFi.isConnected()) {
+        checkWiFiReconnect();
+    }
 
-        initial = false;
+    //  checkWiFiScan(); // Überprüfe den Status des Scans
+    if (wifiActive && WiFi.isConnected()) {
+        checkNTPRetry();
+        checkNightlyTimeSync();
+    }
 
-  //  }
+    initial = false;
 
-    // NTP-Server anfragen bearbeiten
-    // win:  w32tm /stripchart /computer:192.168.0.214
+    //  }
+
+      // NTP-Server anfragen bearbeiten
+      // win:  w32tm /stripchart /computer:192.168.0.214
     if ((WiFi.getMode() == WIFI_STA && rtc_ok == RTC_AVAILABLE) || g_bDCFTimeFound) {
         int packetSize = udp.parsePacket();
         if (packetSize) {
@@ -1391,7 +1390,7 @@ void loop() {
     // restart im AP Mode nach 30 Minuten
     if (softAPIP == true) {
         if (millis() - softAPIPstart > WAIT_30m) {
-    //        ESP.restart();
+            //        ESP.restart();
         }
     }
 
@@ -1400,25 +1399,39 @@ void loop() {
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextSize(3);
 
+    String hourStr = String(timeinfo.tm_hour);
+    int xPos = 50;
+    // vornull entfernen wenn vorhanden
+    if (hourStr.startsWith("0")) {
+        hourStr = hourStr.substring(1);
+        xPos = 30; // etwas weiter links positionieren, wenn nur 1-stellige Stunde
+    }
+
     // Uhrzeit auf dem TFT ausgeben
     if (!preferences.getBool("secondHand", true)) {
-        tft.setCursor(50, 260);
-        tft.printf("%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+        tft.setCursor(xPos, 260);
+        tft.printf("%2d:%02d:%02d", hourStr.toInt(), timeinfo.tm_min, timeinfo.tm_sec);
     }
     else {
-        tft.setCursor(80, 260);
+        tft.setCursor(xPos + 20, 260);
         if (timeinfo.tm_sec % 2 == 0) {
-            tft.printf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+            tft.printf("%2d:%02d", hourStr.toInt(), timeinfo.tm_min);
         }
         else {
-            tft.printf("%02d %02d", timeinfo.tm_hour, timeinfo.tm_min);
+            tft.printf("%2d %02d", hourStr.toInt(), timeinfo.tm_min);
         }
-        
+
     }
-       
-    // Datum auf dem TFT ausgeben   
-    tft.setCursor(40, 290);
-    tft.printf("%02d.%02d.%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+
+    // Datum auf dem TFT ausgeben
+    if (timeinfo.tm_mday < 10) {
+        tft.setCursor(20, 290);
+    }
+    else {
+        tft.setCursor(40, 290);
+    }
+
+    tft.printf("%2d.%02d.%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
 #endif
 
 }
