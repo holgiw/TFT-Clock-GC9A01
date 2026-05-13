@@ -60,7 +60,7 @@
 #include <base64.h>
 #include "nvs_flash.h"
 #include <DNSServer.h>
-//#include <ESPMDNS.h>
+#include <ESPMDNS.h>
 #include <map>
 #include <esp_wps.h>
 #include <Wire.h>
@@ -96,6 +96,7 @@ byte ntpPacket[NTP_PACKET_SIZE];
 #define ADC_GND 4
 
 #define BUTTON1 16
+#define BOOT_BUTTON 0
 
 // Touch 
 // #define TOUCH_PIN 9
@@ -1679,7 +1680,7 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
 void checkButton() {
     bool resetStarted = false;
 #ifdef BUTTON1
-    if (digitalRead(BUTTON1) == HIGH) {
+    if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
 
         uint8_t secs = 5;
         unsigned long pressStart = millis();
@@ -1690,7 +1691,7 @@ void checkButton() {
         showWlanCredentials(WiFi.SSID());
 
         // Blockierender Loop während Button gedrückt
-        while (digitalRead(BUTTON1) == HIGH) {
+        while (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             if (millis() - pressStart > WAIT_10s && millis() - pressStart < WAIT_15s) {
                 //setCS_1(LOW);
                 resetStarted = true;
@@ -2353,11 +2354,12 @@ int connectWiFi(int number, bool verbose_mode) {
     if (WiFi.status() == WL_CONNECTED) {
 
         // mDNS initialisieren
-   //     if (!MDNS.begin(hostname)) {
-   //         DEBUG_PRINTLN("[WIFI] Error starting mDNS");
-   //     }
-   //     else {
-   //         MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80   }
+        if (!MDNS.begin(hostname)) {
+            DEBUG_PRINTLN("[WIFI] Error starting mDNS");
+        }
+        else {
+           MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80  
+        }
 
         DEBUG_PRINTLN("[WiFi] Connected to: " + wifi_ssid[number]);
         DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
