@@ -366,6 +366,7 @@ bool isScanning = false;
 
 //Übersetzungen fÜr verschiedene Sprachen
 #include "translation.h"
+#include "uhr3.h"
 
 
 // WPS-Typ definieren (Push-Button-Methode)
@@ -792,17 +793,37 @@ void setup() {
     loadClockFace();
     loadHandSprites();
 
+    setupWebServer();
+    webserver.begin();
 
-    // WLAN-Zugangsdaten laden
-    for (int i = 0; i < MAX_WLAN; i++) {        
+    // DCF77-Interrupt einrichten
+    dcf.Start();
+    pinMode(DCF77_DATAPIN, INPUT_PULLUP);
+    attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
 
-#ifdef BUTTON1
-        if (digitalRead(BUTTON1) == HIGH) {
+    // Wenn Button1 gedrückt oder BOOT_BUTTON gedrückt, alle Zugangsdaten löschen
+    if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
+        DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
+        tft.fillScreen(TFT_RED);
+        tft.setTextColor(TFT_WHITE);
+        tft.setTextSize(TFT_TEXT_SIZE);
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+        tft.println(translate("Reset WLan..."));
+        delay(1000);
+        for (int i = 0; i < MAX_WLAN; i++) {
             wifi_ssid[i] = "";
-            wifi_pass[i] = "";
-            continue;
-        }
-#endif   
+            wifi_pass[i] = "";            
+            String ssidKey = "ssid" + String(i + 1);
+            String passKey = "pass" + String(i + 1);
+            preferences.putString(ssidKey.c_str(), "");
+            preferences.putString(passKey.c_str(), "");
+            preferences.end();
+            preferences.begin("clock", false);
+        }        
+    }
+ 
+    // WLAN-Zugangsdaten laden
+    for (int i = 0; i < MAX_WLAN; i++) {
         // Dynamisch berechnete Schlüssel
         String ssidKey = "ssid" + String(i + 1);
         String passKey = "pass" + String(i + 1);
@@ -811,26 +832,19 @@ void setup() {
     }
 
     
-#ifdef BUTTON1
-    // AP starten, wenn Taste gedrückt oder keine SSID gespeichert
-    if (digitalRead(BUTTON1) == HIGH || wifi_ssid[0].length() == 0) {
-        startAP();
-    }
-#else
     // AP starten, wenn keine SSID gespeichert
-    if (wifi_ssid[0].length() == 0) {
-        startAP();
+    for (int i = 0; i < MAX_WLAN; i++) {
+        if (wifi_ssid[i].length() > 0) {
+            DEBUG_PRINTLN("[WiFi] Found stored SSID: " + wifi_ssid[i]);
+            break;
+        }
+        if (i == MAX_WLAN - 1) {
+            DEBUG_PRINTLN("[WiFi] No stored SSID found");
+            startAP();
+            return;
+        }
     }
-
-#endif
-
-#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT        
-    dcf.Start();
-    pinMode(DCF77_DATAPIN, INPUT_PULLUP);
-
-    attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
-
-#endif
+       
     
     // WLAN-Netzwerke scannen und cachen
     //scanAndCacheNetworks();
@@ -843,16 +857,6 @@ void setup() {
     if (loggingEnabled) Serial.println("");
     // DEBUG_PRINTLN("[WiFi] Scan complete");
 
-    ;
-
-   
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(TFT_WHITE);
-    tft.setTextSize(TFT_TEXT_SIZE);
-    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-    tft.println(translate("Check WLan"));
-    
-    
 
 
     uint32_t number = preferences.getInt("lastWLan", 0);
@@ -909,10 +913,7 @@ void setup() {
 
             }
         }
-        DEBUG_PRINTLN("[WiFi] No matching networks found");
-        startAP();
-
-
+        
         if (rtc_ok == RTC_AVAILABLE) {
             tft.fillScreen(TFT_BLACK);
             tft.setTextColor(TFT_WHITE);
@@ -924,7 +925,7 @@ void setup() {
             return;
         }
 
-        delay(3000);
+        // delay(3000);
         if (dcf77Count >= 1) {
             DEBUG_PRINTLN("[DCF77] DCF77 signal received during setup, waiting for valid time..");
             tft.fillScreen(TFT_BLACK);            
@@ -956,8 +957,6 @@ void setup() {
 
 
     setupNTP();
-    setupWebServer();
-    webserver.begin();
   
     if (useTouch) {
         // Touch-Eingang initialisieren
@@ -1212,19 +1211,13 @@ bool getDCF77Time() {
               
         if (DCFtime != 0) {
             setLED_off(); // LED ausschalten, wenn Zeit gefunden wurde
-            struct tm timeInfo;
-
-            localtime_r(&DCFtime, &timeinfo);
-
-           // if (isDaylightSavingTime(&timeinfo)) {
-           //     DCFtime += 3600; // Eine Stunde hinzufügen
-           // }
 
             if (millis() - lastRTCUpdate > WAIT_6h || g_bDCFTimeFound == false) {
+
                 lastRTCUpdate = millis();
 
-                localtime_r(&DCFtime, &timeInfo); // Konvertiere time_t in struct tm
-                setTimeStruct(timeInfo, "[DCF77] set time");         // Übergabe der struct tm an die Funktion
+                localtime_r(&DCFtime, &timeinfo); // Konvertiere time_t in struct tm
+                setTimeStruct(timeinfo, "[DCF77] set time");         // Übergabe der struct tm an die Funktion
            
                 if (rtc_ok == RTC_AVAILABLE) {
                     
@@ -1312,8 +1305,14 @@ void loop() {
 
     // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
     if (millis() - lastNTPUpdate > WAIT_1h) {
-        setupNTP();
-        lastNTPUpdate = millis();
+        if (timeinfo.tm_sec < 10 || timeinfo.tm_sec > 55) {
+            lastNTPUpdate = millis() + 15 * 1000;
+        }
+        else {
+            setupNTP();
+            lastNTPUpdate = millis();
+        }
+    
     }
 
     if (timeinfo.tm_sec == 0) setLED_off(); // wg.DCF
@@ -1327,7 +1326,7 @@ void loop() {
     webserver.handleClient();
 
 
-    //  if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
+    if (WiFi.getMode() == WIFI_STA || rtc_ok == RTC_AVAILABLE || g_bDCFTimeFound) {
 
     updateClock();
 
@@ -1345,7 +1344,7 @@ void loop() {
 
     initial = false;
 
-    //  }
+    }
 
       // NTP-Server anfragen bearbeiten
       // win:  w32tm /stripchart /computer:192.168.0.214
@@ -1435,6 +1434,7 @@ void loop() {
     tft.printf("%2d.%02d.%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
 #endif
 
+    setLED_off();
 }
 
 
@@ -2003,10 +2003,10 @@ void updateBrightness() {
         }
         else {
             // kein ADC: Standardeinstellung
-            currentBrightness = maxBrightness;
+            currentBrightness = minBrightness;
             targetBrightness = currentBrightness;
         }
-#endif // hier 
+#endif
     }
 
 #ifdef TFT_Backlight
@@ -2185,7 +2185,7 @@ void startAP() {
     startWPS(); // WPS starten  
     
     long wpsWaitMillis = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_15s) { 
+    while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_30s) { 
         delay(100);
     }
     if (WiFi.status() == WL_CONNECTED) {
@@ -2496,6 +2496,7 @@ boolean setupNTP() {
             DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + ntpServer);
 
             if (rtc_ok == RTC_AVAILABLE || rtc_ok == RTC_AVAILABLE_BUT_INVALID) {
+
                 // Setze die RTC mit der synchronisierten Zeit
                 rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
                     timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
@@ -3627,7 +3628,7 @@ void setupWebServer() {
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
 
-        html += "<h2>ESP System Status</h2><ul>";
+        html += "<h2>System Status</h2><ul>";
 
         String tzLabel = preferences.getString("timezone", "DE");
         String tzDesc;
@@ -3740,6 +3741,8 @@ void setupWebServer() {
 #ifdef BUTTON1
         html += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
 #endif
+        html += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
+
 #ifdef LED_BOARD
         html += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
 #endif
@@ -3801,7 +3804,7 @@ void setupWebServer() {
         html += "<li><b>tftRotation</b>: " + String(rotationLabels[rotation]) + "</li>";
 
         // Booleans als Text
-        html += "<li><b>use_adc</b>: " + String(preferences.getBool("use_adc", true) ? "true" : "false") + "</li>";
+        
         html += "<li><b>stationMode</b>: " + String(preferences.getBool("stationMode", true) ? "true" : "false") + "</li>";
         html += "<li><b>showSecondhand</b>: " + String(preferences.getBool("showSecondHand", true) ? "true" : "false") + "</li>";
         html += "<li><b>smoothMinute</b>: " + String(preferences.getBool("smoothMinute", false) ? "true" : "false") + "</li>";
@@ -3809,15 +3812,26 @@ void setupWebServer() {
         html += "<li><b>minBrightness</b>: " + String(preferences.getUChar("minBrightness", 100)) + "</li>";
         html += "<li><b>maxBrightness</b>: " + String(preferences.getUChar("maxBrightness", 255)) + "</li>";
 
-        html += "<li><b>lowThreshold</b>: " + String(preferences.getInt("lowThreshold", 40)) + "</li>";
-        html += "<li><b>highThreshold</b>: " + String(preferences.getInt("highThreshold", 60)) + "</li>";
-        html += "<li><b>adc Inverted</b>: " + String(preferences.getBool("adcInverted", false) ? "true" : "false") + "</li>";
-        html += "<li><b>use Touch</b>: " + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
+        uint16_t brightEnd = preferences.getUChar("brightEnd", 20);
+        brightEnd += 1;
+        if (brightEnd > 23) brightEnd = 0;
+
+        html += "<li><b>daywindow</b>: " + String(preferences.getUChar("brightStart", 8)) + ":00 - " + String(brightEnd) + ":00</li>";
+
+        if (preferences.getBool("use_adc", true)) {
+            html += "<li><b>use_adc</b>: " + String(preferences.getBool("use_adc", true) ? "true" : "false") + "</li>";
+            html += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt("lowThreshold", 40)) + "</li>";
+            html += "<li><b>adc highThreshold</b>: " + String(preferences.getInt("highThreshold", 60)) + "</li>";
+            html += "<li><b>adc Inverted</b>: " + String(preferences.getBool("adcInverted", false) ? "true" : "false") + "</li>";
+        }
+        if (preferences.getBool("useTouch", false)) {
+            html += "<li><b>use Touch</b>: " + String(preferences.getBool("useTouch", false) ? "true" : "false") + "</li>";
+        }
         html += "</ul>";
         html += "</br>";
-        html += "<li>Contact: holger.wagenlehner@gmx.de</li>";
+        html += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
 
-        html += "<li><a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
+        html += "<li>Project: <a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
 
         html += "</ul>";
         html += generateNavigation(); // Navigation einfügen
@@ -4327,6 +4341,9 @@ void setupWebServer() {
     // Datei anzeigen (BMP)
     webserver.on("/file", HTTP_GET, []() {
         if (webserver.hasArg("name")) {
+
+            setLED_on();
+
             String path = webserver.arg("name");
             if (!path.startsWith("/")) path = "/" + path;
 
@@ -4345,10 +4362,12 @@ void setupWebServer() {
                 }
 
                 file.close();
+                setLED_off();
                 return;
-            }
+            }          
         }
         webserver.send(404, "text/plain", "File not found");
+        setLED_off();
         });
 
     // Hand-Sets verwalten
