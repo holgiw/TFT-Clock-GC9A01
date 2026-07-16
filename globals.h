@@ -17,7 +17,7 @@ String currentLanguage = "de"; // Standardmäßig Deutsch
 
 char version[20]; // Build-Version ("YYYY-MM-DD HH:MM:SS" = 19 Zeichen + Nullterminator)
 
-bool loggingEnabled = false;  
+bool loggingEnabled = false;
 
 bool initial = true;
 
@@ -44,7 +44,7 @@ String wifiPass[MAX_WLAN];
 #define CONNECTED 1
 #define CONNECTED_NO_INTERNET 2
 
-bool wifiActive = true;    
+bool wifiActive = true;
 
 // MAC Adresse
 uint8_t mac[6];
@@ -141,7 +141,7 @@ bool cs = true;
 // --- Helligkeit / Fotowiderstand (ADC) ---
 bool adcInverted = false; // Standardmäßig nicht invertiert
 
-bool useAdc = false; 
+bool useAdc = false;
 bool photoresistorFound = false;
 
 uint8_t currentBrightness = 255;
@@ -195,4 +195,3 @@ int currentWeek = -1;
 
 //Übersetzungen fÜr verschiedene Sprachen
 #include "translation.h"
-#include "uhr3.h"
