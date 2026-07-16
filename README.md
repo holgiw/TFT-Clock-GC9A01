@@ -2,6 +2,7 @@
 •	The clock supports various TFT displays:
 •	GC9A01
 •	GC9D01
+•	ILI9341
 •	Display resolution and size are dynamically adjusted (e.g., 240x240 or 160x160 pixels).
 ---
 2. Customizable Clock Hands and Faces
@@ -34,15 +35,17 @@
 ---
 6. Web Interface
 •	A built-in web interface allows:
-•	Uploading and managing clock faces and hands.
+•	Uploading, downloading, and managing clock faces and hands.
 •	Adjusting brightness, time zone, and display rotation.
 •	Enabling/disabling Smooth Minute and Train Station modes.
 •	Viewing system status (e.g., WiFi details, storage usage, uptime).
+•	Multi-language interface (German, English, French).
+•	Factory reset directly from the web interface.
 ---
 7. File Management with LittleFS
 •	Uses the LittleFS filesystem to:
 •	Store custom clock faces and hands.
-•	Manage files (e.g., upload, rename, delete).
+•	Manage files (e.g., upload, download, rename, delete).
 • Logging
 ---
 8. Time Zone Customization
