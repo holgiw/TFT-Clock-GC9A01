@@ -1,0 +1,257 @@
+#pragma once
+// ####################################################################
+// ### Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
+// ####################################################################
+// Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
+// zentral in uhr3.ino VOR dieser Datei eingebunden).
+
+// Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
+void loadPresets() {
+     
+    for (int i = 0; i < MAX_PRESETS; i++) {
+        String nameKey = pkPresetName(i);
+        String urlKey = pkPresetUrl(i);
+
+        presets[i].name = preferences.getString(nameKey.c_str(), "");
+        presets[i].url = preferences.getString(urlKey.c_str(), "");
+
+        // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
+        if (presets[i].url.startsWith("http://")) {
+            int ipEnd = presets[i].url.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
+            if (ipEnd != -1) {
+                presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
+            }
+            else {
+                presets[i].url = "http://" + ipAddress; // Nur die IP ohne Pfad
+            }
+        }
+    }
+}
+
+
+// Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
+
+void savePresets() {
+    
+    for (int i = 0; i < MAX_PRESETS; i++) {
+        String nameKey = pkPresetName(i);
+        String urlKey = pkPresetUrl(i);
+
+        // Ersetze eine vorhandene IP-Adresse durch die aktuelle IP des ESP
+        if (presets[i].url.startsWith("http://")) {
+            int ipEnd = presets[i].url.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
+            if (ipEnd != -1) {
+                presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
+            }
+            else {
+                presets[i].url = "http://" + ipAddress; // Nur die IP ohne Pfad
+            }
+        }
+
+        preferences.putString(nameKey.c_str(), presets[i].name);
+        preferences.putString(urlKey.c_str(), presets[i].url);
+    }
+}
+
+// Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
+
+void createPresetFromPreferences() {
+    // Suche das erste leere Preset
+    int presetIndex = -1;
+    for (int i = 0; i < MAX_PRESETS; i++) {
+        if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
+            presetIndex = i;
+            break;
+        }
+    }
+
+    // Wenn kein leeres Preset gefunden wurde, abbrechen
+    if (presetIndex == -1) {
+        DEBUG_PRINTLN("[Preset] No empty preset slot available");
+        return;
+    }
+
+    // Lese die aktuellen Einstellungen aus den Preferences
+    String background = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
+    String handset = preferences.getString(PK_HANDSET, "default");
+   
+    uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION, 0);
+    bool stationMode = preferences.getBool(PK_STATION_MODE, true);
+    bool showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
+    bool smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
+    uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
+    uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
+
+    // Hole die aktuelle IP-Adresse des ESP
+     
+
+    // Erstelle die URL mit den aktuellen Einstellungen
+    String url = "http://" + ipAddress + "/api/setMode?";
+    if (background.startsWith("/")) {
+        background = background.substring(1); // Entferne führenden Slash für die URL
+    }
+    url += "face=" + background;
+    url += "&handSet=" + handset;
+    
+    url += "&rotation=" + String(rotation);
+    url += "&stationMode=" + String(stationMode ? "true" : "false");
+    url += "&showSecondHand=" + String(showSecondHand ? "true" : "false");
+    url += "&smoothMinute=" + String(smoothMinute ? "true" : "false");
+    url += "&hubSize=" + String(hubSize);
+    url += "&hubColor=" + String(hubColor, HEX);
+
+    // Speichere das Preset
+    String presetName = String(presetIndex + 1) + "_Preset";
+    presets[presetIndex].name = presetName;
+    presets[presetIndex].url = url;
+
+    // Schreibe das Preset in die Preferences
+    String nameKey = pkPresetName(presetIndex);
+    String urlKey = pkPresetUrl(presetIndex);
+    preferences.putString(nameKey.c_str(), presetName);
+    preferences.putString(urlKey.c_str(), url);
+
+    DEBUG_PRINTLN("[Preset] Created preset: " + presetName);
+    DEBUG_PRINTLN("[Preset] URL: " + url);
+}
+
+
+// --- Funktion: Wechselt zum nächsten Preset ---
+void switchToNextPreset() {
+    // Sammle alle gültigen Presets
+    std::vector<int> validPresets;
+    for (int i = 0; i < MAX_PRESETS; i++) {
+        if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
+            validPresets.push_back(i);
+        }
+    }
+
+    if (validPresets.empty()) {
+        DEBUG_PRINTLN("[PRESET] No valid presets found");
+        return;
+    }
+
+    // Bestimme den aktuellen Preset-Index
+    String currentPresetName = preferences.getString(PK_CURRENT_PRESET, "");
+    int currentIndex = -1;
+    for (size_t i = 0; i < validPresets.size(); i++) {
+        if (presets[validPresets[i]].name == currentPresetName) {
+            currentIndex = (int)i;
+            break;
+        }
+    }
+
+    // Wähle das nächste Preset
+    int nextIndex = (currentIndex + 1) % validPresets.size();
+    int nextPresetIndex = validPresets[nextIndex];
+
+    // Lade das nächste Preset
+    String nextPresetUrl = presets[nextPresetIndex].url;
+
+    // Sicherstellen, dass die URL ab "/api" beginnt
+    if (!nextPresetUrl.startsWith("/api")) {
+        DEBUG_PRINTLN("[PRESET] Invalid URL format, adjusting..");
+        int apiIndex = nextPresetUrl.indexOf("/api");
+        if (apiIndex != -1) {
+            nextPresetUrl = nextPresetUrl.substring(apiIndex);
+        }
+        else {
+            DEBUG_PRINTLN("[PRESET] URL does not contain '/api', aborting..");
+            return;
+        }
+    }
+
+    DEBUG_PRINTLN("[PRESET] Switching to preset: " + presets[nextPresetIndex].name + " -> " + nextPresetUrl);
+
+    // Speichere den aktuellen Preset-Namen
+    preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);
+
+    // Entferne die Basis-URL, falls vorhanden
+    int queryStart = nextPresetUrl.indexOf('?');
+    if (queryStart == -1) {
+        DEBUG_PRINTLN("[PRESET] No query parameters found in URL");
+        return;
+    }
+    String query = nextPresetUrl.substring(queryStart + 1);
+
+    // Parse die Parameter
+    while (query.length() > 0) {
+        int ampersandIndex = query.indexOf('&');
+        String param = query.substring(0, ampersandIndex);
+        if (ampersandIndex == -1) {
+            query = "";
+        }
+        else {
+            query = query.substring(ampersandIndex + 1);
+        }
+
+        int equalsIndex = param.indexOf('=');
+        if (equalsIndex == -1) continue;
+
+        String key = param.substring(0, equalsIndex);
+        String value = param.substring(equalsIndex + 1);
+
+        // Wende die Einstellungen an
+        if (key == "face") {
+            //value.replace(".", "");
+            if (!value.startsWith("/")) value = "/" + value;
+            if (value == "/face_default.bmp" || LittleFS.exists(value)) {
+                preferences.putString(PK_BACKGROUND, value);
+                selectedBackground = value;               
+            }
+        }
+        else if (key == "handSet") {
+            preferences.putString(PK_HANDSET, value);            
+        }
+        else if (key == "timeZone") {
+            preferences.putString(PK_TIMEZONE, value);
+            setupNTP();
+        }
+        else if (key == "hubSize") {
+            hubSize = value.toInt();
+            preferences.putUInt(PK_CENTER_SIZE, hubSize);
+        }
+        else if (key == "hubColor") {
+            uint32_t rgb = strtoul(value.c_str(), NULL, 16);
+            uint8_t r = (rgb >> 16) & 0xFF;
+            uint8_t g = (rgb >> 8) & 0xFF;
+            uint8_t b = rgb & 0xFF;
+            hubColor = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            preferences.putLong(PK_CENTER_COLOR, rgb);
+        }
+        else if (key == "stationMode") {
+            stationMode = (value == "1" || value.equalsIgnoreCase("true"));
+            preferences.putBool(PK_STATION_MODE, stationMode);
+        }
+        else if (key == "rotation") {
+            tftRotation = value.toInt();
+            if (tftRotation >= 0 && tftRotation <= 3) {
+                preferences.putUChar(PK_TFT_ROTATION, tftRotation);
+                firstRun = true;
+                if (!psramAvailable) {
+                    tft.setRotation(tftRotation);
+                }                
+            }
+        }
+        else if (key == "showSecondHand") {
+            showSecondHand = (value == "1" || value.equalsIgnoreCase("true"));
+            preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
+        }
+        else if (key == "smoothMinute") {
+            smoothMinute = (value == "1" || value.equalsIgnoreCase("true"));
+            preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
+        }
+    }
+
+    freeClockFaceBuffer();
+    loadClockFace();
+    loadHandSprites();
+    updateClock();
+
+    // Speichere den aktuellen Preset-Namen
+    preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);
+
+    DEBUG_PRINTLN("[PRESET] Switched to preset: " + presets[nextPresetIndex].name);
+}
+
+

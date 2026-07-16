@@ -1,10 +1,30 @@
 #ifndef TRANSLATION_H
-#define TRANSLATION_H 
+#define TRANSLATION_H
 
 
-std::map<String, std::map<String, String>> translations = {
+// ####################################################################
+// ### Uebersetzungen #################################################
+// ####################################################################
+// WICHTIG (Speicher!): Es wird bewusst immer nur die AKTUELL AKTIVE
+// Sprache im RAM gehalten (currentTranslations), nicht alle Sprachen
+// gleichzeitig permanent. Bei mehreren Sprachen mit je ~190 Eintraegen
+// waere eine dauerhaft resident gehaltene std::map<String,std::map<String,String>>
+// mit ALLEN Sprachen gleichzeitig ein erheblicher, unnoetiger Speicherverbrauch -
+// kritisch auf dem ohnehin knappen ESP32-S2 (u.a. ~112 KB fuer den
+// backgroundSprite-Puffer). Die Tabelle der jeweiligen Sprache wird daher
+// erst bei Bedarf (Sprachwechsel) aufgebaut, in buildTranslations_xx().
 
-    {"de", { // Deutsch
+std::map<String, String> currentTranslations;
+
+// Bekannte Sprachen (fuer die Validierung in /setLanguage) - bewusst NUR
+// die Sprachcodes, nicht die vollen Uebersetzungstabellen.
+const std::set<String> availableLanguages = {"de", "fr"};
+
+
+// Deutsch
+static std::map<String, String> buildTranslationsDe() {
+    return {
+ // Deutsch
         {"Main", "Start"},
         {"Connected to", "Verbunden mit"},
         { "Connecting to", "Verbinde mit"},
@@ -18,9 +38,9 @@ std::map<String, std::map<String, String>> translations = {
         {"WiFi Networks", "WLAN Netzwerke"},
         {"Scan", "Scannen"},
         {"Refresh", "Aktualisieren"},
-        {"Available Networks", "Verf%uuml;gbare Netzwerke"},
+        {"Available Networks", "Verf&uuml;gbare Netzwerke"},
         {"Signal Strength", "Signalst&auml;rke"},
-        {"Encryption", "Verschl%uuml;sselung"},
+        {"Encryption", "Verschl&uuml;sselung"},
         {"Storage used", "Speicher belegt"},
         {"Free", "Frei"},
         {"Total", "Gesamt"},
@@ -42,10 +62,10 @@ std::map<String, std::map<String, String>> translations = {
         {"Photoresistor Settings", "Fotowiderstand Einstellungen"},
         {"Min Brightness", "Minimale Helligkeit"},
         {"Max Brightness", "Maximale Helligkeit"},
-        {"Low Light Threshold", "Schwellenwert f%uuml;r dunkles Licht"},
-        {"High Light Threshold", "Schwellenwert f%uuml;r helles Licht"},
+        {"Low Light Threshold", "Schwellenwert f&uuml;r dunkles Licht"},
+        {"High Light Threshold", "Schwellenwert f&uuml;r helles Licht"},
         {"Center Color", "Nabenfarbe"},
-        {"Center Size", "Nabengr&ouml;ße"},
+        {"Center Size", "Nabengr&ouml;&szlig;e"},
         {"Rebooting...", "Starte neu..."},
         {"Reboot", "Neustart"},
         {"Factory&nbsp;Reset", "Werkseinstellungen"},
@@ -59,7 +79,7 @@ std::map<String, std::map<String, String>> translations = {
         {"File upload failed", "Datei-Upload fehlgeschlagen"},
         {"File uploaded successfully", "Datei erfolgreich hochgeladen"},
         {"File already exists", "Datei existiert bereits"},
-        {"File too large", "Datei zu groß"},
+        {"File too large", "Datei zu gro&szlig;"},
         { "rename", "Umbenennen" },
         { "Disconnected", "Getrennt" },
         { "Settings", "Einstellungen" },
@@ -97,7 +117,7 @@ std::map<String, std::map<String, String>> translations = {
         { "Display&nbsp;Settings", "Anzeigeeinstellungen" },
         { "Photoresistor&nbsp;Settings", "Fotowiderstand Einstellungen" },
         { "Center&nbsp;Color", "Nabenfarbe" },
-        { "Center&nbsp;Size", "Nabengr&ouml;ße" },
+        { "Center&nbsp;Size", "Nabengr&ouml;&szlig;e" },
         { "Primary WiFi", "Prim&auml;res WLAN Netzwerk" },
         { "Alternative Network", "Alternatives WLAN Netzwerk" },
         { "Station&nbsp;Mode", "Station Modus" },
@@ -116,7 +136,7 @@ std::map<String, std::map<String, String>> translations = {
         { "Manage Clock Face Files", "Zifferbl&auml;tter verwalten" },
         { "Manage Hand Set Files", "Zeigersatz Dateien verwalten" },
         { "Rename", "Umbenennen" },
-        { "Enter new name for", "Neuen Namen eingeben f%uuml;r" },
+        { "Enter new name for", "Neuen Namen eingeben f&uuml;r" },
         { "New name", "Neuer Name" },
         { "New Name", "Neuer Name" },
         { "File renamed successfully", "Datei erfolgreich umbenannt" },
@@ -127,7 +147,7 @@ std::map<String, std::map<String, String>> translations = {
         { "After downloading, upload the extracted BMP files using the form below", "Nach dem Herunterladen k&ouml;nnen Sie die extrahierten BMP-Dateien mit dem untenstehenden Formular hochladen" },
         { "Upload New Clock Face", "neue Zifferbl&auml;tter hochladen" },
         { "Requirements","Anforderungen" },
-        { "name must start with face_ and end with .bmp","Name muss mit face_ beginnen" },
+        { "name must start with face_ and end with .bmp","Name muss mit face_ beginnen und mit .bmp enden" },
         { "size must be","Gr&ouml;&szlig;e muss sein" },
         { "Clock Setup", "Uhr Einstellungen" },
         { "name must start with", "Name muss beginnen mit" },
@@ -139,7 +159,7 @@ std::map<String, std::map<String, String>> translations = {
         { "Upload to Set", "Set hochladen" },
         { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Farbe (RGB hex, z.B. FF0000 = Rot, 000000 = Schwarz, EC0016 = DB rot)" },
         { "Centre point", "Mittelpunkt" },
-        { "Size", "Gr&ouml;%szlig;e" },
+        { "Size", "Gr&ouml;&szlig;e" },
         { "Warning: Not enough free space to upload new hand sets!Free up some space first","Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben" },
         { "Pivot point","Drehpunkt bei" },
         { "Preset","Set" },
@@ -180,34 +200,278 @@ std::map<String, std::map<String, String>> translations = {
         { "Enable Logging" , "Logging aktivieren"},
         { "Reconnect WiFi" , "Wifi neu verbinden" },
         { "JavaScript is disabled.This page requires JavaScript to work properly!" , "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!" },
-        { "Are you sure you want to reset all saved WiFi networks?" , "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zurücksetzen möchten?" },
-        { "Reset WiFi Networks", "WLAN Netzwerke zurücksetzen" },
-        { "WiFi networks reset. Rebooting...", "WLAN Netzwerke zurückgesetzt. Starte neu..." } ,
+        { "Are you sure you want to reset all saved WiFi networks?" , "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zur&uuml;cksetzen m&ouml;chten?" },
+        { "Reset WiFi Networks", "WLAN Netzwerke zur&uuml;cksetzen" },
+        { "WiFi networks reset. Rebooting...", "WLAN Netzwerke zur&uuml;ckgesetzt. Starte neu..." } ,
         { "DCF77 detected", "DCF77 erkannt"},
-        { "Waiting", "warte" }
+        { "Waiting", "warte" },
+
+        // Nachtraeglich ergaenzt: im Code verwendete Keys, die bisher keine
+        // deutsche Uebersetzung hatten (fielen bisher auf Englisch zurueck).
+        { "<br>File&nbsp;Manager", "<br>Dateimanager" },
+        { "Back", "Zur&uuml;ck" },
+        { "Check RTC", "RTC pr&uuml;fen" },
+        { "Download", "Herunterladen" },
+        { "Failed to scale BMP", "Skalierung des BMP fehlgeschlagen" },
+        { "Gamma Correction", "Gamma-Korrektur" },
+        { "Hostname", "Hostname" },
+        { "Ping Server", "Ping-Server" },
+        { "Reset Saved Networks", "Gespeicherte Netzwerke zur&uuml;cksetzen" },
+        { "Reset WLan...", "WLAN zur&uuml;cksetzen..." },
+        { "Saved as", "Gespeichert als" },
+        { "Scaling successful", "Skalierung erfolgreich" },
+        { "View", "Anzeigen" },
+        { "Warning: Not enough free space to upload new clock faces! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zifferbl&auml;tter! Bitte zuerst Speicherplatz freigeben" },
+        { "Use the host name", "Benutze den Hostnamen" },
+        { "instead of the IP address for better reliability", "anstelle der IP Adresse f&uuml;r bessere Erreichbarkeit" }
 
 
         
 
-    }}
-};
-
-void loadLanguage() {
-    currentLanguage = preferences.getString("language", "en");
+    };
 }
+
+// FranÃ§ais
+static std::map<String, String> buildTranslationsFr() {
+    return {
+ // FranÃ§ais
+        { "Main", "Accueil" },
+        { "Connected to", "Connect&eacute; &agrave;" },
+        { "Connecting to", "Connexion &agrave;" },
+        { "Connection failed", "&Eacute;chec de la connexion" },
+        { "IP Address", "Adresse IP" },
+        { "SSID", "SSID" },
+        { "Password", "Mot de passe" },
+        { "Alternative WiFi", "WiFi alternatif" },
+        { "WiFi Settings", "Param&egrave;tres WiFi" },
+        { "Save Settings", "Enregistrer les param&egrave;tres" },
+        { "WiFi Networks", "R&eacute;seaux WiFi" },
+        { "Scan", "Scanner" },
+        { "Refresh", "Actualiser" },
+        { "Available Networks", "R&eacute;seaux disponibles" },
+        { "Signal Strength", "Force du signal" },
+        { "Encryption", "Chiffrement" },
+        { "Storage used", "Stockage utilis&eacute;" },
+        { "Free", "Libre" },
+        { "Total", "Total" },
+        { "Used", "Utilis&eacute;" },
+        { "Save", "enregistrer" },
+        { "Brightness", "Luminosit&eacute;" },
+        { "Language", "Langue" },
+        { "Time Settings", "Param&egrave;tres de l'heure" },
+        { "NTP Server 1", "Serveur NTP 1" },
+        { "NTP Server 2", "Serveur NTP 2" },
+        { "Timezone", "Fuseau horaire" },
+        { "Clock Settings", "Param&egrave;tres de l'horloge" },
+        { "Handset", "Aiguilles" },
+        { "Background", "Fond" },
+        { "Display Settings", "Param&egrave;tres d'affichage" },
+        { "Station Mode", "Mode gare" },
+        { "Show Second Hand", "Afficher la trotteuse" },
+        { "Smooth Minute Hand", "Aiguille des minutes fluide" },
+        { "Photoresistor Settings", "Param&egrave;tres de la photor&eacute;sistance" },
+        { "Min Brightness", "Luminosit&eacute; minimale" },
+        { "Max Brightness", "Luminosit&eacute; maximale" },
+        { "Low Light Threshold", "Seuil de faible luminosit&eacute;" },
+        { "High Light Threshold", "Seuil de forte luminosit&eacute;" },
+        { "Center Color", "Couleur du moyeu" },
+        { "Center Size", "Taille du moyeu" },
+        { "Rebooting...", "Red&eacute;marrage..." },
+        { "Reboot", "Red&eacute;marrer" },
+        { "Factory&nbsp;Reset", "R&eacute;initialisation&nbsp;usine" },
+        { "File&nbsp;Manager", "Gestionnaire&nbsp;de&nbsp;fichiers" },
+        { "Upload File", "T&eacute;l&eacute;charger un fichier" },
+        { "Choose File", "Choisir un fichier" },
+        { "No file selected", "Aucun fichier s&eacute;lectionn&eacute;" },
+        { "Upload", "T&eacute;l&eacute;charger" },
+        { "Delete", "Supprimer" },
+        { "File deleted", "Fichier supprim&eacute;" },
+        { "File upload failed", "&Eacute;chec du t&eacute;l&eacute;chargement" },
+        { "File uploaded successfully", "Fichier t&eacute;l&eacute;charg&eacute; avec succ&egrave;s" },
+        { "File already exists", "Le fichier existe d&eacute;j&agrave;" },
+        { "File too large", "Fichier trop volumineux" },
+        { "rename", "renommer" },
+        { "Disconnected", "D&eacute;connect&eacute;" },
+        { "Settings", "Param&egrave;tres" },
+        { "settings", "Param&egrave;tres" },
+        { "save", "Enregistrer" },
+        { "brightness", "Luminosit&eacute;" },
+        { "timezone", "Fuseau horaire" },
+        { "NTP&nbsp;Timezone", "Fuseau&nbsp;horaire&nbsp;NTP" },
+        { "Select&nbsp;File", "Choisir&nbsp;un&nbsp;fichier" },
+        { "No&nbsp;File&nbsp;Selected", "Aucun&nbsp;fichier&nbsp;s&eacute;lectionn&eacute;" },
+        { "Upload&nbsp;File", "T&eacute;l&eacute;charger&nbsp;un&nbsp;fichier" },
+        { "Delete&nbsp;File", "Supprimer&nbsp;le&nbsp;fichier" },
+        { "Are you sure you want to delete", "&Ecirc;tes-vous s&ucirc;r de vouloir supprimer" },
+        { "Cancel", "Annuler" },
+        { "Confirm", "Confirmer" },
+        { "File&nbsp;Manager", "Gestionnaire&nbsp;de&nbsp;fichiers" },
+        { "Clock&nbsp;Face", "Cadran" },
+        { "Hand&nbsp;Set", "Jeu&nbsp;d'aiguilles" },
+        { "Use&nbsp;Touch&nbsp;Control", "Utiliser&nbsp;le&nbsp;tactile" },
+        { "Min&nbsp;Brightness", "Luminosit&eacute;&nbsp;minimale" },
+        { "Max&nbsp;Brightness", "Luminosit&eacute;&nbsp;maximale" },
+        { "Presets", "Pr&eacute;r&eacute;glages" },
+        { "Select&nbsp;Preset", "Choisir&nbsp;un&nbsp;pr&eacute;r&eacute;glage" },
+        { "Default", "Par d&eacute;faut" },
+        { "Clock Seetup", "Param&egrave;tres" },
+        { "Rescan Networks", "Rescanner les r&eacute;seaux" },
+        { "SSID", "SSID" },
+        { "Password", "Mot de passe" },
+        { "Connect", "Connecter" },
+        { "WiFi&nbsp;Settings", "Param&egrave;tres&nbsp;WiFi" },
+        { "Time&nbsp;Settings", "Param&egrave;tres&nbsp;de&nbsp;l'heure" },
+        { "NTP&nbsp;Server&nbsp;1", "Serveur&nbsp;NTP&nbsp;1" },
+        { "NTP&nbsp;Server&nbsp;2", "Serveur&nbsp;NTP&nbsp;2" },
+        { "Clock&nbsp;Settings", "Param&egrave;tres&nbsp;de&nbsp;l'horloge" },
+        { "Display&nbsp;Settings", "Param&egrave;tres&nbsp;d'affichage" },
+        { "Photoresistor&nbsp;Settings", "Param&egrave;tres&nbsp;de&nbsp;la&nbsp;photor&eacute;sistance" },
+        { "Center&nbsp;Color", "Couleur&nbsp;du&nbsp;moyeu" },
+        { "Center&nbsp;Size", "Taille&nbsp;du&nbsp;moyeu" },
+        { "Primary WiFi", "WiFi principal" },
+        { "Alternative Network", "R&eacute;seau alternatif" },
+        { "Station&nbsp;Mode", "Mode&nbsp;gare" },
+        { "Show&nbsp;Second&nbsp;Hand", "Afficher&nbsp;la&nbsp;trotteuse" },
+        { "Smooth&nbsp;Minute&nbsp;Hand", "Aiguille&nbsp;des&nbsp;minutes&nbsp;fluide" },
+        { "Password is hidden.Leave empty to keep current", "Le mot de passe est masqu&eacute;. Laissez le champ vide pour conserver le mot de passe actuel" },
+        { "You can also enter an SSID manually", "Vous pouvez aussi saisir un SSID manuellement" },
+        { "No WiFi networks found", "Aucun r&eacute;seau WiFi trouv&eacute;" },
+        { "Signal&nbsp;Strength", "Force&nbsp;du&nbsp;signal" },
+        { "Save WiFi settings", "Enregistrer les param&egrave;tres WiFi" },
+        { "Train Station Mode", "Mode gare" },
+        { "Show Seconds", "Afficher la trotteuse" },
+        { "Enable Touch", "Activer le tactile" },
+        { "Apply", "Appliquer" },
+        { "select network", "choisir un r&eacute;seau" },
+        { "Manage Clock Face Files", "G&eacute;rer les cadrans" },
+        { "Manage Hand Set Files", "G&eacute;rer les jeux d'aiguilles" },
+        { "Rename", "Renommer" },
+        { "Enter new name for", "Entrez le nouveau nom pour" },
+        { "New name", "Nouveau nom" },
+        { "New Name", "Nouveau nom" },
+        { "File renamed successfully", "Fichier renomm&eacute; avec succ&egrave;s" },
+        { "File rename failed", "&Eacute;chec du renommage" },
+        { "Download Additional Clock Faces", "T&eacute;l&eacute;charger des cadrans suppl&eacute;mentaires" },
+        { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Vous pouvez t&eacute;l&eacute;charger un fichier ZIP contenant des cadrans et jeux d'aiguilles suppl&eacute;mentaires depuis le lien suivantÂ : (utilisez 'view raw')" },
+        { "Unzip the file and upload the contents to the /clockfaces and /handsets directories using the File Manager", "D&eacute;compressez le fichier et t&eacute;l&eacute;chargez le contenu dans les dossiers /clockfaces et /handsets &agrave; l'aide du gestionnaire de fichiers" },
+        { "After downloading, upload the extracted BMP files using the form below", "Apr&egrave;s le t&eacute;l&eacute;chargement, envoyez les fichiers BMP extraits &agrave; l'aide du formulaire ci-dessous" },
+        { "Upload New Clock Face", "T&eacute;l&eacute;charger un nouveau cadran" },
+        { "Requirements", "Exigences" },
+        { "name must start with face_ and end with .bmp", "le nom doit commencer par face_ et se terminer par .bmp" },
+        { "size must be", "la taille doit &ecirc;tre" },
+        { "Clock Setup", "Param&egrave;tres de l'horloge" },
+        { "name must start with", "le nom doit commencer par" },
+        { "Manage Clock Hand Sets", "G&eacute;rer les jeux d'aiguilles" },
+        { "Preview/Set", "Aper&ccedil;u/D&eacute;finir" },
+        { "Upload New Hand Set", "T&eacute;l&eacute;charger un nouveau jeu d'aiguilles" },
+        { "name must start with", "le nom doit commencer par" },
+        { "Upload New Hand Set", "T&eacute;l&eacute;charger un nouveau jeu d'aiguilles" },
+        { "Upload to Set", "T&eacute;l&eacute;charger vers le jeu" },
+        { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Couleur (hex RGB, ex. FF0000 = Rouge, 000000 = Noir, EC0016 = rouge DB)" },
+        { "Centre point", "Point central" },
+        { "Size", "Taille" },
+        { "Warning: Not enough free space to upload new hand sets!Free up some space first", "AttentionÂ : espace insuffisant pour t&eacute;l&eacute;charger de nouveaux jeux d'aiguillesÂ ! Lib&eacute;rez d'abord de l'espace" },
+        { "Pivot point", "Point de pivot" },
+        { "Preset", "Pr&eacute;r&eacute;glage" },
+        { "Manage Presets", "G&eacute;rer les pr&eacute;r&eacute;glages" },
+        { "Preset Name", "Nom du pr&eacute;r&eacute;glage" },
+        { "Create New Preset", "Cr&eacute;er un nouveau pr&eacute;r&eacute;glage" },
+        { "Edit Presets", "Modifier les pr&eacute;r&eacute;glages" },
+        { "Save Presets", "Enregistrer les pr&eacute;r&eacute;glages" },
+        { "Create Preset from Current Settings", "Cr&eacute;er un pr&eacute;r&eacute;glage &agrave; partir des param&egrave;tres actuels" },
+        { "For custom timezones, select a preset or enter your own value above", "Pour un fuseau horaire personnalis&eacute;, choisissez un pr&eacute;r&eacute;glage ou saisissez votre propre valeur ci-dessus" },
+        { "Save Timezone", "Enregistrer le fuseau horaire" },
+        { "NTP Server / Timezone (DST String)", "Serveur NTP / Fuseau horaire (cha&icirc;ne DST)" },
+        { "Low Threshold", "Seuil bas" },
+        { "High Threshold", "Seuil haut" },
+        { "Full brightness from (hour, 0-23)", "Luminosit&eacute; maximale &agrave; partir de (heure, 0-23)" },
+        { "Full brightness until (hour, 0-23)", "Luminosit&eacute; maximale jusqu'&agrave; (heure, 0-23)" },
+        { "Current ADC Value", "Valeur ADC actuelle" },
+        { "Current Brightness", "Luminosit&eacute; actuelle" },
+        { "Light (for Threshold)", "Luminosit&eacute; (pour le seuil)" },
+        { "Brightness Settings", "Param&egrave;tres de luminosit&eacute;" },
+        { "Enable Auto Brightness", "Activer la luminosit&eacute; automatique" },
+        { "Invert ADC Reading", "Inverser la lecture ADC" },
+        { "All Files on LittleFS", "Tous les fichiers sur LittleFS" },
+        { "Scale and Save BMP", "Redimensionner et enregistrer le BMP" },
+        { "Filename", "Nom du fichier" },
+        { "Size(bytes)", "Taille (octets)" },
+        { "Action", "Action" },
+        { "Scale", "Redimensionner" },
+        { "Source", "Source" },
+        { "Target", "Cible" },
+        { "Width", "Largeur" },
+        { "Height", "Hauteur" },
+        { "Scale and Save", "Redimensionner et enregistrer" },
+        { "Are you sure you want to reboot?", "&Ecirc;tes-vous s&ucirc;r de vouloir red&eacute;marrer l'horlogeÂ ?" },
+        { "Are you sure you want to reset to factory settings?", "&Ecirc;tes-vous absolument s&ucirc;r de vouloir r&eacute;initialiser l'horloge aux param&egrave;tres d'usineÂ ?" },
+        { "Rename File", "Renommer le fichier" },
+        { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Retour &agrave; la page principale dans 10 secondes, ou actualisez le site lorsque l'ESP est &agrave; nouveau en ligne" },
+        { "Enable Logging", "Activer la journalisation" },
+        { "Reconnect WiFi", "Reconnecter le WiFi" },
+        { "JavaScript is disabled.This page requires JavaScript to work properly!", "JavaScript est d&eacute;sactiv&eacute;. Cette page n&eacute;cessite JavaScript pour fonctionner correctementÂ !" },
+        { "Are you sure you want to reset all saved WiFi networks?", "&Ecirc;tes-vous s&ucirc;r de vouloir r&eacute;initialiser tous les r&eacute;seaux WiFi enregistr&eacute;sÂ ?" },
+        { "Reset WiFi Networks", "R&eacute;initialiser les r&eacute;seaux WiFi" },
+        { "WiFi networks reset. Rebooting...", "R&eacute;seaux WiFi r&eacute;initialis&eacute;s. Red&eacute;marrage..." },
+        { "DCF77 detected", "DCF77 d&eacute;tect&eacute;" },
+        { "Waiting", "Attente" },
+        { "<br>File&nbsp;Manager", "<br>Gestionnaire&nbsp;de&nbsp;fichiers" },
+        { "Back", "Retour" },
+        { "Check RTC", "V&eacute;rifier le RTC" },
+        { "Download", "T&eacute;l&eacute;charger" },
+        { "Failed to scale BMP", "&Eacute;chec du redimensionnement du BMP" },
+        { "Gamma Correction", "Correction gamma" },
+        { "Hostname", "Nom d'h&ocirc;te" },
+        { "Ping Server", "Serveur de ping" },
+        { "Reset Saved Networks", "R&eacute;initialiser les r&eacute;seaux enregistr&eacute;s" },
+        { "Reset WLan...", "R&eacute;initialisation du WiFi..." },
+        { "Saved as", "Enregistr&eacute; sous" },
+        { "Scaling successful", "Redimensionnement r&eacute;ussi" },
+        { "View", "Voir" },
+        { "Warning: Not enough free space to upload new clock faces! Free up some space first", "AttentionÂ : espace insuffisant pour t&eacute;l&eacute;charger de nouveaux cadransÂ ! Lib&eacute;rez d'abord de l'espace" },
+        { "Use the host name", "Utilisez le nom d'h&ocirc;te" },
+        { "instead of the IP address for better reliability", "au lieu de l'adresse IP pour une meilleure fiabilit&eacute;" }
+    };
+}
+
+// Baut currentTranslations fuer die uebergebene Sprache neu auf (verwirft die
+// zuvor aktive Sprache). "en" bzw. unbekannte Sprachen -> leere Tabelle,
+// translate() gibt dann einfach den Key selbst zurueck.
+void applyTranslations(const String& lang) {
+    if (lang == "de") {
+        currentTranslations = buildTranslationsDe();
+    } else if (lang == "fr") {
+        currentTranslations = buildTranslationsFr();
+    } else {
+        currentTranslations.clear();
+    }
+}
+
+// Laedt die zuletzt gespeicherte Spracheinstellung aus den Preferences und
+// baut die passende Uebersetzungstabelle auf (wird einmalig in setup() aufgerufen)
+void loadLanguage() {
+    currentLanguage = preferences.getString(PK_LANGUAGE, "en");
+    applyTranslations(currentLanguage);
+}
+// Setzt die aktive Sprache, speichert sie dauerhaft in den Preferences und
+// baut die zugehoerige Uebersetzungstabelle neu auf
 void saveLanguage(String lang) {
     currentLanguage = lang;
-    preferences.putString("language", lang);
+    preferences.putString(PK_LANGUAGE, lang);
+    applyTranslations(lang);
 }
+// Uebersetzt einen englischen Schluessel-String in die aktuell aktive Sprache;
+// gibt bei Englisch bzw. fehlendem Eintrag einfach den Schluessel selbst zurueck
 String translate(const String& key) {
 
-    if (currentLanguage == "en") return key;  // Englisch: Schüssel zurückgeben
+    if (currentLanguage == "en") return key;  // Englisch: SchlÃ¼ssel zurÃ¼ckgeben
 
-    if (translations.count(currentLanguage) && translations[currentLanguage].count(key)) {
-        return translations[currentLanguage][key];
+    auto it = currentTranslations.find(key);
+    if (it != currentTranslations.end()) {
+        return it->second;
     }
 
-    return key; // Fallback: Schlüssel zurückgeben
+    return key; // Fallback: SchlÃ¼ssel zurÃ¼ckgeben
 }
 
 
