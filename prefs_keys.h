@@ -78,11 +78,19 @@ constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
 
 // Liefert den Preferences-Key fuer das WLAN-SSID-Feld an Index i
 inline String pkSsid(int i)         { return "ssid" + String(i + 1); }
+
+
 // Liefert den Preferences-Key fuer das WLAN-Passwort-Feld an Index i
 inline String pkPass(int i)         { return "pass" + String(i + 1); }
+
+
 // Liefert den Preferences-Key fuer den NTP-Server an Index i
 inline String pkNtpServer(int i)    { return "ntpServer" + String(i + 1); }
+
+
 // Liefert den Preferences-Key fuer den Namen des Presets an Index i
 inline String pkPresetName(int i)   { return "preset" + String(i) + "_name"; }
+
+
 // Liefert den Preferences-Key fuer die URL des Presets an Index i
 inline String pkPresetUrl(int i)    { return "preset" + String(i) + "_url"; }

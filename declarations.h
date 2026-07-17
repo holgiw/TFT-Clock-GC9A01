@@ -67,6 +67,8 @@ bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int
 String getBmpInfo(const String& filename) ;
 bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) ;
 void migrateFaceBmpsToRLE() ;
+bool peekFirstPixelIsWhite(const String& path) ;
+void remaskExistingFaceCorners() ;
 void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) ;
 bool streamRleFaceAsStandardBmp(const String& path, const char* contentType = "image/bmp") ;
 void setLedOff() ;
@@ -82,6 +84,7 @@ void enableTouch() ;
 void disableTouch() ;
 
 // --- presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen ---
+String stripRotationParam(const String& url) ;
 void loadPresets() ;
 void savePresets() ;
 void createPresetFromPreferences() ;
@@ -92,6 +95,8 @@ String generateHtmlHeader() ;
 String generateHtmlStatus() ;
 String generateNavigation() ;
 String generateLanguageSelector() ;
+bool naturalLess(const String& a, const String& b) ;
+void naturalSortNames(std::vector<String>& names) ;
 void setupWebServer() ;
 void handleFileUpload() ;
 

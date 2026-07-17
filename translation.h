@@ -447,12 +447,15 @@ void applyTranslations(const String& lang) {
     }
 }
 
+
 // Laedt die zuletzt gespeicherte Spracheinstellung aus den Preferences und
 // baut die passende Uebersetzungstabelle auf (wird einmalig in setup() aufgerufen)
 void loadLanguage() {
     currentLanguage = preferences.getString(PK_LANGUAGE, "en");
     applyTranslations(currentLanguage);
 }
+
+
 // Setzt die aktive Sprache, speichert sie dauerhaft in den Preferences und
 // baut die zugehoerige Uebersetzungstabelle neu auf
 void saveLanguage(String lang) {
@@ -460,6 +463,8 @@ void saveLanguage(String lang) {
     preferences.putString(PK_LANGUAGE, lang);
     applyTranslations(lang);
 }
+
+
 // Uebersetzt einen englischen Schluessel-String in die aktuell aktive Sprache;
 // gibt bei Englisch bzw. fehlendem Eintrag einfach den Schluessel selbst zurueck
 String translate(const String& key) {

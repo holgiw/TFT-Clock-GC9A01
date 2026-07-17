@@ -83,8 +83,6 @@ bool checkWiFiReconnect() {
 }
 
 
-
-
 // Startet einen WLAN-Access-Point mit dem Namen und Passwort 'clock123' und zeigt Verbindungsinformationen auf dem Display an.
 void startAP() {
 #ifdef TFT_Backlight
@@ -112,6 +110,13 @@ void startAP() {
             break; // Beende die Schleife, wenn ein leerer  gefunden wird, ansonsten letzter
         }        
     }    
+    if (lastWlanNr >= MAX_WLAN) {
+        // Alle Slots belegt: letzten gueltigen Slot (MAX_WLAN-1) ueberschreiben,
+        // statt eines ungueltigen Index ausserhalb des Arrays (war zuvor ein Bug).
+        lastWlanNr = MAX_WLAN - 1;
+        ssidKey = pkSsid(lastWlanNr);
+        passKey = pkPass(lastWlanNr);
+    }
     
     //setCS1(LOW);
     tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
@@ -131,13 +136,35 @@ void startAP() {
         DEBUG_PRINTLN("[WPS] Verbunden mit dem Netzwerk!");
         DEBUG_PRINTLN("[WPS] SSID: " + WiFi.SSID());
         // Serial.println("Passwort: " + WiFi.psk());
-        
-        preferences.putString(ssidKey.c_str(), WiFi.SSID());
-        preferences.putString(passKey.c_str(), WiFi.psk());
 
-        preferences.putInt(PK_LAST_WLAN, lastWlanNr);
+        // Pruefen, ob diese SSID bereits in einem der Slots gespeichert ist.
+        bool alreadyStored = false;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (wifiSsid[i] == WiFi.SSID()) {
+                alreadyStored = true;
+                if (wifiPass[i] == WiFi.psk()) {
+                    DEBUG_PRINTLN("[WPS] SSID " + WiFi.SSID() + " already stored unchanged in slot " + String(i + 1) + ", skipping save.");
+                }
+                else {
+                    // Gleiche SSID, aber anderes Passwort - vorhandenen Eintrag aktualisieren.
+                    String existingPassKey = pkPass(i);
+                    preferences.putString(existingPassKey.c_str(), WiFi.psk());
+                    wifiPass[i] = WiFi.psk();
+                    preferences.putInt(PK_LAST_WLAN, i);
+                    DEBUG_PRINTLN("[WPS] SSID " + WiFi.SSID() + " found in slot " + String(i + 1) + " with a different password - updated.");
+                }
+                break;
+            }
+        }
 
-        DEBUG_PRINTLN("[WPS] Saved credentials: " + WiFi.SSID() + " in " + ssidKey.c_str());
+        if (!alreadyStored) {
+            preferences.putString(ssidKey.c_str(), WiFi.SSID());
+            preferences.putString(passKey.c_str(), WiFi.psk());
+
+            preferences.putInt(PK_LAST_WLAN, lastWlanNr);
+
+            DEBUG_PRINTLN("[WPS] Saved credentials: " + WiFi.SSID() + " in " + ssidKey.c_str());
+        }
 
         tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
         tft.println(WiFi.SSID());
@@ -200,11 +227,9 @@ void startAP() {
 }
 
 
-
 // Versucht, eine Verbindung zum WLAN herzustellen, basierend auf den gespeicherten SSID- und Passwort-Paaren. 
 // Zeigt während des Verbindungsversuchs Informationen auf dem Display an und überprüft die 
 // Internet-Konnektivität nach erfolgreicher Verbindung.
-
 int connectWiFi(int number, bool verboseMode) {
 #ifdef TFT_Backlight
     if (verboseMode) {
@@ -339,7 +364,6 @@ int connectWiFi(int number, bool verboseMode) {
 
 
 // Prüft die Internet-Konnektivität durch Verbindungsversuch zu einem konfigurierten Server.    
-
 bool isInternetReachable(String pingServer) {
 
     if (WiFi.status() != WL_CONNECTED) {
@@ -369,7 +393,6 @@ bool connected = client.connect(pingServer.c_str(), pingPort);
 
 
 // Animation während Verbindungsversuchen
-
 void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
     tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
     tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
@@ -379,7 +402,6 @@ void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
 
 
 // Anzeige WLAN Parameter auf dem TFT
-
 void showWlanCredentials(String wlan) {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -414,7 +436,6 @@ void showWlanCredentials(String wlan) {
         tft.println("Not connected");
     }
 }
-
 
 
 // --- Funktion: Löscht die gespeicherten WiFi-Konfigurationen ---
@@ -464,8 +485,8 @@ void startWiFiScan() {
     }
 }
 
-// --- Funktion: Überprüft den Status des WiFi-Scans und verarbeitet die Ergebnisse ---
 
+// --- Funktion: Überprüft den Status des WiFi-Scans und verarbeitet die Ergebnisse ---
 void checkWiFiScan() {
     if (isScanning) {
         int scanStatus = WiFi.scanComplete();
@@ -515,8 +536,9 @@ void checkWiFiScan() {
         }
     }
 }
-// --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
 
+
+// --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
 void scanAndCacheNetworks() {
     
     tft.fillScreen(TFT_BLACK);

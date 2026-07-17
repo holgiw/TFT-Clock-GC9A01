@@ -14,8 +14,8 @@ void IRAM_ATTR isr() {
 #endif
 }
 
-// Lädt die Zeit vom RTC-Modul und setzt die Systemzeit entsprechend
 
+// Lädt die Zeit vom RTC-Modul und setzt die Systemzeit entsprechend
 void loadTimeFromRTC() {
     if (rtcOk == RTC_AVAILABLE) {
 
@@ -49,7 +49,6 @@ void loadTimeFromRTC() {
 
 
 // Initialisiere die NTP-Server
-
 void initializeNtpServers() {
     for (int i = 0; i < MAX_WLAN; i++) {
         String ntpServerKey = pkNtpServer(i);
@@ -74,7 +73,6 @@ void initializeNtpServers() {
         ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
     }
 }
-
 
 
 // Funktion, um die DCF77-Zeit abzurufen und die Systemzeit zu setzen 
@@ -109,6 +107,7 @@ bool getDCF77Time() {
             }
 
             dcfTimeFound = true;
+            lastDcfSyncTime = DCFtime;
         }
     }
     return dcfTimeFound;
@@ -164,7 +163,6 @@ void printTime(time_t rawTime) {
 }
 
 
-
 //
 // NTP-Zeitsynchronisation um 02:00:05 und 03:00:05
 //
@@ -191,7 +189,6 @@ void checkNightlyTimeSync() {
         triggered3 = false;
     }
 }
-
 
 
 // Initialisiert die Zeitsynchronisierung über NTP und stellt die Zeitzone ein.
@@ -232,8 +229,8 @@ boolean setupNTP() {
     return false;
 }
 
-// Behandelt NTP-Synchronisierungsfehler, indem die letzte bekannte Zeit verwendet oder auf 12:00 Uhr gesetzt wird.
 
+// Behandelt NTP-Synchronisierungsfehler, indem die letzte bekannte Zeit verwendet oder auf 12:00 Uhr gesetzt wird.
 void handleNTPFailure() {
     DEBUG_PRINTLN("[NTP] Handling NTP synchronization failure..");
 
@@ -259,8 +256,8 @@ void handleNTPFailure() {
     scheduleNTPRetry();
 }
 
-// Setzt die Systemzeit manuell anhand einer `tm`-Struktur. 
 
+// Setzt die Systemzeit manuell anhand einer `tm`-Struktur. 
 void setTimeStruct(const struct tm& timeinfo, String source) {
 
     // Konvertiere struct tm in time_t (unter Berücksichtigung der Zeitzone)
@@ -276,15 +273,15 @@ void setTimeStruct(const struct tm& timeinfo, String source) {
     DEBUG_PRINTLN(buffer); // Gibt die lokale Zeit und die Zeitzone aus
 }
 
-// Plant einen NTP-Wiederholungsversuch in 30 Minuten.
 
+// Plant einen NTP-Wiederholungsversuch in 30 Minuten.
 void scheduleNTPRetry() {
     lastNTPRetry = millis();
     DEBUG_PRINTLN("[NTP] Scheduled retry in 30 minutes");
 }
 
-// Überprüft, ob es Zeit für einen NTP-Wiederholungsversuch ist, und führt diesen gegebenenfalls durch.
 
+// Überprüft, ob es Zeit für einen NTP-Wiederholungsversuch ist, und führt diesen gegebenenfalls durch.
 void checkNTPRetry() {
     if (WiFi.status() != WL_CONNECTED) {
         //DEBUG_PRINTLN("[NTP] Skipping retry: Not connected to WiFi");
@@ -297,7 +294,6 @@ void checkNTPRetry() {
         lastNTPRetry = millis();
     }
 }
-
 
 
 // --- Funktion: Scannt den I2C-Bus nach Geräten und gibt die Anzahl der gefundenen Geräte zurück ---
@@ -350,7 +346,6 @@ uint16_t i2cScan() {
 
 
 // Funktion, um ein NTP-Paket zu erstellen
-
 void createNtpResponse(byte* packet, time_t currentTime) {
     memset(packet, 0, NTP_PACKET_SIZE);
 
