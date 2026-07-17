@@ -82,8 +82,15 @@ void savePresets() {
             }
         }
 
-        preferences.putString(nameKey.c_str(), presets[i].name);
-        preferences.putString(urlKey.c_str(), presets[i].url);
+        // Nur schreiben, wenn sich der Wert tatsaechlich geaendert hat - das
+        // Formular sendet immer alle MAX_PRESETS Eintraege mit, auch wenn nur
+        // einer davon bearbeitet wurde (vermeidet unnoetigen Flash-Verschleiss).
+        if (preferences.getString(nameKey.c_str(), "") != presets[i].name) {
+            preferences.putString(nameKey.c_str(), presets[i].name);
+        }
+        if (preferences.getString(urlKey.c_str(), "") != presets[i].url) {
+            preferences.putString(urlKey.c_str(), presets[i].url);
+        }
     }
 }
 
