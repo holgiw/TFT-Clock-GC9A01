@@ -275,7 +275,9 @@ void setupWebServer() {
             if (webserver.hasArg(argName)) {
                 strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
                 ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
-                preferences.putString(argName.c_str(), ntpServers[i]);
+                if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
+                    preferences.putString(argName.c_str(), ntpServers[i]);
+                }
                 // DEBUG_PRINTLN("[API] Received " + argName + ": " + String(ntpServers[i]));  
             }
         }
@@ -368,28 +370,35 @@ void setupWebServer() {
 
     // Preset-Verwaltung
     webserver.on("/presets", HTTP_GET, []() {
-        String html = generateHtmlHeader();
-        html.reserve(4096);  // Presets-Seite: bis zu 15 Preset-Zeilen
-        html += generateHtmlStatus();
-        html += generateNavigation();
-        html += "<h2>" + translate("Manage Presets") + "</h2>";
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
+
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1024);
+        chunk += generateHtmlStatus();
+        chunk += generateNavigation();
+        chunk += "<h2>" + translate("Manage Presets") + "</h2>";
 
         // Links oben anzeigen
-        html += "<div style='text-align:center;'>";
+        chunk += "<div style='text-align:center;'>";
 
         if (pingHostname) {
-            html += "<p>" + translate("Use the host name") + " <strong>" + String(hostname) + ".local</strong> " + translate("instead of the IP address for better reliability") + ".</p>";
+            chunk += "<p>" + translate("Use the host name") + " <strong>" + String(hostname) + ".local</strong> " + translate("instead of the IP address for better reliability") + ".</p>";
         }
 
-        html += "<ul style='list-style-type:none; padding:0; display:inline-block; text-align:left;'>";
+        chunk += "<ul style='list-style-type:none; padding:0; display:inline-block; text-align:left;'>";
 
          
         String espHost = "http://" + String(hostname) + ".local"; // Aktueller Hostname des ESP
 
-        html += "<table style='width:100%; border-collapse:collapse;'>";
-        html += "<tr><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preset Name") +
+        chunk += "<table style='width:100%; border-collapse:collapse;'>";
+        chunk += "<tr><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preset Name") +
             "</th><th style = 'border:1px solid #ccc; padding:8px;'>Link</th></tr>";
 
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        int rowCount = 0;
         for (int i = 0; i < MAX_PRESETS; i++) {
             if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
                 String displayUrl = presets[i].url;
@@ -407,31 +416,41 @@ void setupWebServer() {
                 displayUrl += "&source=preset";
                 presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
 
-                html += "<tr>";
-                html += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'><a href='" + displayUrl + "'>" + presets[i].name + "</a></td>";
+                chunk += "<tr>";
+                chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'><a href='" + displayUrl + "'>" + presets[i].name + "</a></td>";
                 String presetName = presets[i].name;
                 presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-                html += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'>http://" + ipAddress + "/api/setPreset?name=" + presetName;
+                chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'>http://" + ipAddress + "/api/setPreset?name=" + presetName;
                 if (pingHostname) {
-                    html += "<br>" + espHost + "/api/setPreset?name=" + presetName;
+                    chunk += "<br>" + espHost + "/api/setPreset?name=" + presetName;
                 }
-                html += "</td></tr>";
+                chunk += "</td></tr>";
+
+                rowCount++;
+                if (rowCount % 5 == 0) {
+                    webserver.sendContent(chunk);
+                    chunk = "";
+                }
             }
         }
-        html += "</table>";
-        html += "</ul>";
-        html += "</div><hr>";
+        chunk += "</table>";
+        chunk += "</ul>";
+        chunk += "</div><hr>";
 
-        html += "<hr>";
-        html += "<h3>" + translate("Create New Preset") + "</h3>";
-        html += "<form method='POST' action='/api/createPreset'>";
-        html += "<button type='submit'>" + translate("Create Preset from Current Settings") + "</button>";
-        html += "</form>";
-        html += "<hr>";
+        chunk += "<hr>";
+        chunk += "<h3>" + translate("Create New Preset") + "</h3>";
+        chunk += "<form method='POST' action='/api/createPreset'>";
+        chunk += "<button type='submit'>" + translate("Create Preset from Current Settings") + "</button>";
+        chunk += "</form>";
+        chunk += "<hr>";
 
         // Gefüllte Presets anzeigen
-        html += "<h3>" + translate("Edit Presets") + "</h3>";
-        html += "<form method='POST' action='/save_presets'>";
+        chunk += "<h3>" + translate("Edit Presets") + "</h3>";
+        chunk += "<form method='POST' action='/save_presets'>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
+
         for (int i = 0; i < MAX_PRESETS; i++) {
 
             String displayUrl = presets[i].url;
@@ -459,9 +478,14 @@ void setupWebServer() {
             }
 
             presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-            html += "<h4>" + translate("Preset") + " " + String(i + 1) + "</h4>";
-            html += "Name: <input type='text' name='name" + String(i) + "' value='" + presets[i].name + "'><br>";
-            html += "URL: <input type='text' name='url" + String(i) + "' value='" + displayUrl + "'><br><br>";
+            chunk += "<h4>" + translate("Preset") + " " + String(i + 1) + "</h4>";
+            chunk += "Name: <input type='text' name='name" + String(i) + "' value='" + presets[i].name + "'><br>";
+            chunk += "URL: <input type='text' name='url" + String(i) + "' value='" + displayUrl + "'><br><br>";
+
+            if (i % 5 == 4) {
+                webserver.sendContent(chunk);
+                chunk = "";
+            }
 
             if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
                 break;
@@ -469,11 +493,12 @@ void setupWebServer() {
         }
 
 
-        html += "<button type='submit'>" + translate("Save Presets") + "</button>";
-        html += "</form><hr>";
+        chunk += "<button type='submit'>" + translate("Save Presets") + "</button>";
+        chunk += "</form><hr>";
 
-        html += "</body></html>";
-        webserver.send(200, "text/html", html);
+        chunk += "</body></html>";
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     // Presets speichern    
@@ -540,7 +565,9 @@ void setupWebServer() {
             if (webserver.hasArg(argName)) {
                 strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
                 ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Ensure null-termination
-                preferences.putString(argName.c_str(), ntpServers[i]);
+                if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
+                    preferences.putString(argName.c_str(), ntpServers[i]);
+                }
                 //DEBUG_PRINTLN("[NTP] " + argName + " set to: " + String(ntpServers[i]));
             }
         }
@@ -817,199 +844,224 @@ void setupWebServer() {
 
     // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_POST, []() {
-        String html = generateHtmlHeader();
-        html.reserve(4096);  // Helligkeits-Einstellungen (POST): viele Formularfelder
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
-        html += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
+
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1024);
+        chunk += generateHtmlStatus(); // Statusleiste einfügen
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
         if (photoresistorFound) {
-            html += "<table style='margin:auto;text-align:left;'><tr>";
-            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
+            chunk += "<table style='margin:auto;text-align:left;'><tr>";
+            chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
 
-            html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
-            html += "</tr></table><hr><br>";
+            chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
+            chunk += "</tr></table><hr><br>";
 
-            html += "<label>" + translate("Low Threshold") + " (0 - 100 %) :</label><br><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "'><br>";
-            html += "<label>" + translate("High Threshold") + " (0 - 100 %) :</label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
+            chunk += "<label>" + translate("Low Threshold") + " (0 - 100 %) :</label><br><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "'><br>";
+            chunk += "<label>" + translate("High Threshold") + " (0 - 100 %) :</label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
         }
 
-        html += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
+        chunk += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
 
-        html += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
+        chunk += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
 
 
-        html += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
-        html += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
+        chunk += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
+        chunk += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-        html += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
-        html += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
+        chunk += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
+        chunk += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
 
 #endif
 
 
-        html += "<button type='submit'>" + translate("Save") + "</button></form>";
+        chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
         if (photoresistorFound) {
-            html += "<br>";
-            html += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
-            html += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
-            html += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
+            chunk += "<br>";
+            chunk += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
+            chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
+            chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
 
-            html += "<br>";
-            html += "<form method='GET' action='/brightness'><button type='submit'>" + translate("Refresh") + "</button></form>";
-            html += "<br>"; html += "<br>";
+            chunk += "<br>";
+            chunk += "<form method='GET' action='/brightness'><button type='submit'>" + translate("Refresh") + "</button></form>";
+            chunk += "<br>"; chunk += "<br>";
 
+            webserver.sendContent(chunk);
+            chunk = "";
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            html += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
+            chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
-            html += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
-            html += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
-            html += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
-            html += "<div id='plot' style='width:100%; height:600px;'></div>\n";
+            chunk += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
+            chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
+            chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
+            chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
 
-            html += "<script>\n";
-            html += "const minBrightness = " + String(minBrightness) + ";\n";
-            html += "const maxBrightness = " + String(maxBrightness) + ";\n";
-            html += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
+            chunk += "<script>\n";
+            chunk += "const minBrightness = " + String(minBrightness) + ";\n";
+            chunk += "const maxBrightness = " + String(maxBrightness) + ";\n";
+            chunk += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
 
-            html += "function computeBrightness(gamma) {\n";
-            html += "  return avg.map(val => {\n";
-            html += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
-            html += "    let gammaNorm = Math.pow(norm, gamma);\n";
-            html += "    return minBrightness + Math.round((maxBrightness - minBrightness) * gammaNorm);\n";
-            html += "  });\n";
-            html += "}\n\n";
+            chunk += "function computeBrightness(gamma) {\n";
+            chunk += "  return avg.map(val => {\n";
+            chunk += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
+            chunk += "    let gammaNorm = Math.pow(norm, gamma);\n";
+            chunk += "    return minBrightness + Math.round((maxBrightness - minBrightness) * gammaNorm);\n";
+            chunk += "  });\n";
+            chunk += "}\n\n";
 
-            html += "function plotGamma(gamma) {\n";
-            html += "  const y = computeBrightness(gamma);\n";
-            html += "  Plotly.newPlot('plot', [{\n";
-            html += "    x: avg,\n";
-            html += "    y: y,\n";
-            html += "    mode: 'lines',\n";
-            html += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
-            html += "  }], {\n";
-            html += "    title: 'Gamma-Korrektur-Kurve',\n";
-            html += "    xaxis: { title: 'adc (0 - 4095)' },\n";
-            html += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
-            html += "  });\n";
-            html += "}\n\n";
+            webserver.sendContent(chunk);
+            chunk = "";
 
-            html += "const slider = document.getElementById('gammaSlider');\n";
-            html += "const gammaValue = document.getElementById('gammaValue');\n";
-            html += "slider.addEventListener('input', () => {\n";
-            html += "  const gamma = parseFloat(slider.value);\n";
-            html += "  gammaValue.textContent = gamma.toFixed(1);\n";
-            html += "  plotGamma(gamma);\n";
-            html += "});\n\n";
+            chunk += "function plotGamma(gamma) {\n";
+            chunk += "  const y = computeBrightness(gamma);\n";
+            chunk += "  Plotly.newPlot('plot', [{\n";
+            chunk += "    x: avg,\n";
+            chunk += "    y: y,\n";
+            chunk += "    mode: 'lines',\n";
+            chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
+            chunk += "  }], {\n";
+            chunk += "    title: 'Gamma-Korrektur-Kurve',\n";
+            chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
+            chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
+            chunk += "  });\n";
+            chunk += "}\n\n";
 
-            html += "plotGamma(" + String(gammaBrightness) + ");\n";
-            html += "</script>\n";
+            chunk += "const slider = document.getElementById('gammaSlider');\n";
+            chunk += "const gammaValue = document.getElementById('gammaValue');\n";
+            chunk += "slider.addEventListener('input', () => {\n";
+            chunk += "  const gamma = parseFloat(slider.value);\n";
+            chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
+            chunk += "  plotGamma(gamma);\n";
+            chunk += "});\n\n";
+
+            chunk += "plotGamma(" + String(gammaBrightness) + ");\n";
+            chunk += "</script>\n";
 #endif
         }
 
-        html += "<br><br>";
-        html += generateNavigation(); // Navigation einfügen
-        html += "</body></html>";
-        webserver.send(200, "text/html", html);
+        chunk += "<br><br>";
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "</body></html>";
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     // Helligkeitseinstellungen Formular
     webserver.on("/brightness", HTTP_GET, []() {
-        String html = generateHtmlHeader();
-        html.reserve(4096);  // Helligkeits-Einstellungen (GET): viele Formularfelder
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
-        html += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
+
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1024);
+        chunk += generateHtmlStatus(); // Statusleiste einfügen
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
         if (photoresistorFound) {
-            html += "<table style='margin:auto;text-align:left;'><tr>";
-            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
+            chunk += "<table style='margin:auto;text-align:left;'><tr>";
+            chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
 
-            html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
-            html += "</tr></table><hr><br>";
+            chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
+            chunk += "</tr></table><hr><br>";
 
-            html += "<label>" + translate("Low Threshold") + " (0 - 100) : </label><br><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "'><br>";
-            html += "<label>" + translate("High Threshold") + " (0 - 100) : </label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
+            chunk += "<label>" + translate("Low Threshold") + " (0 - 100) : </label><br><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "'><br>";
+            chunk += "<label>" + translate("High Threshold") + " (0 - 100) : </label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
         }
 
-        html += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
+        chunk += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
 
-        html += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
+        chunk += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
 
 
-        html += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
-        html += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
+        chunk += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
+        chunk += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-        html += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
-        html += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
+        chunk += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
+        chunk += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
 #endif
 
 
-        html += "<button type='submit'>" + translate("Save") + "</button></form>";
+        chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
         if (photoresistorFound) {
-            html += "<br>";
-            html += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
-            html += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
-            html += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
-            html += "<br>";
-            html += "<form method='GET' action='/brightness'><button type='submit'>" + translate("Refresh") + "</button></form>";
-            html += "<br>";
+            chunk += "<br>";
+            chunk += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
+            chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
+            chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
+            chunk += "<br>";
+            chunk += "<form method='GET' action='/brightness'><button type='submit'>" + translate("Refresh") + "</button></form>";
+            chunk += "<br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            html += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
+            chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
-            html += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
-            html += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
-            html += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
-            html += "<div id='plot' style='width:100%; height:600px;'></div>\n";
+            chunk += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
+            chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
+            chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
+            chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
 
-            html += "<script>\n";
-            html += "const minBrightness = " + String(minBrightness) + ";\n";
-            html += "const maxBrightness = " + String(maxBrightness) + ";\n";
-            html += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
+            chunk += "<script>\n";
+            chunk += "const minBrightness = " + String(minBrightness) + ";\n";
+            chunk += "const maxBrightness = " + String(maxBrightness) + ";\n";
+            chunk += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
 
-            html += "function computeBrightness(gamma) {\n";
-            html += "  return avg.map(val => {\n";
-            html += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
-            html += "    let gammaNorm = Math.pow(norm, gamma);\n";
-            html += "    return minBrightness + Math.round((maxBrightness - minBrightness) * gammaNorm);\n";
-            html += "  });\n";
-            html += "}\n\n";
+            chunk += "function computeBrightness(gamma) {\n";
+            chunk += "  return avg.map(val => {\n";
+            chunk += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
+            chunk += "    let gammaNorm = Math.pow(norm, gamma);\n";
+            chunk += "    return minBrightness + Math.round((maxBrightness - minBrightness) * gammaNorm);\n";
+            chunk += "  });\n";
+            chunk += "}\n\n";
 
-            html += "function plotGamma(gamma) {\n";
-            html += "  const y = computeBrightness(gamma);\n";
-            html += "  Plotly.newPlot('plot', [{\n";
-            html += "    x: avg,\n";
-            html += "    y: y,\n";
-            html += "    mode: 'lines',\n";
-            html += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
-            html += "  }], {\n";
-            html += "    title: 'Gamma-Korrektur-Kurve',\n";
-            html += "    xaxis: { title: 'adc (0 - 4095)' },\n";
-            html += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
-            html += "  });\n";
-            html += "}\n\n";
+            webserver.sendContent(chunk);
+            chunk = "";
 
-            html += "const slider = document.getElementById('gammaSlider');\n";
-            html += "const gammaValue = document.getElementById('gammaValue');\n";
-            html += "slider.addEventListener('input', () => {\n";
-            html += "  const gamma = parseFloat(slider.value);\n";
-            html += "  gammaValue.textContent = gamma.toFixed(1);\n";
-            html += "  plotGamma(gamma);\n";
-            html += "});\n\n";
+            chunk += "function plotGamma(gamma) {\n";
+            chunk += "  const y = computeBrightness(gamma);\n";
+            chunk += "  Plotly.newPlot('plot', [{\n";
+            chunk += "    x: avg,\n";
+            chunk += "    y: y,\n";
+            chunk += "    mode: 'lines',\n";
+            chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
+            chunk += "  }], {\n";
+            chunk += "    title: 'Gamma-Korrektur-Kurve',\n";
+            chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
+            chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
+            chunk += "  });\n";
+            chunk += "}\n\n";
 
-            html += "plotGamma(" + String(gammaBrightness) + ");\n";
-            html += "</script>\n";
+            chunk += "const slider = document.getElementById('gammaSlider');\n";
+            chunk += "const gammaValue = document.getElementById('gammaValue');\n";
+            chunk += "slider.addEventListener('input', () => {\n";
+            chunk += "  const gamma = parseFloat(slider.value);\n";
+            chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
+            chunk += "  plotGamma(gamma);\n";
+            chunk += "});\n\n";
+
+            chunk += "plotGamma(" + String(gammaBrightness) + ");\n";
+            chunk += "</script>\n";
 #endif
         }
 
-        html += generateNavigation(); // Navigation einfügen    
-        html += "<br><br></body></html>";
-        webserver.send(200, "text/html", html);
+        chunk += generateNavigation(); // Navigation einfügen    
+        chunk += "<br><br></body></html>";
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     // Helligkeitseinstellungen speichern
@@ -1055,13 +1107,19 @@ void setupWebServer() {
 
     // Alle Dateien auflisten
     webserver.on("/files", HTTP_GET, []() {
-        String html = generateHtmlHeader();
-        html.reserve(6144);  // Datei-Explorer: Anzahl Dateien variabel
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
 
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1024);
 
-        html += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>Info</th><th>" + translate("Action") + "</th></tr>";
+        chunk += generateHtmlStatus(); // Statusleiste einfügen
+        chunk += generateNavigation(); // Navigation einfügen
+
+        chunk += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>Info</th><th>" + translate("Action") + "</th></tr>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
         // Erst alle Dateinamen sammeln und natuerlich sortieren (Zahlen im
         // Namen numerisch statt alphabetisch, z.B. hand_set2 vor hand_set10),
@@ -1075,35 +1133,44 @@ void setupWebServer() {
         }
         naturalSortNames(fileNames);
 
+        int rowCount = 0;
         for (const String& name : fileNames) {
             String openPath = name.startsWith("/") ? name : "/" + name;
             File f = LittleFS.open(openPath, "r");
             size_t fileSize = f ? f.size() : 0;
             if (f) f.close();
             String info = getBmpInfo(name);
-            html += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
-            html += "<td align=right>" + String(info) + "</td>";
-            html += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"Delete " + name + "?\")'>" + translate("Delete") + "</a> ";
+            chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
+            chunk += "<td align=right>" + String(info) + "</td>";
+            chunk += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"Delete " + name + "?\")'>" + translate("Delete") + "</a> ";
             // Scale-Option nur für .bmp-Dateien anzeigen
             if (name.endsWith(".bmp")) {
-                html += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
-                html += "<a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
+                chunk += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
+                chunk += "<a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
             }
             else {
-                html += translate("Scale") + " ";
-                html += translate("Rename") + " ";
+                chunk += translate("Scale") + " ";
+                chunk += translate("Rename") + " ";
             }
                        
-            html += "<a href='/download?file=" + name + "'>" + translate("Download") + "</a> ";
-            html += "<a href='/file?name=" + name + "'>" + translate("View") + "</a> "; // "View"-Link für Logdateien
+            chunk += "<a href='/download?file=" + name + "'>" + translate("Download") + "</a> ";
+            chunk += "<a href='/file?name=" + name + "'>" + translate("View") + "</a> "; // "View"-Link für Logdateien
 
-            html += "</td></tr>";
+            chunk += "</td></tr>";
 
+            // Alle paar Zeilen zwischendurch senden, damit der Puffer auch
+            // bei sehr vielen Dateien nicht unbegrenzt waechst.
+            rowCount++;
+            if (rowCount % 5 == 0) {
+                webserver.sendContent(chunk);
+                chunk = "";
+            }
         }
-        html += "</table><br><br>";
-        html += generateNavigation(); // Navigation einfügen
-        html += "</body></html>";
-        webserver.send(200, "text/html", html);
+        chunk += "</table><br><br>";
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "</body></html>";
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     webserver.on("/download", HTTP_GET, []() {
@@ -1157,13 +1224,19 @@ void setupWebServer() {
     // Systemstatus Seite
     webserver.on("/status", HTTP_GET, []() {
 
-        String html = generateHtmlHeader();
-        html.reserve(6144);  // Status-Seite: sehr viele Einzelwerte
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
 
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1024);
 
-        html += "<h2>System Status</h2><ul>";
+        chunk += generateHtmlStatus(); // Statusleiste einfügen
+        chunk += generateNavigation(); // Navigation einfügen
+
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "<h2>System Status</h2><ul>";
 
         String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
         String tzDesc;
@@ -1174,104 +1247,132 @@ void setupWebServer() {
         if (getLocalTime(&timeinfo, 100)) {
             char nowStr[32];
             strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
-            html += "<li>Current Time: " + String(nowStr) + "</li>";
-            html += "<li>Timezone: " + tzDesc + "</li>";
-            html += "<li>Current week: " + String(currentWeek) + "</li>";
-            html += "<li>Last week reset: " + String(lastResetWeek) + "</li>";
+            chunk += "<li>Current Time: " + String(nowStr) + "</li>";
+            chunk += "<li>Timezone: " + tzDesc + "</li>";
+            chunk += "<li>Current week: " + String(currentWeek) + "</li>";
+            chunk += "<li>Last week reset: " + String(lastResetWeek) + "</li>";
 
             unsigned long seconds = millis() / 1000;
             unsigned long days = seconds / 86400;
             unsigned long hours = (seconds % 86400) / 3600;
             unsigned long minutes = (seconds % 3600) / 60;
             unsigned long secs = seconds % 60;
-            html += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
+            chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
 
-            html += "<br>";
+            chunk += "<br>";
         }
 
-        html += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
+        webserver.sendContent(chunk);
+        chunk = "";
 
-        html += "<li>TFT Driver: " + tftType + "</li>";
+        chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
 
-        html += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
+        chunk += "<li>TFT Driver: " + tftType + "</li>";
 
-        html += "<br>";
-        html += "<li>ChipModel: " + String(ESP.getChipModel()) + "</li>";
-        html += "<li>ChipRevision: " + String(ESP.getChipRevision()) + "</li>";
-        html += "<li>ChipCores: " + String(ESP.getChipCores()) + "</li>";
-        html += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
-        html += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
+        chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
 
-        html += "<li>Hostname: " + String(hostname) + ".local" + "</li>";
-        html += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
-        html += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
-        html += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
-        html += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
-        html += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
-        html += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
-        
-        html += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
+        chunk += "<br>";
 
-        html += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
-        html += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
-        html += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
-        html += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
-        html += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
-        html += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
+        webserver.sendContent(chunk);
+        chunk = "";
 
-        html += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
-        html += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
-        // html += "<li>PSRam used: " + String(psramAvailable == true ? "true" : "false") + "</li><br>";
+        chunk += "<li>ChipModel: " + String(ESP.getChipModel()) + "</li>";
+        chunk += "<li>ChipRevision: " + String(ESP.getChipRevision()) + "</li>";
+        chunk += "<li>ChipCores: " + String(ESP.getChipCores()) + "</li>";
+        chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
+        chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "<li>Hostname: " + String(hostname) + ".local" + "</li>";
+        chunk += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
+        chunk += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
+        chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
+        chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
+        chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
+        chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
+        chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
+        chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
+        chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
+        chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
+        chunk += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
+        chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
+        // chunk += "<li>PSRam used: " + String(psramAvailable == true ? "true" : "false") + "</li><br>";
 
 
-        html += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
-        html += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
-        html += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
+        chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
+        chunk += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
+        chunk += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
 #ifdef ADC_PIN
         if (photoresistorFound) {
-            html += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
-            html += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
+            chunk += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
+            chunk += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
         }
         else {
-            html += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
+            chunk += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
         }
 #endif
 
+        webserver.sendContent(chunk);
+        chunk = "";
 
 
-        html += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
-        //html += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
-        html += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-        html += "<li>TFT_CS GPIO: " + String(TFT_CS) + "</li>";
+
+        chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
+        //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
+        chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
+        chunk += "<li>TFT_CS GPIO: " + String(TFT_CS) + "</li>";
 #if defined CS_2
-        html += "<li>TFT_CS2 GPIO: " + String(CS_2) + "</li>";
+        chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + "</li>";
 #endif
 
 
-        html += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
-        html += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
+        chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
+        chunk += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
 
 #if defined SDA_PIN && defined SCL_PIN
         if (!i2cAddr.isEmpty()) {
-            html += "<li>I2C ADR: " + i2cAddr + "</li>";
-            html += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
-            html += "<li>I2C SDL GPIO: " + String(SCL_PIN) + "</li><br>";
+            chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
+            chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
+            chunk += "<li>I2C SDL GPIO: " + String(SCL_PIN) + "</li><br>";
         }
         else {
-            html += "<li>I2C: no device found</li><br>";
+            chunk += "<li>I2C: no device found</li><br>";
         }
 #endif
 
+        webserver.sendContent(chunk);
+        chunk = "";
+
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
         if (dcf77Count == 0) {
-            html += "<li>DCF77: No signal received so far</li>";
+            chunk += "<li>DCF77: No signal received so far</li>";
         }
         else {
-            html += "<li>DCF77: Pulses received</li>";
+            chunk += "<li>DCF77: Pulses received</li>";
         }
         if (lastDcfSyncTime == 0) {
-            html += "<li>DCF77 last sync: never</li>";
+            chunk += "<li>DCF77 last sync: never</li>";
         }
         else {
             struct tm syncInfo;
@@ -1280,43 +1381,48 @@ void setupWebServer() {
             snprintf(syncBuf, sizeof(syncBuf), "%04d-%02d-%02d %02d:%02d:%02d",
                 syncInfo.tm_year + 1900, syncInfo.tm_mon + 1, syncInfo.tm_mday,
                 syncInfo.tm_hour, syncInfo.tm_min, syncInfo.tm_sec);
-            html += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
+            chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
         }
-        html += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
-        html += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
+        chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
+        chunk += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
 #endif
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
 #ifdef BUTTON1
-        html += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
+        chunk += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
 #endif
-        html += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
+        chunk += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
 
 #ifdef LED_BOARD
-        html += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
+        chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
 #endif
 #ifdef TOUCH_PIN
-        html += "<li>TOUCH_PIN GPIO: " + String(TOUCH_PIN) + "</li>";
-        html += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
+        chunk += "<li>TOUCH_PIN GPIO: " + String(TOUCH_PIN) + "</li>";
+        chunk += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
 #endif
 #ifdef ADC_PIN
-        html += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
-        html += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
-        html += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
+        chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
+        chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
+        chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
         if (photoresistorFound) {
-            html += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
+            chunk += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
         }
 #endif
 
 
 #ifndef TFT_Backlight 
-        html += "<li>TFT_Backlight: none</li>";
+        chunk += "<li>TFT_Backlight: none</li>";
 #else
-        html += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + "</li>";
+        chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + "</li>";
 #endif
-        html += "<br>";
+        chunk += "<br>";
 
+        webserver.sendContent(chunk);
+        chunk = "";
 
-        html += "<li><h3>Actual Preferences</h3></li><ul>";
+        chunk += "<li><h3>Actual Preferences</h3></li><ul>";
 
         for (int i = 0; i < MAX_WLAN; i++) {
             // Dynamisch berechnete Schlüssel
@@ -1324,67 +1430,75 @@ void setupWebServer() {
 
             if (preferences.getString(ssidKey.c_str(), "") != "") {
                 if (preferences.getInt(PK_LAST_WLAN) != i) {
-                    html += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
+                    chunk += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
                 }
                 else {
-                    html += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
+                    chunk += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
                 }
             }
     
         }
 
+        webserver.sendContent(chunk);
+        chunk = "";
+
         for (int i = 0; i < MAX_WLAN; i++) {
             if (preferences.getString((pkNtpServer(i)).c_str(), "") != "") {
-                html += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString((pkNtpServer(i)).c_str(), "") + "</li>";
+                chunk += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString((pkNtpServer(i)).c_str(), "") + "</li>";
             }
         }
        
-        html += "<li><b>pingServer:port</b>: " + preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER) + "</li>";
+        chunk += "<li><b>pingServer:port</b>: " + preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER) + "</li>";
 
-        html += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
-        html += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
-        html += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-        html += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
-        html += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
+        chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
+        chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
+        chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
+        chunk += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
+        chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
         uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION, 0);
         const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-        html += "<li><b>tftRotation</b>: " + String(rotationLabels[rotation]) + "</li>";
+        chunk += "<li><b>tftRotation</b>: " + String(rotationLabels[rotation]) + "</li>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
         // Booleans als Text
         
-        html += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
-        html += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
-        html += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
+        chunk += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
+        chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
+        chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
 
-        html += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
-        html += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
+        chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
+        chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
 
         uint16_t brightEnd = preferences.getUChar(PK_BRIGHT_END_HOUR, 20);
         brightEnd += 1;
         if (brightEnd > 23) brightEnd = 0;
 
-        html += "<li><b>daywindow</b>: " + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 8)) + ":00 - " + String(brightEnd) + ":00</li>";
+        chunk += "<li><b>daywindow</b>: " + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 8)) + ":00 - " + String(brightEnd) + ":00</li>";
 
         if (preferences.getBool(PK_USE_ADC, true)) {
-            html += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
-            html += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt(PK_LOW_THRESHOLD, 40)) + "</li>";
-            html += "<li><b>adc highThreshold</b>: " + String(preferences.getInt(PK_HIGH_THRESHOLD, 60)) + "</li>";
-            html += "<li><b>adc Inverted</b>: " + String(preferences.getBool(PK_ADC_INVERTED, false) ? "true" : "false") + "</li>";
+            chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
+            chunk += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt(PK_LOW_THRESHOLD, 40)) + "</li>";
+            chunk += "<li><b>adc highThreshold</b>: " + String(preferences.getInt(PK_HIGH_THRESHOLD, 60)) + "</li>";
+            chunk += "<li><b>adc Inverted</b>: " + String(preferences.getBool(PK_ADC_INVERTED, false) ? "true" : "false") + "</li>";
         }
         if (preferences.getBool(PK_USE_TOUCH, false)) {
-            html += "<li><b>use Touch</b>: " + String(preferences.getBool(PK_USE_TOUCH, false) ? "true" : "false") + "</li>";
+            chunk += "<li><b>use Touch</b>: " + String(preferences.getBool(PK_USE_TOUCH, false) ? "true" : "false") + "</li>";
         }
-        html += "</ul>";
-        html += "</br>";
-        html += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
+        chunk += "</ul>";
+        chunk += "</br>";
+        chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
 
-        html += "<li>Project: <a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
+        chunk += "<li>Project: <a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
 
-        html += "</ul>";
-        html += generateNavigation(); // Navigation einfügen
-        html += "</body></html>";
-        webserver.send(200, "text/html", html);
+        chunk += "</ul>";
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "</body></html>";
+
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     // Kleine Vorschau (80x80) fuer hochgeladene Zifferblaetter - siehe
@@ -1466,21 +1580,26 @@ void setupWebServer() {
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
 
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
 
-        String html = generateHtmlHeader();
-        html.reserve(4096);  // Zifferblatt-Verwaltung: Vorschaubilder werden per <img> nachgeladen, nicht eingebettet
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1024);
 
 
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
-        html += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>" + translate("Preview/Set") + "</th></tr>";
+        chunk += generateHtmlStatus(); // Statusleiste einfügen
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>" + translate("Preview/Set") + "</th></tr>";
 
         // Add built-in default face
-        html += "<tr><td>";
-        html += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
-        html += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-        html += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp" + " </small> </td>";
-        html += "</tr>";
+        chunk += "<tr><td>";
+        chunk += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
+        chunk += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+        chunk += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp" + " </small> </td>";
+        chunk += "</tr>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
         File root = LittleFS.open("/");
         File file = root.openNextFile();
@@ -1499,55 +1618,66 @@ void setupWebServer() {
         naturalSortNames(faceNames);
 
         bool anyFile = !faceNames.empty();
+        int rowCount = 0;
         for (const String& name : faceNames) {
             String shortName = name;
             String info = getBmpInfo(name);
-            html += "<tr><td>";
-            html += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
-            html += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-            html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
+            chunk += "<tr><td>";
+            chunk += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
+            chunk += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+            chunk += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
+
+            // Alle paar Zeilen zwischendurch senden, damit der Puffer auch
+            // bei vielen Zifferblaettern nicht unbegrenzt waechst.
+            rowCount++;
+            if (rowCount % 5 == 0) {
+                webserver.sendContent(chunk);
+                chunk = "";
+            }
         }
 
-        if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
-        html += "</table><hr>";
+        if (!anyFile) chunk += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
+        chunk += "</table><hr>";
 
         // Hinweis und Download-Link für die ZIP-Datei
         if (TFT_WIDTH == 240) {
-            html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
-            html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-            html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
-            html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
+            chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
+            chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
+            chunk += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
+            chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
         }
 
         if (TFT_WIDTH == 160) {
-            html += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
-            html += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-            html += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
-            html += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
+            chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
+            chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
+            chunk += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
+            chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
         }
 
-
+        webserver.sendContent(chunk);
+        chunk = "";
 
         if (used + (TFT_WIDTH * TFT_HEIGHT * 2) + 54 > total) {
-            html += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new clock faces! Free up some space first") + ".</div><br><br>";
+            chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new clock faces! Free up some space first") + ".</div><br><br>";
         }
         else {
 
-            html += "<h3>" + translate("Upload New Clock Face") + "</h3>";
-            html += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16 - bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
+            chunk += "<h3>" + translate("Upload New Clock Face") + "</h3>";
+            chunk += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16 - bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
 
-            html += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
-            html += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
+            chunk += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
+            chunk += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
 
-            html += "<button type='submit'>" + translate("Upload") + " BMP</button>";
-            html += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
-            html += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
+            chunk += "<button type='submit'>" + translate("Upload") + " BMP</button>";
+            chunk += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
+            chunk += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
         }
 
 
-        html += generateNavigation(); // Navigation einfügen
-        html += "</body> </html>";
-        webserver.send(200, "text/html", html);
+        chunk += generateNavigation(); // Navigation einfügen
+        chunk += "</body> </html>";
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     // WLAN Netzwerke scannen
@@ -1578,22 +1708,28 @@ void setupWebServer() {
     // Hauptseite - WLAN Einstellungen
     webserver.on("/", HTTP_GET, []() {
 
-        String html = generateHtmlHeader();
-        html.reserve(8192);  // Hauptseite: groesste, komplexeste Seite
+        webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        webserver.send(200, "text/html", "");
 
-        html += generateHtmlStatus(); // Statusleiste einfügen
-        html += generateNavigation(); // Navigation einfügen
+        String chunk = generateHtmlHeader();
+        chunk.reserve(1536);
 
-        html += "<h2>" + translate("Clock Setup") + "</h2>";
+        chunk += generateHtmlStatus(); // Statusleiste einfügen
+        chunk += generateNavigation(); // Navigation einfügen
 
-        html += generateLanguageSelector();
-        html += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
-        html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button>";
-        html += "</form><br><br>";
+        chunk += "<h2>" + translate("Clock Setup") + "</h2>";
 
-        html += "<form action = '/save' method = 'POST'>";
+        chunk += generateLanguageSelector();
+        chunk += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
+        chunk += "<button type='submit'>" + translate("Reset Saved Networks") + "</button>";
+        chunk += "</form><br><br>";
 
-        html += "<button id='rescanBtn' type='button'>" + translate("Rescan Networks") + "</button><br>";
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "<form action = '/save' method = 'POST'>";
+
+        chunk += "<button id='rescanBtn' type='button'>" + translate("Rescan Networks") + "</button><br>";
 
         for (int i = 0; i < MAX_WLAN; i++) {
             // Dynamisch berechnete Schlüssel
@@ -1604,19 +1740,26 @@ void setupWebServer() {
 
             String upperSsidKey = ssidKey; // Kopie erstellen
             upperSsidKey.toUpperCase();    // Kopie in Großbuchstaben umwandeln
-            html += "<h3>" + upperSsidKey + "</h3>";
+            chunk += "<h3>" + upperSsidKey + "</h3>";
 
-            html += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\">";
+            chunk += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\">";
             
-            html += "</select><br>";
-            html += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifiSsid[i] + "'><br>";
-            html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
+            chunk += "</select><br>";
+            chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifiSsid[i] + "'><br>";
+            chunk += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
 
-            html += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value=''><br>";
+            chunk += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value=''><br>";
             if (WiFi.getMode() == WIFI_STA && wifiSsid[i] != "") {
-                html += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
+                chunk += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
             }
-            html += "<br><hr><br>";
+            chunk += "<br><hr><br>";
+
+            // Alle paar Eintraege zwischendurch senden, damit auch bei vielen
+            // gespeicherten Netzwerken (bis zu MAX_WLAN) kein grosser Puffer entsteht.
+            if (i % 3 == 2) {
+                webserver.sendContent(chunk);
+                chunk = "";
+            }
 
             if (wifiSsid[i] == "") {
                 break; // Keine weiteren SSIDs, Schleife beenden
@@ -1624,115 +1767,121 @@ void setupWebServer() {
         }
 
         
-        html += "<br><br>";
+        chunk += "<br><br>";
 
-        html += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
+        chunk += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
+
+        webserver.sendContent(chunk);
+        chunk = "";
 
         //if (WiFi.getMode() == WIFI_STA) {
 
 
-            html += "<form action='/applydisplaysettings' method='POST'>";
+            chunk += "<form action='/applydisplaysettings' method='POST'>";
 
-            html += "<table style='margin:auto;text-align:left;'><tr>";
+            chunk += "<table style='margin:auto;text-align:left;'><tr>";
 
-            html += "<td><input type='checkbox' name='stationMode' value='1' ";
-            html += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
-            html += "> " + translate("Train Station Mode") + "</td>";
+            chunk += "<td><input type='checkbox' name='stationMode' value='1' ";
+            chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
+            chunk += "> " + translate("Train Station Mode") + "</td>";
 
-            html += "<td><input type='checkbox' name='showSecondHand' value='1' ";
-            html += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
-            html += "> " + translate("Show Seconds") + "</td>";
+            chunk += "<td><input type='checkbox' name='showSecondHand' value='1' ";
+            chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
+            chunk += "> " + translate("Show Seconds") + "</td>";
 
-            html += "<td><input type='checkbox' name='smoothMinute' value='1' ";
-            html += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
-            html += "> " + translate("Smooth Minute Hand") + "</td>";
+            chunk += "<td><input type='checkbox' name='smoothMinute' value='1' ";
+            chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
+            chunk += "> " + translate("Smooth Minute Hand") + "</td>";
 
             String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
-            html += "<td>" + translate("Ping Server") +"<input type='text' name='pingServer' value='" + pingServer + "'>";
-            html +="</td>";
+            chunk += "<td>" + translate("Ping Server") +"<input type='text' name='pingServer' value='" + pingServer + "'>";
+            chunk +="</td>";
 
-            html += "</tr><tr>";
+            chunk += "</tr><tr>";
 
             // Neue Checkbox für Touch-Freigabe
-            //html += "<td><input type='checkbox' name='useTouch' value='1' ";
-            //html += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
-            //html += "> " + translate("Enable Touch") + "</td>";
+            //chunk += "<td><input type='checkbox' name='useTouch' value='1' ";
+            //chunk += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
+            //chunk += "> " + translate("Enable Touch") + "</td>";
 
-            html += "<td><input type='checkbox' name='wifiActive' value='1' ";
-            html += wifiActive ? "checked" : "";
-            html += "> " + translate("Reconnect WiFi") + "</td>";
+            chunk += "<td><input type='checkbox' name='wifiActive' value='1' ";
+            chunk += wifiActive ? "checked" : "";
+            chunk += "> " + translate("Reconnect WiFi") + "</td>";
             
 
-            html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
-            html += loggingEnabled ? "checked" : "";
-            html += "> " + translate("Enable Logging") + "</td>";
+            chunk += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+            chunk += loggingEnabled ? "checked" : "";
+            chunk += "> " + translate("Enable Logging") + "</td>";
 
             
-            html += "<td>Rotation: <select name='rotation'>";
+            chunk += "<td>Rotation: <select name='rotation'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
-                html += "<option value='" + String(i) + "'";
-                if (i == tftRotation) html += " selected";
-                html += ">" + String(rotationLabels[i]) + "</option>";
+                chunk += "<option value='" + String(i) + "'";
+                if (i == tftRotation) chunk += " selected";
+                chunk += ">" + String(rotationLabels[i]) + "</option>";
             }
-            html += "</select></td>";
+            chunk += "</select></td>";
 
 
-            // html += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
-            // html += loggingEnabled ? "checked" : "";
-            // html += "> Logging aktivieren</td>";
+            // chunk += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+            // chunk += loggingEnabled ? "checked" : "";
+            // chunk += "> Logging aktivieren</td>";
 
-            html += "<td valign=bottom><button type='submit'>" + translate("Apply") + "</button></td>";
-            html += "</tr></table></form>";
+            chunk += "<td valign=bottom><button type='submit'>" + translate("Apply") + "</button></td>";
+            chunk += "</tr></table></form>";
 
-            html += "<hr>";
+            chunk += "<hr>";
 
             /*
-            html += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
+            chunk += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
 
-            html += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
-            html += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
+            chunk += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
+            chunk += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
 
-            html += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
-            html += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
+            chunk += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
+            chunk += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
                */
 
        // }
 
+        webserver.sendContent(chunk);
+        chunk = "";
 
-
-
-        html += "<script>";
-        html += "document.getElementById('rescanBtn').onclick = function() {";
-        html += "  fetch('/api/rescanwifi', {method: 'POST'})";
-        html += "    .then(() => {";
-        html += "      select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
-        html += "      select2.innerHTML = \"<option>WLAN scan in progress...</option>\";";
-        html += "      setTimeout(function() {";
-        html += "        fetch('/api/scanwifi').then(response => response.json()).then(data => {";
-        html += "          select1.innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
-        html += "          data.forEach(function(net) {";
-        html += "            var opt = document.createElement('option');";
-        html += "            opt.value = net.ssid;";
-        html += "            opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
+        chunk += "<script>";
+        chunk += "document.getElementById('rescanBtn').onclick = function() {";
+        chunk += "  fetch('/api/rescanwifi', {method: 'POST'})";
+        chunk += "    .then(() => {";
+        chunk += "      select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
+        chunk += "      select2.innerHTML = \"<option>WLAN scan in progress...</option>\";";
+        chunk += "      setTimeout(function() {";
+        chunk += "        fetch('/api/scanwifi').then(response => response.json()).then(data => {";
+        chunk += "          select1.innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
+        chunk += "          data.forEach(function(net) {";
+        chunk += "            var opt = document.createElement('option');";
+        chunk += "            opt.value = net.ssid;";
+        chunk += "            opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
 
         for (int i = 0; i < MAX_WLAN; i++) {
             String ssidKey = pkSsid(i);
             String select = "select" + String(i + 1);
-            html += "            " + select + ".appendChild(opt);";
+            chunk += "            " + select + ".appendChild(opt);";
             if (preferences.getString(ssidKey.c_str(), "") == "") {
                 break; // Keine weiteren SSIDs, Schleife beenden
             }
         }
 
-        html += "          });";        
+        chunk += "          });";        
 
-        html += "        });";
-        html += "      }, 2000);"; // 2 Sekunden warten für Scan
-        html += "    });";
-        html += "};";
+        chunk += "        });";
+        chunk += "      }, 2000);"; // 2 Sekunden warten für Scan
+        chunk += "    });";
+        chunk += "};";
 
-        html += "window.addEventListener('DOMContentLoaded', function() {";
+        webserver.sendContent(chunk);
+        chunk = "";
+
+        chunk += "window.addEventListener('DOMContentLoaded', function() {";
         for (int i = 0; i < MAX_WLAN; i++) {
 
            
@@ -1747,37 +1896,44 @@ void setupWebServer() {
             
                         
 
-            html += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
-            html += "  var " + input + " = document.getElementById('ssid1');";
-            html += "  var " + current + " = " + input + ".value;";
-            html += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
-            html += "  fetch('/api/scanwifi')";
-            html += "    .then(response => response.json())";
-            html += "    .then(data => {";
-            html += "      " + select + ".innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
-            html += "      data.forEach(function(net) {";
-            html += "        var opt = document.createElement('option');";
-            html += "        opt.value = net.ssid;";
-            html += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
-            html += "        if(net.ssid === " + current + ") opt.selected = true;";
-            html += "        " + select + ".appendChild(opt);";
-            html += "      });";
-            html += "    })";
-            html += "    .catch(() => { " + select + ".innerHTML = \"<option>Scan failed</option>\"; });";
+            chunk += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
+            chunk += "  var " + input + " = document.getElementById('ssid1');";
+            chunk += "  var " + current + " = " + input + ".value;";
+            chunk += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
+            chunk += "  fetch('/api/scanwifi')";
+            chunk += "    .then(response => response.json())";
+            chunk += "    .then(data => {";
+            chunk += "      " + select + ".innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
+            chunk += "      data.forEach(function(net) {";
+            chunk += "        var opt = document.createElement('option');";
+            chunk += "        opt.value = net.ssid;";
+            chunk += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
+            chunk += "        if(net.ssid === " + current + ") opt.selected = true;";
+            chunk += "        " + select + ".appendChild(opt);";
+            chunk += "      });";
+            chunk += "    })";
+            chunk += "    .catch(() => { " + select + ".innerHTML = \"<option>Scan failed</option>\"; });";
+
+            // Alle paar Eintraege zwischendurch senden (siehe Kommentar oben).
+            if (i % 3 == 2) {
+                webserver.sendContent(chunk);
+                chunk = "";
+            }
 
             if (preferences.getString(ssidKey.c_str(), "") == "") {
                 break; // Keine weiteren SSIDs, Schleife beenden
             }
 
         }
-        html += "});";
-        html += "</script>";
+        chunk += "});";
+        chunk += "</script>";
 
-        html += generateNavigation(); // Navigation einfügen
+        chunk += generateNavigation(); // Navigation einfügen
 
 
-        html += "</body></html>";
-        webserver.send(200, "text/html", html);
+        chunk += "</body></html>";
+        webserver.sendContent(chunk);
+        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
         });
 
     // Speichern der WiFi-Einstellungen
@@ -1789,8 +1945,12 @@ void setupWebServer() {
                 String ssidKey = pkSsid(i);
                 String passKey = pkPass(i);
 
-                preferences.putString(ssidKey.c_str(), webserver.arg(ssidKey));                
-                if (webserver.arg(passKey) != "") preferences.putString(passKey.c_str(), webserver.arg(passKey));                
+                if (preferences.getString(ssidKey.c_str(), "") != webserver.arg(ssidKey)) {
+                    preferences.putString(ssidKey.c_str(), webserver.arg(ssidKey));
+                }
+                if (webserver.arg(passKey) != "" && preferences.getString(passKey.c_str(), "") != webserver.arg(passKey)) {
+                    preferences.putString(passKey.c_str(), webserver.arg(passKey));
+                }
             }
 
 
@@ -1819,8 +1979,12 @@ void setupWebServer() {
                 String ssidKey = pkSsid(i);
                 String passKey = pkPass(i);
 
-                preferences.putString(ssidKey.c_str(), tempSsid[i]);
-                preferences.putString(passKey.c_str(), tempPass[i]);   
+                if (preferences.getString(ssidKey.c_str(), "") != tempSsid[i]) {
+                    preferences.putString(ssidKey.c_str(), tempSsid[i]);
+                }
+                if (preferences.getString(passKey.c_str(), "") != tempPass[i]) {
+                    preferences.putString(passKey.c_str(), tempPass[i]);
+                }
 
                 wifiSsid[i] = tempSsid[i];
                 wifiPass[i] = tempPass[i];
