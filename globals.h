@@ -17,7 +17,7 @@ String currentLanguage = "de"; // Standardmäßig Deutsch
 
 char version[20]; // Build-Version ("YYYY-MM-DD HH:MM:SS" = 19 Zeichen + Nullterminator)
 
-bool loggingEnabled = false;
+bool loggingEnabled = false;  
 
 bool initial = true;
 
@@ -44,7 +44,7 @@ String wifiPass[MAX_WLAN];
 #define CONNECTED 1
 #define CONNECTED_NO_INTERNET 2
 
-bool wifiActive = true;
+bool wifiActive = true;    
 
 // MAC Adresse
 uint8_t mac[6];
@@ -77,6 +77,7 @@ DCF77 dcf = DCF77(DCF77_DATAPIN, DCF77_DATAPIN, dcf77Flank);
 volatile uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale (wird in der ISR verändert)
 
 volatile bool dcfTimeFound = false; // wird in der ISR gelesen/verändert
+time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
 
 #endif
 
@@ -141,7 +142,7 @@ bool cs = true;
 // --- Helligkeit / Fotowiderstand (ADC) ---
 bool adcInverted = false; // Standardmäßig nicht invertiert
 
-bool useAdc = false;
+bool useAdc = false; 
 bool photoresistorFound = false;
 
 uint8_t currentBrightness = 255;

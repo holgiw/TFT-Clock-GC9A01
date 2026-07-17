@@ -103,6 +103,11 @@ void setup() {
     // das neue, platzsparende RLE-Format umstellen (siehe display.h).
     migrateFaceBmpsToRLE();
 
+    // Bereits vorhandene, schon RLE-komprimierte Zifferblaetter nachtraeglich
+    // mit der Kreismaskierung fuer runde Displays versehen, falls sie vor
+    // Einfuehrung dieser Funktion migriert/hochgeladen wurden (siehe display.h).
+    remaskExistingFaceCorners();
+
     if (preferences.getString(PK_VERSION, "") != String(version)) {
         DEBUG_PRINTLN("[Preferences] Version change detected, updating version in preferences..");
         preferences.putString(PK_VERSION, String(version));
@@ -625,7 +630,6 @@ void setup() {
 
     setLedOff();
 }
-
 
 
 // Main-Loop

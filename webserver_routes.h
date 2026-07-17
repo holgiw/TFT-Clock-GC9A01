@@ -24,7 +24,6 @@ String generateHtmlHeader() {
 
 
 /// Generiert den HTML-Statusabschnitt für die Weboberfläche
-
 String generateHtmlStatus() {
     setLedOn();
     size_t total = LittleFS.totalBytes();
@@ -44,8 +43,8 @@ String generateHtmlStatus() {
     return html;
 }
 
-// Navigationsleiste generieren
 
+// Navigationsleiste generieren
 String generateNavigation() {
  /*   if (WiFi.getMode() != WIFI_STA) {
         DEBUG_PRINTLN("[HTML] Skipping HTML navigation");
@@ -100,7 +99,6 @@ String generateNavigation() {
 
 
 // Sprachselector generieren
-
 String generateLanguageSelector() {
     String html = "<form method='POST' action='/setLanguage'>";
     html.reserve(512);  // Sprachauswahl: klein
@@ -115,8 +113,57 @@ String generateLanguageSelector() {
     return html;
 }
 
-// Webserver-API-Endpunkte einrichten
 
+// Vergleicht zwei Dateinamen "natuerlich": zusammenhaengende Ziffernfolgen
+// werden als Zahl verglichen statt zeichenweise-alphabetisch, damit z.B.
+// "hand_set2_hour.bmp" vor "hand_set10_hour.bmp" einsortiert wird (bei
+// reinem String-Vergleich waere "10" faelschlich vor "2").
+bool naturalLess(const String& a, const String& b) {
+    unsigned int i = 0, j = 0;
+    while (i < a.length() && j < b.length()) {
+        char ca = a[i], cb = b[j];
+        if (isDigit(ca) && isDigit(cb)) {
+            unsigned int si = i, sj = j;
+            while (i < a.length() && isDigit(a[i])) i++;
+            while (j < b.length() && isDigit(b[j])) j++;
+            String numA = a.substring(si, i);
+            String numB = b.substring(sj, j);
+            long valA = numA.toInt();
+            long valB = numB.toInt();
+            if (valA != valB) return valA < valB;
+            if (numA != numB) return numA < numB; // z.B. fuehrende Nullen als Tiebreaker
+            continue;
+        }
+        if (ca != cb) {
+            char lca = tolower(ca);
+            char lcb = tolower(cb);
+            if (lca != lcb) return lca < lcb;
+            return ca < cb; // bei gleichem Buchstaben unterschiedlicher Groesse: Grossbuchstabe zuerst (stabiler Tiebreaker)
+        }
+        i++; j++;
+    }
+    return (a.length() - i) < (b.length() - j);
+}
+
+
+// Sortiert eine Liste von Dateinamen "natuerlich" (siehe naturalLess()).
+// Einfacher Insertion-Sort statt std::sort, um keine zusaetzliche
+// <algorithm>-Abhaengigkeit zu benoetigen - bei der ueberschaubaren
+// Dateianzahl auf LittleFS ist die O(n^2)-Laufzeit unerheblich.
+void naturalSortNames(std::vector<String>& names) {
+    for (size_t i = 1; i < names.size(); i++) {
+        String key = names[i];
+        long j = (long)i - 1;
+        while (j >= 0 && naturalLess(key, names[j])) {
+            names[j + 1] = names[j];
+            j--;
+        }
+        names[j + 1] = key;
+    }
+}
+
+
+// Webserver-API-Endpunkte einrichten
 void setupWebServer() {
 
     // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
@@ -1014,14 +1061,27 @@ void setupWebServer() {
         html += generateHtmlStatus(); // Statusleiste einfügen
         html += generateNavigation(); // Navigation einfügen
 
-        html += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th align = left>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>Info</th><th>" + translate("Action") + "</th></tr>";
+        html += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>Info</th><th>" + translate("Action") + "</th></tr>";
 
+        // Erst alle Dateinamen sammeln und natuerlich sortieren (Zahlen im
+        // Namen numerisch statt alphabetisch, z.B. hand_set2 vor hand_set10),
+        // bevor die Tabelle daraus aufgebaut wird.
+        std::vector<String> fileNames;
         File root = LittleFS.open("/");
         File file = root.openNextFile();
         while (file) {
-            String info = getBmpInfo(file.name());
-            String name = file.name();
-            html += "<tr><td align=left>" + name + "</td><td align=right>" + String(file.size()) + "</td>";
+            fileNames.push_back(String(file.name()));
+            file = root.openNextFile();
+        }
+        naturalSortNames(fileNames);
+
+        for (const String& name : fileNames) {
+            String openPath = name.startsWith("/") ? name : "/" + name;
+            File f = LittleFS.open(openPath, "r");
+            size_t fileSize = f ? f.size() : 0;
+            if (f) f.close();
+            String info = getBmpInfo(name);
+            html += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
             html += "<td align=right>" + String(info) + "</td>";
             html += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"Delete " + name + "?\")'>" + translate("Delete") + "</a> ";
             // Scale-Option nur für .bmp-Dateien anzeigen
@@ -1039,7 +1099,6 @@ void setupWebServer() {
 
             html += "</td></tr>";
 
-            file = root.openNextFile();
         }
         html += "</table><br><br>";
         html += generateNavigation(); // Navigation einfügen
@@ -1155,7 +1214,7 @@ void setupWebServer() {
 
         html += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
         html += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
-        html += "<li>Min Free Heap (seit Boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
+        html += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
         html += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
         html += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
         html += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
@@ -1171,11 +1230,11 @@ void setupWebServer() {
 
 #ifdef ADC_PIN
         if (photoresistorFound) {
-            html += "<li>Photoresistor found on GPIO " + String(ADC_PIN) + "</li>";
+            html += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
             html += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
         }
         else {
-            html += "<li>Photoresistor not found on GPIO " + String(ADC_PIN) + "</li><br>";
+            html += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
         }
 #endif
 
@@ -1210,6 +1269,18 @@ void setupWebServer() {
         }
         else {
             html += "<li>DCF77: Pulses received</li>";
+        }
+        if (lastDcfSyncTime == 0) {
+            html += "<li>DCF77 last sync: never</li>";
+        }
+        else {
+            struct tm syncInfo;
+            localtime_r(&lastDcfSyncTime, &syncInfo);
+            char syncBuf[24];
+            snprintf(syncBuf, sizeof(syncBuf), "%04d-%02d-%02d %02d:%02d:%02d",
+                syncInfo.tm_year + 1900, syncInfo.tm_mon + 1, syncInfo.tm_mday,
+                syncInfo.tm_hour, syncInfo.tm_min, syncInfo.tm_sec);
+            html += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
         }
         html += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
         html += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
@@ -1414,23 +1485,27 @@ void setupWebServer() {
         File root = LittleFS.open("/");
         File file = root.openNextFile();
 
-
-        bool anyFile = false;
+        // Erst alle passenden Zifferblatt-Dateinamen sammeln und sortieren
+        // (der eingebaute Standard oben bleibt davon unberuehrt, da er bereits
+        // separat und fest an erster Stelle ausgegeben wurde).
+        std::vector<String> faceNames;
         while (file) {
             String name = file.name();
-
-            //  DEBUG_PRINTLN(name);
-
             if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
-                anyFile = true;
-                String shortName = name;
-                String info = getBmpInfo(name);
-                html += "<tr><td>";
-                html += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
-                html += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-                html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
+                faceNames.push_back(name);
             }
             file = root.openNextFile();
+        }
+        naturalSortNames(faceNames);
+
+        bool anyFile = !faceNames.empty();
+        for (const String& name : faceNames) {
+            String shortName = name;
+            String info = getBmpInfo(name);
+            html += "<tr><td>";
+            html += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
+            html += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+            html += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
         }
 
         if (!anyFile) html += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
@@ -1538,7 +1613,7 @@ void setupWebServer() {
             html += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
 
             html += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value=''><br>";
-            if (WiFi.getMode() == WIFI_STA) {
+            if (WiFi.getMode() == WIFI_STA && wifiSsid[i] != "") {
                 html += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
             }
             html += "<br><hr><br>";
@@ -1932,7 +2007,14 @@ void setupWebServer() {
         webserver.sendContent(chunk);
 
         String activeSet = preferences.getString(PK_HANDSET, "");
-        std::set<String> foundSets;
+        // Numerisch (nicht alphabetisch) sortieren, damit z.B. "10" nach "9" statt
+        // zwischen "1" und "2" einsortiert wird. std::map<int,String> sortiert
+        // automatisch nach dem numerischen Key. Nicht-numerische Zeigersatz-Namen
+        // (unueblich, aber theoretisch moeglich) landen zusaetzlich unsortiert in
+        // einer separaten Liste, damit sie nicht verloren gehen.
+        std::set<String> seenSetIds;
+        std::map<int, String> numericSets;
+        std::vector<String> otherSets;
 
         File root = LittleFS.open("/");
         File file = root.openNextFile();
@@ -1943,8 +2025,15 @@ void setupWebServer() {
                 int start = 8;
                 int end = name.indexOf('_', start);
                 if (end > start) {
-                    String setId = name.substring(start, end);
-                    foundSets.insert(setId);
+                    String setIdStr = name.substring(start, end);
+                    if (seenSetIds.insert(setIdStr).second) { // true, wenn neu (noch nicht gesehen)
+                        bool isNumeric = setIdStr.length() > 0;
+                        for (unsigned int k = 0; k < setIdStr.length(); k++) {
+                            if (!isDigit(setIdStr[k])) { isNumeric = false; break; }
+                        }
+                        if (isNumeric) numericSets[setIdStr.toInt()] = setIdStr;
+                        else otherSets.push_back(setIdStr);
+                    }
                 }
             }
             file = root.openNextFile();
@@ -1967,7 +2056,7 @@ void setupWebServer() {
 
         // Jeden gefundenen Zeigersatz SOFORT senden statt zu sammeln - so liegt
         // nie mehr als ein Zeigersatz gleichzeitig im Speicher.
-        for (const String& setId : foundSets) {
+        auto renderSetRow = [&](const String& setId) {
             chunk = "<tr><td>" + setId + (setId == activeSet ? " (active)" : "") + "</td><td>";
             String hourPath = "/hand_set" + setId + "_hour.bmp";
             String minutePath = "/hand_set" + setId + "_minute.bmp";
@@ -1981,6 +2070,15 @@ void setupWebServer() {
             chunk += "</tr>";
             webserver.sendContent(chunk);
             checkHeapWarning("/handsets Zeigersatz " + setId);
+            };
+
+        // Zuerst alle numerisch benannten Zeigersaetze in aufsteigender Reihenfolge...
+        for (auto& entry : numericSets) {
+            renderSetRow(entry.second);
+        }
+        // ...danach eventuelle Sonderfaelle mit nicht-numerischem Namen (unsortiert)
+        for (const String& setId : otherSets) {
+            renderSetRow(setId);
         }
 
         // Ab hier sind die grossen Base64-Strings nicht mehr benoetigt.
@@ -2140,11 +2238,7 @@ void setupWebServer() {
 }
 
 
-
-
-
 // Handhabt den Datei-Upload
-
 void handleFileUpload() {
     HTTPUpload& upload = webserver.upload();
 

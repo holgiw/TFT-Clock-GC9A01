@@ -59,10 +59,7 @@ uint16_t setPixelBrightness(uint16_t pixel) {
 }
 
 
-
 // Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.
-
-
 // ####################################################################
 // ### RLE-Kompression fuer Zifferblatt-BMPs (face_*.bmp) #############
 // ####################################################################
@@ -90,15 +87,16 @@ uint16_t setPixelBrightness(uint16_t pixel) {
 //   C = 129..255: Wiederholungs-Lauf von (257-C) identischen Pixeln folgt
 //                 (nur 1 Pixel = 2 Byte im Stream)
 //   C = 128:      nicht verwendet
-
 bool isRleFace(const uint8_t* header4) {
     return header4[0] == 'R' && header4[1] == 'L' && header4[2] == 'E' && header4[3] == 'B';
 }
+
 
 // Obergrenze fuer die kodierte Groesse (fuer die Allokation des Zielpuffers).
 size_t rleMaxEncodedSize(size_t pixelCount) {
     return pixelCount * 2 + (pixelCount / 128 + 2);
 }
+
 
 // Kodiert ein Array von RGB565-Pixeln PackBits-artig (Lauflaengenkodierung);
 // gibt die Anzahl tatsaechlich geschriebener Bytes in 'out' zurueck
@@ -135,6 +133,7 @@ size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) {
     return o;
 }
 
+
 // Dekodiert einen mit rleEncode565() erzeugten Datenstrom vollstaendig in ein
 // bereits vorhandenes uint16_t-Pixel-Array (RGB565)
 void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) {
@@ -158,6 +157,7 @@ void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCou
         }
     }
 }
+
 
 // Wie rleDecode565(), schreibt aber direkt in einen zeilenweise auf
 // 4-Byte-Grenzen gepolsterten BMP-Pixelbereich (rowStride Byte je Zeile,
@@ -208,6 +208,7 @@ void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea,
         }
     }
 }
+
 
 // Liest eine face_*.bmp-Datei (egal ob Standard-BMP oder RLEB-komprimiert)
 // direkt in einen bereits allozierten Ziel-Puffer 'dest' (expectedW x
@@ -326,8 +327,8 @@ void loadClockFace() {
     }
 }
 
-// Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
 
+// Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
 void freeClockFaceBuffer() {
     if (clockFaceBuffer) {
         free(clockFaceBuffer);
@@ -338,8 +339,6 @@ void freeClockFaceBuffer() {
 
 
 // Lädt die Grafiken für die Zeiger eines Uhren-Widgets, entweder aus einer benutzerdefinierten Konfiguration oder aus Standardwerten.
-  
-
 void loadHandSprites() {
     String setId = preferences.getString(PK_HANDSET, "");
 
@@ -418,9 +417,9 @@ void loadHandSprites() {
 
     }
 }
- 
-// Hilfsfunktion zum Laden von Zeiger-BMPs 
 
+
+// Hilfsfunktion zum Laden von Zeiger-BMPs 
 bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) {
     File bmp = LittleFS.open(filename, "r");
     if (!bmp) return false;
@@ -467,8 +466,6 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
     bmp.close();
     return true;
 }
-
-
 
 
 // Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
@@ -648,10 +645,10 @@ void updateClock() {
 
     backgroundSprite.pushSprite(0, 0);
 }
- 
+
+
 // Aktualisiert die Helligkeit des Displays basierend auf der aktuellen Einstellung, 
 // dem ADC-Wert (falls aktiviert) und dem Tageszeitfenster für volle Helligkeit.
-
 void updateBrightness() {
 
     // Wenn Helligkeit geändert → neu zeichnen
@@ -757,8 +754,8 @@ void updateBrightness() {
 
 }
 
-// Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
 
+// Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
 uint16_t getAdjustedAdcValue(int rawValue) {
     if (adcInverted) {
         return 4096 - rawValue; // Invertiere den Wert
@@ -766,16 +763,16 @@ uint16_t getAdjustedAdcValue(int rawValue) {
     return rawValue; // Standardwert
 }
 
-/// Easing-Funktion für sanfte Animationen
 
+/// Easing-Funktion für sanfte Animationen
 float easeInOutSine(float t) {
     // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
     float intensity = 0.5f;
     return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
 }
 
-// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
 
+// Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
 String encodeBmpToBase64(const uint16_t* data, int width, int height) {
     const int headerSize = 54;
     const int rowSize = ((width * 2 + 3) / 4) * 4;
@@ -819,7 +816,6 @@ String encodeBmpToBase64(const uint16_t* data, int width, int height) {
 }
 
 
-
 // clear TFT display
 void clearTFT() {
 #if defined CS_2
@@ -831,9 +827,6 @@ void clearTFT() {
 }
 
 
-
-
-
 // Rotiert die Zeiger basierend auf der Display-Rotation
 float rotatedAngle(float angle, int orientation) {
     if (psramAvailable) {
@@ -842,8 +835,8 @@ float rotatedAngle(float angle, int orientation) {
     return angle;
 }
 
-// überprüft, ob die BMP-Datei das erwartete Format hat
 
+// überprüft, ob die BMP-Datei das erwartete Format hat
 bool checkBmpFormat(const String& filename, int expectedWidth, int expectedHeight) {
     File bmpFile = LittleFS.open(filename, "r");
     if (!bmpFile) {
@@ -905,8 +898,8 @@ bool checkBmpFormat(const String& filename, int expectedWidth, int expectedHeigh
     return true;
 }
 
-// Liest die BMP-/RLEB-Header-Informationen und gibt sie als String zurück
 
+// Liest die BMP-/RLEB-Header-Informationen und gibt sie als String zurück
 String getBmpInfo(const String& filename) {
     // Normalisiere Pfad (einfach und eindeutig)
     String file = filename;
@@ -950,8 +943,8 @@ String getBmpInfo(const String& filename) {
     return String(abs(width)) + "&nbsp;x&nbsp;" + String(abs(height)) + " / " + String(bpp) + " bpp";
 }
 
-// Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
 
+// Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
 bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
     DEBUG_PRINTLN("[BMP Scale] Scaling BMP: " + String(sourcePath) + " to " + String(targetPath));
     File bmp = LittleFS.open(sourcePath, "r");
@@ -1122,6 +1115,27 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     if (!targetPathStr.startsWith("/")) targetPathStr = "/" + targetPathStr;
     bool storeAsRle = targetPathStr.startsWith("/face_");
 
+    // Der Bildpuffer ist quadratisch, das sichtbare Display aber rund: bei
+    // Zifferblaettern wird daher alles ausserhalb des sichtbaren Kreises
+    // (Durchmesser = kuerzere Kantenlaenge) auf Weiss gesetzt, damit dort
+    // keine zufaelligen Bildreste aus den Ecken des Original-Uploads
+    // sichtbar werden.
+    if (storeAsRle) {
+        float cx = outW / 2.0f;
+        float cy = outH / 2.0f;
+        float radius = (outW < outH ? outW : outH) / 2.0f;
+        float radiusSq = radius * radius;
+        for (int y = 0; y < outH; y++) {
+            for (int x = 0; x < outW; x++) {
+                float dx = (x + 0.5f) - cx;
+                float dy = (y + 0.5f) - cy;
+                if (dx * dx + dy * dy > radiusSq) {
+                    outImage[y * outW + x] = 0xFFFF; // Weiss (RGB565)
+                }
+            }
+        }
+    }
+
     File out = LittleFS.open(targetPath, "w");
     if (!out) {
         delete[] outImage;
@@ -1193,6 +1207,7 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     return true;
 }
 
+
 // Durchsucht das Dateisystem nach face_*.bmp-Dateien im ALTEN Standard-BMP-
 // Format und konvertiert sie einmalig zum neuen, platzsparenden RLE-Format.
 // scaleAndSaveBmp() speichert Zieldateien mit "face_"-Praefix automatisch
@@ -1245,6 +1260,78 @@ void migrateFaceBmpsToRLE() {
         }
     }
 }
+
+
+// Liest nur das allererste Pixel (0,0) einer RLEB-Datei, ohne das ganze Bild
+// zu dekodieren - preiswerte Pruefung, ob die Kreismaskierung fuer runde
+// Displays (siehe scaleAndSaveBmp()) fuer diese Datei bereits angewendet
+// wurde (Pixel (0,0) liegt garantiert ausserhalb des Kreises).
+bool peekFirstPixelIsWhite(const String& path) {
+    File f = LittleFS.open(path, "r");
+    if (!f) return false;
+    uint8_t magic[4];
+    if (f.read(magic, 4) != 4 || !isRleFace(magic)) { f.close(); return false; }
+    uint8_t rest[16];
+    if (f.read(rest, 16) != 16) { f.close(); return false; }
+    uint8_t ctrl;
+    if (f.read(&ctrl, 1) != 1) { f.close(); return false; }
+    uint8_t b0, b1;
+    bool ok = (f.read(&b0, 1) == 1) && (f.read(&b1, 1) == 1);
+    f.close();
+    if (!ok) return false;
+    uint16_t px = b0 | (b1 << 8);
+    return px == 0xFFFF;
+}
+
+
+// Wendet die Kreismaskierung (siehe scaleAndSaveBmp()) einmalig auf bereits
+// vorhandene, schon RLE-komprimierte Zifferblaetter an, die VOR Einfuehrung
+// dieser Maskierung migriert bzw. hochgeladen wurden. Nutzt die billige
+// peekFirstPixelIsWhite()-Pruefung, um bereits maskierte Dateien zu
+// ueberspringen, ohne einen zusaetzlichen Persistenz-Zustand zu benoetigen.
+// Wird einmalig in setup() aufgerufen.
+void remaskExistingFaceCorners() {
+    File root = LittleFS.open("/");
+    if (!root) return;
+
+    std::vector<String> toRemask;
+    File file = root.openNextFile();
+    while (file) {
+        if (!file.isDirectory()) {
+            String name = file.name();
+            String nameOnly = name.startsWith("/") ? name.substring(1) : name;
+            if (nameOnly.startsWith("face_") && nameOnly.endsWith(".bmp")) {
+                uint8_t magic[4] = { 0 };
+                file.read(magic, 4);
+                if (isRleFace(magic)) {
+                    String path = name.startsWith("/") ? name : "/" + name;
+                    if (!peekFirstPixelIsWhite(path)) {
+                        toRemask.push_back(path);
+                    }
+                }
+            }
+        }
+        file = root.openNextFile();
+    }
+
+    if (toRemask.empty()) {
+        DEBUG_PRINTLN("[REMASK] No clock faces need corner masking.");
+        return;
+    }
+
+    DEBUG_PRINTLN("[REMASK] " + String(toRemask.size()) + " clock face(s) need corner masking, processing...");
+
+    for (const String& path : toRemask) {
+        if (scaleAndSaveBmp(path.c_str(), path.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
+            DEBUG_PRINTLN("[REMASK] OK: " + path);
+            checkHeapWarning("Remask " + path);
+        }
+        else {
+            DEBUG_PRINTLN("[REMASK] ERROR for " + path);
+        }
+    }
+}
+
 
 // Liest eine BMP-Datei (16 bpp RGB565), skaliert sie in-memory auf outW x outH
 // herunter und sendet sie DIREKT als HTTP-Antwort - ohne eine skalierte Kopie
@@ -1461,6 +1548,7 @@ void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) {
     delete[] outBmp;
 }
 
+
 // Liest eine RLEB-komprimierte face_*.bmp-Datei zeilenweise und sendet das
 // Ergebnis SOFORT per Chunked-Response an den Webserver-Client, statt es
 // komplett im RAM zu materialisieren. Haelt zu keinem Zeitpunkt mehr als
@@ -1609,8 +1697,8 @@ void setLedOff() {
 #endif
 }
 
-// --- Funktion: Schaltet die LED aus (wenn definiert) ---
 
+// --- Funktion: Schaltet die LED aus (wenn definiert) ---
 void setLedOn() {
 #ifdef LED_BOARD
     pinMode(LED_BOARD, OUTPUT);
@@ -1620,7 +1708,6 @@ void setLedOn() {
 
 
 // --- Funktion: LED toggeln
-
 void toggleLED() {
 #ifdef LED_BOARD
     static bool toggle = true;
@@ -1639,7 +1726,6 @@ void toggleLED() {
 void toggleLedDcf77() {
     if (dcfTimeFound) toggleLED();
 }
-
 
 
 // --- Funktion: Wechselt zum nächsten Hintergrundbild ---
@@ -1733,8 +1819,8 @@ void switchToNextBackground() {
     updateClock();
 }
 
-// --- Funktion: Touch prüfen (nicht-blockierend, mit Entprellung) ---
 
+// --- Funktion: Touch prüfen (nicht-blockierend, mit Entprellung) ---
 void checkTouchInput() {
 #ifdef TOUCH_PIN
 
@@ -1760,7 +1846,6 @@ void checkTouchInput() {
 
 
 // Validiert den geladenen Preferences-Eintrag für background und repariert falls nötig
-
 static void validateSelectedBackground() {
     // Normalisieren
     selectedBackground.trim();
@@ -1800,8 +1885,8 @@ static void validateSelectedBackground() {
     DEBUG_PRINTLN("[BG] Background OK: " + selectedBackground);
 }
 
-// Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
 
+// Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
 void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) {
 
     // Aktualisiere die globalen Breiten
@@ -1834,8 +1919,8 @@ void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) 
     loadHandSprites();
 }
 
-// Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes (test)
 
+// Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes (test)
 void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) {
     // Standardwerte setzen
     hourWidth = HAND_WIDTH;
@@ -1886,8 +1971,8 @@ void enableTouch() {
 #endif
 }
 
-// Touch-Funktionalität deaktivieren
 
+// Touch-Funktionalität deaktivieren
 void disableTouch() {
 #ifdef TOUCH_PIN
     touchEnabled = false;

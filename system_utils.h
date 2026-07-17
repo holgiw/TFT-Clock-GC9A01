@@ -60,7 +60,6 @@ void checkButton() {
 }
 
 
-
 // Prueft, ob der woechentliche geplante Neustart faellig ist, und loest ihn
 // bei Bedarf aus (praeventiver Neustart gegen langsame Speicherfragmentierung)
 void checkWeeklyRestart() {
@@ -109,8 +108,8 @@ void eraseAllNVS() {
     }
 }
 
-// --- Funktion: Führt einen Factory Reset durch ---
 
+// --- Funktion: Führt einen Factory Reset durch ---
 void factoryReset() {
     tft.fillScreen(TFT_BLACK);
     preferences.begin("clock", false);
@@ -128,8 +127,8 @@ void factoryReset() {
     espReboot();         
 }
 
-// --- Funktion: führt einen Reboot durch mit Anzeige ---
 
+// --- Funktion: führt einen Reboot durch mit Anzeige ---
 void espReboot() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -144,10 +143,8 @@ void espReboot() {
 
 
 // --- Funktion: Prüft, ob ein wöchentlicher Neustart fällig ist ---
-
 // ####################################################################
 // ### LOG-FUNKTIONEN #################################################
-
 // Löscht alle Logdateien aus dem LittleFS  
 void deleteAllLogFiles() {
     
@@ -168,6 +165,7 @@ void deleteAllLogFiles() {
     preferences.putInt(PK_LOG_FILE_NUMBER, 0); // Log-Dateinummer zurücksetzen
 }
 
+
 // Prueft den aktuellen freien Heap und schreibt bei Unterschreiten von
 // HEAP_WARNING_THRESHOLD (siehe config.h) eine Log-Zeile mit Kontext,
 // aktuellem Wert und dem bisherigen Minimum seit dem letzten Boot. Wird an
@@ -184,8 +182,8 @@ void checkHeapWarning(const String& context) {
     }
 }
 
-// Schreibt eine Lognachricht in die aktuelle Logdatei, wenn Logging aktiviert ist
 
+// Schreibt eine Lognachricht in die aktuelle Logdatei, wenn Logging aktiviert ist
 void logToFile(const String& message) {
     if (!loggingEnabled) {
         return; // Logging ist deaktiviert
@@ -273,8 +271,8 @@ void logToFile(const String& message) {
     logFile.close();
 }
 
-// eigenes trim function
 
+// eigenes trim function
 String trim(const String& str) {
     int start = 0;
     int end = str.length() - 1;

@@ -5,6 +5,29 @@
 // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
 // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
+// Entfernt ein "rotation=..."-Query-Parameter aus einer Preset-URL (Altlast aus
+// frueheren Versionen, die die Display-Rotation faelschlich mit im Preset
+// gespeichert haben - siehe switchToNextPreset() und createPresetFromPreferences()).
+String stripRotationParam(const String& url) {
+    int qIdx = url.indexOf('?');
+    if (qIdx == -1) return url;
+    String base = url.substring(0, qIdx);
+    String query = url.substring(qIdx + 1);
+    String result = "";
+    int start = 0;
+    while (start <= (int)query.length()) {
+        int amp = query.indexOf('&', start);
+        String part = (amp == -1) ? query.substring(start) : query.substring(start, amp);
+        if (!part.startsWith("rotation=")) {
+            if (result.length() > 0) result += "&";
+            result += part;
+        }
+        if (amp == -1) break;
+        start = amp + 1;
+    }
+    return base + "?" + result;
+}
+
 // Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
 void loadPresets() {
      
@@ -14,6 +37,18 @@ void loadPresets() {
 
         presets[i].name = preferences.getString(nameKey.c_str(), "");
         presets[i].url = preferences.getString(urlKey.c_str(), "");
+
+        // Altlast bereinigen: frueher gespeicherte "rotation="-Parameter aus
+        // bestehenden Presets entfernen und dauerhaft in den Preferences
+        // korrigieren (nur bei tatsaechlicher Aenderung schreiben, um
+        // unnoetigen Flash-Verschleiss zu vermeiden).
+        if (presets[i].url.indexOf("rotation=") != -1) {
+            String cleaned = stripRotationParam(presets[i].url);
+            if (cleaned != presets[i].url) {
+                presets[i].url = cleaned;
+                preferences.putString(urlKey.c_str(), presets[i].url);
+            }
+        }
 
         // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
         if (presets[i].url.startsWith("http://")) {
@@ -30,7 +65,6 @@ void loadPresets() {
 
 
 // Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
-
 void savePresets() {
     
     for (int i = 0; i < MAX_PRESETS; i++) {
@@ -53,8 +87,8 @@ void savePresets() {
     }
 }
 
-// Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
 
+// Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
 void createPresetFromPreferences() {
     // Suche das erste leere Preset
     int presetIndex = -1;
@@ -75,7 +109,6 @@ void createPresetFromPreferences() {
     String background = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
     String handset = preferences.getString(PK_HANDSET, "default");
    
-    uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION, 0);
     bool stationMode = preferences.getBool(PK_STATION_MODE, true);
     bool showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
     bool smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
@@ -86,6 +119,9 @@ void createPresetFromPreferences() {
      
 
     // Erstelle die URL mit den aktuellen Einstellungen
+    // Bewusst OHNE "rotation": die Display-Rotation ist eine geraeteweite
+    // Hardware-Einstellung und soll beim Laden eines Presets unveraendert
+    // bleiben (siehe switchToNextPreset()).
     String url = "http://" + ipAddress + "/api/setMode?";
     if (background.startsWith("/")) {
         background = background.substring(1); // Entferne führenden Slash für die URL
@@ -93,7 +129,6 @@ void createPresetFromPreferences() {
     url += "face=" + background;
     url += "&handSet=" + handset;
     
-    url += "&rotation=" + String(rotation);
     url += "&stationMode=" + String(stationMode ? "true" : "false");
     url += "&showSecondHand=" + String(showSecondHand ? "true" : "false");
     url += "&smoothMinute=" + String(smoothMinute ? "true" : "false");
@@ -224,14 +259,10 @@ void switchToNextPreset() {
             preferences.putBool(PK_STATION_MODE, stationMode);
         }
         else if (key == "rotation") {
-            tftRotation = value.toInt();
-            if (tftRotation >= 0 && tftRotation <= 3) {
-                preferences.putUChar(PK_TFT_ROTATION, tftRotation);
-                firstRun = true;
-                if (!psramAvailable) {
-                    tft.setRotation(tftRotation);
-                }                
-            }
+            // Bewusst NICHT angewendet: Beim Laden eines Presets soll die
+            // aktuell eingestellte Display-Rotation unveraendert bleiben.
+            // Der Wert wird in createPresetFromPreferences() weiterhin mit
+            // gespeichert, aber hier absichtlich ignoriert.
         }
         else if (key == "showSecondHand") {
             showSecondHand = (value == "1" || value.equalsIgnoreCase("true"));
