@@ -142,7 +142,6 @@ void espReboot() {
 }
 
 
-// --- Funktion: Prüft, ob ein wöchentlicher Neustart fällig ist ---
 // ####################################################################
 // ### LOG-FUNKTIONEN #################################################
 // Löscht alle Logdateien aus dem LittleFS  

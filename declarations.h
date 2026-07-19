@@ -67,6 +67,7 @@ bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int
 String getBmpInfo(const String& filename) ;
 bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) ;
 void migrateFaceBmpsToRLE() ;
+void migrateHandBmpsToRLE() ;
 bool peekFirstPixelIsWhite(const String& path) ;
 void remaskExistingFaceCorners() ;
 void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) ;

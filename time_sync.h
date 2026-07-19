@@ -90,7 +90,16 @@ bool getDCF77Time() {
         if (DCFtime != 0) {
             setLedOff(); // LED ausschalten, wenn Zeit gefunden wurde
 
-            if (millis() - lastRTCUpdate > WAIT_6h || dcfTimeFound == false) {
+            // NTP gilt als "aktuell verfuegbar", wenn WLAN verbunden ist UND
+            // die letzte erfolgreiche NTP-Synchronisation nicht laenger als
+            // DCF77_NTP_GRACE_PERIOD zurueckliegt. Nur wenn das NICHT der
+            // Fall ist (kein WLAN, oder NTP seit laengerer Zeit erfolglos),
+            // wird DCF77 zur Uebernahme der Systemzeit herangezogen.
+            bool ntpCurrentlyAvailable = (WiFi.getMode() == WIFI_STA && WiFi.isConnected() &&
+                lastNtpSuccessMillis != 0 &&
+                (millis() - lastNtpSuccessMillis) < DCF77_NTP_GRACE_PERIOD);
+
+            if (!ntpCurrentlyAvailable && (millis() - lastRTCUpdate > WAIT_6h || dcfTimeFound == false)) {
 
                 lastRTCUpdate = millis();
 
@@ -212,6 +221,7 @@ boolean setupNTP() {
         if (getLocalTime(&timeinfo, 500)) {
 
             DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + ntpServer);
+            lastNtpSuccessMillis = millis();
 
             if (rtcOk == RTC_AVAILABLE || rtcOk == RTC_AVAILABLE_BUT_INVALID) {
 

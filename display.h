@@ -424,31 +424,75 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
     File bmp = LittleFS.open(filename, "r");
     if (!bmp) return false;
 
-    uint8_t header[54];
-    if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
+    uint8_t magic[4];
+    if (bmp.read(magic, 4) != 4) { bmp.close(); return false; }
+
+    uint16_t* fullImage = nullptr; // nur im RLE-Zweig belegt (Zeiger sind klein genug fuer einen Komplett-Puffer)
+    bool flip = false;
+    int32_t bmpWidth = 0, bmpHeight = 0;
+    uint32_t offset = 0;
+    int rowSize = 0;
+
+    if (isRleFace(magic)) {
+        uint8_t rest[16];
+        if (bmp.read(rest, 16) != 16) { bmp.close(); return false; }
+        bmpWidth = *(int32_t*)&rest[0];
+        bmpHeight = *(int32_t*)&rest[4];
+        uint32_t compressedSize = *(uint32_t*)&rest[8];
+        uint32_t uncompressedSize = *(uint32_t*)&rest[12];
+
+        if (bmpWidth != width || bmpHeight != height || uncompressedSize != (uint32_t)width * height * 2) {
+            bmp.close();
+            return false;
+        }
+
+        uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+        if (!compBuf) { bmp.close(); return false; }
+        if (bmp.read(compBuf, compressedSize) != compressedSize) {
+            free(compBuf); bmp.close(); return false;
+        }
         bmp.close();
-        return false;
+
+        fullImage = (uint16_t*)malloc(uncompressedSize);
+        if (!fullImage) { free(compBuf); return false; }
+        rleDecode565(compBuf, compressedSize, fullImage, (size_t)width * height);
+        free(compBuf);
+
+        flip = false; // RLEB ist immer bereits Top-Down gespeichert
+    }
+    else {
+        bmp.seek(0);
+        uint8_t header[54];
+        if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
+            bmp.close();
+            return false;
+        }
+
+        bmpWidth = *(int32_t*)&header[18];
+        bmpHeight = *(int32_t*)&header[22];
+        uint16_t bpp = *(uint16_t*)&header[28];
+        offset = *(uint32_t*)&header[10];
+
+        if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
+            bmp.close();
+            return false;
+        }
+
+        flip = bmpHeight > 0;
+        bmpHeight = abs(bmpHeight);
+        rowSize = ((width * 2 + 3) / 4) * 4;
+        bmp.seek(offset);
     }
 
-    int32_t bmpWidth = *(int32_t*)&header[18];
-    int32_t bmpHeight = *(int32_t*)&header[22];
-    uint16_t bpp = *(uint16_t*)&header[28];
-    uint32_t offset = *(uint32_t*)&header[10];
+    for (int y = 0; y < height; y++) {
+        int row = flip ? height - 1 - y : y;
 
-    if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
-        bmp.close();
-        return false;
-    }
-
-    bool flip = bmpHeight > 0;
-    bmpHeight = abs(bmpHeight);
-
-    bmp.seek(offset);
-    int rowSize = ((width * 2 + 3) / 4) * 4;
-    for (int y = 0; y < bmpHeight; y++) {
-        int row = flip ? bmpHeight - 1 - y : y;
-        //uint8_t rowBuffer[rowSize];
-        if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) break;
+        if (fullImage) {
+            memcpy(rowBuffer, &fullImage[row * width], width * 2);
+        }
+        else {
+            if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) break;
+        }
 
         uint16_t* pixelData = (uint16_t*)rowBuffer;
         for (int x = 0; x < width; x++) {
@@ -463,7 +507,12 @@ bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int heigh
         sprite->pushImage(0, row, width, 1, (uint16_t*)rowBuffer, (uint8_t)TRANSPARENT_COLOR);
     }
 
-    bmp.close();
+    if (fullImage) {
+        free(fullImage);
+    }
+    else {
+        bmp.close();
+    }
     return true;
 }
 
@@ -488,12 +537,12 @@ void updateClock() {
     }
 
 
-    static unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
+    static unsigned long lastRtcReloadMillis = 0; // Zeitpunkt des letzten RTC-Lesevorgangs (eigenstaendig, NICHT dieselbe Variable wie das globale lastRTCUpdate in time_sync.h/getDCF77Time)
     if (rtcOk == RTC_AVAILABLE) {            
         // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
-        if (millis() - lastRTCUpdate >= WAIT_1h) {            
+        if (millis() - lastRtcReloadMillis >= WAIT_1h) {            
             loadTimeFromRTC();
-            lastRTCUpdate = millis();
+            lastRtcReloadMillis = millis();
         }
     }
     
@@ -535,9 +584,9 @@ void updateClock() {
     // Station Mode: Sekundenzeiger springt nicht, sondern läuft in 672ms Schritten mit sanfter Bewegung dazwischen
     if (stationMode) {
         
-        if (!stationWaiting && currentMillis - stationLastMillis >= fastSecond) {
+        if (!stationWaiting && currentMillis - stationLastMillis >= FAST_SECOND) {
             stationTick++;
-            stationLastMillis += fastSecond;
+            stationLastMillis += FAST_SECOND;
 
             if (stationTick >= 60) {
                 stationTick = 60;
@@ -555,7 +604,7 @@ void updateClock() {
             }
         }
 
-        float subTick = (currentMillis - stationLastMillis) / fastSecond;
+        float subTick = (currentMillis - stationLastMillis) / FAST_SECOND;
         if (subTick > 1.0f || stationWaiting) subTick = 0.0f;
 
         float smoothSec = (stationTick >= 60) ? 60.0f : stationTick + easeInOutSine(subTick);
@@ -1108,19 +1157,24 @@ bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, i
     if (rowBuf) { bmp.close(); free(rowBuf); }
     if (rleSrcBuf) free(rleSrcBuf);
 
-    // Zielformat entscheiden: face_*.bmp wird RLE-komprimiert gespeichert
-    // (spart deutlich Flash-Platz), alles andere (z.B. hand_set*.bmp oder
-    // manuell skalierte Dateien) bleibt Standard-BMP wie bisher.
+    // Zielformat entscheiden: face_*.bmp UND hand_set*.bmp werden RLE-
+    // komprimiert gespeichert (spart deutlich Flash-Platz - bei Zeigern
+    // wegen der grossen einfarbigen Flaechen sogar noch mehr als bei
+    // Zifferblaettern), alles andere (z.B. manuell skalierte Dateien)
+    // bleibt Standard-BMP wie bisher.
     String targetPathStr = String(targetPath);
     if (!targetPathStr.startsWith("/")) targetPathStr = "/" + targetPathStr;
-    bool storeAsRle = targetPathStr.startsWith("/face_");
+    bool isFaceTarget = targetPathStr.startsWith("/face_");
+    bool isHandTarget = targetPathStr.startsWith("/hand_set");
+    bool storeAsRle = isFaceTarget || isHandTarget;
 
     // Der Bildpuffer ist quadratisch, das sichtbare Display aber rund: bei
     // Zifferblaettern wird daher alles ausserhalb des sichtbaren Kreises
     // (Durchmesser = kuerzere Kantenlaenge) auf Weiss gesetzt, damit dort
     // keine zufaelligen Bildreste aus den Ecken des Original-Uploads
-    // sichtbar werden.
-    if (storeAsRle) {
+    // sichtbar werden. Zeiger werden einzeln gedreht und NICHT in einen
+    // Kreis eingepasst, daher gilt die Maskierung nur fuer Zifferblaetter.
+    if (isFaceTarget) {
         float cx = outW / 2.0f;
         float cy = outH / 2.0f;
         float radius = (outW < outH ? outW : outH) / 2.0f;
@@ -1249,6 +1303,59 @@ void migrateFaceBmpsToRLE() {
         if (before) before.close();
 
         if (scaleAndSaveBmp(path.c_str(), path.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
+            File after = LittleFS.open(path, "r");
+            size_t sizeAfter = after ? after.size() : 0;
+            if (after) after.close();
+            DEBUG_PRINTLN("[MIGRATE] OK: " + path + " (" + String(sizeBefore) + " -> " + String(sizeAfter) + " bytes)");
+            checkHeapWarning("Migration " + path);
+        }
+        else {
+            DEBUG_PRINTLN("[MIGRATE] ERROR for " + path + " - file remains in the old format");
+        }
+    }
+}
+
+
+// Durchsucht das Dateisystem nach hand_set*.bmp-Dateien im ALTEN Standard-
+// BMP-Format und konvertiert sie einmalig zum neuen, platzsparenden RLE-
+// Format (siehe scaleAndSaveBmp() - Zieldateien mit "hand_set"-Praefix
+// werden dort automatisch RLE-komprimiert gespeichert, seit Zeiger
+// ebenfalls komprimiert werden). Bereits RLE-komprimierte Dateien werden
+// uebersprungen. Wird einmalig in setup() aufgerufen.
+void migrateHandBmpsToRLE() {
+    File root = LittleFS.open("/");
+    if (!root) return;
+
+    std::vector<String> toConvert;
+    File file = root.openNextFile();
+    while (file) {
+        if (!file.isDirectory()) {
+            String name = file.name();
+            String nameOnly = name.startsWith("/") ? name.substring(1) : name;
+            if (nameOnly.startsWith("hand_set") && nameOnly.endsWith(".bmp")) {
+                uint8_t magic[4] = { 0 };
+                file.read(magic, 4);
+                if (!isRleFace(magic)) {
+                    toConvert.push_back(name.startsWith("/") ? name : "/" + name);
+                }
+            }
+        }
+        file = root.openNextFile();
+    }
+
+    if (toConvert.empty()) {
+        DEBUG_PRINTLN("[MIGRATE] No hand sets in the old format found.");
+        return;
+    }
+
+    DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " hand set file(s) found in the old format, converting to RLE...");
+
+    for (const String& path : toConvert) {
+        File before = LittleFS.open(path, "r");
+        size_t sizeBefore = before ? before.size() : 0;
+        if (before) before.close();
+
+        if (scaleAndSaveBmp(path.c_str(), path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
             File after = LittleFS.open(path, "r");
             size_t sizeAfter = after ? after.size() : 0;
             if (after) after.close();
@@ -1599,6 +1706,33 @@ bool streamRleFaceAsStandardBmp(const String& path, const char* contentType) {
     *(uint32_t*)&bmpHeader[58] = 0x07E0;
     *(uint32_t*)&bmpHeader[62] = 0x001F;
 
+    // Kleine Bilder (z.B. Zeiger, nur wenige KB) komplett dekodieren und in
+    // EINEM Rutsch senden, statt zeilenweise zu streamen - bei kleinen
+    // Dateien ueberwiegt sonst der Netzwerk-Overhead vieler einzelner
+    // sendContent()-Aufrufe (z.B. 131 Aufrufe pro 21x131-Zeigerbild) den
+    // Speichervorteil des zeilenweisen Streamings deutlich. Fuer grosse
+    // Zifferblaetter (>20 KB unkomprimiert) bleibt das zeilenweise Streaming
+    // aktiv, da dort der geringe Speicherbedarf wichtiger ist.
+    const uint32_t SMALL_IMAGE_THRESHOLD = 20000;
+    if (uncompressedSize <= SMALL_IMAGE_THRESHOLD) {
+        uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+        if (!compBuf) { f.close(); return false; }
+        if (f.read(compBuf, compressedSize) != compressedSize) {
+            free(compBuf); f.close(); return false;
+        }
+        f.close();
+
+        uint8_t* fullBmp = new uint8_t[fileSize];
+        if (!fullBmp) { free(compBuf); return false; }
+        memcpy(fullBmp, bmpHeader, 66);
+        rleDecode565ToBmpRows(compBuf, compressedSize, fullBmp + 66, w, h, rowSize);
+        free(compBuf);
+
+        webserver.send_P(200, contentType, (const char*)fullBmp, fileSize);
+        delete[] fullBmp;
+        return true;
+    }
+
     webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
     webserver.send(200, contentType, "");
     webserver.sendContent_P((const char*)bmpHeader, 66);
@@ -1760,10 +1894,18 @@ void switchToNextBackground() {
         root.close();
     }
 
-    // 2) Stelle sicher, dass builtin default vorhanden ist (am Anfang)
-    bool hasDefault = false;
-    for (const auto& s : faces) if (s == "/face_default.bmp") { hasDefault = true; break; }
-    if (!hasDefault) faces.insert(faces.begin(), "/face_default.bmp");
+    // 2) Eingebauten Standard aus der Liste entfernen (falls als Datei vorhanden)
+    //    und die restlichen Zifferblaetter natuerlich sortieren - dieselbe
+    //    Reihenfolge, die auch im Webinterface (/listfilesFaces) angezeigt
+    //    wird, damit Durchschalten am Geraet und Webanzeige konsistent sind.
+    for (size_t i = 0; i < faces.size(); ++i) {
+        if (faces[i] == "/face_default.bmp") {
+            faces.erase(faces.begin() + i);
+            break;
+        }
+    }
+    naturalSortNames(faces);
+    faces.insert(faces.begin(), "/face_default.bmp");
 
     if (faces.empty()) {
         DEBUG_PRINTLN("[TOUCH] No faces found");

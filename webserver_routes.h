@@ -1589,14 +1589,17 @@ void setupWebServer() {
 
         chunk += generateHtmlStatus(); // Statusleiste einfügen
         chunk += generateNavigation(); // Navigation einfügen
-        chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2><table border='1'><tr><th>" + translate("Preview/Set") + "</th></tr>";
+        chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
+        chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
+
+        String activeBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
 
         // Add built-in default face
-        chunk += "<tr><td>";
+        chunk += "<div style='text-align:center;width:100px;'>";
         chunk += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
         chunk += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-        chunk += "</a><br>face_default.bmp<br><small>" + (String)TFT_WIDTH + " x " + (String)TFT_HEIGHT + " / " + "16 bpp" + " </small> </td>";
-        chunk += "</tr>";
+        chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (active)" : "");
+        chunk += "</div>";
 
         webserver.sendContent(chunk);
         chunk = "";
@@ -1621,13 +1624,18 @@ void setupWebServer() {
         int rowCount = 0;
         for (const String& name : faceNames) {
             String shortName = name;
-            String info = getBmpInfo(name);
-            chunk += "<tr><td>";
+            String displayName = shortName;
+            if (displayName.startsWith("face_")) displayName = displayName.substring(5);
+            if (displayName.endsWith(".bmp")) displayName = displayName.substring(0, displayName.length() - 4);
+            String normalizedName = name.startsWith("/") ? name : "/" + name;
+            bool isActive = (normalizedName == activeBackground);
+            chunk += "<div style='text-align:center;width:100px;'>";
             chunk += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
             chunk += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-            chunk += "</a><br>" + shortName + "<br><small>" + String(info) + "</small></td></tr>";
+            chunk += "</a><br>" + displayName + String(isActive ? " (active)" : "");
+            chunk += "</div>";
 
-            // Alle paar Zeilen zwischendurch senden, damit der Puffer auch
+            // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
             // bei vielen Zifferblaettern nicht unbegrenzt waechst.
             rowCount++;
             if (rowCount % 5 == 0) {
@@ -1636,8 +1644,8 @@ void setupWebServer() {
             }
         }
 
-        if (!anyFile) chunk += "<tr><td colspan='3'>No BMP files found in /</td></tr>";
-        chunk += "</table><hr>";
+        if (!anyFile) chunk += "<p>" + translate("No BMP files found in /") + "</p>";
+        chunk += "</div><hr>";
 
         // Hinweis und Download-Link für die ZIP-Datei
         if (TFT_WIDTH == 240) {
@@ -2167,7 +2175,8 @@ void setupWebServer() {
         String chunk = generateHtmlHeader();
         chunk += generateHtmlStatus(); // Statusleiste einfügen
         chunk += generateNavigation(); // Navigation einfügen
-        chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2><table border = '1'><tr><th colspan = 2>Preview / Set</th></tr>";
+        chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
+        chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
         webserver.sendContent(chunk);
 
         String activeSet = preferences.getString(PK_HANDSET, "");
@@ -2209,19 +2218,19 @@ void setupWebServer() {
         String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_HEIGHT);
 
         // Default-Zeigersatz (eingebaut) - eigener Chunk
-        chunk = "<tr><td>0</td><td>";
+        chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>0<br>";
         chunk += "<a href='/sethandset?set=default'>";
         chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
         chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
         chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handSecondBase64 + "'>";
         chunk += "</a>";
-        chunk += "</td></tr>";
+        chunk += "</div>";
         webserver.sendContent(chunk);
 
         // Jeden gefundenen Zeigersatz SOFORT senden statt zu sammeln - so liegt
         // nie mehr als ein Zeigersatz gleichzeitig im Speicher.
         auto renderSetRow = [&](const String& setId) {
-            chunk = "<tr><td>" + setId + (setId == activeSet ? " (active)" : "") + "</td><td>";
+            chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>" + setId + (setId == activeSet ? " (active)" : "") + "<br>";
             String hourPath = "/hand_set" + setId + "_hour.bmp";
             String minutePath = "/hand_set" + setId + "_minute.bmp";
             String secondPath = "/hand_set" + setId + "_second.bmp";
@@ -2230,8 +2239,7 @@ void setupWebServer() {
             chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + minutePath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
             chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
             chunk += "</a>";
-            chunk += "</td>";
-            chunk += "</tr>";
+            chunk += "</div>";
             webserver.sendContent(chunk);
             checkHeapWarning("/handsets Zeigersatz " + setId);
             };
@@ -2250,7 +2258,7 @@ void setupWebServer() {
         handMinuteBase64 = String();
         handSecondBase64 = String();
 
-        chunk = "</table><hr>";
+        chunk = "</div><hr>";
 
         uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
         uint32_t hubColorRgb = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
