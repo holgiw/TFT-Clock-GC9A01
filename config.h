@@ -44,6 +44,17 @@
 #define WAIT_1h 3600000 // 1 Stunde in Millisekunden
 #define WAIT_6h 21600000 // 6 Stunden in Millisekunden  
 
+// DCF77 uebernimmt die Systemzeit nur, wenn NTP seit mindestens dieser Zeit
+// nicht mehr erfolgreich synchronisiert hat (bzw. gar kein WLAN verbunden ist).
+// Verhindert, dass ein kurzzeitiger NTP-Ausfall sofort durch DCF77 "ueberschrieben"
+// wird, obwohl NTP eigentlich verfuegbar und vorzuziehen ist.
+#define DCF77_NTP_GRACE_PERIOD (2 * WAIT_1h)
+
+// Geschwindigkeit des Sekundenzeigers im Train-Station-Mode gegenueber der
+// realen Sekunde (in Millisekunden) - der Zeiger "eilt" etwas voraus und
+// verweilt dann kurz auf der 60, wie bei einer klassischen Bahnhofsuhr.
+#define FAST_SECOND 972.0f
+
 // --- Board-Auswahl (Prozessor, TFT-Typ) ---
 // Prozessor
 #define ESP32_S2  //only ESP32-S2 supported

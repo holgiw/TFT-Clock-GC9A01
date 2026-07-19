@@ -84,6 +84,7 @@ time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-
 unsigned long lastNTPUpdate = 0; // Zeitpunkt des letzten RTC-Updates
 unsigned long lastDCFUpdate = 0; // Wartezeit nach DCF77-Update, bevor RTC aktualisiert wird (ms)   
 unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
+unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten ERFOLGREICHEN NTP-Synchronisation (0 = noch nie); DCF77 uebernimmt die Systemzeit nur, wenn NTP seit laengerer Zeit nicht erfolgreich war
 
 unsigned long lastNTPRetry = 0;
 
@@ -129,7 +130,6 @@ bool firstRun = true;
 
 uint8_t tftRotation = 0;
 
-float fastSecond = 972.0f;  // Geschwindigkeit des Sekundenzeigers gegenüber der realen Sekunde
 
 uint16_t rowBuffer[CLOCK_WIDTH];
 

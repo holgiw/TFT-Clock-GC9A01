@@ -103,6 +103,10 @@ void setup() {
     // das neue, platzsparende RLE-Format umstellen (siehe display.h).
     migrateFaceBmpsToRLE();
 
+    // Bestehende Zeigersaetze im alten Standard-BMP-Format ebenfalls
+    // einmalig auf RLE umstellen (siehe display.h).
+    migrateHandBmpsToRLE();
+
     // Bereits vorhandene, schon RLE-komprimierte Zifferblaetter nachtraeglich
     // mit der Kreismaskierung fuer runde Displays versehen, falls sie vor
     // Einfuehrung dieser Funktion migriert/hochgeladen wurden (siehe display.h).
@@ -674,7 +678,7 @@ void loop() {
 
     // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
     if (softAPIP) {
-        // dnsServer.processNextRequest();
+        dnsServer.processNextRequest();
     }
 
 
