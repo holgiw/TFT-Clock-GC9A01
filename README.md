@@ -41,6 +41,7 @@
 •	Viewing system status (e.g., WiFi details, storage usage, uptime).
 •	Multi-language interface (German, English, French).
 •	Factory reset directly from the web interface.
+•	Live preview (top-left corner on every page) always shows the currently active clock face/hands/hub color - click it (with confirmation) to save the current look as a new preset.
 ---
 7. File Management with LittleFS
 •	Uses the LittleFS filesystem to:
@@ -62,7 +63,8 @@
 •	Reboot Function: Allows restarting the clock via the web interface.
 •	BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
 • API Interface
-• Up to 15 presets (faces, hands, behave)
+• Up to 50 presets (face, hand set, hub color/size, second-hand display) - individually renameable and deletable, sorted alphabetically in the list; back up all presets to a file and restore them later; a warning is shown once all 50 slots are full.
+• Deleting a clock face or hand set automatically removes any presets that referenced it; deleting the currently active hand set automatically falls back to the built-in default.
 • DCF77 supported
 
 

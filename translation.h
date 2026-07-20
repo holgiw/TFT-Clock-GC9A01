@@ -194,6 +194,7 @@
         { "Rename File", "Datei umbenennen", "Renommer le fichier" },
         { "Rename Preset", "Preset umbenennen", "Renommer le pr&eacute;r&eacute;glage" },
         { "Maximum number of presets reached - delete an existing preset first", "Maximale Anzahl an Presets erreicht - bitte zuerst ein bestehendes Preset l&ouml;schen", "Nombre maximal de pr&eacute;r&eacute;glages atteint - veuillez d'abord supprimer un pr&eacute;r&eacute;glage existant" },
+        { "Copy link", "Link kopieren", "Copier le lien" },
         { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist", "Retour &agrave; la page principale dans 10 secondes, ou actualisez le site lorsque l'ESP est &agrave; nouveau en ligne" },
         { "Enable Logging", "Logging aktivieren", "Activer la journalisation" },
         { "Reconnect WiFi", "Wifi neu verbinden", "Reconnecter le WiFi" },

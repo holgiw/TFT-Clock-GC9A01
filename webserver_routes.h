@@ -9,7 +9,7 @@
     String generateHtmlHeader() {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
         html.reserve(512);  // Header: klein, wird auf jeder Seite einmal aufgerufen
-        html += "<style>body{font-family:Arial;text-align:center;}input,select,button{margin:10px;padding:10px;width:80%;}";
+        html += "<style>body{font-family:Arial;text-align:center;padding-top:100px;}input,select,button{margin:10px;padding:10px;width:80%;}";
         html += "h1 { color: #333333; } ";
         html += "hr { border: 0; height: 1px; background-color: #cccccc; margin: 20px 0; } ";
         html += "table { margin: auto; border-collapse: collapse; } "; // Tabellen zentrieren
@@ -38,9 +38,17 @@
         else html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
 
         html += "<br>" + translate("Storage used") + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)<hr>";
+        html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)";
+
+        // Oben rechts fest positioniert, neben der Live-Vorschau (oben links) -
+        // kompaktere Schrift, damit die paar Zeilen nicht mehr Hoehe brauchen
+        // als das 90px hohe Vorschaubild gegenueber.
+        String boxed = "<div style='position:fixed;top:0;left:100px;width:fit-content;max-width:calc(55% + 70px);height:90px;box-sizing:border-box;background:#fff;border:2px solid #333;border-radius:8px;padding:4px 8px;font-size:0.8em;line-height:1.3;text-align:left;white-space:nowrap;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;z-index:1000;'>";
+        boxed += html;
+        boxed += "</div><hr>";
+
         setLedOff();
-        return html;
+        return boxed;
     }
 
 
@@ -53,12 +61,21 @@
         */
 
         String nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'></form>";
-        nav += "<img src='/currentpreview' onclick=\"if(confirm('" + translate("Save the current clock settings as a new preset?") + "')) document.getElementById('previewSaveForm').submit();\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:90px;height:90px;border:2px solid #333;border-bottom-right-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
+        nav += "<img src='/currentpreview' onclick=\"if(confirm('" + translate("Save the current clock settings as a new preset?") + "')) document.getElementById('previewSaveForm').submit();\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:90px;height:90px;box-sizing:border-box;border:2px solid #333;border-bottom-right-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
         nav += "<style>";
         nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
+        nav += ".navToggle { display: none; cursor: pointer; font-size: 1.8em; user-select: none; }";
+        nav += "@media (max-width: 600px) {";
+        nav += "  .navToggle { display: inline-block; }";
+        nav += "  .navLinks { display: none; }";
+        nav += "  .navLinks.navOpen { display: block; }";
+        nav += "  .navLinks a, .navLinks span { display: block; margin: 8px 0 !important; }";
+        nav += "}";
         nav += "</style>";
         nav += "<div style='text-align:center; margin-bottom:20px;'>";
+        nav += "<span class='navToggle' onclick=\"document.querySelectorAll('.navLinks').forEach(function(e){e.classList.toggle('navOpen');})\">&#9776;</span>";
+        nav += "<div class='navLinks'>";
 
         const struct NavItem {
             String path;
@@ -101,6 +118,7 @@
             }
         }
 
+        nav += "</div>"; // Ende .navLinks
         nav += "</div>";
     
         return nav;
@@ -437,9 +455,30 @@
          
             String espHost = "http://" + String(hostname) + ".local"; // Aktueller Hostname des ESP
 
+            chunk += "<script>";
+            chunk += "function copyPresetLink(text, el) {";
+            chunk += "  function showCopied() {";
+            chunk += "    var original = el.innerHTML;";
+            chunk += "    el.innerHTML = '&#9989;';";
+            chunk += "    setTimeout(function() { el.innerHTML = original; }, 1200);";
+            chunk += "  }";
+            chunk += "  if (navigator.clipboard && navigator.clipboard.writeText) {";
+            chunk += "    navigator.clipboard.writeText(text).then(showCopied);";
+            chunk += "  } else {";
+            chunk += "    var temp = document.createElement('textarea');";
+            chunk += "    temp.value = text;";
+            chunk += "    document.body.appendChild(temp);";
+            chunk += "    temp.select();";
+            chunk += "    document.execCommand('copy');";
+            chunk += "    document.body.removeChild(temp);";
+            chunk += "    showCopied();";
+            chunk += "  }";
+            chunk += "}";
+            chunk += "</script>";
+
             chunk += "<table style='width:100%; border-collapse:collapse;'>";
             chunk += "<tr><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preview") + "</th><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preset Name") +
-                "</th><th style = 'border:1px solid #ccc; padding:8px;'>Link</th><th style='border:1px solid #ccc; padding:8px;'></th></tr>";
+                "</th><th style = 'border:1px solid #ccc; padding:8px;'></th><th style='border:1px solid #ccc; padding:8px;'></th></tr>";
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -488,9 +527,12 @@
                     chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'><a href='" + displayUrl + "'>" + presets[i].name + "</a></td>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-                    chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'>http://" + ipAddress + "/api/setPreset?name=" + presetName;
+                    String ipLink = "http://" + ipAddress + "/api/setPreset?name=" + presetName;
+                    chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: center;'>";
+                    chunk += "<span onclick=\"copyPresetLink('" + ipLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
                     if (pingHostname) {
-                        chunk += "<br>" + espHost + "/api/setPreset?name=" + presetName;
+                        String hostLink = espHost + "/api/setPreset?name=" + presetName;
+                        chunk += " <span onclick=\"copyPresetLink('" + hostLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + " (" + espHost + ")'>&#128203;</span>";
                     }
                     chunk += "</td>";
                     chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: center;'>";
@@ -1896,57 +1938,57 @@
 
                 chunk += "<form action='/applydisplaysettings' method='POST'>";
 
-                chunk += "<table style='margin:auto;text-align:left;'><tr>";
+                chunk += "<div style='display:flex;flex-wrap:wrap;gap:15px;justify-content:center;max-width:600px;margin:auto;'>";
 
-                chunk += "<td><input type='checkbox' name='stationMode' value='1' ";
+                chunk += "<div><input type='checkbox' name='stationMode' value='1' ";
                 chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
-                chunk += "> " + translate("Train Station Mode") + "</td>";
+                chunk += "> " + translate("Train Station Mode") + "</div>";
 
-                chunk += "<td><input type='checkbox' name='showSecondHand' value='1' ";
+                chunk += "<div><input type='checkbox' name='showSecondHand' value='1' ";
                 chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
-                chunk += "> " + translate("Show Seconds") + "</td>";
+                chunk += "> " + translate("Show Seconds") + "</div>";
 
-                chunk += "<td><input type='checkbox' name='smoothMinute' value='1' ";
+                chunk += "<div><input type='checkbox' name='smoothMinute' value='1' ";
                 chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
-                chunk += "> " + translate("Smooth Minute Hand") + "</td>";
+                chunk += "> " + translate("Smooth Minute Hand") + "</div>";
 
                 String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
-                chunk += "<td>" + translate("Ping Server") +"<input type='text' name='pingServer' value='" + pingServer + "'>";
-                chunk +="</td>";
-
-                chunk += "</tr><tr>";
+                chunk += "<div>" + translate("Ping Server") + "<input type='text' name='pingServer' value='" + pingServer + "'>";
+                chunk += "</div>";
 
                 // Neue Checkbox für Touch-Freigabe
-                //chunk += "<td><input type='checkbox' name='useTouch' value='1' ";
+                //chunk += "<div><input type='checkbox' name='useTouch' value='1' ";
                 //chunk += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
-                //chunk += "> " + translate("Enable Touch") + "</td>";
+                //chunk += "> " + translate("Enable Touch") + "</div>";
 
-                chunk += "<td><input type='checkbox' name='wifiActive' value='1' ";
+                chunk += "<div><input type='checkbox' name='wifiActive' value='1' ";
                 chunk += wifiActive ? "checked" : "";
-                chunk += "> " + translate("Reconnect WiFi") + "</td>";
-            
+                chunk += "> " + translate("Reconnect WiFi") + "</div>";
 
-                chunk += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+
+                chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
                 chunk += loggingEnabled ? "checked" : "";
-                chunk += "> " + translate("Enable Logging") + "</td>";
+                chunk += "> " + translate("Enable Logging") + "</div>";
 
-            
-                chunk += "<td>Rotation: <select name='rotation'>";
+
+                chunk += "<div>Rotation: <select name='rotation'>";
                 const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
                 for (int i = 0; i <= 3; i++) {
                     chunk += "<option value='" + String(i) + "'";
                     if (i == tftRotation) chunk += " selected";
                     chunk += ">" + String(rotationLabels[i]) + "</option>";
                 }
-                chunk += "</select></td>";
+                chunk += "</select></div>";
 
 
-                // chunk += "<td><input type='checkbox' name='loggingEnabled' value='1' ";
+                // chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
                 // chunk += loggingEnabled ? "checked" : "";
-                // chunk += "> Logging aktivieren</td>";
+                // chunk += "> Logging aktivieren</div>";
 
-                chunk += "<td valign=bottom><button type='submit'>" + translate("Apply") + "</button></td>";
-                chunk += "</tr></table></form>";
+                chunk += "</div>";
+
+                chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
+                chunk += "</form>";
 
                 chunk += "<hr>";
 
@@ -2696,6 +2738,45 @@
     }
 
 
+    // Prueft, ob das in einer Preset-URL angegebene Zifferblatt (Parameter
+    // "face=") tatsaechlich existiert - case-insensitiv, da Nutzer beim
+    // manuellen Bearbeiten/Importieren leicht abweichende Gross-/
+    // Kleinschreibung verwenden koennten, LittleFS-Dateinamen aber case-
+    // sensitiv sind. Bei einer nur in der Schreibweise abweichenden
+    // Uebereinstimmung wird die URL auf den tatsaechlichen Dateinamen
+    // korrigiert. Gibt false zurueck, wenn kein passendes Zifferblatt
+    // gefunden wurde (auch nicht case-insensitiv) - das eingebaute
+    // face_default.bmp ist immer gueltig.
+    bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) {
+        int facePos = url.indexOf("face=");
+        if (facePos == -1) return true; // kein face-Parameter, nichts zu pruefen
+
+        int valueStart = facePos + 5; // Laenge von "face="
+        int valueEnd = url.indexOf('&', valueStart);
+        if (valueEnd == -1) valueEnd = url.length();
+
+        String faceValue = url.substring(valueStart, valueEnd);
+        String faceName = faceValue.startsWith("/") ? faceValue.substring(1) : faceValue;
+
+        if (faceName.equalsIgnoreCase("face_default.bmp")) {
+            return true; // eingebautes Standard-Zifferblatt ist immer gueltig
+        }
+
+        for (const String& existing : existingFaces) {
+            if (faceName.equalsIgnoreCase(existing)) {
+                String correctValue = "/" + existing;
+                if (correctValue != faceValue) {
+                    // Gross-/Kleinschreibung weicht ab - URL korrigieren
+                    url = url.substring(0, valueStart) + correctValue + url.substring(valueEnd);
+                }
+                return true;
+            }
+        }
+
+        return false; // kein passendes Zifferblatt gefunden
+    }
+
+
     // Verarbeitet den Datei-Upload fuer /importpresets: schreibt die
     // hochgeladene Datei zunaechst in eine temporaere Datei, liest sie dann
     // zeilenweise ein (Format: "Name<TAB>URL" pro Zeile, wie von
@@ -2731,7 +2812,21 @@
                     presets[i].url = "";
                 }
 
+                // Vorhandene Zifferblaetter einmalig einlesen, um jede
+                // importierte Preset-Zeile dagegen pruefen zu koennen.
+                std::vector<String> existingFaces;
+                File faceRoot = LittleFS.open("/");
+                File faceEntry = faceRoot.openNextFile();
+                while (faceEntry) {
+                    String entryName = faceEntry.name();
+                    if (!faceEntry.isDirectory() && entryName.startsWith("face_") && entryName.endsWith(".bmp")) {
+                        existingFaces.push_back(entryName);
+                    }
+                    faceEntry = faceRoot.openNextFile();
+                }
+
                 int importedCount = 0;
+                int skippedCount = 0;
                 while (readFile.available() && importedCount < MAX_PRESETS) {
                     String line = readFile.readStringUntil('\n');
                     line.trim();
@@ -2747,6 +2842,12 @@
                     String url = line.substring(tabPos + 1);
                     if (name.isEmpty() || url.isEmpty()) continue;
 
+                    if (!validateAndFixPresetFace(url, existingFaces)) {
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Uebersprungen (Zifferblatt nicht gefunden): " + name);
+                        skippedCount++;
+                        continue;
+                    }
+
                     presets[importedCount].name = name;
                     presets[importedCount].url = url;
                     importedCount++;
@@ -2761,7 +2862,7 @@
                 savePresets();
 
                 if (importedCount > 0) {
-                    DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " Presets importiert");
+                    DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " Presets importiert, " + String(skippedCount) + " uebersprungen (Zifferblatt fehlt)");
                     presetImportSuccess = true;
                 }
                 else {
