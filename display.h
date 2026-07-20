@@ -974,7 +974,7 @@
             uint32_t compressedSize = *(uint32_t*)&rest[8];
             uint32_t uncompressedSize = *(uint32_t*)&rest[12];
             String ratio = uncompressedSize > 0 ? String(100 - (compressedSize * 100 / uncompressedSize)) + "%" : "?";
-            return String(width) + "&nbsp;x&nbsp;" + String(height) + " / 16 bpp (RLE, -" + ratio + ")";
+            return String(width) + " x " + String(height) + " / 16 bpp (RLE, -" + ratio + ")";
         }
 
         bmp.seek(0);
@@ -989,7 +989,7 @@
         uint16_t bpp = *(uint16_t*)&header[28];
         bmp.close();
 
-        return String(abs(width)) + "&nbsp;x&nbsp;" + String(abs(height)) + " / " + String(bpp) + " bpp";
+        return String(abs(width)) + " x " + String(abs(height)) + " / " + String(bpp) + " bpp";
     }
 
 
@@ -1823,6 +1823,196 @@
     }
 
 
+    // Rotiert ein Zeigerbild (hand, HAND_WIDTH x HAND_HEIGHT) um seinen Drehpunkt
+    // (pivotX, pivotY in Zeiger-lokalen Koordinaten) und komponiert es auf die
+    // Canvas (canvasW x canvasH), zentriert bei (cx, cy), skaliert um 'scale'.
+    // angleDeg: 0 Grad = 12-Uhr-Position, im Uhrzeigersinn zunehmend (identische
+    // Konvention wie die Winkelberechnung in updateClock()). Nutzt inverse
+    // Rueckwaerts-Abbildung (fuer jeden Canvas-Pixel wird die Quellposition im
+    // Zeigerbild berechnet), damit keine Luecken im Ergebnis entstehen. Pixel in
+    // TRANSPARENT_COLOR oder Weiss (0xFFFF) gelten als durchsichtig (wie beim
+    // echten Rendering in loadHandBmp()).
+    void blitRotatedHand(uint16_t* canvas, int canvasW, int canvasH,
+        const uint16_t* hand, int handW, int handH,
+        float pivotX, float pivotY,
+        float cx, float cy, float angleDeg, float scale) {
+        float rad = angleDeg * (float)PI / 180.0f;
+        float cosA = cosf(rad), sinA = sinf(rad);
+
+        float maxDim = sqrtf((float)(handW * handW + handH * handH)) * scale;
+        int minX = (int)fmaxf(0, cx - maxDim);
+        int maxX = (int)fminf(canvasW - 1, cx + maxDim);
+        int minY = (int)fmaxf(0, cy - maxDim);
+        int maxY = (int)fminf(canvasH - 1, cy + maxDim);
+
+        for (int py = minY; py <= maxY; py++) {
+            for (int px = minX; px <= maxX; px++) {
+                float dx = (px - cx) / scale;
+                float dy = (py - cy) / scale;
+
+                // Inverse Rotation (um -angleDeg), um die Quellkoordinate im
+                // unrotierten Zeigerbild zu finden.
+                float sx = dx * cosA + dy * sinA + pivotX;
+                float sy = -dx * sinA + dy * cosA + pivotY;
+
+                int hx = (int)roundf(sx);
+                int hy = (int)roundf(sy);
+                if (hx < 0 || hx >= handW || hy < 0 || hy >= handH) continue;
+
+                uint16_t p = hand[hy * handW + hx];
+                if (p == TRANSPARENT_COLOR || p == 0xFFFF) continue; // transparent
+
+                canvas[py * canvasW + px] = p;
+            }
+        }
+    }
+
+
+    // Erzeugt ein Vorschaubild fuer die Preset-Verwaltung im Webinterface: eine
+    // Komposition aus dem Zifferblatt, den Zeigern (Stunde/Minute, optional
+    // Sekunde) bei einer festen Demo-Uhrzeit (10:10:30 Uhr - klassischer
+    // "Uhrenwerbung"-Winkel) sowie einem Mittelpunkt in der angegebenen Farbe
+    // und Groesse. Liefert ein vollstaendiges Standard-BMP im RAM zurueck
+    // (Aufrufer ist fuer delete[] outBytes verantwortlich).
+    bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName,
+        uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond,
+        uint8_t** outBytes, size_t& outSize) {
+
+        checkHeapWarning("generatePresetPreviewBmp Start (" + faceFile + ")");
+
+        const int PREVIEW_SIZE = 100;
+        uint16_t* canvas = (uint16_t*)malloc((size_t)PREVIEW_SIZE * PREVIEW_SIZE * 2);
+        if (!canvas) return false;
+
+        // 1) Zifferblatt laden und auf die Vorschaugroesse herunterskalieren
+        // (eingebauter Standard direkt aus dem PROGMEM-Array, sonst per Datei -
+        // gleiches Prinzip wie bei /preview_defaultface bzw. sendScaledBmpPreview()).
+        float faceScaleX = (float)CLOCK_WIDTH / PREVIEW_SIZE;
+        float faceScaleY = (float)CLOCK_HEIGHT / PREVIEW_SIZE;
+        bool isDefaultFace = (faceFile == "/face_default.bmp") || !LittleFS.exists(faceFile);
+
+        if (isDefaultFace) {
+            for (int y = 0; y < PREVIEW_SIZE; y++) {
+                int sy = (int)(y * faceScaleY);
+                for (int x = 0; x < PREVIEW_SIZE; x++) {
+                    int sx = (int)(x * faceScaleX);
+                    canvas[y * PREVIEW_SIZE + x] = clockFace[sy * CLOCK_WIDTH + sx];
+                }
+            }
+        }
+        else {
+            uint16_t* faceBuf = (uint16_t*)malloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2);
+            if (!faceBuf) { free(canvas); return false; }
+            if (!loadFaceBmpInto(faceFile, faceBuf, CLOCK_WIDTH, CLOCK_HEIGHT)) {
+                for (int i = 0; i < CLOCK_WIDTH * CLOCK_HEIGHT; i++) faceBuf[i] = clockFace[i];
+            }
+            for (int y = 0; y < PREVIEW_SIZE; y++) {
+                int sy = (int)(y * faceScaleY);
+                for (int x = 0; x < PREVIEW_SIZE; x++) {
+                    int sx = (int)(x * faceScaleX);
+                    canvas[y * PREVIEW_SIZE + x] = faceBuf[sy * CLOCK_WIDTH + sx];
+                }
+            }
+            free(faceBuf);
+        }
+
+        // 2) Zeiger laden (aus Datei, falls Set vorhanden, sonst eingebauter Standard)
+        uint16_t* hourPix = nullptr;
+        uint16_t* minutePix = nullptr;
+        uint16_t* secondPix = nullptr;
+        bool useCustomSet = (handSetName != "default" && handSetName != "");
+
+        if (useCustomSet) {
+            hourPix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+            if (hourPix && !loadFaceBmpInto("/hand_set" + handSetName + "_hour.bmp", hourPix, HAND_WIDTH, HAND_HEIGHT)) {
+                free(hourPix); hourPix = nullptr;
+            }
+            minutePix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+            if (minutePix && !loadFaceBmpInto("/hand_set" + handSetName + "_minute.bmp", minutePix, HAND_WIDTH, HAND_HEIGHT)) {
+                free(minutePix); minutePix = nullptr;
+            }
+            if (showSecond) {
+                secondPix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+                if (secondPix && !loadFaceBmpInto("/hand_set" + handSetName + "_second.bmp", secondPix, HAND_WIDTH, HAND_HEIGHT)) {
+                    free(secondPix); secondPix = nullptr;
+                }
+            }
+        }
+
+        // 3) Demo-Zeit 10:10:30 - klassischer Uhrenwerbung-Winkel
+        const float hourAngle = (10 % 12) * 30.0f + (10 / 2.0f) + (30 / 120.0f);
+        const float minuteAngle = 10 * 6.0f + (30 / 10.0f);
+        const float secondAngle = 30 * 6.0f;
+
+        float cx = PREVIEW_SIZE / 2.0f;
+        float cy = PREVIEW_SIZE / 2.0f;
+        float handScale = (float)PREVIEW_SIZE / CLOCK_WIDTH; // Zeiger im gleichen Massstab wie das Zifferblatt
+        float pivotX = HAND_WIDTH / 2.0f;
+        float pivotY = HAND_HEIGHT * 0.77f;
+
+        blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE,
+            hourPix ? hourPix : handHour, HAND_WIDTH, HAND_HEIGHT,
+            pivotX, pivotY, cx, cy, hourAngle, handScale);
+
+        blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE,
+            minutePix ? minutePix : handMinute, HAND_WIDTH, HAND_HEIGHT,
+            pivotX, pivotY, cx, cy, minuteAngle, handScale);
+
+        if (showSecond) {
+            blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE,
+                secondPix ? secondPix : handSecond, HAND_WIDTH, HAND_HEIGHT,
+                pivotX, pivotY, cx, cy, secondAngle, handScale);
+        }
+
+        if (hourPix) free(hourPix);
+        if (minutePix) free(minutePix);
+        if (secondPix) free(secondPix);
+
+        // 4) Mittelpunkt (Hub) in der angegebenen Farbe/Groesse zeichnen
+        float hubRadius = hubSize * handScale;
+        if (hubRadius < 1.0f) hubRadius = 1.0f;
+        for (int y = 0; y < PREVIEW_SIZE; y++) {
+            for (int x = 0; x < PREVIEW_SIZE; x++) {
+                float dx = (x + 0.5f) - cx;
+                float dy = (y + 0.5f) - cy;
+                if (dx * dx + dy * dy <= hubRadius * hubRadius) {
+                    canvas[y * PREVIEW_SIZE + x] = hubColorRgb565;
+                }
+            }
+        }
+
+        // 5) Als Standard-BMP (mit BI_BITFIELDS-Header) verpacken
+        const int rowSize = ((PREVIEW_SIZE * 2 + 3) / 4) * 4;
+        const int dataSize = rowSize * PREVIEW_SIZE;
+        const int fileSize = 66 + dataSize;
+
+        uint8_t* bmpData = new uint8_t[fileSize];
+        if (!bmpData) { free(canvas); return false; }
+        memset(bmpData, 0, fileSize);
+
+        bmpData[0] = 'B'; bmpData[1] = 'M';
+        *(uint32_t*)&bmpData[2] = fileSize;
+        *(uint32_t*)&bmpData[10] = 66;
+        *(uint32_t*)&bmpData[14] = 40;
+        *(int32_t*)&bmpData[18] = PREVIEW_SIZE;
+        *(int32_t*)&bmpData[22] = -PREVIEW_SIZE; // Top-down BMP
+        *(uint16_t*)&bmpData[26] = 1;
+        *(uint16_t*)&bmpData[28] = 16;
+        *(uint32_t*)&bmpData[30] = 3; // BI_BITFIELDS
+        *(uint32_t*)&bmpData[34] = dataSize;
+        *(uint32_t*)&bmpData[54] = 0xF800;
+        *(uint32_t*)&bmpData[58] = 0x07E0;
+        *(uint32_t*)&bmpData[62] = 0x001F;
+
+        for (int y = 0; y < PREVIEW_SIZE; y++) {
+            memcpy(bmpData + 66 + y * rowSize, &canvas[y * PREVIEW_SIZE], PREVIEW_SIZE * 2);
+        }
+
+        free(canvas);
+        *outBytes = bmpData;
+        outSize = (size_t)fileSize;
+        return true;
+    }
     // --- Funktion: Schaltet die LED ein (wenn definiert) ---  
     void setLedOff() {
 #ifdef LED_BOARD

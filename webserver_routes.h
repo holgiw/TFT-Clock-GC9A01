@@ -52,7 +52,9 @@
         }
         */
 
-        String nav = "<style>";
+        String nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'></form>";
+        nav += "<img src='/currentpreview' onclick=\"if(confirm('" + translate("Save the current clock settings as a new preset?") + "')) document.getElementById('previewSaveForm').submit();\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:90px;height:90px;border:2px solid #333;border-bottom-right-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
+        nav += "<style>";
         nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
         nav += "</style>";
@@ -69,8 +71,8 @@
             {"/handsets", translate("Hand&nbsp;Set"), ""},        
             {"/timezone_form", translate("NTP&nbsp;Timezone"), ""},
             {"/brightness", translate("Brightness"), ""},
-            {"/status", "Status", ""},
-            {"/files", translate("<br>File&nbsp;Manager"), ""},
+            {"/status", translate("Status"), ""},
+            {"/files", translate("File&nbsp;Manager"), ""},
             {"/reboot", translate("Reboot"), translate("Are you sure you want to reboot?")},
             {"/factoryReset", translate("Factory&nbsp;Reset"), translate("Are you sure you want to reset to factory settings?")}
         };
@@ -90,6 +92,13 @@
                 }
                 nav += ">" + item.label + "</a> ";
             }
+
+            // Zeilenumbruch nach "Status" zur thematischen Trennung (Status/Betrieb
+            // vs. Dateiverwaltung/Reset) - bewusst hier im Code statt in der
+            // Übersetzung, da es reine Layout-Struktur ist, keine Textinhalt.
+            if (item.path == "/status") {
+                nav += "<br>";
+            }
         }
 
         nav += "</div>";
@@ -102,13 +111,13 @@
     String generateLanguageSelector() {
         String html = "<form method='POST' action='/setLanguage'>";
         html.reserve(512);  // Sprachauswahl: klein
-        html += "<label for='lang'>Language/Sprache:</label>";
+        html += "<label for='lang'>Language/Sprache/Langue:</label>";
         html += "<select name='lang'>";
         html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
         html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
         html += "<option value='fr'" + String(currentLanguage == "fr" ? " selected" : "") + ">Franz&ouml;sisch / Fran&ccedil;ais</option>";
         html += "</select>";
-        html += "<button type='submit'>" + translate("save") + "</button>";
+        html += "<button type='submit'>Save / Speichern / Enregistrer</button>";
         html += "</form><hr>";
         return html;
     }
@@ -165,6 +174,32 @@
 
     // Webserver-API-Endpunkte einrichten
     void setupWebServer() {
+
+        // Captive-Portal-Erkennung: Android, iOS/macOS und Windows fragen beim
+        // Verbinden mit einem WLAN gezielt diese bekannten URLs ab, um zu
+        // entscheiden, ob automatisch ein Anmelde-Popup angezeigt werden soll.
+        // Antworten wir hier (statt mit dem sonst ueblichen 404) mit einem
+        // Redirect auf die Konfigurationsseite, oeffnet sich beim Verbinden mit
+        // dem Access-Point ("clock123") von selbst ein Browserfenster - ganz
+        // ohne dass man manuell eine Adresse eingeben muss. Wirkt zusammen mit
+        // dnsServer.processNextRequest() (siehe loop() in uhr3.ino), das dafuer
+        // sorgt, dass jede Domain ueberhaupt erst bei diesem Webserver landet.
+        auto captivePortalRedirect = []() {
+            webserver.sendHeader("Location", "http://" + ipAddress + "/", true);
+            webserver.send(302, "text/plain", "");
+            };
+
+        webserver.on("/generate_204", HTTP_GET, captivePortalRedirect);       // Android
+        webserver.on("/gen_204", HTTP_GET, captivePortalRedirect);            // Android (aeltere Versionen)
+        webserver.on("/hotspot-detect.html", HTTP_GET, captivePortalRedirect); // iOS / macOS
+        webserver.on("/library/test/success.html", HTTP_GET, captivePortalRedirect); // iOS / macOS (alternative)
+        webserver.on("/ncsi.txt", HTTP_GET, captivePortalRedirect);           // Windows
+        webserver.on("/connecttest.txt", HTTP_GET, captivePortalRedirect);    // Windows
+
+        // Catch-all fuer alle sonstigen, unbekannten Anfragen (z.B. Varianten
+        // der obigen URLs oder Domains, die nicht explizit registriert sind) -
+        // statt eines 404 lieber ebenfalls auf die Konfigurationsseite leiten.
+        webserver.onNotFound(captivePortalRedirect);
 
         // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
 
@@ -238,7 +273,18 @@
             });
 
         webserver.on("/api/createPreset", HTTP_POST, []() {
-            createPresetFromPreferences(); // Ruft die Funktion auf, um ein neues Preset zu erstellen
+            bool created = createPresetFromPreferences(); // Erstellt ein neues Preset, falls noch ein Slot frei ist
+
+            if (!created) {
+                String html = generateHtmlHeader();
+                html += generateHtmlStatus();
+                html += generateNavigation();
+                html += "<h2 style='color:red;'>" + translate("Maximum number of presets reached - delete an existing preset first") + "</h2>";
+                html += "<a href='/presets'><button type='button'>" + translate("Back") + "</button></a>";
+                html += "</body></html>";
+                webserver.send(200, "text/html", html);
+                return;
+            }
 
             // Weiterleitung zur Presets-Seite
             webserver.sendHeader("Location", "/presets", true);
@@ -392,15 +438,36 @@
             String espHost = "http://" + String(hostname) + ".local"; // Aktueller Hostname des ESP
 
             chunk += "<table style='width:100%; border-collapse:collapse;'>";
-            chunk += "<tr><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preset Name") +
-                "</th><th style = 'border:1px solid #ccc; padding:8px;'>Link</th></tr>";
+            chunk += "<tr><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preview") + "</th><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preset Name") +
+                "</th><th style = 'border:1px solid #ccc; padding:8px;'>Link</th><th style='border:1px solid #ccc; padding:8px;'></th></tr>";
 
             webserver.sendContent(chunk);
             chunk = "";
 
-            int rowCount = 0;
+            // Nur die Anzeige-Reihenfolge sortieren (alphabetisch/natuerlich
+            // nach Namen) - die eigentlichen Array-Indizes bleiben unveraendert,
+            // damit Rename-/Delete-/Vorschau-Links weiterhin auf den richtigen
+            // Slot verweisen. Insertion-Sort wie bei naturalSortNames(), um
+            // keine <algorithm>-Abhaengigkeit zu benoetigen.
+            std::vector<int> sortedIndices;
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
+                    sortedIndices.push_back(i);
+                }
+            }
+            for (size_t i = 1; i < sortedIndices.size(); i++) {
+                int key = sortedIndices[i];
+                long j = (long)i - 1;
+                while (j >= 0 && naturalLess(presets[key].name, presets[sortedIndices[j]].name)) {
+                    sortedIndices[j + 1] = sortedIndices[j];
+                    j--;
+                }
+                sortedIndices[j + 1] = key;
+            }
+
+            int rowCount = 0;
+            for (int i : sortedIndices) {
+                {
                     String displayUrl = presets[i].url;
 
                     // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
@@ -417,6 +484,7 @@
                     presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
 
                     chunk += "<tr>";
+                    chunk += "<td style='border:1px solid #ccc; padding:4px;'><a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a></td>";
                     chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'><a href='" + displayUrl + "'>" + presets[i].name + "</a></td>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
@@ -424,7 +492,11 @@
                     if (pingHostname) {
                         chunk += "<br>" + espHost + "/api/setPreset?name=" + presetName;
                     }
-                    chunk += "</td></tr>";
+                    chunk += "</td>";
+                    chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: center;'>";
+                    chunk += "<a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
+                    chunk += "<a href='/deletepreset?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + presets[i].name + "?\")'>" + translate("Delete") + "</a></td>";
+                    chunk += "</tr>";
 
                     rowCount++;
                     if (rowCount % 5 == 0) {
@@ -434,6 +506,7 @@
                 }
             }
             chunk += "</table>";
+            chunk += "<p>" + translate("Presets used") + ": " + String(rowCount) + " / " + String(MAX_PRESETS) + "</p>";
             chunk += "</ul>";
             chunk += "</div><hr>";
 
@@ -444,77 +517,51 @@
             chunk += "</form>";
             chunk += "<hr>";
 
-            // Gefüllte Presets anzeigen
-            chunk += "<h3>" + translate("Edit Presets") + "</h3>";
-            chunk += "<form method='POST' action='/save_presets'>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            for (int i = 0; i < MAX_PRESETS; i++) {
-
-                String displayUrl = presets[i].url;
-
-                // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
-                if (displayUrl.startsWith("http://")) {
-                    int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
-                    if (ipEnd != -1) {
-                        displayUrl = "http://" + ipAddress + displayUrl.substring(ipEnd); // Ersetze die IP
-                       // DEBUG_PRINTLN("[HTML] 1 Replaced preset URL for display: " + displayUrl);
-                    }
-                    else {
-                        displayUrl = "http://" + ipAddress; // Nur die IP ohne Pfad
-                       // DEBUG_PRINTLN("[HTML] 2 Replaced preset URL for display: " + displayUrl);
-                    }
-                }
-                Serial.println(displayUrl);
-                // falschen Backslash entfernen, der sich manchmal in die URL einschleicht
-                int index = displayUrl.indexOf("/face_");
-                if (index > 1) {
-                    Serial.println(displayUrl);
-                    Serial.println("found /face_ at position " + String(index));
-                    displayUrl = displayUrl.substring(0, index) + displayUrl.substring(index + 1);      
-                    Serial.println(displayUrl);   
-                }
-
-                presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-                chunk += "<h4>" + translate("Preset") + " " + String(i + 1) + "</h4>";
-                chunk += "Name: <input type='text' name='name" + String(i) + "' value='" + presets[i].name + "'><br>";
-                chunk += "URL: <input type='text' name='url" + String(i) + "' value='" + displayUrl + "'><br><br>";
-
-                if (i % 5 == 4) {
-                    webserver.sendContent(chunk);
-                    chunk = "";
-                }
-
-                if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
-                    break;
-                }
-            }
-
-
-            chunk += "<button type='submit'>" + translate("Save Presets") + "</button>";
-            chunk += "</form><hr>";
+            // Presets als Datei sichern/wiederherstellen
+            chunk += "<h3>" + translate("Backup / Restore Presets") + "</h3>";
+            chunk += "<a href='/exportpresets'><button type='button'>" + translate("Save Presets to File") + "</button></a> ";
+            chunk += "<form method='POST' action='/importpresets' enctype='multipart/form-data' style='display:inline;'>";
+            chunk += "<input type='file' name='presetfile' accept='.txt' required>";
+            chunk += "<button type='submit' onclick='return confirm(\"" + translate("This will replace all currently saved presets") + ". " + translate("Continue") + "?\")'>" + translate("Restore Presets from File") + "</button>";
+            chunk += "</form>";
+            chunk += "<hr>";
 
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
             });
 
-        // Presets speichern    
-        webserver.on("/save_presets", HTTP_POST, []() {
+        // Alle belegten Presets (Name + URL) als herunterladbare Textdatei
+        // exportieren - eine Zeile pro Preset, Name und URL durch Tab getrennt.
+        webserver.on("/exportpresets", HTTP_GET, []() {
+            String content;
             for (int i = 0; i < MAX_PRESETS; i++) {
-                String nameArg = "name" + String(i);
-                String urlArg = "url" + String(i);
-                presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-                presets[i].name = webserver.hasArg(nameArg) ? webserver.arg(nameArg) : "";
-                presets[i].url = webserver.hasArg(urlArg) ? webserver.arg(urlArg) : "";
+                if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
+                    content += presets[i].name + "\t" + presets[i].url + "\n";
+                }
             }
-
-            savePresets();
-
-            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/presets'><title>Saved</title></head><body><h2>Presets saved</h2><p>Redirecting...</p></body></html>");
+            webserver.sendHeader("Content-Disposition", "attachment; filename=presets_backup.txt");
+            webserver.send(200, "text/plain", content);
             });
+
+        // Presets aus einer zuvor per /exportpresets erzeugten Textdatei
+        // wiederherstellen - ersetzt ALLE aktuell gespeicherten Presets.
+        webserver.on("/importpresets", HTTP_POST, []() {
+            String html = generateHtmlHeader();
+            html += generateHtmlStatus();
+            html += generateNavigation();
+            html += "<h2>" + translate("Import Presets") + "</h2>";
+            if (presetImportSuccess) {
+                html += "<p>" + translate("Presets imported successfully") + ".</p>";
+            }
+            else {
+                html += "<p>" + translate("Import failed - please check the file") + ".</p>";
+            }
+            html += "<a href='/presets'><button type='button'>" + translate("Back") + "</button></a>";
+            html += generateNavigation();
+            html += "</body></html>";
+            webserver.send(200, "text/html", html);
+            }, handlePresetImportUpload);
 
         // API zum Restart des ESP
         webserver.on("/api/reboot", HTTP_GET, []() {
@@ -1116,7 +1163,7 @@
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
 
-            chunk += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>Info</th><th>" + translate("Action") + "</th></tr>";
+            chunk += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -1515,6 +1562,68 @@
             }
             });
 
+        // Vorschaubild fuer die Preset-Verwaltung: Zifferblatt + Zeiger (feste
+        // Demo-Zeit) + Mittelpunkt-Farbe/-Groesse, komponiert aus den im Preset
+        // gespeicherten Einstellungen (siehe parsePresetForPreview() und
+        // generatePresetPreviewBmp()).
+        // Erzeugt ein Vorschaubild aus den GERADE AKTIVEN Einstellungen (kein
+        // Parameter noetig) - wird auf jeder Seite oben links eingeblendet
+        // (siehe generateNavigation()) und zeigt so nach jeder Aenderung
+        // (Zifferblatt/Zeigersatz/Nabenfarbe/-groesse), sobald die jeweilige
+        // Seite danach neu laedt, automatisch den aktuellen Stand.
+        webserver.on("/currentpreview", HTTP_GET, []() {
+            String face = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
+            String handSet = preferences.getString(PK_HANDSET, "");
+            if (handSet.isEmpty()) handSet = "default";
+            uint8_t curHubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
+            uint32_t curHubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
+            bool curShowSecond = preferences.getBool(PK_SHOW_SECOND_HAND, true);
+
+            uint8_t r = (curHubColor >> 16) & 0xFF;
+            uint8_t g = (curHubColor >> 8) & 0xFF;
+            uint8_t b = curHubColor & 0xFF;
+            uint16_t hubColorRgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+
+            uint8_t* bmpBytes = nullptr;
+            size_t bmpSize = 0;
+            if (generatePresetPreviewBmp(face, handSet, hubColorRgb565, curHubSize, curShowSecond, &bmpBytes, bmpSize)) {
+                webserver.sendHeader("Cache-Control", "no-store");
+                webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
+                delete[] bmpBytes;
+            }
+            else {
+                webserver.send(500, "text/plain", "Failed to generate preview (out of memory?)");
+            }
+            });
+
+        webserver.on("/presetpreview", HTTP_GET, []() {
+            if (!webserver.hasArg("index")) {
+                webserver.send(400, "text/plain", "missing 'index' argument");
+                return;
+            }
+            int index = webserver.arg("index").toInt();
+            if (index < 0 || index >= MAX_PRESETS || presets[index].url.isEmpty()) {
+                webserver.send(404, "text/plain", "preset not found");
+                return;
+            }
+
+            String face, handSet;
+            uint16_t hubColorRgb565;
+            uint8_t hubSize;
+            bool showSecond;
+            parsePresetForPreview(presets[index].url, face, handSet, hubColorRgb565, hubSize, showSecond);
+
+            uint8_t* bmpBytes = nullptr;
+            size_t bmpSize = 0;
+            if (generatePresetPreviewBmp(face, handSet, hubColorRgb565, hubSize, showSecond, &bmpBytes, bmpSize)) {
+                webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
+                delete[] bmpBytes;
+            }
+            else {
+                webserver.send(500, "text/plain", "Failed to generate preview (out of memory?)");
+            }
+            });
+
         webserver.on("/preview_defaultface", HTTP_GET, []() {
             // Kleine Vorschau statt voller Aufloesung (spart ~90% Uebertragungsgroesse
             // fuer ein 80x80-<img> - siehe sendScaledBmpPreview() fuer den
@@ -1598,7 +1707,7 @@
             chunk += "<div style='text-align:center;width:100px;'>";
             chunk += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
             chunk += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
-            chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (active)" : "");
+            chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (" + translate("active") + ")" : "");
             chunk += "</div>";
 
             webserver.sendContent(chunk);
@@ -1632,7 +1741,7 @@
                 chunk += "<div style='text-align:center;width:100px;'>";
                 chunk += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
                 chunk += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-                chunk += "</a><br>" + displayName + String(isActive ? " (active)" : "");
+                chunk += "</a><br>" + displayName + String(isActive ? " (" + translate("active") + ")" : "");
                 chunk += "</div>";
 
                 // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
@@ -1671,7 +1780,7 @@
             else {
 
                 chunk += "<h3>" + translate("Upload New Clock Face") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " pixels, 16 - bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
+                chunk += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " " + translate("pixels") + ", 16-bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
 
                 chunk += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
                 chunk += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
@@ -2079,12 +2188,105 @@
                 if (!path.startsWith("/")) path = "/" + path;
                 if (LittleFS.exists(path)) {
                     LittleFS.remove(path);
+
+                    // Falls ein Zifferblatt oder Teil eines Zeigersatzes geloescht
+                    // wurde, alle Presets entfernen, die darauf verweisen.
+                    String name = path.substring(1); // fuehrenden Slash entfernen
+                    if (name.startsWith("face_") && name.endsWith(".bmp")) {
+                        removeOrphanedPresets(path, "");
+                    }
+                    else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
+                        int start = 8; // Laenge von "hand_set"
+                        int end = name.indexOf('_', start);
+                        if (end > start) {
+                            String setId = name.substring(start, end);
+                            removeOrphanedPresets("", setId);
+
+                            // Falls der betroffene Zeigersatz gerade aktiv war,
+                            // sofort auf den eingebauten Standard zurueckschalten.
+                            if (preferences.getString(PK_HANDSET, "") == setId) {
+                                preferences.putString(PK_HANDSET, "default");
+                                freeClockFaceBuffer();
+                                loadClockFace();
+                                loadHandSprites();
+                                updateClock();
+                            }
+                        }
+                    }
+
                     webserver.sendHeader("Location", "/files", true);
                     webserver.send(302, "text/plain", "");
                 }
                 else {
                     webserver.send(404, "text/plain", "File not found");
                 }
+            }
+            });
+
+        // Einzelnes Preset loeschen (Slot wird dadurch wieder frei fuer
+        // createPresetFromPreferences())
+        webserver.on("/deletepreset", HTTP_GET, []() {
+            if (webserver.hasArg("index")) {
+                int idx = webserver.arg("index").toInt();
+                if (idx >= 0 && idx < MAX_PRESETS) {
+                    presets[idx].name = "";
+                    presets[idx].url = "";
+                    savePresets();
+                }
+            }
+            webserver.sendHeader("Location", "/presets", true);
+            webserver.send(302, "text/plain", "");
+            });
+
+        // Umbenennen-Formular fuer ein einzelnes Preset
+        webserver.on("/renamepreset_form", HTTP_GET, []() {
+            if (!webserver.hasArg("index")) {
+                webserver.send(400, "text/plain", "Missing index parameter");
+                return;
+            }
+            int idx = webserver.arg("index").toInt();
+            if (idx < 0 || idx >= MAX_PRESETS || presets[idx].name.isEmpty()) {
+                webserver.send(404, "text/plain", "Preset not found");
+                return;
+            }
+            String html = generateHtmlHeader();
+            html.reserve(1024);
+            html += generateHtmlStatus();
+            html += generateNavigation();
+            html += "<h2>" + translate("Rename Preset") + "</h2>";
+            html += "<form action='/renamepreset' method='POST'>";
+            html += "<input type='hidden' name='index' value='" + String(idx) + "'>";
+            html += "<label>" + translate("New Name") + ":</label><br>";
+            html += "<input name='new' value='" + presets[idx].name + "' required><br><br>";
+            html += "<button type='submit'>" + translate("Rename") + "</button></form>";
+            html += "<br><a href='/presets'>" + translate("Cancel") + "</a></body></html>";
+            webserver.send(200, "text/html", html);
+            });
+
+        // Preset umbenennen Aktion
+        webserver.on("/renamepreset", HTTP_POST, []() {
+            if (webserver.hasArg("index") && webserver.hasArg("new")) {
+                int idx = webserver.arg("index").toInt();
+                String newName = webserver.arg("new");
+                newName.replace(" ", "_"); // Konsistent zur Anzeige/den API-Links (siehe /presets)
+
+                if (idx < 0 || idx >= MAX_PRESETS || presets[idx].name.isEmpty()) {
+                    webserver.send(404, "text/plain", "Preset not found");
+                    return;
+                }
+                if (newName.isEmpty()) {
+                    webserver.send(400, "text/plain", "Name must not be empty");
+                    return;
+                }
+
+                presets[idx].name = newName;
+                savePresets();
+
+                webserver.sendHeader("Location", "/presets", true);
+                webserver.send(302, "text/plain", "");
+            }
+            else {
+                webserver.send(400, "text/plain", "Missing parameters");
             }
             });
 
@@ -2218,19 +2420,20 @@
             String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_HEIGHT);
 
             // Default-Zeigersatz (eingebaut) - eigener Chunk
-            chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>0<br>";
+            bool defaultSetActive = (activeSet == "default" || activeSet.isEmpty());
+            chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
             chunk += "<a href='/sethandset?set=default'>";
             chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
             chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
             chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handSecondBase64 + "'>";
-            chunk += "</a>";
+            chunk += "</a><br>0" + String(defaultSetActive ? " (" + translate("active") + ")" : "");
             chunk += "</div>";
             webserver.sendContent(chunk);
 
             // Jeden gefundenen Zeigersatz SOFORT senden statt zu sammeln - so liegt
             // nie mehr als ein Zeigersatz gleichzeitig im Speicher.
             auto renderSetRow = [&](const String& setId) {
-                chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>" + setId + (setId == activeSet ? " (active)" : "") + "<br>";
+                chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
                 String hourPath = "/hand_set" + setId + "_hour.bmp";
                 String minutePath = "/hand_set" + setId + "_minute.bmp";
                 String secondPath = "/hand_set" + setId + "_second.bmp";
@@ -2238,7 +2441,7 @@
                 chunk += LittleFS.exists(hourPath) ? "<img src='/file?name=" + hourPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
                 chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + minutePath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
                 chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
-                chunk += "</a>";
+                chunk += "</a><br>" + setId + (setId == activeSet ? " (" + translate("active") + ")" : "");
                 chunk += "</div>";
                 webserver.sendContent(chunk);
                 checkHeapWarning("/handsets Zeigersatz " + setId);
@@ -2274,7 +2477,7 @@
             else {
 
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " pixels, 16 - bit BMP(RGB565), <br>name must start with <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>Pivot point : " + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
+                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + ", 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
 
                 chunk += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
@@ -2372,6 +2575,19 @@
                         DEBUG_PRINTLN("[DELETE] Removed: " + path);
                     }
                 }
+                removeOrphanedPresets("", setId);
+
+                // Falls der geloeschte Zeigersatz gerade aktiv war, sofort auf
+                // den eingebauten Standard zurueckschalten - sonst wuerde die
+                // Uhr versuchen, einen nicht mehr existierenden Zeigersatz zu laden.
+                if (preferences.getString(PK_HANDSET, "") == setId) {
+                    preferences.putString(PK_HANDSET, "default");
+                    freeClockFaceBuffer();
+                    loadClockFace();
+                    loadHandSprites();
+                    updateClock();
+                }
+
                 webserver.sendHeader("Location", "/handsets", true);
                 webserver.send(302, "text/plain", "");
             }
@@ -2475,6 +2691,86 @@
             }
             else {
                 DEBUG_PRINTLN("[UPLOAD] Failed during writing");
+            }
+        }
+    }
+
+
+    // Verarbeitet den Datei-Upload fuer /importpresets: schreibt die
+    // hochgeladene Datei zunaechst in eine temporaere Datei, liest sie dann
+    // zeilenweise ein (Format: "Name<TAB>URL" pro Zeile, wie von
+    // /exportpresets erzeugt) und ERSETZT damit alle aktuell gespeicherten
+    // Presets vollstaendig.
+    void handlePresetImportUpload() {
+        HTTPUpload& upload = webserver.upload();
+
+        if (upload.status == UPLOAD_FILE_START) {
+            DEBUG_PRINTLN("[PRESET-IMPORT] Start");
+            presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
+            presetImportSuccess = presetImportFile ? true : false;
+        }
+        else if (upload.status == UPLOAD_FILE_WRITE) {
+            if (presetImportSuccess && presetImportFile) {
+                presetImportFile.write(upload.buf, upload.currentSize);
+            }
+        }
+        else if (upload.status == UPLOAD_FILE_END) {
+            if (presetImportSuccess && presetImportFile) {
+                presetImportFile.close();
+
+                File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
+                if (!readFile) {
+                    DEBUG_PRINTLN("[PRESET-IMPORT] Datei konnte nicht gelesen werden");
+                    presetImportSuccess = false;
+                    return;
+                }
+
+                // Zuerst alle bestehenden Presets leeren (vollstaendiges Ersetzen)
+                for (int i = 0; i < MAX_PRESETS; i++) {
+                    presets[i].name = "";
+                    presets[i].url = "";
+                }
+
+                int importedCount = 0;
+                while (readFile.available() && importedCount < MAX_PRESETS) {
+                    String line = readFile.readStringUntil('\n');
+                    line.trim();
+                    if (line.isEmpty()) continue;
+
+                    int tabPos = line.indexOf('\t');
+                    if (tabPos == -1) {
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Ungueltige Zeile (kein Tab): " + line);
+                        continue;
+                    }
+
+                    String name = line.substring(0, tabPos);
+                    String url = line.substring(tabPos + 1);
+                    if (name.isEmpty() || url.isEmpty()) continue;
+
+                    presets[importedCount].name = name;
+                    presets[importedCount].url = url;
+                    importedCount++;
+                }
+                readFile.close();
+                LittleFS.remove(PRESET_IMPORT_TMP_PATH);
+
+                // savePresets() IMMER aufrufen (auch bei 0 importierten Zeilen),
+                // damit das vorherige vollstaendige Leeren des presets[]-Arrays
+                // zuverlaessig dauerhaft gespeichert wird und nach einem Neustart
+                // nicht wieder die alten Presets aus den Preferences auftauchen.
+                savePresets();
+
+                if (importedCount > 0) {
+                    DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " Presets importiert");
+                    presetImportSuccess = true;
+                }
+                else {
+                    DEBUG_PRINTLN("[PRESET-IMPORT] Keine gueltigen Presets in der Datei gefunden - alle Presets wurden dennoch geloescht");
+                    presetImportSuccess = false;
+                }
+            }
+            else {
+                DEBUG_PRINTLN("[PRESET-IMPORT] Fehlgeschlagen beim Schreiben");
             }
         }
     }

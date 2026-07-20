@@ -179,7 +179,7 @@
 
     // --- Presets ---
     // Presets
-#define MAX_PRESETS 15
+#define MAX_PRESETS 50
     struct Preset {
         String name;
         String url;
@@ -190,6 +190,11 @@
     File uploadFile;
     String uploadFilePath = "";
     bool uploadSuccess = false;
+
+    // --- Presets-Import (separat vom BMP-Upload oben, um Statuskonflikte zu vermeiden) ---
+    File presetImportFile;
+    bool presetImportSuccess = false;
+    const char* PRESET_IMPORT_TMP_PATH = "/tmp_presets_import.txt";
 
     int lastResetWeek = -1;
     int currentWeek = -1;
