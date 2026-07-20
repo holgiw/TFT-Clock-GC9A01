@@ -96,7 +96,7 @@
 
 
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
-    void createPresetFromPreferences() {
+    bool createPresetFromPreferences() {
         // Suche das erste leere Preset
         int presetIndex = -1;
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -109,7 +109,7 @@
         // Wenn kein leeres Preset gefunden wurde, abbrechen
         if (presetIndex == -1) {
             DEBUG_PRINTLN("[Preset] No empty preset slot available");
-            return;
+            return false;
         }
 
         // Lese die aktuellen Einstellungen aus den Preferences
@@ -155,6 +155,90 @@
 
         DEBUG_PRINTLN("[Preset] Created preset: " + presetName);
         DEBUG_PRINTLN("[Preset] URL: " + url);
+        return true;
+    }
+
+
+    // Parst die in einem Preset gespeicherte Query-String-URL und extrahiert NUR
+    // die fuer eine Vorschau relevanten Werte (face, handSet, hubColor, hubSize,
+    // showSecondHand) - reine Lesefunktion, wendet NICHTS auf die aktuellen
+    // Einstellungen/Preferences an (im Gegensatz zu switchToNextPreset()).
+    // Wird von generatePresetPreviewBmp() in display.h genutzt.
+    void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut,
+        uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) {
+        // Sinnvolle Standardwerte, falls ein Parameter im Preset fehlt
+        faceOut = "/face_default.bmp";
+        handSetOut = "default";
+        hubColorOut = 0xF800; // Rot in RGB565 (entspricht ungefaehr TFT_RED)
+        hubSizeOut = 6;
+        showSecondOut = true;
+
+        int queryStart = url.indexOf('?');
+        if (queryStart == -1) return;
+        String query = url.substring(queryStart + 1);
+
+        while (query.length() > 0) {
+            int amp = query.indexOf('&');
+            String param = (amp == -1) ? query : query.substring(0, amp);
+            query = (amp == -1) ? "" : query.substring(amp + 1);
+
+            int eq = param.indexOf('=');
+            if (eq == -1) continue;
+            String key = param.substring(0, eq);
+            String value = param.substring(eq + 1);
+
+            if (key == "face") {
+                if (!value.startsWith("/")) value = "/" + value;
+                faceOut = value;
+            }
+            else if (key == "handSet") {
+                handSetOut = value;
+            }
+            else if (key == "hubSize") {
+                hubSizeOut = value.toInt();
+            }
+            else if (key == "hubColor") {
+                uint32_t rgb = strtoul(value.c_str(), NULL, 16);
+                uint8_t r = (rgb >> 16) & 0xFF;
+                uint8_t g = (rgb >> 8) & 0xFF;
+                uint8_t b = rgb & 0xFF;
+                hubColorOut = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            }
+            else if (key == "showSecondHand") {
+                showSecondOut = (value == "1" || value.equalsIgnoreCase("true"));
+            }
+        }
+    }
+
+
+    // Entfernt alle Presets, deren Zifferblatt bzw. Zeigersatz mit dem
+    // angegebenen Wert uebereinstimmt (leerer String = dieser Parameter wird
+    // nicht geprueft). Wird aufgerufen, nachdem eine Zifferblatt- oder
+    // Zeigersatz-Datei ueber den Dateimanager geloescht wurde, damit keine
+    // Presets zurueckbleiben, die auf eine nicht mehr existierende Datei
+    // verweisen.
+    void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) {
+        bool anyRemoved = false;
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            if (presets[i].name.isEmpty() || presets[i].url.isEmpty()) continue;
+
+            String face, handSet;
+            uint16_t hubColor;
+            uint8_t hubSize;
+            bool showSecond;
+            parsePresetForPreview(presets[i].url, face, handSet, hubColor, hubSize, showSecond);
+
+            bool matches = (!deletedFace.isEmpty() && face == deletedFace) ||
+                (!deletedHandSet.isEmpty() && handSet == deletedHandSet);
+
+            if (matches) {
+                DEBUG_PRINTLN("[Preset] Entferne verwaistes Preset '" + presets[i].name + "' (verweist auf geloeschte Datei)");
+                presets[i].name = "";
+                presets[i].url = "";
+                anyRemoved = true;
+            }
+        }
+        if (anyRemoved) savePresets();
     }
 
 

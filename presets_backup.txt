@@ -1,0 +1,8 @@
+Mondaine	http:///api/setMode?face=face_mondaine.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
+DB	http:///api/setMode?face=face_default.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
+GWR	http:///api/setMode?face=face_Reading-Railway-Clock.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
+Arabisch	http:///api/setMode?face=face_arabisch.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
+Guinness	http:///api/setMode?face=face_guinness.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
+Pyramid	http:///api/setMode?face=face_pyramid.bmp&handSet=4&stationMode=false&showSecondHand=true&smoothMinute=true&hubSize=3&hubColor=aaaaaa
+ClocRoc	http:///api/setMode?face=face_clocroc.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
+irish_pub	http:///api/setMode?face=face_irish_pub.bmp&handSet=10&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=888888

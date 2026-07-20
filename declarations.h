@@ -72,6 +72,8 @@
     void remaskExistingFaceCorners() ;
     void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) ;
     bool streamRleFaceAsStandardBmp(const String& path, const char* contentType = "image/bmp") ;
+    void blitRotatedHand(uint16_t* canvas, int canvasW, int canvasH, const uint16_t* hand, int handW, int handH, float pivotX, float pivotY, float cx, float cy, float angleDeg, float scale) ;
+    bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, uint8_t** outBytes, size_t& outSize) ;
     void setLedOff() ;
     void setLedOn() ;
     void toggleLED() ;
@@ -88,7 +90,9 @@
     String stripRotationParam(const String& url) ;
     void loadPresets() ;
     void savePresets() ;
-    void createPresetFromPreferences() ;
+    bool createPresetFromPreferences() ;
+    void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut, uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) ;
+    void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) ;
     void switchToNextPreset() ;
 
     // --- webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung ---
@@ -100,6 +104,7 @@
     void naturalSortNames(std::vector<String>& names) ;
     void setupWebServer() ;
     void handleFileUpload() ;
+    void handlePresetImportUpload() ;
 
     // --- system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen ---
     void checkButton() ;
