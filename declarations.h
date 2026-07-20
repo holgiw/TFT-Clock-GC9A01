@@ -104,6 +104,7 @@
     void naturalSortNames(std::vector<String>& names) ;
     void setupWebServer() ;
     void handleFileUpload() ;
+    bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) ;
     void handlePresetImportUpload() ;
 
     // --- system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen ---
