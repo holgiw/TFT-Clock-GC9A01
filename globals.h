@@ -37,6 +37,19 @@
 
     bool wifiActive = true;    
 
+    // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
+    // uhr3.ino und /api/startWPS in webserver_routes.h) - laeuft asynchron, damit
+    // der Webserver waehrend der WPS-Aushandlung nicht blockiert.
+    // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
+    // uhr3.ino und /api/startWPS in webserver_routes.h) - event-basiert statt
+    // Status-Polling, da WiFi.onEvent() laut offiziellem Espressif-WPS-Beispiel
+    // der zuverlaessige Weg ist, den Erfolg/Fehlschlag von WPS zu erkennen.
+    bool wpsPending = false;
+    unsigned long wpsStartMillis = 0;
+    String wpsPreviousSsid = ""; // Verbindung vor dem WPS-Start, um danach ggf. dorthin zurueckzuwechseln
+    volatile bool wpsSuccessEvent = false; // wird im WiFi-Event-Callback gesetzt (anderer Kontext!)
+    volatile bool wpsFailedEvent = false;
+
     // MAC Adresse
     uint8_t mac[6];
     char hostname[32];

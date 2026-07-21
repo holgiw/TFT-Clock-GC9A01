@@ -228,7 +228,7 @@
                 (!deletedHandSet.isEmpty() && handSet == deletedHandSet);
 
             if (matches) {
-                DEBUG_PRINTLN("[Preset] Entferne verwaistes Preset '" + presets[i].name + "' (verweist auf geloeschte Datei)");
+                DEBUG_PRINTLN("[Preset] Removing orphaned preset '" + presets[i].name + "' (references a deleted file)");
                 presets[i].name = "";
                 presets[i].url = "";
                 anyRemoved = true;

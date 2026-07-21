@@ -7,6 +7,8 @@
     void startWPS() ;
     void scanWPS() ;
     bool checkWiFiReconnect() ;
+    int saveWpsCredentials(const String& ssid, const String& pass) ;
+    void onWpsEvent(WiFiEvent_t event) ;
     void startAP() ;
     int connectWiFi(int number, bool verboseMode) ;
     bool isInternetReachable(String pingServer) ;

@@ -82,6 +82,79 @@
 
 
     // Startet einen WLAN-Access-Point mit dem Namen und Passwort 'clock123' und zeigt Verbindungsinformationen auf dem Display an.
+    // Speichert die aktuell per WPS verbundenen Zugangsdaten (SSID/Passwort) in
+    // einem freien oder passenden Slot. Wird von der asynchronen Web-Button-WPS-
+    // Anfrage genutzt (siehe /api/startWPS und loop() in uhr3.ino) - eigenstaendig,
+    // um den bestehenden Boot-Zeit-WPS-Code in setup() nicht anzufassen.
+    // WiFi-Event-Callback fuer die per Web-Button gestartete WPS-Anfrage. Laeuft
+    // laut Arduino-ESP32-Doku in einem ANDEREN Kontext/Thread als loop() - daher
+    // hier NUR einfache Flags/Variablen setzen, keine schwereren Operationen wie
+    // Preferences-Zugriffe oder Reconnects (die passieren in loop()).
+    void onWpsEvent(WiFiEvent_t event) {
+        // Weder WiFi.SSID()/WiFi.psk() noch esp_wifi_get_config() liefern an
+        // dieser Stelle zuverlaessig die neuen Zugangsdaten (bestaetigter
+        // ESP-IDF-Bug, siehe espressif/esp-idf#10339, sowie fehlendes memcpy
+        // fuer WPS_ER_SUCCESS im aktuellen arduino-esp32-Core). Nur ein Flag
+        // setzen - die eigentliche Verbindung (und das zuverlaessige Auslesen
+        // von SSID/Passwort NACH erfolgreicher Verbindung) passiert in loop().
+        if (event == ARDUINO_EVENT_WPS_ER_SUCCESS) {
+            wpsSuccessEvent = true;
+        }
+        else if (event == ARDUINO_EVENT_WPS_ER_FAILED || event == ARDUINO_EVENT_WPS_ER_TIMEOUT) {
+            wpsFailedEvent = true;
+        }
+    }
+
+
+    int saveWpsCredentials(const String& ssid, const String& pass) {
+        // Bewusst frisch aus den Preferences lesen statt dem In-Memory-Array
+        // wifiSsid[] zu vertrauen: dieses wird nur beim Booten befuellt und
+        // koennte zum Zeitpunkt eines WPS-Erfolgs (Geraet laeuft ggf. schon
+        // laenger) nicht mehr exakt mit den tatsaechlich gespeicherten
+        // Netzwerken uebereinstimmen - das koennte sonst dazu fuehren, dass
+        // ein bereits belegter Slot faelschlich als frei erkannt und
+        // ueberschrieben wird.
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String storedSsid = preferences.getString(pkSsid(i).c_str(), "");
+            if (storedSsid == ssid) {
+                String storedPass = preferences.getString(pkPass(i).c_str(), "");
+                if (storedPass != pass) {
+                    preferences.putString(pkPass(i).c_str(), pass);
+                    wifiPass[i] = pass;
+                    DEBUG_PRINTLN("[WPS] Password for " + ssid + " differed from stored value - updated");
+                }
+                else {
+                    DEBUG_PRINTLN("[WPS] Password for " + ssid + " unchanged");
+                }
+                wifiSsid[i] = ssid; // In-Memory-Array synchron halten
+                // PK_LAST_WLAN bewusst NICHT setzen: diese Funktion soll das
+                // Netzwerk nur speichern/aktualisieren, nicht als naechstes
+                // beim Boot bevorzugt versucht werden lassen (siehe /api/startWPS
+                // in webserver_routes.h - nur ein Eintrag hinzufuegen, nicht
+                // automatisch dorthin wechseln).
+                DEBUG_PRINTLN("[WPS] SSID " + ssid + " already known, using slot " + String(i + 1));
+                return i;
+            }
+        }
+
+        // Neue SSID: ersten WIRKLICH freien Slot suchen (frisch aus den
+        // Preferences gelesen), sonst letzten Slot ueberschreiben.
+        int freeIdx = -1;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (preferences.getString(pkSsid(i).c_str(), "") == "") { freeIdx = i; break; }
+        }
+        if (freeIdx == -1) freeIdx = MAX_WLAN - 1;
+
+        preferences.putString(pkSsid(freeIdx).c_str(), ssid);
+        preferences.putString(pkPass(freeIdx).c_str(), pass);
+        // PK_LAST_WLAN bewusst NICHT setzen (siehe Kommentar oben).
+        wifiSsid[freeIdx] = ssid;
+        wifiPass[freeIdx] = pass;
+        DEBUG_PRINTLN("[WPS] Saved new network " + ssid + " in slot " + String(freeIdx + 1));
+        return freeIdx;
+    }
+
+
     void startAP() {
 #ifdef TFT_Backlight
         ledcWrite(TFT_Backlight, 255);
@@ -131,7 +204,7 @@
             delay(100);
         }
         if (WiFi.status() == WL_CONNECTED) {
-            DEBUG_PRINTLN("[WPS] Verbunden mit dem Netzwerk!");
+            DEBUG_PRINTLN("[WPS] Connected to the network!");
             DEBUG_PRINTLN("[WPS] SSID: " + WiFi.SSID());
             // Serial.println("Passwort: " + WiFi.psk());
 
