@@ -29,6 +29,7 @@
 #include <ESPmDNS.h>
 #include <map>
 #include <esp_wps.h>
+#include <esp_wifi.h>
 #include <Wire.h>
 #include <RTClib.h>
 #include <WiFiUdp.h>
@@ -70,6 +71,11 @@
 
         // async WLAN-Scan starten, damit die Netzwerke bereits erkannt werden, wenn der Nutzer das erste Mal die WLAN-Einstellungen öffnet   
         startWiFiScan();
+
+        // Event-Handler fuer per Web-Button gestartete WPS-Anfragen registrieren
+        // (siehe /api/startWPS in webserver_routes.h) - event-basiert statt
+        // Status-Polling, wie im offiziellen Espressif-WPS-Beispiel empfohlen.
+        WiFi.onEvent(onWpsEvent);
 
         memset(&timeinfo, 0, sizeof(timeinfo));
 
@@ -665,6 +671,84 @@
 #endif
 
         //scanWPS(); // WPS-Scan durchführen
+
+        // Asynchrone Pruefung einer per Web-Button gestarteten WPS-Anfrage (siehe
+        // /api/startWPS in webserver_routes.h) - blockiert loop() nicht. Reagiert
+        // auf die im WiFi-Event-Callback (onWpsEvent() in wifi_manager.h) gesetzten
+        // Flags, statt WiFi.status() zu pollen (zuverlaessiger, siehe offizielles
+        // Espressif-WPS-Beispiel).
+        if (wpsPending) {
+            if (wpsSuccessEvent) {
+                wpsSuccessEvent = false;
+                wpsPending = false;
+
+                // Nach mehreren erfolglosen Versuchen, die Verbindung noch in
+                // dieser laufenden Session wiederherzustellen (esp_wifi_connect()
+                // schlug durchgehend mit ESP_ERR_WIFI_CONN fehl, auch mit
+                // veraendertem Timing/Reihenfolge), stattdessen: Zugangsdaten
+                // bestmoeglich sichern und sofort neu starten. Die eigentliche
+                // Verbindung (zum neuen ODER zum vorherigen Netzwerk) uebernimmt
+                // danach die bereits bewaehrte, beim normalen Boot verwendete
+                // Verbindungslogik (siehe connectWiFi() in wifi_manager.h).
+                wifi_config_t wpsResultConfig;
+                bool gotConfig = (esp_wifi_get_config(WIFI_IF_STA, &wpsResultConfig) == ESP_OK);
+                String newSsid = "";
+                String newPass = "";
+                if (gotConfig) {
+                    char ssidBuf[33] = { 0 };
+                    char passBuf[65] = { 0 };
+                    memcpy(ssidBuf, wpsResultConfig.sta.ssid, sizeof(wpsResultConfig.sta.ssid));
+                    memcpy(passBuf, wpsResultConfig.sta.password, sizeof(wpsResultConfig.sta.password));
+                    newSsid = String(ssidBuf);
+                    newPass = String(passBuf);
+                }
+                DEBUG_PRINTLN("[WPS] Captured SSID '" + newSsid + "', password length: " + String(newPass.length()));
+
+                if (newSsid != "") {
+                    saveWpsCredentials(newSsid, newPass);
+                }
+                else {
+                    DEBUG_PRINTLN("[WPS] Could not read back SSID - nothing saved");
+                }
+
+                esp_wifi_wps_disable();
+                wpsPreviousSsid = "";
+                DEBUG_PRINTLN("[WPS] Restarting to reconnect via the normal boot sequence..");
+                delay(WAIT_1s);
+                espReboot();
+            }
+            else if (wpsFailedEvent) {
+                DEBUG_PRINTLN("[WPS] WPS failed or timed out (event)");
+                wpsFailedEvent = false;
+                esp_wifi_wps_disable();
+                wpsPending = false;
+                // Ggf. urspruengliche Verbindung wiederherstellen, falls durch
+                // den WPS-Versuch getrennt.
+                if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        if (wifiSsid[i] == wpsPreviousSsid) {
+                            connectWiFi(i, false);
+                            break;
+                        }
+                    }
+                }
+                wpsPreviousSsid = "";
+            }
+            else if (millis() - wpsStartMillis > (2 * WAIT_1m)) {
+                DEBUG_PRINTLN("[WPS] Timeout waiting for WPS button press - disabling WPS");
+                esp_wifi_wps_disable();
+                wpsPending = false;
+                if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        if (wifiSsid[i] == wpsPreviousSsid) {
+                            connectWiFi(i, false);
+                            break;
+                        }
+                    }
+                }
+                wpsPreviousSsid = "";
+            }
+        }
 
         if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
             ipAddress = WiFi.localIP().toString();

@@ -142,12 +142,12 @@
         String html = "<form method='POST' action='/setLanguage'>";
         html.reserve(512);  // Sprachauswahl: klein
         html += "<label for='lang'>Language/Sprache/Langue:</label>";
-        html += "<select name='lang'>";
+        html += "<select name='lang' onchange='this.form.submit()'>";
         html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
         html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
         html += "<option value='fr'" + String(currentLanguage == "fr" ? " selected" : "") + ">Franz&ouml;sisch / Fran&ccedil;ais</option>";
         html += "</select>";
-        html += "<button type='submit'>Save / Speichern / Enregistrer</button>";
+        html += "<noscript><button type='submit'>Save / Speichern / Enregistrer</button></noscript>";
         html += "</form><hr>";
         return html;
     }
@@ -315,6 +315,33 @@
             delay(WAIT_1s);
             // Neustart des ESP
             espReboot();
+            });
+
+        // Startet eine WPS-Anfrage per Web-Button, um ein neues WLAN hinzuzufuegen.
+        // Kehrt SOFORT zurueck (kein Blockieren des Webservers) - der eigentliche
+        // Verbindungsversuch und das Speichern der Zugangsdaten laeuft asynchron
+        // in loop() (siehe uhr3.ino), analog zur bestehenden WPS-Logik in setup().
+        // GET zusaetzlich zu POST registriert (analog zu /api/resetWiFi), damit
+        // die Route auch bei direkter Browser-Navigation erreichbar ist.
+        webserver.on("/api/startWPS", HTTP_GET, []() {
+            wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
+            webserver.sendHeader("Location", "/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)", true);
+            webserver.send(302, "text/plain", "");
+            // Erst NACH dem Senden der Antwort WPS starten - startWPS() stoerte
+            // sonst vermutlich die noch offene HTTP-Verbindung (Browser zeigte
+            // "Seite nicht erreichbar" statt die Weiterleitung zu erhalten).
+            startWPS();
+            wpsPending = true;
+            wpsStartMillis = millis();
+            });
+
+        webserver.on("/api/startWPS", HTTP_POST, []() {
+            wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
+            webserver.sendHeader("Location", "/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)", true);
+            webserver.send(302, "text/plain", "");
+            startWPS();
+            wpsPending = true;
+            wpsStartMillis = millis();
             });
 
         // Speichert einen benutzerdefinierten Hostnamen (wird erst nach einem
@@ -659,7 +686,7 @@
             chunk += "    var text = null;";
             chunk += "    for (var attempt = 0; attempt < 3 && text === null; attempt++) {";
             chunk += "      try {";
-            chunk += "        var r = await fetch('" GITHUB_RAW_BASE "presets_backup.txt');";
+            chunk += "        var r = await fetch('" GITHUB_RAW_BASE "presets.txt');";
             chunk += "        if (r.ok) text = await r.text();";
             chunk += "      } catch (e) {}";
             chunk += "      if (text === null && attempt < 2) await new Promise(function(resolve) { setTimeout(resolve, 1500); });";
@@ -711,10 +738,10 @@
             chunk += "        await fetch(target, { method: 'POST', body: fd });";
             chunk += "      }";
             chunk += "    }";
-            chunk += "    status.innerHTML = '" + translate("Downloading") + " presets_backup.txt...';";
+            chunk += "    status.innerHTML = '" + translate("Downloading") + " presets.txt...';";
             chunk += "    var presetBlob = new Blob([newLines.join('\\n')], { type: 'text/plain' });";
             chunk += "    var presetFd = new FormData();";
-            chunk += "    presetFd.append('presetfile', presetBlob, 'presets_backup.txt');";
+            chunk += "    presetFd.append('presetfile', presetBlob, 'presets.txt');";
             chunk += "    await fetch('/importpresetsmerge', { method: 'POST', body: presetFd });";
             chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
             chunk += "    location.href = location.pathname;";
@@ -738,7 +765,7 @@
                 chunk += "async function checkGithubReachable(retries) {";
                 chunk += "  for (var i = 0; i < retries; i++) {";
                 chunk += "    try {";
-                chunk += "      var r = await fetch('" GITHUB_RAW_BASE "presets_backup.txt');";
+                chunk += "      var r = await fetch('" GITHUB_RAW_BASE "presets.txt');";
                 chunk += "      if (r.ok) return true;";
                 chunk += "    } catch (e) {";
                 chunk += "    }";
@@ -767,7 +794,7 @@
             chunk += "<a href='/exportpresets'><button type='button'>" + translate("Save Presets to File") + "</button></a> ";
             chunk += "<form method='POST' action='/importpresets' enctype='multipart/form-data' style='display:inline;'>";
             chunk += "<input type='file' name='presetfile' accept='.txt' required>";
-            chunk += "<button type='submit' onclick='return confirm(\"" + translate("This will replace all currently saved presets") + ". " + translate("Continue") + "?\")'>" + translate("Restore Presets from File") + "</button>";
+            chunk += "<button type='submit'>" + translate("Load Presets from File") + "</button>";
             chunk += "</form> ";
 
             chunk += "</body></html>";
@@ -781,10 +808,27 @@
             String content;
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
-                    content += presets[i].name + "\t" + presets[i].url + "\n";
+                    String exportUrl = presets[i].url;
+                    // Host-Teil (aktuelle IP dieses Geraets) durch einen Platzhalter
+                    // ersetzen: die Datei soll nicht wie eine feste Adresse fuer EIN
+                    // bestimmtes Geraet aussehen. Wird beim Laden/Import ohnehin
+                    // durch die dann aktuelle IP ersetzt (siehe loadPresets() und
+                    // savePresets() - beide schneiden alles zwischen "http://" und
+                    // dem naechsten "/" ab und setzen dort die aktuelle IP ein,
+                    // unabhaengig davon, was zuvor dort stand).
+                    if (exportUrl.startsWith("http://")) {
+                        int ipEnd = exportUrl.indexOf('/', 7);
+                        if (ipEnd != -1) {
+                            exportUrl = "http://<clock-ip>" + exportUrl.substring(ipEnd);
+                        }
+                        else {
+                            exportUrl = "http://<clock-ip>";
+                        }
+                    }
+                    content += presets[i].name + "\t" + exportUrl + "\n";
                 }
             }
-            webserver.sendHeader("Content-Disposition", "attachment; filename=presets_backup.txt");
+            webserver.sendHeader("Content-Disposition", "attachment; filename=presets.txt");
             webserver.send(200, "text/plain", content);
             });
 
@@ -2060,7 +2104,7 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            if (used + (TFT_WIDTH * TFT_HEIGHT * 2) + 54 > total) {
+            if (used + (CLOCK_WIDTH * CLOCK_HEIGHT * 2) + 54 > total) {
                 chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new clock faces! Free up some space first") + ".</div><br><br>";
             }
             else {
@@ -2121,26 +2165,41 @@
             chunk += generateNavigation(); // Navigation einfügen
             chunk += generateFlashMessage(); // Erfolgsmeldung, falls vorhanden
 
+            // Nach dem Start einer WPS-Anfrage rebootet das Geraet automatisch,
+            // sobald WPS erfolgreich war (siehe loop() in uhr3.ino) - der Browser
+            // wuerde davon sonst nichts mitbekommen. Daher hier gezielt fuer
+            // genau diese Meldung ein automatisches Neuladen nach ca. 15
+            // Sekunden ergaenzen, damit die Seite von selbst wieder erreichbar
+            // ist, sobald das Geraet neu gestartet und neu verbunden hat.
+            if (webserver.arg("msg") == "WPS active - press the WPS button on your router now (within 2 minutes)") {
+                chunk += "<script>setTimeout(function(){ location.href = location.pathname; }, 15000);</script>";
+            }
+
             chunk += "<h2>" + translate("Clock Setup") + "</h2>";
 
             chunk += generateLanguageSelector();
 
+            // --- Hostname: Textfeld (170px) + Save-Button in einer Zeile, zentriert ---
             chunk += "<form method='POST' action='/sethostname'>";
-            chunk += "<label>" + translate("Hostname") + ":</label><br>";
-            chunk += "<input name='hostname' maxlength='30' value='" + String(hostname) + "'><br>";
-            chunk += "<button type='submit'>" + translate("Save") + "</button>";
-            chunk += "</form><br><br>";
-
-            chunk += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
-            chunk += "<button type='submit'>" + translate("Reset Saved Networks") + "</button>";
+            chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
+            chunk += "<label>" + translate("Hostname") + ":</label>";
+            chunk += "<input name='hostname' maxlength='30' value='" + String(hostname) + "' style='width:170px;'>";
+            chunk += "<button type='submit' style='width:140px;'>" + translate("Save") + "</button>";
+            chunk += "</div>";
             chunk += "</form><br><br>";
 
             webserver.sendContent(chunk);
             chunk = "";
 
-            chunk += "<form action = '/save' method = 'POST'>";
+            // --- Add Network via WPS + Rescan Networks: je 170px, in einer Zeile, zentriert ---
+            chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
+            chunk += "<form method='POST' action='/api/startWPS' style='margin:0;'>";
+            chunk += "<button type='submit' style='width:170px;'>" + translate("Add Network via WPS") + "</button>";
+            chunk += "</form>";
+            chunk += "<button id='rescanBtn' type='button' style='width:170px;'>" + translate("Rescan Networks") + "</button>";
+            chunk += "</div><br>";
 
-            chunk += "<button id='rescanBtn' type='button'>" + translate("Rescan Networks") + "</button><br>";
+            chunk += "<form action = '/save' method = 'POST'>";
 
             for (int i = 0; i < MAX_WLAN; i++) {
                 // Dynamisch berechnete Schlüssel
@@ -2153,17 +2212,22 @@
                 upperSsidKey.toUpperCase();    // Kopie in Großbuchstaben umwandeln
                 chunk += "<h3>" + upperSsidKey + "</h3>";
 
-                chunk += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\">";
-            
-                chunk += "</select><br>";
-                chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifiSsid[i] + "'><br>";
-                chunk += "<small>" + translate("You can also enter an SSID manually") + ".</small><br>";
-
-                chunk += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value=''><br>";
-                if (WiFi.getMode() == WIFI_STA && wifiSsid[i] != "") {
-                    chunk += "<small>" + translate("Password is hidden.Leave empty to keep current") + ".</small>";
+                chunk += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
+                chunk += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\" style='max-width:180px;'>";
+                chunk += "</select>";
+                chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifiSsid[i] + "' style='width:110px;'>";
+                chunk += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value='' style='width:110px;'>";
+                if (wifiSsid[i] != "") {
+                    chunk += "<a href='/deletewifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + wifiSsid[i] + "?\")'>" + translate("Delete") + "</a>";
                 }
-                chunk += "<br><hr><br>";
+                chunk += "</div>";
+
+                chunk += "<small>" + translate("You can also enter an SSID manually") + ".";
+                if (WiFi.getMode() == WIFI_STA && wifiSsid[i] != "") {
+                    chunk += " " + translate("Password is hidden.Leave empty to keep current") + ".";
+                }
+                chunk += "</small>";
+                chunk += "<hr>";
 
                 // Alle paar Eintraege zwischendurch senden, damit auch bei vielen
                 // gespeicherten Netzwerken (bis zu MAX_WLAN) kein grosser Puffer entsteht.
@@ -2177,7 +2241,7 @@
                 }
             }
 
-        
+
             chunk += "<br><br>";
 
             chunk += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
@@ -2188,104 +2252,90 @@
             //if (WiFi.getMode() == WIFI_STA) {
 
 
-                chunk += "<form action='/applydisplaysettings' method='POST'>";
+            chunk += "<form action='/applydisplaysettings' method='POST'>";
 
-                chunk += "<div style='display:flex;flex-wrap:wrap;gap:15px;justify-content:center;max-width:600px;margin:auto;'>";
+            chunk += "<div style='display:flex;flex-wrap:wrap;gap:15px;justify-content:center;max-width:600px;margin:auto;'>";
 
-                chunk += "<div><input type='checkbox' name='stationMode' value='1' ";
-                chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
-                chunk += "> " + translate("Train Station Mode") + "</div>";
+            chunk += "<div><input type='checkbox' name='stationMode' value='1' ";
+            chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
+            chunk += "> " + translate("Train Station Mode") + "</div>";
 
-                chunk += "<div><input type='checkbox' name='showSecondHand' value='1' ";
-                chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
-                chunk += "> " + translate("Show Seconds") + "</div>";
+            chunk += "<div><input type='checkbox' name='showSecondHand' value='1' ";
+            chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
+            chunk += "> " + translate("Show Seconds") + "</div>";
 
-                chunk += "<div><input type='checkbox' name='smoothMinute' value='1' ";
-                chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
-                chunk += "> " + translate("Smooth Minute Hand") + "</div>";
+            chunk += "<div><input type='checkbox' name='smoothMinute' value='1' ";
+            chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
+            chunk += "> " + translate("Smooth Minute Hand") + "</div>";
 
-                String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
-                chunk += "<div>" + translate("Ping Server") + "<input type='text' name='pingServer' value='" + pingServer + "'>";
-                chunk += "</div>";
+            String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
+            chunk += "<div>" + translate("Ping Server") + "<input type='text' name='pingServer' value='" + pingServer + "'>";
+            chunk += "</div>";
 
-                // Neue Checkbox für Touch-Freigabe
-                //chunk += "<div><input type='checkbox' name='useTouch' value='1' ";
-                //chunk += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
-                //chunk += "> " + translate("Enable Touch") + "</div>";
+            // Neue Checkbox für Touch-Freigabe
+            //chunk += "<div><input type='checkbox' name='useTouch' value='1' ";
+            //chunk += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
+            //chunk += "> " + translate("Enable Touch") + "</div>";
 
-                chunk += "<div><input type='checkbox' name='wifiActive' value='1' ";
-                chunk += wifiActive ? "checked" : "";
-                chunk += "> " + translate("Reconnect WiFi") + "</div>";
-
-
-                chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
-                chunk += loggingEnabled ? "checked" : "";
-                chunk += "> " + translate("Enable Logging") + "</div>";
+            chunk += "<div><input type='checkbox' name='wifiActive' value='1' ";
+            chunk += wifiActive ? "checked" : "";
+            chunk += "> " + translate("Reconnect WiFi") + "</div>";
 
 
-                chunk += "<div>Rotation: <select name='rotation'>";
-                const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-                for (int i = 0; i <= 3; i++) {
-                    chunk += "<option value='" + String(i) + "'";
-                    if (i == tftRotation) chunk += " selected";
-                    chunk += ">" + String(rotationLabels[i]) + "</option>";
-                }
-                chunk += "</select></div>";
+            chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
+            chunk += loggingEnabled ? "checked" : "";
+            chunk += "> " + translate("Enable Logging") + "</div>";
 
 
-                // chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
-                // chunk += loggingEnabled ? "checked" : "";
-                // chunk += "> Logging aktivieren</div>";
+            chunk += "<div>Rotation: <select name='rotation'>";
+            const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
+            for (int i = 0; i <= 3; i++) {
+                chunk += "<option value='" + String(i) + "'";
+                if (i == tftRotation) chunk += " selected";
+                chunk += ">" + String(rotationLabels[i]) + "</option>";
+            }
+            chunk += "</select></div>";
 
-                chunk += "</div>";
 
-                chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
-                chunk += "</form>";
+            // chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
+            // chunk += loggingEnabled ? "checked" : "";
+            // chunk += "> Logging aktivieren</div>";
 
-                chunk += "<hr>";
+            chunk += "</div>";
 
-                /*
-                chunk += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
+            chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
+            chunk += "</form>";
 
-                chunk += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
-                chunk += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
+            chunk += "<hr>";
 
-                chunk += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
-                chunk += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
-                   */
+            /*
+            chunk += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
 
-           // }
+            chunk += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
+            chunk += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
+
+            chunk += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
+            chunk += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
+               */
+
+               // }
 
             webserver.sendContent(chunk);
             chunk = "";
 
             chunk += "<script>";
             chunk += "document.getElementById('rescanBtn').onclick = function() {";
+            chunk += "  var btn = this;";
+            chunk += "  btn.disabled = true;";
+            chunk += "  var hint = document.createElement('div');";
+            chunk += "  hint.id = 'rescanHint';";
+            chunk += "  hint.style.cssText = 'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;';";
+            chunk += "  hint.textContent = '" + translate("Scanning for WiFi networks - the page will reload automatically in 10 seconds") + "';";
+            chunk += "  btn.parentNode.insertBefore(hint, btn.nextSibling);";
             chunk += "  fetch('/api/rescanwifi', {method: 'POST'})";
-            chunk += "    .then(() => {";
-            chunk += "      select1.innerHTML = \"<option>WLAN scan in progress...</option>\";";
-            chunk += "      select2.innerHTML = \"<option>WLAN scan in progress...</option>\";";
-            chunk += "      setTimeout(function() {";
-            chunk += "        fetch('/api/scanwifi').then(response => response.json()).then(data => {";
-            chunk += "          select1.innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
-            chunk += "          data.forEach(function(net) {";
-            chunk += "            var opt = document.createElement('option');";
-            chunk += "            opt.value = net.ssid;";
-            chunk += "            opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-                String ssidKey = pkSsid(i);
-                String select = "select" + String(i + 1);
-                chunk += "            " + select + ".appendChild(opt);";
-                if (preferences.getString(ssidKey.c_str(), "") == "") {
-                    break; // Keine weiteren SSIDs, Schleife beenden
-                }
-            }
-
-            chunk += "          });";        
-
-            chunk += "        });";
-            chunk += "      }, 2000);"; // 2 Sekunden warten für Scan
+            chunk += "    .catch(function() {})";
+            chunk += "    .finally(function() {";
+            chunk += "      setTimeout(function() { location.href = location.pathname; }, 10000);";
             chunk += "    });";
             chunk += "};";
 
@@ -2295,17 +2345,17 @@
             chunk += "window.addEventListener('DOMContentLoaded', function() {";
             for (int i = 0; i < MAX_WLAN; i++) {
 
-           
+
 
                 // Dynamisch berechnete Schlüssel
                 String ssidKey = pkSsid(i);
                 String passKey = pkPass(i);
-                String select = "select" + String(i + 1); 
+                String select = "select" + String(i + 1);
                 String input = "input" + String(i + 1);
-                String current = "current" + String(i + 1); 
+                String current = "current" + String(i + 1);
                 String ssidSelectId = "ssid_select" + String(i + 1);
-            
-                        
+
+
 
                 chunk += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
                 chunk += "  var " + input + " = document.getElementById('ssid1');";
@@ -2348,6 +2398,46 @@
             });
 
         // Speichern der WiFi-Einstellungen
+        // Loescht ein einzelnes gespeichertes WLAN-Netzwerk und rueckt die
+        // nachfolgenden Netzwerke auf, damit keine Luecke entsteht (gleiche
+        // Kompaktierung wie beim regulaeren Speichern in /save).
+        webserver.on("/deletewifi", HTTP_GET, []() {
+            if (webserver.hasArg("index")) {
+                int idx = webserver.arg("index").toInt();
+                if (idx >= 0 && idx < MAX_WLAN) {
+                    preferences.putString(pkSsid(idx).c_str(), "");
+                    preferences.putString(pkPass(idx).c_str(), "");
+
+                    String tempSsid[MAX_WLAN];
+                    String tempPass[MAX_WLAN];
+                    int j = 0;
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        String ssid = trim(preferences.getString(pkSsid(i).c_str(), ""));
+                        if (ssid.length() > 0) {
+                            tempSsid[j] = preferences.getString(pkSsid(i).c_str(), "");
+                            tempPass[j] = preferences.getString(pkPass(i).c_str(), "");
+                            j++;
+                        }
+                    }
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        if (preferences.getString(pkSsid(i).c_str(), "") != tempSsid[i]) {
+                            preferences.putString(pkSsid(i).c_str(), tempSsid[i]);
+                        }
+                        if (preferences.getString(pkPass(i).c_str(), "") != tempPass[i]) {
+                            preferences.putString(pkPass(i).c_str(), tempPass[i]);
+                        }
+                        wifiSsid[i] = tempSsid[i];
+                        wifiPass[i] = tempPass[i];
+                    }
+                }
+                webserver.sendHeader("Location", "/?msg=Network%20deleted", true);
+                webserver.send(302, "text/plain", "");
+            }
+            else {
+                webserver.send(400, "text/plain", "Missing parameter");
+            }
+            });
+
         webserver.on("/save", HTTP_POST, []() {
             //if (webserver.hasArg("ssid1")) {
 
@@ -2953,6 +3043,11 @@
             html += "<form method='POST' action='/factoryReset/all' onsubmit=\"return confirm('" + translate("Are you sure you want to reset to factory settings?") + "');\">";
             html += "<button type='submit'>" + translate("Reset Everything") + "</button></form><hr>";
 
+            html += "<h3>" + translate("Reset Saved Networks") + "</h3>";
+            html += "<p>" + translate("Deletes all saved WiFi networks - other settings remain unchanged") + ".</p>";
+            html += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
+            html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button></form><hr>";
+
             html += "<h3>" + translate("Delete Clock Faces (except default)") + "</h3>";
             html += "<p>" + translate("Deletes all uploaded clock faces - the built-in default remains") + ".</p>";
             html += "<form method='POST' action='/factoryReset/faces' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
@@ -3053,7 +3148,7 @@
                         if (uploadFilePath.startsWith("/face_")) {
                             DEBUG_PRINTLN("[UPLOAD] Detected Clock Face upload");
 
-                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), TFT_WIDTH, TFT_HEIGHT)) {
+                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
                                 DEBUG_PRINTLN("[UPLOAD] Scaling failed!");
                                 uploadSuccess = false;
                                 return;
@@ -3118,7 +3213,9 @@
 
     // Verarbeitet den Datei-Upload fuer /importpresets: schreibt die Datei temporaer,
     // liest sie zeilenweise ein (Format "Name<TAB>URL", wie von /exportpresets erzeugt)
-    // und ERSETZT damit alle aktuell gespeicherten Presets vollstaendig.
+    // und fuegt nur NEUE Presets in freie Slots ein. Bestehende Presets werden NICHT
+    // geloescht - auch nicht, wenn eine Zeile aus der Importdatei denselben Namen
+    // traegt (der bestehende Eintrag bleibt dann einfach unangetastet erhalten).
     void handlePresetImportUpload() {
         HTTPUpload& upload = webserver.upload();
 
@@ -3138,15 +3235,19 @@
 
                 File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
                 if (!readFile) {
-                    DEBUG_PRINTLN("[PRESET-IMPORT] Datei konnte nicht gelesen werden");
+                    DEBUG_PRINTLN("[PRESET-IMPORT] Could not read file");
                     presetImportSuccess = false;
                     return;
                 }
 
-                // Zuerst alle bestehenden Presets leeren (vollstaendiges Ersetzen)
+                // Namen der bereits vorhandenen Presets einmalig einsammeln, um
+                // importierte Zeilen mit gleichem Namen ueberspringen zu koennen -
+                // das bestehende Preset bleibt dadurch unveraendert erhalten.
+                std::vector<String> existingPresetNames;
                 for (int i = 0; i < MAX_PRESETS; i++) {
-                    presets[i].name = "";
-                    presets[i].url = "";
+                    if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
+                        existingPresetNames.push_back(presets[i].name);
+                    }
                 }
 
                 // Vorhandene Zifferblaetter einmalig einlesen, um jede
@@ -3164,7 +3265,7 @@
 
                 int importedCount = 0;
                 int skippedCount = 0;
-                while (readFile.available() && importedCount < MAX_PRESETS) {
+                while (readFile.available()) {
                     String line = readFile.readStringUntil('\n');
                     line.trim();
                     if (line.isEmpty()) continue;
@@ -3179,43 +3280,63 @@
                     String url = line.substring(tabPos + 1);
                     if (name.isEmpty() || url.isEmpty()) continue;
 
-                    if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Uebersprungen (Zifferblatt nicht gefunden): " + name);
+                    // Preset mit gleichem Namen existiert bereits - ueberspringen,
+                    // statt es zu ueberschreiben oder zu loeschen.
+                    bool alreadyExists = false;
+                    for (const String& existingName : existingPresetNames) {
+                        if (existingName == name) { alreadyExists = true; break; }
+                    }
+                    if (alreadyExists) {
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (already exists): " + name);
                         skippedCount++;
                         continue;
                     }
 
-                    presets[importedCount].name = name;
-                    presets[importedCount].url = url;
+                    if (!validateAndFixPresetFace(url, existingFaces)) {
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (clock face not found): " + name);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    int freeIndex = -1;
+                    for (int i = 0; i < MAX_PRESETS; i++) {
+                        if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
+                            freeIndex = i;
+                            break;
+                        }
+                    }
+                    if (freeIndex == -1) {
+                        DEBUG_PRINTLN("[PRESET-IMPORT] No free slot left - aborted");
+                        break;
+                    }
+
+                    presets[freeIndex].name = name;
+                    presets[freeIndex].url = url;
+                    existingPresetNames.push_back(name); // schuetzt auch vor Duplikaten INNERHALB der Importdatei
                     importedCount++;
                 }
                 readFile.close();
                 LittleFS.remove(PRESET_IMPORT_TMP_PATH);
 
-                // savePresets() IMMER aufrufen (auch bei 0 importierten Zeilen), damit das
-                // vorherige Leeren des presets[]-Arrays dauerhaft gespeichert wird.
-                savePresets();
-
                 if (importedCount > 0) {
-                    DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " Presets importiert, " + String(skippedCount) + " uebersprungen (Zifferblatt fehlt)");
-                    presetImportSuccess = true;
+                    savePresets();
                 }
-                else {
-                    DEBUG_PRINTLN("[PRESET-IMPORT] Keine gueltigen Presets in der Datei gefunden - alle Presets wurden dennoch geloescht");
-                    presetImportSuccess = false;
-                }
+
+                DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " presets imported, " + String(skippedCount) + " skipped");
+                presetImportSuccess = true; // auch 0 neue Presets ist kein Fehler (z.B. alles schon vorhanden)
             }
             else {
-                DEBUG_PRINTLN("[PRESET-IMPORT] Fehlgeschlagen beim Schreiben");
+                DEBUG_PRINTLN("[PRESET-IMPORT] Failed while writing");
             }
         }
     }
 
 
-    // Wie handlePresetImportUpload(), loescht dabei aber KEINE bestehenden Presets -
-    // fuegt nur neue Presets in freie Slots ein. Wird vom GitHub-Download-Button auf
-    // /presets genutzt: das Herausfiltern bereits vorhandener Namen erledigt schon
-    // die aufrufende JavaScript-Funktion, bevor die Datei hier ankommt.
+    // Aehnlich wie handlePresetImportUpload() - fuegt nur neue Presets in freie Slots
+    // ein, bestehende bleiben erhalten. Wird vom GitHub-Download-Button auf /presets
+    // genutzt: das Herausfiltern bereits vorhandener Namen erledigt hier schon die
+    // aufrufende JavaScript-Funktion, bevor die Datei hier ankommt (daher KEINE
+    // serverseitige Namens-Dopplungspruefung wie in handlePresetImportUpload()).
     void handlePresetMergeUpload() {
         HTTPUpload& upload = webserver.upload();
 
@@ -3235,7 +3356,7 @@
 
                 File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
                 if (!readFile) {
-                    DEBUG_PRINTLN("[PRESET-MERGE] Datei konnte nicht gelesen werden");
+                    DEBUG_PRINTLN("[PRESET-MERGE] Could not read file");
                     presetImportSuccess = false;
                     return;
                 }
@@ -3266,7 +3387,7 @@
                     if (name.isEmpty() || url.isEmpty()) continue;
 
                     if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] Uebersprungen (Zifferblatt nicht gefunden): " + name);
+                        DEBUG_PRINTLN("[PRESET-MERGE] Skipped (clock face not found): " + name);
                         skippedCount++;
                         continue;
                     }
@@ -3279,7 +3400,7 @@
                         }
                     }
                     if (freeIndex == -1) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] Kein freier Slot mehr - abgebrochen");
+                        DEBUG_PRINTLN("[PRESET-MERGE] No free slot left - aborted");
                         break;
                     }
 
@@ -3294,14 +3415,10 @@
                     savePresets();
                 }
                 presetImportSuccess = true; // Auch bei 0 neuen Presets kein Fehler (z.B. alles schon vorhanden)
-                DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " neue Presets hinzugefuegt, " + String(skippedCount) + " uebersprungen");
+                DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " new presets added, " + String(skippedCount) + " skipped");
             }
             else {
-                DEBUG_PRINTLN("[PRESET-MERGE] Fehlgeschlagen beim Schreiben");
+                DEBUG_PRINTLN("[PRESET-MERGE] Failed while writing");
             }
         }
     }
-
-
-
-
