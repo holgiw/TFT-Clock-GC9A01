@@ -1,7 +1,5 @@
 #pragma once
-    // ####################################################################
     // ### Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
-    // ####################################################################
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
@@ -165,14 +163,9 @@
     }
 
 
-    // Prueft den aktuellen freien Heap und schreibt bei Unterschreiten von
-    // HEAP_WARNING_THRESHOLD (siehe config.h) eine Log-Zeile mit Kontext,
-    // aktuellem Wert und dem bisherigen Minimum seit dem letzten Boot. Wird an
-    // den bekannten speicherhungrigen Stellen aufgerufen (Zifferblatt-Migration,
-    // RLE-Dekodierung fuer Anzeige/Download, Zeigersatz-Uebersicht, Boot-Ende),
-    // damit sich ein knapper werdender Heap einer konkreten Codestelle zuordnen
-    // laesst statt nur ueber /status im Nachhinein zu erfahren, DASS es
-    // irgendwann knapp war.
+    // Prueft den freien Heap und schreibt bei Unterschreiten von HEAP_WARNING_THRESHOLD
+    // eine Log-Zeile mit Kontext + Minimum seit Boot - an speicherhungrigen Stellen
+    // aufgerufen, damit sich knapper Heap einer Codestelle zuordnen laesst.
     void checkHeapWarning(const String& context) {
         size_t freeHeap = ESP.getFreeHeap();
         if (freeHeap < HEAP_WARNING_THRESHOLD) {

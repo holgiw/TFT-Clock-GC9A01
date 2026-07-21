@@ -2,7 +2,7 @@
 •	The clock supports various TFT displays:
 •	GC9A01
 •	GC9D01
-•	ILI9341
+•	ILI9341 (deprecated - no longer actively maintained)
 •	Display resolution and size are dynamically adjusted (e.g., 240x240 or 160x160 pixels).
 ---
 2. Customizable Clock Hands and Faces

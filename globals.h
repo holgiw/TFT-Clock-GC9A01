@@ -1,16 +1,7 @@
 #pragma once
-    // ####################################################################
     // ### Globale Objekte, Variablen und Datenstrukturen #################
-    // ####################################################################
-    // Benoetigt config.h (davor eingebunden). Sortiert nach Modul/Verwendung
-    // (WLAN, Zeit/DCF77/RTC, Zifferblatt/Display, Helligkeit, Touch, Presets,
-    // System), damit die Zuordnung zu wifi_manager.h / time_sync.h / display.h /
-    // presets_manager.h / system_utils.h leichter nachvollziehbar ist.
-    // translation.h / uhr3.h werden hier wie im Original geladen (Projekt-eigene
-    // Dateien, unveraendert). Da diese Datei nur von uhr3.ino aus eingebunden
-    // wird (eine einzige Uebersetzungseinheit), stehen hier bewusst die echten
-    // Definitionen - keine extern-Deklarationen (das hatte zuvor zu Problemen
-    // gefuehrt).
+    // Benoetigt config.h (davor eingebunden). Sortiert nach Modul (WLAN, Zeit/DCF77/RTC, Zifferblatt/Display, Helligkeit, Touch, Presets, System).
+    // Enthaelt bewusst echte Definitionen statt extern-Deklarationen, da nur von uhr3.ino aus eingebunden (eine Uebersetzungseinheit) - hatte sonst zu Problemen gefuehrt.
 
     // --- System / Allgemein ---
     String currentLanguage = "de"; // Standardmäßig Deutsch
@@ -136,6 +127,11 @@
     static bool psramAvailable = false;
 
     uint16_t* clockFaceBuffer = nullptr;
+
+    // Cache: clockFaceBuffer bereits mit currentBrightness vorberechnet (siehe
+    // loadClockFace()) - vermeidet die teure Pixel-Helligkeitsanpassung bei
+    // jedem Tick, obwohl sich die Helligkeit dazwischen fast nie aendert.
+    uint16_t* clockFaceBrightBuffer = nullptr;
 
     bool cs = true;
 

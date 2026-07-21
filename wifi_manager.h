@@ -1,7 +1,5 @@
 #pragma once
-    // ####################################################################
-    // ### WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect
-    // ####################################################################
+    // ### WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect ##########
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
@@ -281,8 +279,14 @@
         // MAC-Adresse holen    
         WiFi.macAddress(mac);
 
-        snprintf(hostname, sizeof(hostname), "clock_%02X%02X%02X",
-            mac[3], mac[4], mac[5]);
+        String customHostname = preferences.getString(PK_HOSTNAME, "");
+        if (customHostname.length() > 0) {
+            customHostname.toCharArray(hostname, sizeof(hostname));
+        }
+        else {
+            snprintf(hostname, sizeof(hostname), "clock_%02X%02X%02X",
+                mac[3], mac[4], mac[5]);
+        }
         WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
         WiFi.setHostname(hostname);
         DEBUG_PRINTLN("[WiFi] Hostname set to: " + String(hostname));

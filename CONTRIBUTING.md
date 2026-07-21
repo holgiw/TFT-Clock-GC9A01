@@ -9,8 +9,8 @@ that makes them much easier to review and merge.
 - Target: **ESP32-S2** only (limited RAM - see "Memory constraints" below)
 - Arduino IDE, partition scheme: **"No OTA, 2MB APP / 2MB SPIFFS"**
 - **PSRAM: Enabled** in board settings
-- Displays: GC9A01 (240x240), GC9D01 (160x160), or ILI9341 (240x240) -
-  selected via `config.h`
+- Displays: GC9A01 (240x240), GC9D01 (160x160), or ILI9341 (240x240, deprecated -
+  no longer actively maintained) - selected via `config.h`
 
 ## Project Structure
 
@@ -112,6 +112,6 @@ Please check:
 ## Reporting Issues
 
 When reporting a bug, please include:
-- Board variant and display (GC9A01/GC9D01/ILI9341)
+- Board variant and display (GC9A01/GC9D01/ILI9341 [deprecated])
 - Steps to reproduce
 - Serial monitor output if the device crashed or behaved unexpectedly

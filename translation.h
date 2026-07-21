@@ -2,18 +2,9 @@
 #define TRANSLATION_H
 
 
-    // ####################################################################
-    // ### Uebersetzungen #################################################
-    // ####################################################################
-    // Alle Uebersetzungen liegen als 'static const' Tabelle (translationTable,
-    // siehe unten) direkt im Flash-Speicher. Der ESP32 kann Flash ueber den
-    // Cache wie normalen Speicher lesen, daher ist - anders als z.B. bei
-    // AVR-Chips mit PROGMEM/pgm_read - kein Umkopieren in den RAM noetig, um
-    // darauf zuzugreifen. translate() durchsucht die Tabelle bei jedem
-    // Aufruf direkt und kopiert nur den einen gefundenen Treffer in ein
-    // String-Objekt. Ein Sprachwechsel (/setLanguage) muss dadurch nichts
-    // mehr aufbauen/umkopieren - das war zuvor (grosse Initialisierungsliste
-    // in einer std::map<String,String>) Ursache eines Stack-Overflow-Absturzes.
+    // Uebersetzungen: liegen als 'static const' Tabelle (translationTable) direkt im Flash - der ESP32 liest Flash ueber den Cache wie normalen
+    // Speicher, kein PROGMEM/Umkopieren noetig. translate() sucht direkt darin, ohne Sprachwechsel-Aufbau - fruehere Initialisierungsliste in
+    // std::map<String,String> verursachte einen Stack-Overflow-Absturz.
 
     // Bekannte Sprachen (fuer die Validierung in /setLanguage) - bewusst NUR
     // die Sprachcodes, nicht die vollen Uebersetzungstabellen.
@@ -89,7 +80,6 @@
         { "Restore Presets from File", "Presets aus Datei wiederherstellen", "Restaurer les pr&eacute;r&eacute;glages depuis un fichier" },
         { "This will replace all currently saved presets", "Dies ersetzt alle aktuell gespeicherten Presets", "Cela remplacera tous les pr&eacute;r&eacute;glages actuellement enregistr&eacute;s" },
         { "Continue", "Fortfahren", "Continuer" },
-        { "Import Presets", "Presets importieren", "Importer les pr&eacute;r&eacute;glages" },
         { "Presets imported successfully", "Presets erfolgreich importiert", "Pr&eacute;r&eacute;glages import&eacute;s avec succ&egrave;s" },
         { "Import failed - please check the file", "Import fehlgeschlagen - bitte Datei pr&uuml;fen", "&Eacute;chec de l'importation - veuillez v&eacute;rifier le fichier" },
         { "File deleted", "Datei gel&ouml;scht", "Fichier supprim&eacute;" },
@@ -140,7 +130,7 @@
         { "File renamed successfully", "Datei erfolgreich umbenannt", "Fichier renomm&eacute; avec succ&egrave;s" },
         { "File rename failed", "Datei-Umbenennung fehlgeschlagen", "&Eacute;chec du renommage" },
         { "Download Additional Clock Faces", "Zus&auml;tzliche Zifferbl&auml;tter herunterladen", "T&eacute;l&eacute;charger des cadrans suppl&eacute;mentaires" },
-        { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Zifferbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')", "Vous pouvez t&eacute;l&eacute;charger un fichier ZIP contenant des cadrans et jeux d'aiguilles suppl&eacute;mentaires depuis le lien suivant : (utilisez 'view raw')" },
+        { "You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')", "Sie k&ouml;nnen eine ZIP-Datei mit zus&auml;tzlichen Zifferbl&auml;ttern und Zeigers&auml;tzen von folgendem Link herunterladen: (verwenden Sie 'view raw')", "Vous pouvez t&eacute;l&eacute;charger un fichier ZIP contenant des cadrans et jeux d'aiguilles suppl&eacute;mentaires depuis le lien suivant&nbsp;: (utilisez 'view raw')" },
         { "Unzip the file and upload the contents to the /clockfaces and /handsets directories using the File Manager", "Entpacken Sie die Datei und laden Sie den Inhalt mit dem Dateimanager in die Verzeichnisse /clockfaces und /handsets hoch", "D&eacute;compressez le fichier et t&eacute;l&eacute;chargez le contenu dans les dossiers /clockfaces et /handsets &agrave; l'aide du gestionnaire de fichiers" },
         { "After downloading, upload the extracted BMP files using the form below", "Nach dem Herunterladen k&ouml;nnen Sie die extrahierten BMP-Dateien mit dem untenstehenden Formular hochladen", "Apr&egrave;s le t&eacute;l&eacute;chargement, envoyez les fichiers BMP extraits &agrave; l'aide du formulaire ci-dessous" },
         { "Upload New Clock Face", "neue Zifferbl&auml;tter hochladen", "T&eacute;l&eacute;charger un nouveau cadran" },
@@ -157,7 +147,7 @@
         { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Farbe (RGB hex, z.B. FF0000 = Rot, 000000 = Schwarz, EC0016 = DB rot)", "Couleur (hex RGB, ex. FF0000 = Rouge, 000000 = Noir, EC0016 = rouge DB)" },
         { "Centre point", "Mittelpunkt", "Point central" },
         { "Size", "Gr&ouml;&szlig;e", "Taille" },
-        { "Warning: Not enough free space to upload new hand sets!Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben", "Attention : espace insuffisant pour t&eacute;l&eacute;charger de nouveaux jeux d'aiguilles ! Lib&eacute;rez d'abord de l'espace" },
+        { "Warning: Not enough free space to upload new hand sets!Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben", "Attention&nbsp;: espace insuffisant pour t&eacute;l&eacute;charger de nouveaux jeux d'aiguilles&nbsp;! Lib&eacute;rez d'abord de l'espace" },
         { "Pivot point", "Drehpunkt bei", "Point de pivot" },
         { "Manage Presets", "Manage Uhren Sets", "G&eacute;rer les pr&eacute;r&eacute;glages" },
         { "Preset Name", "Set Name", "Nom du pr&eacute;r&eacute;glage" },
@@ -189,17 +179,67 @@
         { "Width", "Breite", "Largeur" },
         { "Height", "H&ouml;he", "Hauteur" },
         { "Scale and Save", "skalieren und speichern", "Redimensionner et enregistrer" },
-        { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?", "&Ecirc;tes-vous s&ucirc;r de vouloir red&eacute;marrer l'horloge ?" },
-        { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?", "&Ecirc;tes-vous absolument s&ucirc;r de vouloir r&eacute;initialiser l'horloge aux param&egrave;tres d'usine ?" },
+        { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?", "&Ecirc;tes-vous s&ucirc;r de vouloir red&eacute;marrer l'horloge&nbsp;?" },
+        { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?", "&Ecirc;tes-vous absolument s&ucirc;r de vouloir r&eacute;initialiser l'horloge aux param&egrave;tres d'usine&nbsp;?" },
+        { "Reset Everything", "Alles zur&uuml;cksetzen", "Tout r&eacute;initialiser" },
+        { "Resets WiFi, all settings and deletes all files - the clock restarts afterwards", "Setzt WLAN, alle Einstellungen zur&uuml;ck und l&ouml;scht alle Dateien - die Uhr startet danach neu", "R&eacute;initialise le WiFi, tous les param&egrave;tres et supprime tous les fichiers - l'horloge red&eacute;marre ensuite" },
+        { "Delete Clock Faces (except default)", "Zifferbl&auml;tter l&ouml;schen (au&szlig;er Standard)", "Supprimer les cadrans (sauf le cadran par d&eacute;faut)" },
+        { "Deletes all uploaded clock faces - the built-in default remains", "L&ouml;scht alle hochgeladenen Zifferbl&auml;tter - der eingebaute Standard bleibt erhalten", "Supprime tous les cadrans t&eacute;l&eacute;charg&eacute;s - le cadran par d&eacute;faut int&eacute;gr&eacute; est conserv&eacute;" },
+        { "Delete Hand Sets (except default)", "Zeigers&auml;tze l&ouml;schen (au&szlig;er Standard)", "Supprimer les jeux d'aiguilles (sauf celui par d&eacute;faut)" },
+        { "Deletes all uploaded hand sets - the built-in default remains", "L&ouml;scht alle hochgeladenen Zeigers&auml;tze - der eingebaute Standard bleibt erhalten", "Supprime tous les jeux d'aiguilles t&eacute;l&eacute;charg&eacute;s - celui par d&eacute;faut int&eacute;gr&eacute; est conserv&eacute;" },
+        { "Delete Presets", "Presets l&ouml;schen", "Supprimer les pr&eacute;r&eacute;glages" },
+        { "Deletes all saved presets", "L&ouml;scht alle gespeicherten Presets", "Supprime tous les pr&eacute;r&eacute;glages enregistr&eacute;s" },
+        { "Are you sure you want to delete all clock faces except the default one?", "Sind Sie sicher, dass Sie alle Zifferbl&auml;tter au&szlig;er dem Standard l&ouml;schen wollen?", "&Ecirc;tes-vous s&ucirc;r de vouloir supprimer tous les cadrans sauf celui par d&eacute;faut&nbsp;?" },
+        { "Are you sure you want to delete all hand sets except the default one?", "Sind Sie sicher, dass Sie alle Zeigers&auml;tze au&szlig;er dem Standard l&ouml;schen wollen?", "&Ecirc;tes-vous s&ucirc;r de vouloir supprimer tous les jeux d'aiguilles sauf celui par d&eacute;faut&nbsp;?" },
+        { "Are you sure you want to delete all presets?", "Sind Sie sicher, dass Sie alle Presets l&ouml;schen wollen?", "&Ecirc;tes-vous s&ucirc;r de vouloir supprimer tous les pr&eacute;r&eacute;glages&nbsp;?" },
+        { "Clock faces deleted", "Zifferbl&auml;tter gel&ouml;scht", "Cadrans supprim&eacute;s" },
+        { "Hand sets deleted", "Zeigers&auml;tze gel&ouml;scht", "Jeux d'aiguilles supprim&eacute;s" },
+        { "Presets deleted", "Presets gel&ouml;scht", "Pr&eacute;r&eacute;glages supprim&eacute;s" },
         { "Rename File", "Datei umbenennen", "Renommer le fichier" },
         { "Rename Preset", "Preset umbenennen", "Renommer le pr&eacute;r&eacute;glage" },
         { "Maximum number of presets reached - delete an existing preset first", "Maximale Anzahl an Presets erreicht - bitte zuerst ein bestehendes Preset l&ouml;schen", "Nombre maximal de pr&eacute;r&eacute;glages atteint - veuillez d'abord supprimer un pr&eacute;r&eacute;glage existant" },
         { "Copy link", "Link kopieren", "Copier le lien" },
+        { "Download Additional Clock Faces from GitHub", "Weitere Zifferbl&auml;tter von GitHub laden", "T&eacute;l&eacute;charger d'autres cadrans depuis GitHub" },
+        { "Download Additional Hand Sets from GitHub", "Weitere Zeigers&auml;tze von GitHub laden", "T&eacute;l&eacute;charger d'autres jeux d'aiguilles depuis GitHub" },
+        { "Checking GitHub for new files", "Suche nach neuen Dateien auf GitHub", "Recherche de nouveaux fichiers sur GitHub" },
+        { "All files already up to date", "Alle Dateien sind bereits aktuell", "Tous les fichiers sont d&eacute;j&agrave; &agrave; jour" },
+        { "All presets already up to date", "Alle Presets sind bereits aktuell", "Tous les pr&eacute;r&eacute;glages sont d&eacute;j&agrave; &agrave; jour" },
+        { "No presets found. Load recommended presets from GitHub?", "Keine Presets vorhanden. Empfohlene Presets von GitHub laden?", "Aucun pr&eacute;r&eacute;glage trouv&eacute;. Charger les pr&eacute;r&eacute;glages recommand&eacute;s depuis GitHub&nbsp;?" },
+        { "Downloading", "Lade herunter", "T&eacute;l&eacute;chargement de" },
+        { "Done - reloading", "Fertig - lade neu", "Termin&eacute; - rechargement" },
+        { "Failed to reach GitHub - check your internet connection", "GitHub nicht erreichbar - Internetverbindung pr&uuml;fen", "Impossible de joindre GitHub - v&eacute;rifiez votre connexion internet" },
+        { "Load Presets from GitHub", "Presets von GitHub laden", "Charger les pr&eacute;r&eacute;glages depuis GitHub" },
+        { "Language updated", "Sprache ge&auml;ndert", "Langue mise &agrave; jour" },
+        { "Preset created", "Preset erstellt", "Pr&eacute;r&eacute;glage cr&eacute;&eacute;" },
+        { "Preset applied", "Preset angewendet", "Pr&eacute;r&eacute;glage appliqu&eacute;" },
+        { "File renamed", "Datei umbenannt", "Fichier renomm&eacute;" },
+        { "Clock face uploaded", "Zifferblatt hochgeladen", "Cadran t&eacute;l&eacute;charg&eacute;" },
+        { "Clock face selected", "Zifferblatt ausgew&auml;hlt", "Cadran s&eacute;lectionn&eacute;" },
+        { "Preset deleted", "Preset gel&ouml;scht", "Pr&eacute;r&eacute;glage supprim&eacute;" },
+        { "Preset renamed", "Preset umbenannt", "Pr&eacute;r&eacute;glage renomm&eacute;" },
+        { "Hand set uploaded", "Zeigersatz hochgeladen", "Jeu d'aiguilles t&eacute;l&eacute;charg&eacute;" },
+        { "Hand set selected", "Zeigersatz ausgew&auml;hlt", "Jeu d'aiguilles s&eacute;lectionn&eacute;" },
+        { "Hand set deleted", "Zeigersatz gel&ouml;scht", "Jeu d'aiguilles supprim&eacute;" },
+        { "Enter a name for the new preset (leave empty for automatic naming)", "Namen f&uuml;r das neue Preset eingeben (leer lassen f&uuml;r automatische Benennung)", "Entrez un nom pour le nouveau pr&eacute;r&eacute;glage (laissez vide pour un nommage automatique)" },
+        { "Timezone updated", "Zeitzone aktualisiert", "Fuseau horaire mis &agrave; jour" },
+        { "Settings saved", "Einstellungen gespeichert", "Param&egrave;tres enregistr&eacute;s" },
+        { "Please connect to your home network and go to the ESP website at", "Bitte mit dem Heimnetzwerk verbinden und die ESP-Webseite aufrufen unter", "Veuillez vous connecter &agrave; votre r&eacute;seau domestique et acc&eacute;der au site de l'ESP &agrave;" },
+        { "Time synced", "Zeit synchronisiert", "Heure synchronis&eacute;e" },
+        { "Returning to main page in 3 seconds", "Zur&uuml;ck zur Hauptseite in 3 Sekunden", "Retour &agrave; la page principale dans 3 secondes" },
+        { "System Status", "Systemstatus", "&Eacute;tat du syst&egrave;me" },
+        { "Upload Failed", "Upload fehlgeschlagen", "&Eacute;chec du t&eacute;l&eacute;chargement" },
+        { "Upload failed", "Upload fehlgeschlagen", "&Eacute;chec du t&eacute;l&eacute;chargement" },
+        { "Only .bmp files starting with", "Nur .bmp-Dateien, die beginnen mit", "Seuls les fichiers .bmp commen&ccedil;ant par" },
+        { "or", "oder", "ou" },
+        { "are accepted", "werden akzeptiert", "sont accept&eacute;s" },
+        { "are accepted for handset upload", "werden f&uuml;r den Zeigersatz-Upload akzeptiert", "sont accept&eacute;s pour le t&eacute;l&eacute;chargement de jeux d'aiguilles" },
+        { "Please also check the available space", "Bitte auch den verf&uuml;gbaren Speicherplatz pr&uuml;fen", "Veuillez &eacute;galement v&eacute;rifier l'espace disponible" },
+        { "Try again", "Erneut versuchen", "R&eacute;essayer" },
         { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist", "Retour &agrave; la page principale dans 10 secondes, ou actualisez le site lorsque l'ESP est &agrave; nouveau en ligne" },
         { "Enable Logging", "Logging aktivieren", "Activer la journalisation" },
         { "Reconnect WiFi", "Wifi neu verbinden", "Reconnecter le WiFi" },
-        { "JavaScript is disabled.This page requires JavaScript to work properly!", "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!", "JavaScript est d&eacute;sactiv&eacute;. Cette page n&eacute;cessite JavaScript pour fonctionner correctement !" },
-        { "Are you sure you want to reset all saved WiFi networks?", "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zur&uuml;cksetzen m&ouml;chten?", "&Ecirc;tes-vous s&ucirc;r de vouloir r&eacute;initialiser tous les r&eacute;seaux WiFi enregistr&eacute;s ?" },
+        { "JavaScript is disabled.This page requires JavaScript to work properly!", "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!", "JavaScript est d&eacute;sactiv&eacute;. Cette page n&eacute;cessite JavaScript pour fonctionner correctement&nbsp;!" },
+        { "Are you sure you want to reset all saved WiFi networks?", "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zur&uuml;cksetzen m&ouml;chten?", "&Ecirc;tes-vous s&ucirc;r de vouloir r&eacute;initialiser tous les r&eacute;seaux WiFi enregistr&eacute;s&nbsp;?" },
         { "Reset WiFi Networks", "WLAN Netzwerke zur&uuml;cksetzen", "R&eacute;initialiser les r&eacute;seaux WiFi" },
         { "WiFi networks reset. Rebooting...", "WLAN Netzwerke zur&uuml;ckgesetzt. Starte neu...", "R&eacute;seaux WiFi r&eacute;initialis&eacute;s. Red&eacute;marrage..." },
         { "DCF77 detected", "DCF77 erkannt", "DCF77 d&eacute;tect&eacute;" },
@@ -210,13 +250,15 @@
         { "Failed to scale BMP", "Skalierung des BMP fehlgeschlagen", "&Eacute;chec du redimensionnement du BMP" },
         { "Gamma Correction", "Gamma-Korrektur", "Correction gamma" },
         { "Hostname", "Hostname", "Nom d'h&ocirc;te" },
+        { "Hostname saved - requires a reboot to take effect", "Hostname gespeichert - Neustart erforderlich, damit die &Auml;nderung wirksam wird", "Nom d'h&ocirc;te enregistr&eacute; - un red&eacute;marrage est n&eacute;cessaire pour appliquer le changement" },
+        { "Invalid hostname - only letters, numbers and hyphens allowed, max 30 characters", "Ung&uuml;ltiger Hostname - nur Buchstaben, Zahlen und Bindestriche erlaubt, max. 30 Zeichen", "Nom d'h&ocirc;te invalide - seuls lettres, chiffres et tirets autoris&eacute;s, max. 30 caract&egrave;res" },
         { "Ping Server", "Ping-Server", "Serveur de ping" },
         { "Reset Saved Networks", "Gespeicherte Netzwerke zur&uuml;cksetzen", "R&eacute;initialiser les r&eacute;seaux enregistr&eacute;s" },
         { "Reset WLan...", "WLAN zur&uuml;cksetzen...", "R&eacute;initialisation du WiFi..." },
         { "Saved as", "Gespeichert als", "Enregistr&eacute; sous" },
         { "Scaling successful", "Skalierung erfolgreich", "Redimensionnement r&eacute;ussi" },
         { "View", "Anzeigen", "Voir" },
-        { "Warning: Not enough free space to upload new clock faces! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zifferbl&auml;tter! Bitte zuerst Speicherplatz freigeben", "Attention : espace insuffisant pour t&eacute;l&eacute;charger de nouveaux cadrans ! Lib&eacute;rez d'abord de l'espace" },
+        { "Warning: Not enough free space to upload new clock faces! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zifferbl&auml;tter! Bitte zuerst Speicherplatz freigeben", "Attention&nbsp;: espace insuffisant pour t&eacute;l&eacute;charger de nouveaux cadrans&nbsp;! Lib&eacute;rez d'abord de l'espace" },
         { "Use the host name", "Benutze den Hostnamen", "Utilisez le nom d'h&ocirc;te" },
     };
     static const size_t translationTableSize = sizeof(translationTable) / sizeof(translationTable[0]);
@@ -237,10 +279,9 @@
     }
 
 
-    // Uebersetzt einen englischen Schluessel-String in die aktuell aktive Sprache;
-    // gibt bei Englisch bzw. fehlendem Eintrag einfach den Schluessel selbst zurueck.
-    // Durchsucht dafuer direkt die flash-residente translationTable - kein
-    // Heap-Umkopieren beim Sprachwechsel mehr noetig.
+    // Uebersetzt einen englischen Schluessel-String in die aktuell aktive Sprache
+    // (Fallback: Schluessel selbst bei Englisch/fehlendem Eintrag). Durchsucht
+    // direkt die flash-residente translationTable - kein Heap-Umkopieren noetig.
     String translate(const String& key) {
 
         if (currentLanguage == "en") return key;  // Englisch: Schlüssel zurückgeben

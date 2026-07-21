@@ -1,7 +1,5 @@
 #pragma once
-    // ####################################################################
-    // ### Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone
-    // ####################################################################
+    // ### Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone ################
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
@@ -90,11 +88,9 @@
             if (DCFtime != 0) {
                 setLedOff(); // LED ausschalten, wenn Zeit gefunden wurde
 
-                // NTP gilt als "aktuell verfuegbar", wenn WLAN verbunden ist UND
-                // die letzte erfolgreiche NTP-Synchronisation nicht laenger als
-                // DCF77_NTP_GRACE_PERIOD zurueckliegt. Nur wenn das NICHT der
-                // Fall ist (kein WLAN, oder NTP seit laengerer Zeit erfolglos),
-                // wird DCF77 zur Uebernahme der Systemzeit herangezogen.
+                // NTP gilt als "aktuell verfuegbar", wenn WLAN verbunden ist UND die letzte
+                // erfolgreiche Synchronisation nicht laenger als DCF77_NTP_GRACE_PERIOD
+                // zurueckliegt - nur sonst wird DCF77 zur Zeituebernahme herangezogen.
                 bool ntpCurrentlyAvailable = (WiFi.getMode() == WIFI_STA && WiFi.isConnected() &&
                     lastNtpSuccessMillis != 0 &&
                     (millis() - lastNtpSuccessMillis) < DCF77_NTP_GRACE_PERIOD);

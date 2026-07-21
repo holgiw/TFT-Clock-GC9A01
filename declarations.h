@@ -1,15 +1,7 @@
 #pragma once
-    // ####################################################################
     // ### Forward-Deklarationen aller Funktionen #########################
-    // ####################################################################
-    // Da der Sketch auf mehrere .h-Dateien aufgeteilt ist, entfaellt die
-    // automatische Prototyp-Generierung der Arduino-IDE (die nur den
-    // Haupt-.ino-Code scannt). Diese zentrale Datei stellt sicher, dass
-    // jede Funktion unabhaengig von der Reihenfolge der #include-Anweisungen
-    // aufgerufen werden kann.
-    //
-    // Sortiert nach Modul/Verwendung, in derselben Funktionsreihenfolge wie
-    // in der jeweiligen .h-Datei - erleichtert den Abgleich zwischen beiden.
+    // Ersetzt die automatische Prototyp-Generierung der Arduino-IDE (scannt nur die .ino), da der Sketch auf mehrere .h-Dateien aufgeteilt ist -
+    // stellt sicher, dass jede Funktion unabhaengig von der #include-Reihenfolge aufrufbar ist. Sortiert wie die jeweilige .h-Datei.
 
     // --- wifi_manager.h: WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect ---
     void startWPS() ;
@@ -53,6 +45,8 @@
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) ;
     void loadClockFace() ;
     void freeClockFaceBuffer() ;
+    void resetFacesToDefault() ;
+    void resetHandsToDefault() ;
     void loadHandSprites() ;
     bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) ;
     float shortestAngleDiff(float from, float to) ;
@@ -90,14 +84,16 @@
     String stripRotationParam(const String& url) ;
     void loadPresets() ;
     void savePresets() ;
-    bool createPresetFromPreferences() ;
+    bool createPresetFromPreferences(const String& customName = "") ;
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut, uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) ;
     void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) ;
+    void resetAllPresets() ;
     void switchToNextPreset() ;
 
     // --- webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung ---
     String generateHtmlHeader() ;
     String generateHtmlStatus() ;
+    String generateFlashMessage() ;
     String generateNavigation() ;
     String generateLanguageSelector() ;
     bool naturalLess(const String& a, const String& b) ;
@@ -106,6 +102,7 @@
     void handleFileUpload() ;
     bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) ;
     void handlePresetImportUpload() ;
+    void handlePresetMergeUpload() ;
 
     // --- system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen ---
     void checkButton() ;

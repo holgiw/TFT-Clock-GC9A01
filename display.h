@@ -1,7 +1,5 @@
 #pragma once
-    // ####################################################################
-    // ### Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch
-    // ####################################################################
+    // ### Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch ########
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
@@ -59,34 +57,9 @@
     }
 
 
-    // Lädt das Zifferblatt, indem entweder ein benutzerdefinierter Hintergrund oder ein Standardhintergrund verwendet wird.
-    // ####################################################################
-    // ### RLE-Kompression fuer Zifferblatt-BMPs (face_*.bmp) #############
-    // ####################################################################
-    // Eigenes, einfaches PackBits-artiges RLE-Verfahren fuer 16-Bit-RGB565-
-    // Pixel. Zifferblaetter haben oft grosse einfarbige Flaechen (Hintergrund),
-    // die sich damit gut komprimieren lassen, waehrend der Overhead im
-    // unguenstigsten Fall (kein einziger Pixel wiederholt sich) bei nur ca.
-    // 0.4% zusaetzlicher Groesse liegt (1 Steuerbyte je 128 Pixel).
-    //
-    // Eine so gespeicherte Datei beginnt mit dem 4-Byte-Magic "RLEB" statt
-    // "BM" und ist damit KEIN gueltiges Standard-BMP mehr - Downloads und die
-    // Dateimanager-Vorschau dekodieren daher bei Bedarf zurueck in ein
-    // echtes BMP (siehe /file und /download in webserver_routes.h).
-    //
-    // Format:
-    //   Byte  0- 3: Magic "RLEB"
-    //   Byte  4- 7: Breite (int32)
-    //   Byte  8-11: Hoehe (int32)
-    //   Byte 12-15: Groesse der komprimierten Daten in Byte (uint32)
-    //   Byte 16-19: Groesse der unkomprimierten Daten in Byte (uint32, = Breite*Hoehe*2)
-    //   ab Byte 20: RLE-Datenstrom
-    //
-    // Steuerbyte C je Paket:
-    //   C = 0..127:   Literal-Lauf von (C+1) Pixeln folgt, roh (2 Byte je Pixel)
-    //   C = 129..255: Wiederholungs-Lauf von (257-C) identischen Pixeln folgt
-    //                 (nur 1 Pixel = 2 Byte im Stream)
-    //   C = 128:      nicht verwendet
+    // RLE-Kompression fuer Zifferblatt-BMPs (face_*.bmp): eigenes PackBits-artiges Verfahren fuer 16-Bit RGB565, Worst-Case-Overhead nur ~0.4%.
+    // Datei beginnt mit Magic "RLEB" statt "BM" (kein gueltiges BMP mehr) + Breite/Hoehe/Groessen (je int32/uint32) + RLE-Datenstrom.
+    // Steuerbyte je Paket: 0-127=Literal-Lauf (C+1 Pixel roh), 129-255=Wiederholung ((257-C) identische Pixel, nur 1x gespeichert), 128=unbenutzt.
     bool isRleFace(const uint8_t* header4) {
         return header4[0] == 'R' && header4[1] == 'L' && header4[2] == 'E' && header4[3] == 'B';
     }
@@ -159,12 +132,9 @@
     }
 
 
-    // Wie rleDecode565(), schreibt aber direkt in einen zeilenweise auf
-    // 4-Byte-Grenzen gepolsterten BMP-Pixelbereich (rowStride Byte je Zeile,
-    // width Pixel je Zeile nutzbar). Vermeidet einen zusaetzlichen, komplett
-    // entpackten Zwischenpuffer - spart bei einem 240x240-Zifferblatt bis zu
-    // ~115 KB Spitzen-Heap-Bedarf gegenueber "erst flach dekodieren, dann in
-    // den gepolsterten Puffer kopieren".
+    // Wie rleDecode565(), schreibt aber direkt in einen zeilenweise auf 4-Byte-
+    // Grenzen gepolsterten BMP-Pixelbereich - vermeidet einen zusaetzlichen
+    // Zwischenpuffer, spart bei 240x240 bis zu ~115 KB Spitzen-Heap-Bedarf.
     void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) {
         size_t i = 0;
         int col = 0, row = 0;
@@ -210,10 +180,9 @@
     }
 
 
-    // Liest eine face_*.bmp-Datei (egal ob Standard-BMP oder RLEB-komprimiert)
-    // direkt in einen bereits allozierten Ziel-Puffer 'dest' (expectedW x
-    // expectedH Pixel, RGB565, Top-Down). Gibt false zurueck bei Lesefehler
-    // oder wenn die Dimensionen nicht passen (dest bleibt dann unveraendert).
+    // Liest eine face_*.bmp-Datei (Standard-BMP oder RLEB-komprimiert) direkt in
+    // 'dest' (expectedW x expectedH, RGB565, Top-Down). False bei Lesefehler
+    // oder falschen Dimensionen (dest bleibt dann unveraendert).
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) {
         File f = LittleFS.open(path, "r");
         if (!f) return false;
@@ -281,6 +250,8 @@
     // (Standard-BMP oder RLEB, mit Fallback auf das eingebaute Standard-Zifferblatt),
     // wendet die aktuelle Helligkeit an und zeichnet es in backgroundSprite
     void loadClockFace() {
+        bool forceRecompute = false; // Neues Zifferblatt geladen -> Cache muss neu berechnet werden
+
         // Prüfen, ob Buffer schon existiert
         if (!clockFaceBuffer) {
             size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
@@ -311,20 +282,53 @@
                 // Puffer in diesem Fall unveraendert/undefiniert)
                 memcpy(clockFaceBuffer, clockFace, CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
             }
+            forceRecompute = true;
         }
 
         // Breiten aus Dateinamen extrahieren
         parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
         updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
 
-    
-        // Buffer ins Sprite kopieren (mit Helligkeit)
-        for (int y = 0; y < CLOCK_HEIGHT; y++) {
-            for (int x = 0; x < CLOCK_WIDTH; x++) {
-                rowBuffer[x] = setPixelBrightness(clockFaceBuffer[y * CLOCK_WIDTH + x]);
+
+        // Cache-Puffer fuer die bereits helligkeitsangepasste Fassung des
+        // Zifferblatts anlegen, falls noch nicht vorhanden.
+        if (!clockFaceBrightBuffer) {
+            size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
+            if (psramFound() and ESP.getFreePsram() > bufSize) {
+                clockFaceBrightBuffer = (uint16_t*)ps_malloc(bufSize);
             }
-            backgroundSprite.pushImage(0, y, CLOCK_WIDTH, 1, rowBuffer);
+            else {
+                clockFaceBrightBuffer = (uint16_t*)malloc(bufSize);
+            }
+            if (!clockFaceBrightBuffer) {
+                DEBUG_PRINTLN("[PSRAM] Error: couldnt allocate clockFaceBrightBuffer RAM! Falling back to per-pixel path");
+                // Fallback ohne Cache: wie zuvor Pixel fuer Pixel direkt ins
+                // Sprite kopieren (funktionsfaehig, nur ohne die Optimierung).
+                for (int y = 0; y < CLOCK_HEIGHT; y++) {
+                    for (int x = 0; x < CLOCK_WIDTH; x++) {
+                        rowBuffer[x] = setPixelBrightness(clockFaceBuffer[y * CLOCK_WIDTH + x]);
+                    }
+                    backgroundSprite.pushImage(0, y, CLOCK_WIDTH, 1, rowBuffer);
+                }
+                return;
+            }
+            forceRecompute = true;
         }
+
+        // Die teure Pixel-fuer-Pixel Helligkeitsanpassung nur durchlaufen, wenn
+        // sich seit dem letzten Mal etwas geaendert hat (neues Zifferblatt oder
+        // Helligkeit) - im Regelfall (jeder Tick) entfaellt dieser Durchlauf.
+        if (forceRecompute || currentBrightness != lastAppliedBrightness) {
+            for (int i = 0; i < CLOCK_WIDTH * CLOCK_HEIGHT; i++) {
+                clockFaceBrightBuffer[i] = setPixelBrightness(clockFaceBuffer[i]);
+            }
+            lastAppliedBrightness = currentBrightness;
+        }
+
+        // Guenstiger Regelfall: den vorberechneten Puffer in einem Rutsch ins
+        // Sprite kopieren - loescht dabei auch die alte Zeigerposition vom
+        // letzten Tick, ohne die Helligkeit erneut pro Pixel berechnen zu muessen.
+        backgroundSprite.pushImage(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, clockFaceBrightBuffer);
     }
 
 
@@ -335,6 +339,72 @@
             clockFaceBuffer = nullptr;
             // DEBUG_PRINTLN("[clockFaceBuffer] free");
         }
+        if (clockFaceBrightBuffer) {
+            free(clockFaceBrightBuffer);
+            clockFaceBrightBuffer = nullptr;
+        }
+    }
+
+
+    // Loescht alle hochgeladenen Zifferblaetter (face_*.bmp) - der eingebaute
+    // Standard bleibt erhalten, da er nicht als Datei existiert. Raeumt
+    // verwaiste Presets auf und schaltet bei Bedarf auf den Standard zurueck.
+    void resetFacesToDefault() {
+        std::vector<String> toDelete;
+        File root = LittleFS.open("/");
+        File file = root.openNextFile();
+        while (file) {
+            String name = file.name();
+            if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
+                toDelete.push_back(name);
+            }
+            file = root.openNextFile();
+        }
+        for (const String& name : toDelete) {
+            String path = "/" + name;
+            LittleFS.remove(path);
+            removeOrphanedPresets(path, "");
+        }
+
+        preferences.putString(PK_BACKGROUND, "/face_default.bmp");
+        selectedBackground = "/face_default.bmp";
+        freeClockFaceBuffer();
+        loadClockFace();
+        loadHandSprites();
+        updateClock();
+    }
+
+
+    // Loescht alle hochgeladenen Zeigersaetze (hand_set*.bmp) - der eingebaute
+    // Standard bleibt erhalten. Raeumt verwaiste Presets auf und schaltet auf
+    // den Standard-Zeigersatz zurueck.
+    void resetHandsToDefault() {
+        std::vector<String> toDelete;
+        std::set<String> setIds;
+        File root = LittleFS.open("/");
+        File file = root.openNextFile();
+        while (file) {
+            String name = file.name();
+            if (!file.isDirectory() && name.startsWith("hand_set") && name.endsWith(".bmp")) {
+                toDelete.push_back(name);
+                int start = 8; // Laenge von "hand_set"
+                int end = name.indexOf('_', start);
+                if (end > start) setIds.insert(name.substring(start, end));
+            }
+            file = root.openNextFile();
+        }
+        for (const String& name : toDelete) {
+            LittleFS.remove("/" + name);
+        }
+        for (const String& setId : setIds) {
+            removeOrphanedPresets("", setId);
+        }
+
+        preferences.putString(PK_HANDSET, "default");
+        freeClockFaceBuffer();
+        loadClockFace();
+        loadHandSprites();
+        updateClock();
     }
 
 
@@ -1158,10 +1228,8 @@
         if (rleSrcBuf) free(rleSrcBuf);
 
         // Zielformat entscheiden: face_*.bmp UND hand_set*.bmp werden RLE-
-        // komprimiert gespeichert (spart deutlich Flash-Platz - bei Zeigern
-        // wegen der grossen einfarbigen Flaechen sogar noch mehr als bei
-        // Zifferblaettern), alles andere (z.B. manuell skalierte Dateien)
-        // bleibt Standard-BMP wie bisher.
+        // komprimiert (spart Flash-Platz, bei Zeigern wegen grosser einfarbiger
+        // Flaechen noch mehr) - alles andere bleibt Standard-BMP wie bisher.
         String targetPathStr = String(targetPath);
         if (!targetPathStr.startsWith("/")) targetPathStr = "/" + targetPathStr;
         bool isFaceTarget = targetPathStr.startsWith("/face_");
@@ -1169,11 +1237,8 @@
         bool storeAsRle = isFaceTarget || isHandTarget;
 
         // Der Bildpuffer ist quadratisch, das sichtbare Display aber rund: bei
-        // Zifferblaettern wird daher alles ausserhalb des sichtbaren Kreises
-        // (Durchmesser = kuerzere Kantenlaenge) auf Weiss gesetzt, damit dort
-        // keine zufaelligen Bildreste aus den Ecken des Original-Uploads
-        // sichtbar werden. Zeiger werden einzeln gedreht und NICHT in einen
-        // Kreis eingepasst, daher gilt die Maskierung nur fuer Zifferblaetter.
+        // Zifferblaettern wird daher alles ausserhalb des sichtbaren Kreises auf
+        // Weiss gesetzt. Zeiger werden einzeln gedreht, Maskierung gilt nur fuer Zifferblaetter.
         if (isFaceTarget) {
             float cx = outW / 2.0f;
             float cy = outH / 2.0f;
@@ -1263,12 +1328,8 @@
 
 
     // Durchsucht das Dateisystem nach face_*.bmp-Dateien im ALTEN Standard-BMP-
-    // Format und konvertiert sie einmalig zum neuen, platzsparenden RLE-Format.
-    // scaleAndSaveBmp() speichert Zieldateien mit "face_"-Praefix automatisch
-    // als RLE (siehe dort) - hier wird die Datei einfach auf ihre eigene
-    // Groesse "umskaliert" (Quelle = Ziel = derselbe Pfad), wodurch derselbe
-    // Inhalt entsteht, nur eben komprimiert. Bereits RLE-komprimierte Dateien
-    // werden uebersprungen. Wird einmalig in setup() aufgerufen.
+    // Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
+    // speichert "face_"-Dateien automatisch als RLE - Quelle=Ziel=gleicher Pfad).
     void migrateFaceBmpsToRLE() {
         File root = LittleFS.open("/");
         if (!root) return;
@@ -1317,11 +1378,8 @@
 
 
     // Durchsucht das Dateisystem nach hand_set*.bmp-Dateien im ALTEN Standard-
-    // BMP-Format und konvertiert sie einmalig zum neuen, platzsparenden RLE-
-    // Format (siehe scaleAndSaveBmp() - Zieldateien mit "hand_set"-Praefix
-    // werden dort automatisch RLE-komprimiert gespeichert, seit Zeiger
-    // ebenfalls komprimiert werden). Bereits RLE-komprimierte Dateien werden
-    // uebersprungen. Wird einmalig in setup() aufgerufen.
+    // BMP-Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
+    // speichert "hand_set"-Dateien seither ebenfalls automatisch als RLE).
     void migrateHandBmpsToRLE() {
         File root = LittleFS.open("/");
         if (!root) return;
@@ -1369,10 +1427,9 @@
     }
 
 
-    // Liest nur das allererste Pixel (0,0) einer RLEB-Datei, ohne das ganze Bild
-    // zu dekodieren - preiswerte Pruefung, ob die Kreismaskierung fuer runde
-    // Displays (siehe scaleAndSaveBmp()) fuer diese Datei bereits angewendet
-    // wurde (Pixel (0,0) liegt garantiert ausserhalb des Kreises).
+    // Liest nur Pixel (0,0) einer RLEB-Datei, ohne das ganze Bild zu dekodieren -
+    // preiswerte Pruefung, ob die Kreismaskierung fuer runde Displays bereits
+    // angewendet wurde (Pixel (0,0) liegt garantiert ausserhalb des Kreises).
     bool peekFirstPixelIsWhite(const String& path) {
         File f = LittleFS.open(path, "r");
         if (!f) return false;
@@ -1391,12 +1448,9 @@
     }
 
 
-    // Wendet die Kreismaskierung (siehe scaleAndSaveBmp()) einmalig auf bereits
-    // vorhandene, schon RLE-komprimierte Zifferblaetter an, die VOR Einfuehrung
-    // dieser Maskierung migriert bzw. hochgeladen wurden. Nutzt die billige
-    // peekFirstPixelIsWhite()-Pruefung, um bereits maskierte Dateien zu
-    // ueberspringen, ohne einen zusaetzlichen Persistenz-Zustand zu benoetigen.
-    // Wird einmalig in setup() aufgerufen.
+    // Wendet die Kreismaskierung einmalig auf bereits vorhandene, schon RLE-
+    // komprimierte Zifferblaetter an, die VOR Einfuehrung dieser Maskierung
+    // migriert/hochgeladen wurden - nutzt peekFirstPixelIsWhite() zum Ueberspringen.
     void remaskExistingFaceCorners() {
         File root = LittleFS.open("/");
         if (!root) return;
@@ -1441,11 +1495,8 @@
 
 
     // Liest eine BMP-Datei (16 bpp RGB565), skaliert sie in-memory auf outW x outH
-    // herunter und sendet sie DIREKT als HTTP-Antwort - ohne eine skalierte Kopie
-    // auf dem Flash abzulegen. Dient als schnelle Vorschau fuer <img>-Tags im
-    // Webinterface: statt bei jedem Seitenaufruf die volle Zifferblatt-Aufloesung
-    // (z.B. 240x240 = ~115 KB) zu uebertragen, nur fuer eine 80x80-Miniaturansicht,
-    // wird hier nur die tatsaechlich benoetigte, kleine Groesse gesendet.
+    // herunter und sendet sie DIREKT als HTTP-Antwort (keine Flash-Kopie) - schnelle
+    // <img>-Vorschau statt der vollen Aufloesung (z.B. 240x240=~115 KB) je Seitenaufruf.
     void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) {
         checkHeapWarning("sendScaledBmpPreview Start (" + sourcePath + ")");
 
@@ -1541,10 +1592,9 @@
         *(uint32_t*)&outBmp[62] = 0x001F; // Blau-Maske
 
         if (isRle) {
-            // RLEB: sequentiell durch die Quelle dekodieren und NUR die
-            // tatsaechlich fuer das Downsampling benoetigten Zeilen behalten -
-            // kein voller ~115-KB-Quellpuffer noetig (RLE erlaubt kein
-            // direktes Anspringen einzelner Zeilen wie bei Standard-BMP).
+            // RLEB: sequentiell dekodieren, nur die fuer das Downsampling
+            // benoetigten Zeilen behalten - kein voller ~115-KB-Puffer noetig
+            // (RLE erlaubt kein direktes Anspringen einzelner Zeilen).
             const size_t IN_CHUNK = 512;
             uint8_t inBuf[IN_CHUNK];
             size_t inPos = 0, inLen = 0, consumedTotal = 0;
@@ -1657,14 +1707,8 @@
 
 
     // Liest eine RLEB-komprimierte face_*.bmp-Datei zeilenweise und sendet das
-    // Ergebnis SOFORT per Chunked-Response an den Webserver-Client, statt es
-    // komplett im RAM zu materialisieren. Haelt zu keinem Zeitpunkt mehr als
-    // eine Bildzeile + einen kleinen Lese-Puffer im RAM (statt bis zu ~115 KB
-    // bei einem 240x240-Zifferblatt) - wichtig auf Geraeten mit knappem freiem
-    // SRAM (siehe Boot-Log: TFT-Sprites/clockFaceBuffer liegen zwar im PSRAM,
-    // aber der freie SRAM-Sockel reicht oft nicht fuer eine komplette
-    // Dekodierung auf einmal). Wird von /file und /download in
-    // webserver_routes.h fuer RLEB-komprimierte face_*.bmp-Dateien genutzt.
+    // Ergebnis SOFORT per Chunked-Response, statt es komplett im RAM zu
+    // materialisieren - haelt nie mehr als eine Bildzeile im RAM (statt ~115 KB).
     bool streamRleFaceAsStandardBmp(const String& path, const char* contentType) {
         File f = LittleFS.open(path, "r");
         if (!f) return false;
@@ -1706,13 +1750,9 @@
         *(uint32_t*)&bmpHeader[58] = 0x07E0;
         *(uint32_t*)&bmpHeader[62] = 0x001F;
 
-        // Kleine Bilder (z.B. Zeiger, nur wenige KB) komplett dekodieren und in
-        // EINEM Rutsch senden, statt zeilenweise zu streamen - bei kleinen
-        // Dateien ueberwiegt sonst der Netzwerk-Overhead vieler einzelner
-        // sendContent()-Aufrufe (z.B. 131 Aufrufe pro 21x131-Zeigerbild) den
-        // Speichervorteil des zeilenweisen Streamings deutlich. Fuer grosse
-        // Zifferblaetter (>20 KB unkomprimiert) bleibt das zeilenweise Streaming
-        // aktiv, da dort der geringe Speicherbedarf wichtiger ist.
+        // Kleine Bilder (z.B. Zeiger) komplett dekodieren und in EINEM Rutsch senden -
+        // bei kleinen Dateien ueberwiegt sonst der Netzwerk-Overhead vieler einzelner
+        // sendContent()-Aufrufe. Grosse Zifferblaetter bleiben zeilenweise gestreamt.
         const uint32_t SMALL_IMAGE_THRESHOLD = 20000;
         if (uncompressedSize <= SMALL_IMAGE_THRESHOLD) {
             uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
@@ -1823,15 +1863,9 @@
     }
 
 
-    // Rotiert ein Zeigerbild (hand, HAND_WIDTH x HAND_HEIGHT) um seinen Drehpunkt
-    // (pivotX, pivotY in Zeiger-lokalen Koordinaten) und komponiert es auf die
-    // Canvas (canvasW x canvasH), zentriert bei (cx, cy), skaliert um 'scale'.
-    // angleDeg: 0 Grad = 12-Uhr-Position, im Uhrzeigersinn zunehmend (identische
-    // Konvention wie die Winkelberechnung in updateClock()). Nutzt inverse
-    // Rueckwaerts-Abbildung (fuer jeden Canvas-Pixel wird die Quellposition im
-    // Zeigerbild berechnet), damit keine Luecken im Ergebnis entstehen. Pixel in
-    // TRANSPARENT_COLOR oder Weiss (0xFFFF) gelten als durchsichtig (wie beim
-    // echten Rendering in loadHandBmp()).
+    // Rotiert ein Zeigerbild um seinen Drehpunkt (pivotX/Y) und komponiert es auf
+    // die Canvas (zentriert bei cx/cy, skaliert). angleDeg: 0=12-Uhr-Position,
+    // im Uhrzeigersinn - nutzt inverse Rueckwaerts-Abbildung, Weiss/TRANSPARENT_COLOR = durchsichtig.
     void blitRotatedHand(uint16_t* canvas, int canvasW, int canvasH,
         const uint16_t* hand, int handW, int handH,
         float pivotX, float pivotY,
@@ -1868,12 +1902,9 @@
     }
 
 
-    // Erzeugt ein Vorschaubild fuer die Preset-Verwaltung im Webinterface: eine
-    // Komposition aus dem Zifferblatt, den Zeigern (Stunde/Minute, optional
-    // Sekunde) bei einer festen Demo-Uhrzeit (10:10:30 Uhr - klassischer
-    // "Uhrenwerbung"-Winkel) sowie einem Mittelpunkt in der angegebenen Farbe
-    // und Groesse. Liefert ein vollstaendiges Standard-BMP im RAM zurueck
-    // (Aufrufer ist fuer delete[] outBytes verantwortlich).
+    // Erzeugt ein Vorschaubild fuer die Preset-Verwaltung: Komposition aus Zifferblatt,
+    // Zeigern (Demo-Zeit 10:10:30) und Mittelpunkt in angegebener Farbe/Groesse.
+    // Liefert ein Standard-BMP im RAM zurueck (Aufrufer muss outBytes freigeben).
     bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName,
         uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond,
         uint8_t** outBytes, size_t& outSize) {
@@ -2084,10 +2115,9 @@
             root.close();
         }
 
-        // 2) Eingebauten Standard aus der Liste entfernen (falls als Datei vorhanden)
-        //    und die restlichen Zifferblaetter natuerlich sortieren - dieselbe
-        //    Reihenfolge, die auch im Webinterface (/listfilesFaces) angezeigt
-        //    wird, damit Durchschalten am Geraet und Webanzeige konsistent sind.
+        // 2) Eingebauten Standard entfernen (falls als Datei vorhanden) und den Rest
+        //    natuerlich sortieren - dieselbe Reihenfolge wie im Webinterface
+        //    (/listfilesFaces), damit Durchschalten und Webanzeige konsistent sind.
         for (size_t i = 0; i < faces.size(); ++i) {
             if (faces[i] == "/face_default.bmp") {
                 faces.erase(faces.begin() + i);

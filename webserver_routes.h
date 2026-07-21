@@ -1,7 +1,5 @@
 #pragma once
-    // ####################################################################
-    // ### Webinterface: alle HTTP-Routen & HTML-Generierung
-    // ####################################################################
+    // ### Webinterface: alle HTTP-Routen & HTML-Generierung ##############
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
@@ -43,7 +41,7 @@
         // Oben rechts fest positioniert, neben der Live-Vorschau (oben links) -
         // kompaktere Schrift, damit die paar Zeilen nicht mehr Hoehe brauchen
         // als das 90px hohe Vorschaubild gegenueber.
-        String boxed = "<div style='position:fixed;top:0;left:100px;width:fit-content;max-width:calc(55% + 70px);height:90px;box-sizing:border-box;background:#fff;border:2px solid #333;border-radius:8px;padding:4px 8px;font-size:0.8em;line-height:1.3;text-align:left;white-space:nowrap;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;z-index:1000;'>";
+        String boxed = "<div style='position:fixed;top:0;left:100px;max-width:calc(55% + 70px);height:90px;box-sizing:border-box;background:#fff;border:2px solid #333;border-radius:8px;padding:4px 8px;font-size:0.8em;line-height:1.3;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
         boxed += html;
         boxed += "</div><hr>";
 
@@ -60,8 +58,8 @@
         }
         */
 
-        String nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'></form>";
-        nav += "<img src='/currentpreview' onclick=\"if(confirm('" + translate("Save the current clock settings as a new preset?") + "')) document.getElementById('previewSaveForm').submit();\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:90px;height:90px;box-sizing:border-box;border:2px solid #333;border-bottom-right-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
+        String nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'><input type='hidden' id='previewSaveName' name='name'></form>";
+        nav += "<img src='/currentpreview' onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:90px;height:90px;box-sizing:border-box;border:2px solid #333;border-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
         nav += "<style>";
         nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
@@ -91,7 +89,7 @@
             {"/status", translate("Status"), ""},
             {"/files", translate("File&nbsp;Manager"), ""},
             {"/reboot", translate("Reboot"), translate("Are you sure you want to reboot?")},
-            {"/factoryReset", translate("Factory&nbsp;Reset"), translate("Are you sure you want to reset to factory settings?")}
+            {"/factoryReset", translate("Factory&nbsp;Reset"), ""}
         };
 
         String currentPath = webserver.uri(); // Aktueller Pfad der Seite
@@ -125,6 +123,20 @@
     }
 
 
+    // Zeigt eine einheitliche Erfolgsmeldung, wenn die Route per Weiterleitung
+    // einen "msg"-Parameter mitgibt (translate()-Schluessel, automatisch uebersetzt) -
+    // blendet sich nach ein paar Sekunden per JS aus, ein Muster fuer alle Aktionen.
+    String generateFlashMessage() {
+        if (!webserver.hasArg("msg")) return "";
+        String message = translate(webserver.arg("msg"));
+        String html = "<div id='flashMsg' style='background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
+        html += "&#9989; " + message;
+        html += "</div>";
+        html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 3000);</script>";
+        return html;
+    }
+
+
     // Sprachselector generieren
     String generateLanguageSelector() {
         String html = "<form method='POST' action='/setLanguage'>";
@@ -141,10 +153,8 @@
     }
 
 
-    // Vergleicht zwei Dateinamen "natuerlich": zusammenhaengende Ziffernfolgen
-    // werden als Zahl verglichen statt zeichenweise-alphabetisch, damit z.B.
-    // "hand_set2_hour.bmp" vor "hand_set10_hour.bmp" einsortiert wird (bei
-    // reinem String-Vergleich waere "10" faelschlich vor "2").
+    // Vergleicht zwei Dateinamen "natuerlich": Ziffernfolgen werden als Zahl
+    // verglichen statt zeichenweise, damit z.B. "hand_set2..." vor "hand_set10..." einsortiert wird.
     bool naturalLess(const String& a, const String& b) {
         unsigned int i = 0, j = 0;
         while (i < a.length() && j < b.length()) {
@@ -173,10 +183,8 @@
     }
 
 
-    // Sortiert eine Liste von Dateinamen "natuerlich" (siehe naturalLess()).
-    // Einfacher Insertion-Sort statt std::sort, um keine zusaetzliche
-    // <algorithm>-Abhaengigkeit zu benoetigen - bei der ueberschaubaren
-    // Dateianzahl auf LittleFS ist die O(n^2)-Laufzeit unerheblich.
+    // Sortiert eine Liste von Dateinamen "natuerlich" (siehe naturalLess()) - Insertion-Sort
+    // statt std::sort, um keine <algorithm>-Abhaengigkeit zu benoetigen (Dateianzahl ueberschaubar).
     void naturalSortNames(std::vector<String>& names) {
         for (size_t i = 1; i < names.size(); i++) {
             String key = names[i];
@@ -193,15 +201,9 @@
     // Webserver-API-Endpunkte einrichten
     void setupWebServer() {
 
-        // Captive-Portal-Erkennung: Android, iOS/macOS und Windows fragen beim
-        // Verbinden mit einem WLAN gezielt diese bekannten URLs ab, um zu
-        // entscheiden, ob automatisch ein Anmelde-Popup angezeigt werden soll.
-        // Antworten wir hier (statt mit dem sonst ueblichen 404) mit einem
-        // Redirect auf die Konfigurationsseite, oeffnet sich beim Verbinden mit
-        // dem Access-Point ("clock123") von selbst ein Browserfenster - ganz
-        // ohne dass man manuell eine Adresse eingeben muss. Wirkt zusammen mit
-        // dnsServer.processNextRequest() (siehe loop() in uhr3.ino), das dafuer
-        // sorgt, dass jede Domain ueberhaupt erst bei diesem Webserver landet.
+        // Captive-Portal-Erkennung: Android/iOS/Windows fragen beim Verbinden diese
+        // bekannten URLs ab - Redirect (statt 404) auf die Konfigurationsseite oeffnet
+        // beim AP ("clock123") automatisch ein Browserfenster, wirkt mit dnsServer.processNextRequest() zusammen.
         auto captivePortalRedirect = []() {
             webserver.sendHeader("Location", "http://" + ipAddress + "/", true);
             webserver.send(302, "text/plain", "");
@@ -238,7 +240,7 @@
                 if (lang == "en") {
                     saveLanguage(lang);
                     // webserver.send(200, "text/plain", "Language updated to " + lang);
-                    webserver.sendHeader("Location", "/", true);
+                    webserver.sendHeader("Location", "/?msg=Language%20updated", true);
                     webserver.send(302, "text/plain", "");
                     return;
                 }
@@ -246,7 +248,7 @@
                 if (availableLanguages.count(lang)) {
                     saveLanguage(lang);
                     // webserver.send(200, "text/plain", "Language updated to " + lang);
-                    webserver.sendHeader("Location", "/", true);
+                    webserver.sendHeader("Location", "/?msg=Language%20updated", true);
                     webserver.send(302, "text/plain", "");
                     return;
                 }
@@ -290,8 +292,38 @@
             espReboot();
             });
 
+        // Speichert einen benutzerdefinierten Hostnamen (wird erst nach einem
+        // Neustart wirksam, da WiFi.setHostname()/MDNS.begin() nur einmalig
+        // beim Verbindungsaufbau in connectWiFi() aufgerufen werden).
+        webserver.on("/sethostname", HTTP_POST, []() {
+            if (webserver.hasArg("hostname")) {
+                String newHostname = webserver.arg("hostname");
+                newHostname.trim();
+
+                bool valid = newHostname.length() > 0 && newHostname.length() <= 30;
+                for (unsigned int i = 0; valid && i < newHostname.length(); i++) {
+                    char c = newHostname[i];
+                    if (!isAlphaNumeric(c) && c != '-') valid = false;
+                }
+
+                if (!valid) {
+                    webserver.sendHeader("Location", "/?msg=Invalid%20hostname%20-%20only%20letters%2C%20numbers%20and%20hyphens%20allowed%2C%20max%2030%20characters", true);
+                    webserver.send(302, "text/plain", "");
+                    return;
+                }
+
+                preferences.putString(PK_HOSTNAME, newHostname);
+                webserver.sendHeader("Location", "/?msg=Hostname%20saved%20-%20requires%20a%20reboot%20to%20take%20effect", true);
+                webserver.send(302, "text/plain", "");
+            }
+            else {
+                webserver.send(400, "text/plain", "Missing parameter");
+            }
+            });
+
         webserver.on("/api/createPreset", HTTP_POST, []() {
-            bool created = createPresetFromPreferences(); // Erstellt ein neues Preset, falls noch ein Slot frei ist
+            String customName = webserver.hasArg("name") ? webserver.arg("name") : "";
+            bool created = createPresetFromPreferences(customName); // Erstellt ein neues Preset, falls noch ein Slot frei ist
 
             if (!created) {
                 String html = generateHtmlHeader();
@@ -305,7 +337,7 @@
             }
 
             // Weiterleitung zur Presets-Seite
-            webserver.sendHeader("Location", "/presets", true);
+            webserver.sendHeader("Location", "/presets?msg=Preset%20created", true);
             webserver.send(302, "text/plain", "Redirecting to /presets..");
             });
 
@@ -423,7 +455,7 @@
                 String sourceArg = webserver.arg("source");
                 if (sourceArg == "preset") {
                     // DEBUG_PRINTLN("[API] Request source: preset");
-                    webserver.sendHeader("Location", "/presets", true);
+                    webserver.sendHeader("Location", "/presets?msg=Preset%20applied", true);
                     webserver.send(302, "text/plain", "Redirecting to /presets..");
                     return;
                 }
@@ -441,6 +473,7 @@
             chunk.reserve(1024);
             chunk += generateHtmlStatus();
             chunk += generateNavigation();
+            chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Presets") + "</h2>";
 
             // Links oben anzeigen
@@ -476,18 +509,14 @@
             chunk += "}";
             chunk += "</script>";
 
-            chunk += "<table style='width:100%; border-collapse:collapse;'>";
-            chunk += "<tr><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preview") + "</th><th style='border:1px solid #ccc; padding:8px;'>" + translate("Preset Name") +
-                "</th><th style = 'border:1px solid #ccc; padding:8px;'></th><th style='border:1px solid #ccc; padding:8px;'></th></tr>";
+            chunk += "<div style='display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:flex-start;'>";
 
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Nur die Anzeige-Reihenfolge sortieren (alphabetisch/natuerlich
-            // nach Namen) - die eigentlichen Array-Indizes bleiben unveraendert,
-            // damit Rename-/Delete-/Vorschau-Links weiterhin auf den richtigen
-            // Slot verweisen. Insertion-Sort wie bei naturalSortNames(), um
-            // keine <algorithm>-Abhaengigkeit zu benoetigen.
+            // Nur die Anzeige-Reihenfolge sortieren (Array-Indizes bleiben unveraendert,
+            // damit Rename-/Delete-/Vorschau-Links stimmen) - Insertion-Sort wie bei
+            // naturalSortNames(), um keine <algorithm>-Abhaengigkeit zu benoetigen.
             std::vector<int> sortedIndices;
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
@@ -522,23 +551,20 @@
                     displayUrl += "&source=preset";
                     presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
 
-                    chunk += "<tr>";
-                    chunk += "<td style='border:1px solid #ccc; padding:4px;'><a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a></td>";
-                    chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: left;'><a href='" + displayUrl + "'>" + presets[i].name + "</a></td>";
+                    chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:140px;'>";
+                    chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
+                    chunk += "<br><a href='" + displayUrl + "'>" + presets[i].name + "</a>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
                     String ipLink = "http://" + ipAddress + "/api/setPreset?name=" + presetName;
-                    chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: center;'>";
-                    chunk += "<span onclick=\"copyPresetLink('" + ipLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
+                    chunk += "<br><span onclick=\"copyPresetLink('" + ipLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
                     if (pingHostname) {
                         String hostLink = espHost + "/api/setPreset?name=" + presetName;
                         chunk += " <span onclick=\"copyPresetLink('" + hostLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + " (" + espHost + ")'>&#128203;</span>";
                     }
-                    chunk += "</td>";
-                    chunk += "<td style='border:1px solid #ccc; padding:8px; text-align: center;'>";
-                    chunk += "<a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
-                    chunk += "<a href='/deletepreset?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + presets[i].name + "?\")'>" + translate("Delete") + "</a></td>";
-                    chunk += "</tr>";
+                    chunk += "<br><a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
+                    chunk += "<a href='/deletepreset?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + presets[i].name + "?\")'>" + translate("Delete") + "</a>";
+                    chunk += "</div>";
 
                     rowCount++;
                     if (rowCount % 5 == 0) {
@@ -547,12 +573,160 @@
                     }
                 }
             }
-            chunk += "</table>";
+            chunk += "</div>";
             chunk += "<p>" + translate("Presets used") + ": " + String(rowCount) + " / " + String(MAX_PRESETS) + "</p>";
-            chunk += "</ul>";
             chunk += "</div><hr>";
 
+            chunk += "<button type='button' id='ghPresetBtn' onclick='loadPresetsFromGithub()'>" + translate("Load Presets from GitHub") + "</button>";
+            chunk += "<div id='ghPresetStatus'></div>";
+
+            // Fuer den JS-Merge-Abgleich: bereits vorhandene Preset-Namen sowie
+            // vorhandene Zifferblatt-/Zeigersatz-Dateien bereitstellen, damit der
+            // GitHub-Download nur wirklich Neues hinzufuegt und automatisch die
+            // dafuer noch fehlenden Zifferblaetter/Zeigersaetze mitlaedt.
+            std::vector<String> existingPresetNamesForJs;
+            for (int gi = 0; gi < MAX_PRESETS; gi++) {
+                if (!presets[gi].name.isEmpty() && !presets[gi].url.isEmpty()) {
+                    existingPresetNamesForJs.push_back(presets[gi].name);
+                }
+            }
+            std::vector<String> existingFacesForJs;
+            std::vector<String> existingHandsForJs;
+            File ghScanRoot = LittleFS.open("/");
+            File ghScanFile = ghScanRoot.openNextFile();
+            while (ghScanFile) {
+                String n = ghScanFile.name();
+                if (!ghScanFile.isDirectory()) {
+                    if (n.startsWith("face_") && n.endsWith(".bmp")) existingFacesForJs.push_back(n);
+                    else if (n.startsWith("hand_set") && n.endsWith(".bmp")) existingHandsForJs.push_back(n);
+                }
+                ghScanFile = ghScanRoot.openNextFile();
+            }
+
+            chunk += "<script>";
+            chunk += "var existingPresetNames = [";
+            for (size_t gi = 0; gi < existingPresetNamesForJs.size(); gi++) {
+                if (gi > 0) chunk += ",";
+                chunk += "\"" + existingPresetNamesForJs[gi] + "\"";
+            }
+            chunk += "];";
+            chunk += "var existingFacesForPresets = [";
+            for (size_t gi = 0; gi < existingFacesForJs.size(); gi++) {
+                if (gi > 0) chunk += ",";
+                chunk += "\"" + existingFacesForJs[gi] + "\"";
+            }
+            chunk += "];";
+            chunk += "var existingHandsForPresets = [";
+            for (size_t gi = 0; gi < existingHandsForJs.size(); gi++) {
+                if (gi > 0) chunk += ",";
+                chunk += "\"" + existingHandsForJs[gi] + "\"";
+            }
+            chunk += "];";
+            chunk += "async function loadPresetsFromGithub() {";
+            chunk += "  var btn = document.getElementById('ghPresetBtn');";
+            chunk += "  var status = document.getElementById('ghPresetStatus');";
+            chunk += "  btn.disabled = true;";
+            chunk += "  try {";
+            chunk += "    status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
+            chunk += "    var text = null;";
+            chunk += "    for (var attempt = 0; attempt < 3 && text === null; attempt++) {";
+            chunk += "      try {";
+            chunk += "        var r = await fetch('" GITHUB_RAW_BASE "presets_backup.txt');";
+            chunk += "        if (r.ok) text = await r.text();";
+            chunk += "      } catch (e) {}";
+            chunk += "      if (text === null && attempt < 2) await new Promise(function(resolve) { setTimeout(resolve, 1500); });";
+            chunk += "    }";
+            chunk += "    if (text === null) throw new Error('unreachable');";
+            chunk += "    var lines = text.split('\\n').map(function(l){return l.trim();}).filter(function(l){return l.length > 0;});";
+            chunk += "    var newLines = [];";
+            chunk += "    var neededFiles = {};";
+            chunk += "    for (var i = 0; i < lines.length; i++) {";
+            chunk += "      var tabIdx = lines[i].indexOf('\\t');";
+            chunk += "      if (tabIdx === -1) continue;";
+            chunk += "      var name = lines[i].substring(0, tabIdx);";
+            chunk += "      var url = lines[i].substring(tabIdx + 1);";
+            chunk += "      if (existingPresetNames.indexOf(name) !== -1) continue;";
+            chunk += "      newLines.push(lines[i]);";
+            chunk += "      var qIdx = url.indexOf('?');";
+            chunk += "      if (qIdx === -1) continue;";
+            chunk += "      var params = new URLSearchParams(url.substring(qIdx + 1));";
+            chunk += "      var face = params.get('face');";
+            chunk += "      if (face) {";
+            chunk += "        var faceName = face.charAt(0) === '/' ? face.substring(1) : face;";
+            chunk += "        if (faceName !== 'face_default.bmp' && existingFacesForPresets.indexOf(faceName) === -1) neededFiles[faceName] = true;";
+            chunk += "      }";
+            chunk += "      var handSet = params.get('handSet');";
+            chunk += "      if (handSet && handSet !== 'default') {";
+            chunk += "        ['hour','minute','second'].forEach(function(part) {";
+            chunk += "          var hn = 'hand_set' + handSet + '_' + part + '.bmp';";
+            chunk += "          if (existingHandsForPresets.indexOf(hn) === -1) neededFiles[hn] = true;";
+            chunk += "        });";
+            chunk += "      }";
+            chunk += "    }";
+            chunk += "    if (newLines.length === 0) { status.innerHTML = '" + translate("All presets already up to date") + ".'; btn.disabled = false; return; }";
+            chunk += "    var missingNames = Object.keys(neededFiles);";
+            chunk += "    if (missingNames.length > 0) {";
+            chunk += "      status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
+            chunk += "      var listResp = await fetch('" GITHUB_API_CONTENTS_BASE + String(CLOCK_WIDTH) + "');";
+            chunk += "      var files = await listResp.json();";
+            chunk += "      var fileMap = {};";
+            chunk += "      files.forEach(function(f) { fileMap[f.name] = f.download_url; });";
+            chunk += "      for (var j = 0; j < missingNames.length; j++) {";
+            chunk += "        var fn = missingNames[j];";
+            chunk += "        if (!fileMap[fn]) continue;";
+            chunk += "        status.innerHTML = '" + translate("Downloading") + " ' + fn + ' (' + (j + 1) + '/' + missingNames.length + ')...';";
+            chunk += "        var blob = await (await fetch(fileMap[fn])).blob();";
+            chunk += "        var fd = new FormData();";
+            chunk += "        fd.append('upload', blob, fn);";
+            chunk += "        var target = fn.indexOf('face_') === 0 ? '/upload' : '/uploadhandset';";
+            chunk += "        await fetch(target, { method: 'POST', body: fd });";
+            chunk += "      }";
+            chunk += "    }";
+            chunk += "    status.innerHTML = '" + translate("Downloading") + " presets_backup.txt...';";
+            chunk += "    var presetBlob = new Blob([newLines.join('\\n')], { type: 'text/plain' });";
+            chunk += "    var presetFd = new FormData();";
+            chunk += "    presetFd.append('presetfile', presetBlob, 'presets_backup.txt');";
+            chunk += "    await fetch('/importpresetsmerge', { method: 'POST', body: presetFd });";
+            chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
+            chunk += "    location.href = location.pathname;";
+            chunk += "  } catch (e) {";
+            chunk += "    status.innerHTML = '" + translate("Failed to reach GitHub - check your internet connection") + ".';";
+            chunk += "    btn.disabled = false;";
+            chunk += "  }";
+            chunk += "}";
+            chunk += "</script>";
             chunk += "<hr>";
+
+            // Falls beim Laden der Seite keine Presets vorhanden sind, automatisch
+            // fragen, ob welche von GitHub geladen werden sollen - relevant z.B.
+            // nach einem Werksreset oder erstmaligem Einrichten. Prueft die
+            // Erreichbarkeit von GitHub mehrfach (mit kurzer Pause dazwischen),
+            // bevor gefragt wird, damit direkt nach einem Neustart (WLAN evtl.
+            // noch nicht ganz stabil) keine Nachfrage fuer eine dann sowieso
+            // fehlschlagende Aktion erscheint.
+            if (rowCount == 0) {
+                chunk += "<script>";
+                chunk += "async function checkGithubReachable(retries) {";
+                chunk += "  for (var i = 0; i < retries; i++) {";
+                chunk += "    try {";
+                chunk += "      var r = await fetch('" GITHUB_RAW_BASE "presets_backup.txt');";
+                chunk += "      if (r.ok) return true;";
+                chunk += "    } catch (e) {";
+                chunk += "    }";
+                chunk += "    await new Promise(function(resolve) { setTimeout(resolve, 1500); });";
+                chunk += "  }";
+                chunk += "  return false;";
+                chunk += "}";
+                chunk += "(async function() {";
+                chunk += "  var reachable = await checkGithubReachable(3);";
+                chunk += "  if (!reachable) return;";
+                chunk += "  if (confirm('" + translate("No presets found. Load recommended presets from GitHub?") + "')) {";
+                chunk += "    loadPresetsFromGithub();";
+                chunk += "  }";
+                chunk += "})();";
+                chunk += "</script>";
+            }
+
             chunk += "<h3>" + translate("Create New Preset") + "</h3>";
             chunk += "<form method='POST' action='/api/createPreset'>";
             chunk += "<button type='submit'>" + translate("Create Preset from Current Settings") + "</button>";
@@ -565,8 +739,7 @@
             chunk += "<form method='POST' action='/importpresets' enctype='multipart/form-data' style='display:inline;'>";
             chunk += "<input type='file' name='presetfile' accept='.txt' required>";
             chunk += "<button type='submit' onclick='return confirm(\"" + translate("This will replace all currently saved presets") + ". " + translate("Continue") + "?\")'>" + translate("Restore Presets from File") + "</button>";
-            chunk += "</form>";
-            chunk += "<hr>";
+            chunk += "</form> ";
 
             chunk += "</body></html>";
             webserver.sendContent(chunk);
@@ -589,25 +762,25 @@
         // Presets aus einer zuvor per /exportpresets erzeugten Textdatei
         // wiederherstellen - ersetzt ALLE aktuell gespeicherten Presets.
         webserver.on("/importpresets", HTTP_POST, []() {
-            String html = generateHtmlHeader();
-            html += generateHtmlStatus();
-            html += generateNavigation();
-            html += "<h2>" + translate("Import Presets") + "</h2>";
             if (presetImportSuccess) {
-                html += "<p>" + translate("Presets imported successfully") + ".</p>";
+                webserver.sendHeader("Location", "/presets?msg=Presets%20imported%20successfully", true);
             }
             else {
-                html += "<p>" + translate("Import failed - please check the file") + ".</p>";
+                webserver.sendHeader("Location", "/presets?msg=Import%20failed%20-%20please%20check%20the%20file", true);
             }
-            html += "<a href='/presets'><button type='button'>" + translate("Back") + "</button></a>";
-            html += generateNavigation();
-            html += "</body></html>";
-            webserver.send(200, "text/html", html);
+            webserver.send(302, "text/plain", "");
             }, handlePresetImportUpload);
+
+        // Wie /importpresets, loescht dabei aber keine bestehenden Presets - wird
+        // vom GitHub-Download-Button auf /presets genutzt (siehe handlePresetMergeUpload()).
+        webserver.on("/importpresetsmerge", HTTP_POST, []() {
+            webserver.sendHeader("Location", "/presets?msg=Presets%20imported%20successfully", true);
+            webserver.send(302, "text/plain", "");
+            }, handlePresetMergeUpload);
 
         // API zum Restart des ESP
         webserver.on("/api/reboot", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/status'><title>Rebooting</title></head><body><h2>Rebooting...</h2></body></html>");
+            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/status'><title>Rebooting</title></head><body><h2>" + translate("Rebooting...") + "</h2></body></html>");
             delay(WAIT_1s);
             espReboot();
             });
@@ -688,13 +861,8 @@
                 setupNTP();
             }
 
-
-            webserver.send(200, "text/html",
-                "<!DOCTYPE html><html><head>"
-                "<meta http-equiv='refresh' content='0; url=/timezone_form' />"
-                "<title>NTP / Timezone Updated</title></head>"
-                "<body><h2>NTP / Timezone updated</h2>"
-                "</body></html>");            
+            webserver.sendHeader("Location", "/timezone_form?msg=Timezone%20updated", true);
+            webserver.send(302, "text/plain", "");
             }
         
         
@@ -744,6 +912,7 @@
             html.reserve(6144);  // Zeitzonen-Formular: lange Dropdown-Liste
             html += generateHtmlStatus(); // Statusleiste einfügen
             html += generateNavigation(); // Navigation einfügen
+            html += generateFlashMessage();
             html += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
             html += "<form method='POST' action='/set_timezone'>";
 
@@ -796,7 +965,7 @@
             html += "<label>" + translate("New Name") + ":</label><br>";
             html += "<input name='new' value='" + oldName + "' required><br><br>";
             html += "<button type='submit'>" + translate("Rename") + "</button></form>";
-            html += "<br><a href='/files'>" + translate("Cancel") + "</a></body></html>";
+            html += "<br><a href='/files'><button type='button'>" + translate("Cancel") + "</button></a></body></html>";
             webserver.send(200, "text/html", html);
             });
 
@@ -812,7 +981,15 @@
 
                 if (LittleFS.exists(oldName)) {
                     if (LittleFS.rename(oldName, newName)) {
-                        webserver.sendHeader("Location", "/files", true);
+                        String baseName = newName.startsWith("/") ? newName.substring(1) : newName;
+                        String redirectTarget = "/files";
+                        if (baseName.startsWith("face_") && baseName.endsWith(".bmp")) {
+                            redirectTarget = "/listfilesFaces";
+                        }
+                        else if (baseName.startsWith("hand_set") && baseName.endsWith(".bmp")) {
+                            redirectTarget = "/handsets";
+                        }
+                        webserver.sendHeader("Location", redirectTarget + "?msg=File%20renamed", true);
                         webserver.send(302, "text/plain", "");
                     }
                     else {
@@ -867,10 +1044,10 @@
 
             bool scaleSuccess = scaleAndSaveBmp(src.c_str(), dst.c_str(), w, h);
             if (scaleSuccess) {
-                webserver.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Scaling successful") + "!</h3><p>" + translate("Saved as") + ": " + dst + "</p><a href = '/files'>" + translate("Back") + " </a></body></html>");
+                webserver.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Scaling successful") + "!</h3><p>" + translate("Saved as") + ": " + dst + "</p><a href = '/files'><button type='button'>" + translate("Back") + "</button></a></body></html>");
             }
             else {
-                webserver.send(500, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Failed to scale BMP") + "</h3><p>Check source file and format.</p><a href='/files'>Back</a></body></html>");
+                webserver.send(500, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Failed to scale BMP") + "</h3><p>Check source file and format.</p><a href='/files'><button type='button'>" + translate("Back") + "</button></a></body></html>");
             }
             });
 
@@ -925,9 +1102,8 @@
             }
 
        
-            webserver.send(200, "text/html",
-                "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/'><title>Saved</title></head>"
-                "<body style='font-family:Arial;text-align:center;'><h2>Saved</h2><p>Back...</p></body></html>");
+            webserver.sendHeader("Location", "/?msg=Settings%20saved", true);
+            webserver.send(302, "text/plain", "");
             });
 
 
@@ -940,6 +1116,7 @@
             chunk.reserve(1024);
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
+            chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
             if (photoresistorFound) {
@@ -1053,6 +1230,7 @@
             chunk.reserve(1024);
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
+            chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
             if (photoresistorFound) {
@@ -1188,9 +1366,8 @@
             preferences.putUChar(PK_BRIGHT_END_HOUR, brightEndHour);
 
 
-            webserver.send(200, "text/html",
-                "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/brightness'><title>Saved</title></head>"
-                "<body style='font-family:Arial;text-align:center;'><h2>Settings saved</h2><p>Returning...</p></body></html>");
+            webserver.sendHeader("Location", "/brightness?msg=Settings%20saved", true);
+            webserver.send(302, "text/plain", "");
             });
 
 
@@ -1204,6 +1381,7 @@
 
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
+            chunk += generateFlashMessage();
 
             chunk += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
 
@@ -1231,7 +1409,7 @@
                 String info = getBmpInfo(name);
                 chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
                 chunk += "<td align=right>" + String(info) + "</td>";
-                chunk += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"Delete " + name + "?\")'>" + translate("Delete") + "</a> ";
+                chunk += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>" + translate("Delete") + "</a> ";
                 // Scale-Option nur für .bmp-Dateien anzeigen
                 if (name.endsWith(".bmp")) {
                     chunk += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
@@ -1268,10 +1446,8 @@
                 if (!path.startsWith("/")) path = "/" + path;
 
                 if (LittleFS.exists(path)) {
-                    // Pruefen, ob es sich um eine RLE-komprimierte face_*.bmp
-                    // handelt - falls ja, vor dem Download zu einem echten,
-                    // eigenstaendigen Standard-BMP dekodieren, damit die Datei
-                    // auch ausserhalb der Uhr (Bildbetrachter etc.) nutzbar ist.
+                    // Pruefen, ob RLE-komprimierte face_*.bmp - falls ja, vor dem Download
+                    // zu einem echten Standard-BMP dekodieren (nutzbar ausserhalb der Uhr).
                     bool isRle = false;
                     if (path.endsWith(".bmp")) {
                         File probe = LittleFS.open(path, "r");
@@ -1289,11 +1465,8 @@
                         if (streamRleFaceAsStandardBmp(path, "application/octet-stream")) {
                             return;
                         }
-                        // Streaming fehlgeschlagen (z.B. Datei-Lesefehler) - der
-                        // Header wurde ggf. schon gesendet, daher kein sauberer
-                        // 500-Statuscode mehr moeglich; das Streaming selbst
-                        // braucht aber nur wenig RAM, Speicherknappheit ist hier
-                        // kein realistischer Fehlschlaggrund mehr.
+                        // Streaming fehlgeschlagen (z.B. Lesefehler) - Header ggf. schon
+                        // gesendet, daher kein sauberer 500-Code mehr moeglich.
                         DEBUG_PRINTLN("[DOWNLOAD] RLE streaming failed for " + path);
                         return;
                     }
@@ -1325,7 +1498,7 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            chunk += "<h2>System Status</h2><ul>";
+            chunk += "<h2>" + translate("System Status") + "</h2><ul>";
 
             String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
             String tzDesc;
@@ -1580,7 +1753,7 @@
             chunk += "</br>";
             chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
 
-            chunk += "<li>Project: <a href='https://github.com/holgiw/TFT-Clock-GC9A01' target='_blank'>GitHub</a></li>";
+            chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
 
             chunk += "</ul>";
             chunk += generateNavigation(); // Navigation einfügen
@@ -1604,15 +1777,9 @@
             }
             });
 
-        // Vorschaubild fuer die Preset-Verwaltung: Zifferblatt + Zeiger (feste
-        // Demo-Zeit) + Mittelpunkt-Farbe/-Groesse, komponiert aus den im Preset
-        // gespeicherten Einstellungen (siehe parsePresetForPreview() und
-        // generatePresetPreviewBmp()).
-        // Erzeugt ein Vorschaubild aus den GERADE AKTIVEN Einstellungen (kein
-        // Parameter noetig) - wird auf jeder Seite oben links eingeblendet
-        // (siehe generateNavigation()) und zeigt so nach jeder Aenderung
-        // (Zifferblatt/Zeigersatz/Nabenfarbe/-groesse), sobald die jeweilige
-        // Seite danach neu laedt, automatisch den aktuellen Stand.
+        // Erzeugt ein Vorschaubild aus den GERADE AKTIVEN Einstellungen (kein Parameter
+        // noetig) - wird auf jeder Seite oben links eingeblendet (generateNavigation())
+        // und zeigt so nach jeder Aenderung, sobald die Seite neu laedt, den aktuellen Stand.
         webserver.on("/currentpreview", HTTP_GET, []() {
             String face = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
             String handSet = preferences.getString(PK_HANDSET, "");
@@ -1638,6 +1805,9 @@
             }
             });
 
+        // Vorschaubild fuer die Preset-Verwaltung: Zifferblatt + Zeiger (feste Demo-
+        // Zeit) + Mittelpunkt-Farbe/-Groesse, komponiert aus den im Preset gespeicherten
+        // Einstellungen (siehe parsePresetForPreview() und generatePresetPreviewBmp()).
         webserver.on("/presetpreview", HTTP_GET, []() {
             if (!webserver.hasArg("index")) {
                 webserver.send(400, "text/plain", "missing 'index' argument");
@@ -1740,6 +1910,7 @@
 
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
+            chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
 
@@ -1784,6 +1955,8 @@
                 chunk += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
                 chunk += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
                 chunk += "</a><br>" + displayName + String(isActive ? " (" + translate("active") + ")" : "");
+                chunk += "<br><a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
+                chunk += "<a href='/delete?file=" + name + "' onclick='return confirm(\"" + translate("Delete") + " " + displayName + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
 
                 // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
@@ -1798,18 +1971,59 @@
             if (!anyFile) chunk += "<p>" + translate("No BMP files found in /") + "</p>";
             chunk += "</div><hr>";
 
+            // Automatischer Download neuer Zifferblaetter direkt im Browser: der
+            // Browser laedt (per CORS, von GitHub offiziell fuer api.github.com
+            // und raw.githubusercontent.com unterstuetzt) die Dateien per HTTPS
+            // herunter und laedt sie dann per normalem lokalem HTTP ueber /upload
+            // hoch - die Uhr selbst muss dabei nie eine HTTPS-Verbindung aufbauen.
+            chunk += "<h3>" + translate("Download Additional Clock Faces from GitHub") + "</h3>";
+            chunk += "<button type='button' id='ghFaceBtn' onclick='loadFacesFromGithub()'>" + translate("Download Additional Clock Faces from GitHub") + "</button>";
+            chunk += "<div id='ghFaceStatus'></div>";
+            chunk += "<script>";
+            chunk += "var existingFaces = [";
+            for (size_t i = 0; i < faceNames.size(); i++) {
+                if (i > 0) chunk += ",";
+                chunk += "\"" + faceNames[i] + "\"";
+            }
+            chunk += "];";
+            chunk += "async function loadFacesFromGithub() {";
+            chunk += "  var btn = document.getElementById('ghFaceBtn');";
+            chunk += "  var status = document.getElementById('ghFaceStatus');";
+            chunk += "  btn.disabled = true;";
+            chunk += "  status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
+            chunk += "  try {";
+            chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(CLOCK_WIDTH) + "');";
+            chunk += "    var files = await resp.json();";
+            chunk += "    var toGet = files.filter(function(f) { return f.name.indexOf('face_') === 0 && f.name.endsWith('.bmp') && existingFaces.indexOf(f.name) === -1; });";
+            chunk += "    if (toGet.length === 0) { status.innerHTML = '" + translate("All files already up to date") + ".'; btn.disabled = false; return; }";
+            chunk += "    for (var i = 0; i < toGet.length; i++) {";
+            chunk += "      status.innerHTML = '" + translate("Downloading") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
+            chunk += "      var blob = await (await fetch(toGet[i].download_url)).blob();";
+            chunk += "      var fd = new FormData();";
+            chunk += "      fd.append('upload', blob, toGet[i].name);";
+            chunk += "      await fetch('/upload', { method: 'POST', body: fd });";
+            chunk += "    }";
+            chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
+            chunk += "    location.href = location.pathname;";
+            chunk += "  } catch (e) {";
+            chunk += "    status.innerHTML = '" + translate("Failed to reach GitHub - check your internet connection") + ".';";
+            chunk += "    btn.disabled = false;";
+            chunk += "  }";
+            chunk += "}";
+            chunk += "</script><hr>";
+
             // Hinweis und Download-Link für die ZIP-Datei
             if (TFT_WIDTH == 240) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-                chunk += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
+                chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
                 chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
             }
 
             if (TFT_WIDTH == 160) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-                chunk += "<a href='https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/graphic/faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
+                chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
                 chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
             }
 
@@ -1875,10 +2089,18 @@
 
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
+            chunk += generateFlashMessage(); // Erfolgsmeldung, falls vorhanden
 
             chunk += "<h2>" + translate("Clock Setup") + "</h2>";
 
             chunk += generateLanguageSelector();
+
+            chunk += "<form method='POST' action='/sethostname'>";
+            chunk += "<label>" + translate("Hostname") + ":</label><br>";
+            chunk += "<input name='hostname' maxlength='30' value='" + String(hostname) + "'><br>";
+            chunk += "<button type='submit'>" + translate("Save") + "</button>";
+            chunk += "</form><br><br>";
+
             chunk += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
             chunk += "<button type='submit'>" + translate("Reset Saved Networks") + "</button>";
             chunk += "</form><br><br>";
@@ -2153,14 +2375,13 @@
             
 
                 if (WiFi.getMode() == WIFI_STA) {
-                    webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/'>"
-                        "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
-                        "<h2>Settings saved</h2><p>.</p></body></html>");
+                    webserver.sendHeader("Location", "/?msg=Settings%20saved", true);
+                    webserver.send(302, "text/plain", "");
                 }
                 else {
                     webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
                         "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
-                        "<h2>Settings saved</h2><p>Please connect to your home network and go to the ESP website at http:// IPADDRESS</p></body></html>");
+                        "<h2>" + translate("Settings saved") + "</h2><p>" + translate("Please connect to your home network and go to the ESP website at") + " http:// IPADDRESS</p></body></html>");
 
                     espReboot();
                 }
@@ -2169,21 +2390,21 @@
 
         // Upload-Formular anzeigen
         webserver.on("/upload", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'>Back to file list</a>");
+            webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'><button type='button'>" + translate("Back") + "</button></a>");
             });
 
         // Datei-Upload verarbeiten
         webserver.on("/upload", HTTP_POST, []() {
             if (uploadSuccess) {
-                webserver.sendHeader("Location", "/listfilesFaces", true);
+                webserver.sendHeader("Location", "/listfilesFaces?msg=Clock%20face%20uploaded", true);
                 webserver.send(302, "text/plain", "");
             }
             else {
-                String errorHtml = "<!DOCTYPE html><html><head><title>Upload Failed</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
-                errorHtml += "<h2>Upload failed</h2>";
-                errorHtml += "<p>Only .bmp files starting with <code>face_</code> or <code>hand_</code> are accepted.</p>";
-                errorHtml += "<p>Please also check the available space</p>";
-                errorHtml += "<a href='/upload'>Try again</a></body></html>";
+                String errorHtml = "<!DOCTYPE html><html><head><title>" + translate("Upload Failed") + "</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
+                errorHtml += "<h2>" + translate("Upload failed") + "</h2>";
+                errorHtml += "<p>" + translate("Only .bmp files starting with") + " <code>face_</code> " + translate("or") + " <code>hand_</code> " + translate("are accepted") + ".</p>";
+                errorHtml += "<p>" + translate("Please also check the available space") + ".</p>";
+                errorHtml += "<a href='/upload'><button type='button'>" + translate("Try again") + "</button></a></body></html>";
                 webserver.send(400, "text/html", errorHtml);
             }
             }, handleFileUpload);
@@ -2202,7 +2423,7 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    webserver.sendHeader("Location", "/listfilesFaces", true);
+                    webserver.sendHeader("Location", "/listfilesFaces?msg=Clock%20face%20selected", true);
                     webserver.send(302, "text/plain", "");
                     return;
                 }
@@ -2214,7 +2435,7 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    webserver.sendHeader("Location", "/listfilesFaces", true);
+                    webserver.sendHeader("Location", "/listfilesFaces?msg=Clock%20face%20selected", true);
                     webserver.send(302, "text/plain", "");
                     return;
                 }
@@ -2256,7 +2477,14 @@
                         }
                     }
 
-                    webserver.sendHeader("Location", "/files", true);
+                    String redirectTarget = "/files";
+                    if (name.startsWith("face_") && name.endsWith(".bmp")) {
+                        redirectTarget = "/listfilesFaces";
+                    }
+                    else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
+                        redirectTarget = "/handsets";
+                    }
+                    webserver.sendHeader("Location", redirectTarget + "?msg=File%20deleted", true);
                     webserver.send(302, "text/plain", "");
                 }
                 else {
@@ -2276,7 +2504,7 @@
                     savePresets();
                 }
             }
-            webserver.sendHeader("Location", "/presets", true);
+            webserver.sendHeader("Location", "/presets?msg=Preset%20deleted", true);
             webserver.send(302, "text/plain", "");
             });
 
@@ -2301,7 +2529,7 @@
             html += "<label>" + translate("New Name") + ":</label><br>";
             html += "<input name='new' value='" + presets[idx].name + "' required><br><br>";
             html += "<button type='submit'>" + translate("Rename") + "</button></form>";
-            html += "<br><a href='/presets'>" + translate("Cancel") + "</a></body></html>";
+            html += "<br><a href='/presets'><button type='button'>" + translate("Cancel") + "</button></a></body></html>";
             webserver.send(200, "text/html", html);
             });
 
@@ -2324,7 +2552,7 @@
                 presets[idx].name = newName;
                 savePresets();
 
-                webserver.sendHeader("Location", "/presets", true);
+                webserver.sendHeader("Location", "/presets?msg=Preset%20renamed", true);
                 webserver.send(302, "text/plain", "");
             }
             else {
@@ -2350,10 +2578,8 @@
                         file.close();
                     }
                     else if (path.endsWith(".bmp")) {
-                        // Pruefen, ob RLE-komprimiert - falls ja, vor der
-                        // Auslieferung zu einem echten, eigenstaendigen
-                        // Standard-BMP dekodieren (sonst waere die Datei fuer
-                        // externe Betrachter/Tools nicht als Bild lesbar).
+                        // Pruefen, ob RLE-komprimiert - falls ja, vor der Auslieferung zu
+                        // einem echten Standard-BMP dekodieren (sonst fuer externe Tools nicht lesbar).
                         bool isRle = false;
                         File probe = LittleFS.open(path, "r");
                         if (probe) {
@@ -2368,14 +2594,9 @@
                                 setLedOff();
                                 return;
                             }
-                            // Streaming fehlgeschlagen (z.B. Datei-Lesefehler) - NICHT
-                            // stillschweigend die rohen, komprimierten Bytes ausliefern
-                            // (waere kein gueltiges BMP mehr, der Browser zeigt sonst
-                            // "Grafik enthaelt Fehler") - stattdessen klarer Fehler.
-                            // Hinweis: Falls bereits Chunked-Header gesendet wurden,
-                            // kann hier kein sauberer 500-Statuscode mehr folgen -
-                            // das betrifft aber nur echte Lese-/Formatfehler, nicht
-                            // Speicherknappheit (das Streaming braucht nur wenig RAM).
+                            // Streaming fehlgeschlagen (z.B. Lesefehler) - NICHT stillschweigend
+                            // die rohen komprimierten Bytes ausliefern (kein gueltiges BMP mehr),
+                            // stattdessen klarer Fehler (500-Code ggf. nicht mehr moeglich, falls Header schon gesendet).
                             DEBUG_PRINTLN("[FILE] RLE streaming failed for " + path);
                             setLedOff();
                             return;
@@ -2405,30 +2626,24 @@
             size_t total = LittleFS.totalBytes();
             size_t used = LittleFS.usedBytes();
 
-            // Chunked-Response (Variante B): Diese Seite bettet Vorschaubilder als
-            // Base64 EIN (encodeBmpToBase64) und kann dadurch - abhaengig von der
-            // Anzahl vorhandener Zeigersaetze - sehr gross werden. Statt die
-            // komplette Seite in einem String zu sammeln, wird hier Stueck fuer
-            // Stueck direkt an den Client gesendet (webserver.sendContent()).
-            // Der Speicherbedarf haengt so nur noch von der GROESSTEN EINZELNEN
-            // Zeile ab (ein Zeigersatz, ~20 KB), nicht mehr von der Gesamtzahl
-            // der Zeigersaetze.
+            // Chunked-Response (Variante B): Seite bettet Vorschaubilder als Base64 ein und
+            // kann dadurch sehr gross werden - wird daher Stueck fuer Stueck gesendet
+            // (webserver.sendContent()), Speicherbedarf haengt nur von der groessten Zeile ab.
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
             String chunk = generateHtmlHeader();
             chunk += generateHtmlStatus(); // Statusleiste einfügen
             chunk += generateNavigation(); // Navigation einfügen
+            chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
             webserver.sendContent(chunk);
 
             String activeSet = preferences.getString(PK_HANDSET, "");
-            // Numerisch (nicht alphabetisch) sortieren, damit z.B. "10" nach "9" statt
-            // zwischen "1" und "2" einsortiert wird. std::map<int,String> sortiert
-            // automatisch nach dem numerischen Key. Nicht-numerische Zeigersatz-Namen
-            // (unueblich, aber theoretisch moeglich) landen zusaetzlich unsortiert in
-            // einer separaten Liste, damit sie nicht verloren gehen.
+            // Numerisch sortieren (std::map<int,String>), damit z.B. "10" nach "9" statt
+            // zwischen "1" und "2" landet. Nicht-numerische Namen (unueblich) landen
+            // zusaetzlich unsortiert in einer separaten Liste, damit sie nicht verloren gehen.
             std::set<String> seenSetIds;
             std::map<int, String> numericSets;
             std::vector<String> otherSets;
@@ -2484,6 +2699,7 @@
                 chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + minutePath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
                 chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
                 chunk += "</a><br>" + setId + (setId == activeSet ? " (" + translate("active") + ")" : "");
+                chunk += "<br><a href='/deletehandset?set=" + setId + "' onclick='return confirm(\"" + translate("Delete") + " " + setId + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
                 webserver.sendContent(chunk);
                 checkHeapWarning("/handsets Zeigersatz " + setId);
@@ -2517,6 +2733,56 @@
                 chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new hand sets!Free up some space first") + ".</div><br><br>";
             }
             else {
+                // Vorhandene Zeigersatz-Dateinamen fuer den Vergleich mit GitHub einsammeln
+                std::vector<String> existingHandFiles;
+                File handRootScan = LittleFS.open("/");
+                File handFileScan = handRootScan.openNextFile();
+                while (handFileScan) {
+                    String hName = handFileScan.name();
+                    if (!handFileScan.isDirectory() && hName.startsWith("hand_set") && hName.endsWith(".bmp")) {
+                        existingHandFiles.push_back(hName);
+                    }
+                    handFileScan = handRootScan.openNextFile();
+                }
+
+                // Automatischer Download neuer Zeigersaetze direkt im Browser (siehe
+                // ausfuehrlichen Kommentar bei /listfilesFaces - gleiches Prinzip:
+                // Browser laedt per CORS von GitHub, laedt lokal per /uploadhandset hoch).
+                chunk += "<h3>" + translate("Download Additional Hand Sets from GitHub") + "</h3>";
+                chunk += "<button type='button' id='ghHandBtn' onclick='loadHandsFromGithub()'>" + translate("Download Additional Hand Sets from GitHub") + "</button>";
+                chunk += "<div id='ghHandStatus'></div>";
+                chunk += "<script>";
+                chunk += "var existingHands = [";
+                for (size_t i = 0; i < existingHandFiles.size(); i++) {
+                    if (i > 0) chunk += ",";
+                    chunk += "\"" + existingHandFiles[i] + "\"";
+                }
+                chunk += "];";
+                chunk += "async function loadHandsFromGithub() {";
+                chunk += "  var btn = document.getElementById('ghHandBtn');";
+                chunk += "  var status = document.getElementById('ghHandStatus');";
+                chunk += "  btn.disabled = true;";
+                chunk += "  status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
+                chunk += "  try {";
+                chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(CLOCK_WIDTH) + "');";
+                chunk += "    var files = await resp.json();";
+                chunk += "    var toGet = files.filter(function(f) { return f.name.indexOf('hand_set') === 0 && f.name.endsWith('.bmp') && existingHands.indexOf(f.name) === -1; });";
+                chunk += "    if (toGet.length === 0) { status.innerHTML = '" + translate("All files already up to date") + ".'; btn.disabled = false; return; }";
+                chunk += "    for (var i = 0; i < toGet.length; i++) {";
+                chunk += "      status.innerHTML = '" + translate("Downloading") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
+                chunk += "      var blob = await (await fetch(toGet[i].download_url)).blob();";
+                chunk += "      var fd = new FormData();";
+                chunk += "      fd.append('upload', blob, toGet[i].name);";
+                chunk += "      await fetch('/uploadhandset', { method: 'POST', body: fd });";
+                chunk += "    }";
+                chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
+                chunk += "    location.href = location.pathname;";
+                chunk += "  } catch (e) {";
+                chunk += "    status.innerHTML = '" + translate("Failed to reach GitHub - check your internet connection") + ".';";
+                chunk += "    btn.disabled = false;";
+                chunk += "  }";
+                chunk += "}";
+                chunk += "</script><hr>";
 
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
                 chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + ", 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
@@ -2551,10 +2817,8 @@
                 hubColor = rgb565;
 
             }
-            webserver.send(200, "text/html",
-                "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/handsets'>"
-                "<title>Updated</title></head><body style='font-family:Arial;text-align:center;'>"
-                "<h2>Centre point updated</h2><p>back to handsets in 3 seconds</p></body></html>");
+            webserver.sendHeader("Location", "/handsets?msg=Settings%20saved", true);
+            webserver.send(302, "text/plain", "");
             });
 
         //  Handsets Datei-Upload verarbeiten
@@ -2562,10 +2826,10 @@
             if (uploadSuccess) {
                 // Sicherheitsprüfung auf Dateinamenmuster
                 if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
-                    String errorHtml = "<!DOCTYPE html><html><head><title>Upload Failed</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
-                    errorHtml += "<h2>Upload failed</h2>";
-                    errorHtml += "<p>Only .bmp files starting with <code>hand_</code> are accepted for handset upload.</p>";
-                    errorHtml += "<a href='/handsets'>Try again</a></body></html>";
+                    String errorHtml = "<!DOCTYPE html><html><head><title>" + translate("Upload Failed") + "</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
+                    errorHtml += "<h2>" + translate("Upload failed") + "</h2>";
+                    errorHtml += "<p>" + translate("Only .bmp files starting with") + " <code>hand_</code> " + translate("are accepted for handset upload") + ".</p>";
+                    errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a></body></html>";
                     webserver.send(400, "text/html", errorHtml);
                     return;
                 }
@@ -2577,7 +2841,7 @@
                 //  LittleFS.rename(uploadFilePath, finalPath);
                 //  DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + finalPath);
                 DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + uploadFilePath);
-                webserver.sendHeader("Location", "/handsets", true);
+                webserver.sendHeader("Location", "/handsets?msg=Hand%20set%20uploaded", true);
                 webserver.send(302, "text/plain", "");
             }
             else {
@@ -2596,7 +2860,7 @@
                 loadClockFace();
                 loadHandSprites();
                 updateClock();
-                webserver.sendHeader("Location", "/handsets", true);
+                webserver.sendHeader("Location", "/handsets?msg=Hand%20set%20selected", true);
                 webserver.send(302, "text/plain", "");
             }
             else {
@@ -2630,7 +2894,7 @@
                     updateClock();
                 }
 
-                webserver.sendHeader("Location", "/handsets", true);
+                webserver.sendHeader("Location", "/handsets?msg=Hand%20set%20deleted", true);
                 webserver.send(302, "text/plain", "");
             }
             else {
@@ -2644,9 +2908,59 @@
             espReboot();
             });
 
-        // Factory Reset    
+        // Werkseinstellungen: Uebersichtsseite mit mehreren, einzeln
+        // bestaetigten Reset-Optionen statt einer einzigen Alles-oder-nichts-Aktion.
         webserver.on("/factoryReset", HTTP_GET, []() {
+            String html = generateHtmlHeader();
+            html += generateHtmlStatus();
+            html += generateNavigation();
+            html += generateFlashMessage();
+            html += "<h2>" + translate("Factory&nbsp;Reset") + "</h2>";
+
+            html += "<h3>" + translate("Reset Everything") + "</h3>";
+            html += "<p>" + translate("Resets WiFi, all settings and deletes all files - the clock restarts afterwards") + ".</p>";
+            html += "<form method='POST' action='/factoryReset/all' onsubmit=\"return confirm('" + translate("Are you sure you want to reset to factory settings?") + "');\">";
+            html += "<button type='submit'>" + translate("Reset Everything") + "</button></form><hr>";
+
+            html += "<h3>" + translate("Delete Clock Faces (except default)") + "</h3>";
+            html += "<p>" + translate("Deletes all uploaded clock faces - the built-in default remains") + ".</p>";
+            html += "<form method='POST' action='/factoryReset/faces' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
+            html += "<button type='submit'>" + translate("Delete Clock Faces (except default)") + "</button></form><hr>";
+
+            html += "<h3>" + translate("Delete Hand Sets (except default)") + "</h3>";
+            html += "<p>" + translate("Deletes all uploaded hand sets - the built-in default remains") + ".</p>";
+            html += "<form method='POST' action='/factoryReset/hands' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all hand sets except the default one?") + "');\">";
+            html += "<button type='submit'>" + translate("Delete Hand Sets (except default)") + "</button></form><hr>";
+
+            html += "<h3>" + translate("Delete Presets") + "</h3>";
+            html += "<p>" + translate("Deletes all saved presets") + ".</p>";
+            html += "<form method='POST' action='/factoryReset/presets' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all presets?") + "');\">";
+            html += "<button type='submit'>" + translate("Delete Presets") + "</button></form><hr>";
+
+            html += "</body></html>";
+            webserver.send(200, "text/html", html);
+            });
+
+        webserver.on("/factoryReset/all", HTTP_POST, []() {
             factoryReset();
+            });
+
+        webserver.on("/factoryReset/faces", HTTP_POST, []() {
+            resetFacesToDefault();
+            webserver.sendHeader("Location", "/factoryReset?msg=Clock%20faces%20deleted", true);
+            webserver.send(302, "text/plain", "");
+            });
+
+        webserver.on("/factoryReset/hands", HTTP_POST, []() {
+            resetHandsToDefault();
+            webserver.sendHeader("Location", "/factoryReset?msg=Hand%20sets%20deleted", true);
+            webserver.send(302, "text/plain", "");
+            });
+
+        webserver.on("/factoryReset/presets", HTTP_POST, []() {
+            resetAllPresets();
+            webserver.sendHeader("Location", "/factoryReset?msg=Presets%20deleted", true);
+            webserver.send(302, "text/plain", "");
             });
 
         // Sofortige Zeitsynchronisation
@@ -2658,9 +2972,9 @@
             char timeStr[32];
             strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
 
-            String html = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/'>"
+            String html = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/'>"
                 "<title>Time Synced</title></head><body style='font-family:Arial;text-align:center;'>"
-                "<h2>Time synced</h2><p>" + String(timeStr) + "</p><p>Returning to main page in 3 seconds.</p></body></html>";
+                "<h2>" + translate("Time synced") + "</h2><p>" + String(timeStr) + "</p><p>" + translate("Returning to main page in 3 seconds") + ".</p></body></html>";
 
             webserver.send(200, "text/html", html);
             });
@@ -2738,15 +3052,9 @@
     }
 
 
-    // Prueft, ob das in einer Preset-URL angegebene Zifferblatt (Parameter
-    // "face=") tatsaechlich existiert - case-insensitiv, da Nutzer beim
-    // manuellen Bearbeiten/Importieren leicht abweichende Gross-/
-    // Kleinschreibung verwenden koennten, LittleFS-Dateinamen aber case-
-    // sensitiv sind. Bei einer nur in der Schreibweise abweichenden
-    // Uebereinstimmung wird die URL auf den tatsaechlichen Dateinamen
-    // korrigiert. Gibt false zurueck, wenn kein passendes Zifferblatt
-    // gefunden wurde (auch nicht case-insensitiv) - das eingebaute
-    // face_default.bmp ist immer gueltig.
+    // Prueft, ob das in einer Preset-URL angegebene Zifferblatt existiert - case-
+    // insensitiv (LittleFS ist case-sensitiv, Nutzer koennten abweichend schreiben),
+    // korrigiert die URL bei Treffer. False = kein passendes Zifferblatt (face_default.bmp immer gueltig).
     bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) {
         int facePos = url.indexOf("face=");
         if (facePos == -1) return true; // kein face-Parameter, nichts zu pruefen
@@ -2777,11 +3085,9 @@
     }
 
 
-    // Verarbeitet den Datei-Upload fuer /importpresets: schreibt die
-    // hochgeladene Datei zunaechst in eine temporaere Datei, liest sie dann
-    // zeilenweise ein (Format: "Name<TAB>URL" pro Zeile, wie von
-    // /exportpresets erzeugt) und ERSETZT damit alle aktuell gespeicherten
-    // Presets vollstaendig.
+    // Verarbeitet den Datei-Upload fuer /importpresets: schreibt die Datei temporaer,
+    // liest sie zeilenweise ein (Format "Name<TAB>URL", wie von /exportpresets erzeugt)
+    // und ERSETZT damit alle aktuell gespeicherten Presets vollstaendig.
     void handlePresetImportUpload() {
         HTTPUpload& upload = webserver.upload();
 
@@ -2855,10 +3161,8 @@
                 readFile.close();
                 LittleFS.remove(PRESET_IMPORT_TMP_PATH);
 
-                // savePresets() IMMER aufrufen (auch bei 0 importierten Zeilen),
-                // damit das vorherige vollstaendige Leeren des presets[]-Arrays
-                // zuverlaessig dauerhaft gespeichert wird und nach einem Neustart
-                // nicht wieder die alten Presets aus den Preferences auftauchen.
+                // savePresets() IMMER aufrufen (auch bei 0 importierten Zeilen), damit das
+                // vorherige Leeren des presets[]-Arrays dauerhaft gespeichert wird.
                 savePresets();
 
                 if (importedCount > 0) {
@@ -2872,6 +3176,97 @@
             }
             else {
                 DEBUG_PRINTLN("[PRESET-IMPORT] Fehlgeschlagen beim Schreiben");
+            }
+        }
+    }
+
+
+    // Wie handlePresetImportUpload(), loescht dabei aber KEINE bestehenden Presets -
+    // fuegt nur neue Presets in freie Slots ein. Wird vom GitHub-Download-Button auf
+    // /presets genutzt: das Herausfiltern bereits vorhandener Namen erledigt schon
+    // die aufrufende JavaScript-Funktion, bevor die Datei hier ankommt.
+    void handlePresetMergeUpload() {
+        HTTPUpload& upload = webserver.upload();
+
+        if (upload.status == UPLOAD_FILE_START) {
+            DEBUG_PRINTLN("[PRESET-MERGE] Start");
+            presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
+            presetImportSuccess = presetImportFile ? true : false;
+        }
+        else if (upload.status == UPLOAD_FILE_WRITE) {
+            if (presetImportSuccess && presetImportFile) {
+                presetImportFile.write(upload.buf, upload.currentSize);
+            }
+        }
+        else if (upload.status == UPLOAD_FILE_END) {
+            if (presetImportSuccess && presetImportFile) {
+                presetImportFile.close();
+
+                File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
+                if (!readFile) {
+                    DEBUG_PRINTLN("[PRESET-MERGE] Datei konnte nicht gelesen werden");
+                    presetImportSuccess = false;
+                    return;
+                }
+
+                std::vector<String> existingFaces;
+                File faceRoot = LittleFS.open("/");
+                File faceEntry = faceRoot.openNextFile();
+                while (faceEntry) {
+                    String entryName = faceEntry.name();
+                    if (!faceEntry.isDirectory() && entryName.startsWith("face_") && entryName.endsWith(".bmp")) {
+                        existingFaces.push_back(entryName);
+                    }
+                    faceEntry = faceRoot.openNextFile();
+                }
+
+                int addedCount = 0;
+                int skippedCount = 0;
+                while (readFile.available()) {
+                    String line = readFile.readStringUntil('\n');
+                    line.trim();
+                    if (line.isEmpty()) continue;
+
+                    int tabPos = line.indexOf('\t');
+                    if (tabPos == -1) continue;
+
+                    String name = line.substring(0, tabPos);
+                    String url = line.substring(tabPos + 1);
+                    if (name.isEmpty() || url.isEmpty()) continue;
+
+                    if (!validateAndFixPresetFace(url, existingFaces)) {
+                        DEBUG_PRINTLN("[PRESET-MERGE] Uebersprungen (Zifferblatt nicht gefunden): " + name);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    int freeIndex = -1;
+                    for (int i = 0; i < MAX_PRESETS; i++) {
+                        if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
+                            freeIndex = i;
+                            break;
+                        }
+                    }
+                    if (freeIndex == -1) {
+                        DEBUG_PRINTLN("[PRESET-MERGE] Kein freier Slot mehr - abgebrochen");
+                        break;
+                    }
+
+                    presets[freeIndex].name = name;
+                    presets[freeIndex].url = url;
+                    addedCount++;
+                }
+                readFile.close();
+                LittleFS.remove(PRESET_IMPORT_TMP_PATH);
+
+                if (addedCount > 0) {
+                    savePresets();
+                }
+                presetImportSuccess = true; // Auch bei 0 neuen Presets kein Fehler (z.B. alles schon vorhanden)
+                DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " neue Presets hinzugefuegt, " + String(skippedCount) + " uebersprungen");
+            }
+            else {
+                DEBUG_PRINTLN("[PRESET-MERGE] Fehlgeschlagen beim Schreiben");
             }
         }
     }

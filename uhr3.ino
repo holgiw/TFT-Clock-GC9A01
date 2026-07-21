@@ -99,18 +99,25 @@
         DEBUG_PRINTLN("[SETUP] start");
         DEBUG_PRINTLN(String("[SETUP] Build-Version: ") + version);
 
-        // Bestehende Zifferblaetter im alten Standard-BMP-Format einmalig auf
-        // das neue, platzsparende RLE-Format umstellen (siehe display.h).
-        migrateFaceBmpsToRLE();
+        // Diese drei Migrationsschritte muessen nur EINMAL laufen (neu hochgeladene
+        // Dateien werden bereits beim Upload RLE-komprimiert/maskiert) - ohne Flag
+        // wuerde bei jedem Boot das komplette Dateisystem durchsucht.
+        if (!preferences.getBool(PK_MIGRATIONS_DONE, false)) {
+            // Bestehende Zifferblaetter im alten Standard-BMP-Format einmalig auf
+            // das neue, platzsparende RLE-Format umstellen (siehe display.h).
+            migrateFaceBmpsToRLE();
 
-        // Bestehende Zeigersaetze im alten Standard-BMP-Format ebenfalls
-        // einmalig auf RLE umstellen (siehe display.h).
-        migrateHandBmpsToRLE();
+            // Bestehende Zeigersaetze im alten Standard-BMP-Format ebenfalls
+            // einmalig auf RLE umstellen (siehe display.h).
+            migrateHandBmpsToRLE();
 
-        // Bereits vorhandene, schon RLE-komprimierte Zifferblaetter nachtraeglich
-        // mit der Kreismaskierung fuer runde Displays versehen, falls sie vor
-        // Einfuehrung dieser Funktion migriert/hochgeladen wurden (siehe display.h).
-        remaskExistingFaceCorners();
+            // Bereits vorhandene, schon RLE-komprimierte Zifferblaetter nachtraeglich
+            // mit der Kreismaskierung fuer runde Displays versehen, falls sie vor
+            // Einfuehrung dieser Funktion migriert/hochgeladen wurden (siehe display.h).
+            remaskExistingFaceCorners();
+
+            preferences.putBool(PK_MIGRATIONS_DONE, true);
+        }
 
         if (preferences.getString(PK_VERSION, "") != String(version)) {
             DEBUG_PRINTLN("[Preferences] Version change detected, updating version in preferences..");
@@ -176,7 +183,7 @@
 #elif defined GC9D01    
         tftType = "GC9D01";
 #else   
-        tftType = "ILI9341";
+        tftType = "ILI9341"; // DEPRECATED - nicht mehr aktiv gepflegt
 #endif
 
 
@@ -450,6 +457,13 @@
 
         loadClockFace();
         loadHandSprites();
+
+        // Bei gueltiger RTC die Uhrzeit sofort anzeigen - noch bevor die WLAN-
+        // Verbindungsversuche unten beginnen (koennen bis zu 15-30s je Anlauf dauern),
+        // statt erst einen "Connect to SSID.."-Bildschirm trotz laengst bekannter Zeit.
+        if (rtcOk == RTC_AVAILABLE) {
+            updateClock();
+        }
 
         setupWebServer();
         webserver.begin();
@@ -753,7 +767,7 @@
             }
         }
 
-#ifdef ILI9341
+#ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
         // Datum und Uhrzeit auf dem TFT ausgeben
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.setTextSize(3);
