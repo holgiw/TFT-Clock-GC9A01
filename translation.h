@@ -251,7 +251,7 @@
         { "Gamma Correction", "Gamma-Korrektur", "Correction gamma" },
         { "Hostname", "Hostname", "Nom d'h&ocirc;te" },
         { "Hostname saved - requires a reboot to take effect", "Hostname gespeichert - Neustart erforderlich, damit die &Auml;nderung wirksam wird", "Nom d'h&ocirc;te enregistr&eacute; - un red&eacute;marrage est n&eacute;cessaire pour appliquer le changement" },
-        { "Invalid hostname - only letters, numbers and hyphens allowed, max 30 characters", "Ung&uuml;ltiger Hostname - nur Buchstaben, Zahlen und Bindestriche erlaubt, max. 30 Zeichen", "Nom d'h&ocirc;te invalide - seuls lettres, chiffres et tirets autoris&eacute;s, max. 30 caract&egrave;res" },
+        { "No valid hostname could be derived from the input - falling back to the automatic name based on the MAC address", "Aus der Eingabe konnte kein g&uuml;ltiger Hostname gebildet werden - R&uuml;ckfall auf den automatischen, aus der MAC-Adresse gebildeten Namen", "Aucun nom d'h&ocirc;te valide n'a pu &ecirc;tre form&eacute; &agrave; partir de la saisie - retour au nom automatique bas&eacute; sur l'adresse MAC" },
         { "Ping Server", "Ping-Server", "Serveur de ping" },
         { "Reset Saved Networks", "Gespeicherte Netzwerke zur&uuml;cksetzen", "R&eacute;initialiser les r&eacute;seaux enregistr&eacute;s" },
         { "Reset WLan...", "WLAN zur&uuml;cksetzen...", "R&eacute;initialisation du WiFi..." },

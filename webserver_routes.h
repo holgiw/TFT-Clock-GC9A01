@@ -198,6 +198,31 @@
     }
 
 
+    // Bereinigt eine Nutzereingabe zu einem gueltigen Hostnamen (RFC 952/1123):
+    // nur Buchstaben, Ziffern und Bindestriche; Leerzeichen/Unterstriche werden
+    // zu Bindestrichen, alle anderen ungueltigen Zeichen (Umlaute, Sonderzeichen,
+    // etc.) werden entfernt; darf nicht mit Bindestrich beginnen/enden; max. 30 Zeichen.
+    String sanitizeHostname(String input) {
+        input.trim();
+        String result;
+        for (unsigned int i = 0; i < input.length(); i++) {
+            char c = input[i];
+            if (isAlphaNumeric(c) || c == '-') {
+                result += c;
+            }
+            else if (c == ' ' || c == '_') {
+                result += '-';
+            }
+            // alle anderen Zeichen werden stillschweigend entfernt
+        }
+        while (result.startsWith("-")) result = result.substring(1);
+        while (result.endsWith("-")) result = result.substring(0, result.length() - 1);
+        if (result.length() > 30) result = result.substring(0, 30);
+        while (result.endsWith("-")) result = result.substring(0, result.length() - 1);
+        return result;
+    }
+
+
     // Webserver-API-Endpunkte einrichten
     void setupWebServer() {
 
@@ -295,19 +320,22 @@
         // Speichert einen benutzerdefinierten Hostnamen (wird erst nach einem
         // Neustart wirksam, da WiFi.setHostname()/MDNS.begin() nur einmalig
         // beim Verbindungsaufbau in connectWiFi() aufgerufen werden).
+        // Bereinigt eine Nutzereingabe zu einem gueltigen Hostnamen (RFC 952/1123):
+        // nur Buchstaben, Ziffern und Bindestriche; Leerzeichen/Unterstriche werden
+        // zu Bindestrichen, alle anderen ungueltigen Zeichen (Umlaute, Sonderzeichen,
+        // etc.) werden entfernt; darf nicht mit Bindestrich beginnen/enden; max. 30 Zeichen.
+
         webserver.on("/sethostname", HTTP_POST, []() {
             if (webserver.hasArg("hostname")) {
-                String newHostname = webserver.arg("hostname");
-                newHostname.trim();
+                String newHostname = sanitizeHostname(webserver.arg("hostname"));
 
-                bool valid = newHostname.length() > 0 && newHostname.length() <= 30;
-                for (unsigned int i = 0; valid && i < newHostname.length(); i++) {
-                    char c = newHostname[i];
-                    if (!isAlphaNumeric(c) && c != '-') valid = false;
-                }
-
-                if (!valid) {
-                    webserver.sendHeader("Location", "/?msg=Invalid%20hostname%20-%20only%20letters%2C%20numbers%20and%20hyphens%20allowed%2C%20max%2030%20characters", true);
+                if (newHostname.isEmpty()) {
+                    // Kein gueltiger Hostname aus der Eingabe extrahierbar - den
+                    // gespeicherten Override entfernen, damit beim naechsten Boot
+                    // wieder automatisch "clock_" + letzte MAC-Stellen generiert
+                    // wird (siehe connectWiFi() in wifi_manager.h).
+                    preferences.remove(PK_HOSTNAME);
+                    webserver.sendHeader("Location", "/?msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address", true);
                     webserver.send(302, "text/plain", "");
                     return;
                 }
