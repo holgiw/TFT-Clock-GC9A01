@@ -76,6 +76,7 @@
     size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) {
         size_t i = 0, o = 0;
         while (i < count) {
+            if (i % 5000 == 0) yield(); // Watchdog-Reset vermeiden bei grossen Bildern
             size_t runLen = 1;
             while (i + runLen < count && runLen < 128 && pixels[i + runLen] == pixels[i]) runLen++;
 
@@ -112,6 +113,7 @@
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) {
         size_t i = 0, o = 0;
         while (i < inSize && o < outCount) {
+            if (o % 5000 == 0) yield(); // Watchdog-Reset vermeiden bei grossen Bildern
             uint8_t ctrl = in[i++];
             if (ctrl <= 127) {
                 size_t len = ctrl + 1;
@@ -142,6 +144,7 @@
         const size_t total = (size_t)width * height;
 
         while (i < inSize && written < total && row < height) {
+            if (written % 5000 == 0) yield(); // Watchdog-Reset vermeiden bei grossen Bildern
             uint8_t ctrl = in[i++];
             bool literal = ctrl <= 127;
             size_t len;
@@ -1176,6 +1179,7 @@
         }
 
         for (int y = 0; y < outH; y++) {
+            if (y % 20 == 0) yield(); // Watchdog-Reset vermeiden (Flash-I/O je Zeile kann laenger dauern)
             int srcY = flip ? (inH - 1 - int(y * scaleY)) : int(y * scaleY);
 
             uint16_t* row16 = nullptr;
@@ -1245,6 +1249,7 @@
             float radius = (outW < outH ? outW : outH) / 2.0f;
             float radiusSq = radius * radius;
             for (int y = 0; y < outH; y++) {
+                if (y % 20 == 0) yield(); // Watchdog-Reset vermeiden
                 for (int x = 0; x < outW; x++) {
                     float dx = (x + 0.5f) - cx;
                     float dy = (y + 0.5f) - cy;

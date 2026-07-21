@@ -706,6 +706,7 @@
             chunk += "        var blob = await (await fetch(fileMap[fn])).blob();";
             chunk += "        var fd = new FormData();";
             chunk += "        fd.append('upload', blob, fn);";
+            chunk += "        status.innerHTML = '" + translate("Converting") + " ' + fn + ' (' + (j + 1) + '/' + missingNames.length + ')...';";
             chunk += "        var target = fn.indexOf('face_') === 0 ? '/upload' : '/uploadhandset';";
             chunk += "        await fetch(target, { method: 'POST', body: fd });";
             chunk += "      }";
@@ -2029,6 +2030,7 @@
             chunk += "      var blob = await (await fetch(toGet[i].download_url)).blob();";
             chunk += "      var fd = new FormData();";
             chunk += "      fd.append('upload', blob, toGet[i].name);";
+            chunk += "      status.innerHTML = '" + translate("Converting") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
             chunk += "      await fetch('/upload', { method: 'POST', body: fd });";
             chunk += "    }";
             chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
@@ -2801,6 +2803,7 @@
                 chunk += "      var blob = await (await fetch(toGet[i].download_url)).blob();";
                 chunk += "      var fd = new FormData();";
                 chunk += "      fd.append('upload', blob, toGet[i].name);";
+                chunk += "      status.innerHTML = '" + translate("Converting") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
                 chunk += "      await fetch('/uploadhandset', { method: 'POST', body: fd });";
                 chunk += "    }";
                 chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
