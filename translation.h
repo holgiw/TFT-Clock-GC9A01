@@ -206,6 +206,7 @@
         { "All presets already up to date", "Alle Presets sind bereits aktuell", "Tous les pr&eacute;r&eacute;glages sont d&eacute;j&agrave; &agrave; jour" },
         { "No presets found. Load recommended presets from GitHub?", "Keine Presets vorhanden. Empfohlene Presets von GitHub laden?", "Aucun pr&eacute;r&eacute;glage trouv&eacute;. Charger les pr&eacute;r&eacute;glages recommand&eacute;s depuis GitHub&nbsp;?" },
         { "Downloading", "Lade herunter", "T&eacute;l&eacute;chargement de" },
+        { "Converting", "Konvertiere", "Conversion de" },
         { "Done - reloading", "Fertig - lade neu", "Termin&eacute; - rechargement" },
         { "Failed to reach GitHub - check your internet connection", "GitHub nicht erreichbar - Internetverbindung pr&uuml;fen", "Impossible de joindre GitHub - v&eacute;rifiez votre connexion internet" },
         { "Load Presets from GitHub", "Presets von GitHub laden", "Charger les pr&eacute;r&eacute;glages depuis GitHub" },
