@@ -1,7 +1,5 @@
 #pragma once
-    // ####################################################################
     // ### Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
-    // ####################################################################
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
@@ -38,10 +36,8 @@
             presets[i].name = preferences.getString(nameKey.c_str(), "");
             presets[i].url = preferences.getString(urlKey.c_str(), "");
 
-            // Altlast bereinigen: frueher gespeicherte "rotation="-Parameter aus
-            // bestehenden Presets entfernen und dauerhaft in den Preferences
-            // korrigieren (nur bei tatsaechlicher Aenderung schreiben, um
-            // unnoetigen Flash-Verschleiss zu vermeiden).
+            // Altlast bereinigen: frueher gespeicherte "rotation="-Parameter entfernen
+            // und dauerhaft korrigieren (nur bei Aenderung schreiben, Flash-Verschleiss).
             if (presets[i].url.indexOf("rotation=") != -1) {
                 String cleaned = stripRotationParam(presets[i].url);
                 if (cleaned != presets[i].url) {
@@ -96,7 +92,7 @@
 
 
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
-    bool createPresetFromPreferences() {
+    bool createPresetFromPreferences(const String& customName) {
         // Suche das erste leere Preset
         int presetIndex = -1;
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -125,10 +121,8 @@
         // Hole die aktuelle IP-Adresse des ESP
      
 
-        // Erstelle die URL mit den aktuellen Einstellungen
-        // Bewusst OHNE "rotation": die Display-Rotation ist eine geraeteweite
-        // Hardware-Einstellung und soll beim Laden eines Presets unveraendert
-        // bleiben (siehe switchToNextPreset()).
+        // Erstelle die URL mit den aktuellen Einstellungen (bewusst OHNE "rotation":
+        // geraeteweite Hardware-Einstellung, soll beim Laden unveraendert bleiben).
         String url = "http://" + ipAddress + "/api/setMode?";
         if (background.startsWith("/")) {
             background = background.substring(1); // Entferne führenden Slash für die URL
@@ -143,7 +137,14 @@
         url += "&hubColor=" + String(hubColor, HEX);
 
         // Speichere das Preset
-        String presetName = String(presetIndex + 1) + "_Preset";
+        String presetName;
+        if (!customName.isEmpty()) {
+            presetName = customName;
+            presetName.replace(" ", "_"); // Konsistent zur Anzeige/den API-Links (siehe /presets)
+        }
+        else {
+            presetName = String(presetIndex + 1) + "_Preset";
+        }
         presets[presetIndex].name = presetName;
         presets[presetIndex].url = url;
 
@@ -161,9 +162,7 @@
 
     // Parst die in einem Preset gespeicherte Query-String-URL und extrahiert NUR
     // die fuer eine Vorschau relevanten Werte (face, handSet, hubColor, hubSize,
-    // showSecondHand) - reine Lesefunktion, wendet NICHTS auf die aktuellen
-    // Einstellungen/Preferences an (im Gegensatz zu switchToNextPreset()).
-    // Wird von generatePresetPreviewBmp() in display.h genutzt.
+    // showSecondHand) - reine Lesefunktion, wendet nichts auf die Preferences an.
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut,
         uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) {
         // Sinnvolle Standardwerte, falls ein Parameter im Preset fehlt
@@ -211,12 +210,9 @@
     }
 
 
-    // Entfernt alle Presets, deren Zifferblatt bzw. Zeigersatz mit dem
-    // angegebenen Wert uebereinstimmt (leerer String = dieser Parameter wird
-    // nicht geprueft). Wird aufgerufen, nachdem eine Zifferblatt- oder
-    // Zeigersatz-Datei ueber den Dateimanager geloescht wurde, damit keine
-    // Presets zurueckbleiben, die auf eine nicht mehr existierende Datei
-    // verweisen.
+    // Entfernt alle Presets, deren Zifferblatt bzw. Zeigersatz mit dem angegebenen
+    // Wert uebereinstimmt (leer = nicht geprueft) - wird nach dem Loeschen einer
+    // Zifferblatt-/Zeigersatz-Datei aufgerufen, damit keine Presets verwaisen.
     void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) {
         bool anyRemoved = false;
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -239,6 +235,16 @@
             }
         }
         if (anyRemoved) savePresets();
+    }
+
+
+    // Loescht alle gespeicherten Presets (leert alle Slots).
+    void resetAllPresets() {
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            presets[i].name = "";
+            presets[i].url = "";
+        }
+        savePresets();
     }
 
 
@@ -350,10 +356,9 @@
                 preferences.putBool(PK_STATION_MODE, stationMode);
             }
             else if (key == "rotation") {
-                // Bewusst NICHT angewendet: Beim Laden eines Presets soll die
-                // aktuell eingestellte Display-Rotation unveraendert bleiben.
-                // Der Wert wird in createPresetFromPreferences() weiterhin mit
-                // gespeichert, aber hier absichtlich ignoriert.
+                // Bewusst NICHT angewendet: Display-Rotation soll beim Laden eines
+                // Presets unveraendert bleiben (aeltere Presets koennen den Wert
+                // noch enthalten - wird hier absichtlich ignoriert).
             }
             else if (key == "showSecondHand") {
                 showSecondHand = (value == "1" || value.equalsIgnoreCase("true"));

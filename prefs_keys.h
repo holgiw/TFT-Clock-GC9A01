@@ -1,18 +1,12 @@
 #pragma once
-    // ####################################################################
     // ### Zentrale Preferences-Keys ######################################
-    // ####################################################################
-    // Alle NVS/Preferences-Keys an EINER Stelle definieren, statt sie als
-    // String-Literale über den ganzen Code zu verstreuen. Verhindert
-    // Tippfehler wie "lastWlan" vs. "lastWLan" (führte zu einem Bug: der
-    // Reconnect griff immer auf Slot 0 statt auf das zuletzt aktive WLAN zu).
-    //
-    // Vorteil: Tippfehler werden zu Compile-Fehlern (unbekannter Bezeichner)
-    // statt zu stillen Laufzeit-Bugs.
+    // Alle NVS/Preferences-Keys an EINER Stelle statt als verstreute String-Literale -
+    // verhindert Tippfehler-Bugs (z.B. "lastWlan" vs "lastWLan"), da sie zu Compile-Fehlern statt stillen Laufzeit-Bugs werden.
 
     // --- Allgemein / System ---
     constexpr const char* PK_VERSION           = "version";
     constexpr const char* PK_FIRST_START       = "firstStart";
+    constexpr const char* PK_MIGRATIONS_DONE   = "migrDone"; // Flag: RLE-Migration + Eckenmaskierung bereits abgeschlossen (siehe setup())
     constexpr const char* PK_LANGUAGE          = "language";
     constexpr const char* PK_LOGGING_ENABLED   = "loggingEnabled";
     constexpr const char* PK_LOG_FILE_NUMBER   = "logFileNumber";
@@ -27,13 +21,12 @@
 
     // --- Zifferblatt / Darstellung ---
     constexpr const char* PK_TFT_ROTATION      = "tftRotation";
+    constexpr const char* PK_HOSTNAME          = "hostname"; // leer = automatisch aus MAC-Adresse generiert
     constexpr const char* PK_HANDSET           = "handset";
     constexpr const char* PK_BACKGROUND        = "background";
     constexpr const char* PK_STATION_MODE      = "stationMode";
-    // WICHTIG: einziger gültiger Key für die Sekundenzeiger-Sichtbarkeit.
-    // Im Original gab es an einer Stelle (ILI9341-Codepfad, aktuell inaktiv)
-    // stattdessen den abweichenden Key "secondHand" -> Bug, da der Wert nie
-    // mit dem per Webserver/Preset gesetzten "showSecondHand" übereinstimmt.
+    // WICHTIG: einziger gueltiger Key fuer Sekundenzeiger-Sichtbarkeit (abweichender
+    // Key "secondHand" im ILI9341-Codepfad war ein Bug, siehe git-Historie).
     constexpr const char* PK_SHOW_SECOND_HAND  = "showSecondHand";
     constexpr const char* PK_SMOOTH_MINUTE     = "smoothMinute";
     constexpr const char* PK_CENTER_COLOR      = "centerColor";
@@ -57,24 +50,14 @@
     // --- Wartung ---
     constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
 
-    // ####################################################################
     // ### Bekannte Default-Wert-Inkonsistenzen (im Original-Sketch) ######
-    // ####################################################################
-    // - PK_STATION_MODE: Default ist überall `true`, außer in einer Stelle
-    //   im Webserver-Handler (Zeile ~3280 im Original), wo `false` verwendet
-    //   wird. Beim Zentralisieren bitte einheitlich auf `true` setzen.
-    // - PK_BRIGHT_START_HOUR / PK_BRIGHT_END_HOUR: Ladefunktion nutzt
-    //   Default 7/21, die Status-Seite zeigt bei fehlendem Wert 8/20 an.
-    //   Rein kosmetisch (nur relevant falls Key fehlt), sollte aber
-    //   vereinheitlicht werden.
+    // PK_STATION_MODE: Default ueberall `true`, ausser einer Webserver-Handler-Stelle mit `false` (beim Zentralisieren einheitlich auf `true` setzen).
+    // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt bei fehlendem Wert 8/20 - rein kosmetisch, sollte vereinheitlicht werden.
 
 
-    // ####################################################################
     // ### Indizierte Keys (WLAN-Slots, NTP-Server, Presets) ##############
-    // ####################################################################
-    // Statt an jeder Stelle "ssid" + String(i + 1) von Hand zu bauen,
-    // zentrale Helper verwenden. Rückgabe als String, damit .c_str()
-    // direkt an preferences.getString()/putString() übergeben werden kann.
+    // Statt "ssid" + String(i+1) ueberall von Hand zu bauen, zentrale Helper
+    // verwenden - Rueckgabe als String, .c_str() direkt an preferences.get/putString() uebergebbar.
 
     // Liefert den Preferences-Key fuer das WLAN-SSID-Feld an Index i
     inline String pkSsid(int i)         { return "ssid" + String(i + 1); }

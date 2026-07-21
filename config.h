@@ -1,15 +1,7 @@
 #pragma once
-    // ####################################################################
     // ### Board-/Display-Konfiguration, Pin-Belegung, Timing-Makros ######
-    // ####################################################################
-    // Sortiert nach Modul/Verwendung: System/Debug, Zeit/Timing, Board-Auswahl
-    // & Pin-Belegung, Display-Dimensionen.
-    //
-    // Hinweis: TFT_eSPI tft, WebServer webserver, Preferences preferences,
-    // DNSServer dnsServer, WiFiUDP udp, RTC_DS3231 rtc sowie die
-    // DCF77-Variablen (dcf77Flank, dcf, dcf77Count, dcfTimeFound) werden
-    // AUSSCHLIESSLICH in globals.h definiert (nicht hier duplizieren - das
-    // war die Ursache eines fruehen "redefinition"-Fehlers).
+    // Sortiert nach Modul: System/Debug, Zeit/Timing, Board-Auswahl & Pins, Display-Dimensionen.
+    // Hinweis: tft/webserver/preferences/dnsServer/udp/rtc/DCF77-Variablen liegen AUSSCHLIESSLICH in globals.h (nicht duplizieren - fruehere "redefinition"-Ursache).
 
     // --- System / Debug ---
 #define DEBUG_PRINT(x)    { if (loggingEnabled) { Serial.print(x);   logToFile(String(x));}}
@@ -17,11 +9,19 @@
 #define DEBUG_PRINTF(...) { if (loggingEnabled) { char buffer[128]; snprintf(buffer, sizeof(buffer), __VA_ARGS__); Serial.print(buffer); logToFile(String(buffer));}}
 
     // Schwellwert fuer Heap-Warnungen (siehe checkHeapWarning() in system_utils.h):
-    // faellt der freie Heap an einer der ueberwachten Stellen darunter, wird eine
-    // Log-Zeile mit Kontext geschrieben, damit sich knapper Speicher einer
-    // konkreten Codestelle zuordnen laesst statt nur ueber /status im Nachhinein
-    // zu erfahren, DASS es irgendwann knapp war.
+    // faellt der freie Heap darunter, wird eine Log-Zeile mit Kontext geschrieben,
+    // statt es erst spaeter ueber /status zu bemerken.
 #define HEAP_WARNING_THRESHOLD 20480 // 20 KB
+
+    // --- GitHub-Repository (Projektseite, Zusatz-Zifferblaetter/Zeigersaetze) ---
+    // Zentral an einer Stelle, damit bei einem Fork/Umzug des Repos nur hier
+    // geaendert werden muss statt an mehreren Stellen in webserver_routes.h.
+#define GITHUB_REPO_OWNER "holgiw"
+#define GITHUB_REPO_NAME "TFT-Clock-GC9A01"
+#define GITHUB_REPO_URL "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME
+#define GITHUB_API_CONTENTS_BASE "https://api.github.com/repos/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/contents/graphic/"
+#define GITHUB_ZIP_BASE "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/blob/master/graphic/"
+#define GITHUB_RAW_BASE "https://raw.githubusercontent.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/master/"
 
     // --- Zeit / NTP-Standardwerte & Timing-Makros ---
     // time server & timezone default
@@ -45,9 +45,8 @@
 #define WAIT_6h 21600000 // 6 Stunden in Millisekunden  
 
     // DCF77 uebernimmt die Systemzeit nur, wenn NTP seit mindestens dieser Zeit
-    // nicht mehr erfolgreich synchronisiert hat (bzw. gar kein WLAN verbunden ist).
-    // Verhindert, dass ein kurzzeitiger NTP-Ausfall sofort durch DCF77 "ueberschrieben"
-    // wird, obwohl NTP eigentlich verfuegbar und vorzuziehen ist.
+    // nicht mehr synchronisiert hat (bzw. kein WLAN verbunden ist) - verhindert,
+    // dass ein kurzer NTP-Ausfall sofort durch DCF77 "ueberschrieben" wird.
 #define DCF77_NTP_GRACE_PERIOD (2 * WAIT_1h)
 
     // Geschwindigkeit des Sekundenzeigers im Train-Station-Mode gegenueber der
@@ -58,23 +57,17 @@
     // --- Board-Auswahl (Prozessor, TFT-Typ) ---
     // Prozessor
 #define ESP32_S2  //only ESP32-S2 supported
-    //#define ESP32_S3 
 
     // select TFT
 #define GC9A01
     //#define GC9A01_WITH_BACKLIGHT
     //#define GC9D01
-    //#define ILI9341 
+    //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt
 
     // --- Pin-Belegung: ESP32-S2 (Lolin S2 Pico) ---
 #ifdef ESP32_S2  // Lolin S2 Pico
-    // ##############################################################################
-    // wires
-    //               ESP32 PIN    TFT
-    //               3.3V         vcc     3v3             red
-    //               GND          gnd     ground          blue
-    //  see C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\user_setups\Setup304__ESP32S3_GC9D01.h
-    // or   https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
+    // Pinbelegung ESP32<->TFT: 3.3V->vcc (rot), GND->gnd (blau), weitere siehe Referenzschaltplan.
+    // PCB-Referenz: https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
 
 #define LED_BOARD 15 // BUILTIN LED
@@ -109,31 +102,6 @@
     
 #endif
 
-    // --- Pin-Belegung: ESP32-S3 (Lolin S3) ---
-#ifdef ESP32_S3  // Lolin S3
-    // ##############################################################################
-    // wires
-    //               ESP32 PIN    TFT
-    //               3.3V         vcc     3v3             red
-    //               GND          gnd     ground          blue
-    //  see C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\user_setups\Setup304__ESP32S3_GC9D01.h
-    // or   https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
-
-
-    // #define LED_BOARD 15 // BUILTIN LED
-
-    //#define ADC_3V 1
-    //#define ADC_PIN 2
-    //#define ADC_GND 4
-
-    //#define BUTTON1 16
-
-    // Touch 
-    //#define TOUCH_PIN 9
-
-
-#endif
-
     // --- Display: Dimensionen je Zifferblatt-Typ ---
 #if defined GC9A01 || defined(GC9A01_WITH_BACKLIGHT) 
 #include "graphic/240/clock_default.h"
@@ -165,7 +133,7 @@
 #define TFT_TEXT_SIZE 1
 #endif
 
-#ifdef ILI9341
+#ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
 #include "graphic/240/clock_default.h"
 
 #define TFT_WIDTH 240
