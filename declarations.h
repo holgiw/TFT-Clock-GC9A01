@@ -98,6 +98,7 @@
     String generateLanguageSelector() ;
     bool naturalLess(const String& a, const String& b) ;
     void naturalSortNames(std::vector<String>& names) ;
+    String sanitizeHostname(String input) ;
     void setupWebServer() ;
     void handleFileUpload() ;
     bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) ;
