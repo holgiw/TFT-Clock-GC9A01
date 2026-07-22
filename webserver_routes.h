@@ -1220,28 +1220,31 @@
 
             if (photoresistorFound) {
                 chunk += "<table style='margin:auto;text-align:left;'><tr>";
-                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
+                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
 
-                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
+                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
                 chunk += "</tr></table><hr><br>";
-
-                chunk += "<label>" + translate("Low Threshold") + " (0 - 100 %) :</label><br><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "'><br>";
-                chunk += "<label>" + translate("High Threshold") + " (0 - 100 %) :</label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
             }
 
-            chunk += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
+            chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
 
-            chunk += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:50px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:50px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:50px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
 
-            chunk += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
-            chunk += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:50px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            if (photoresistorFound) {
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100 %) :</label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:50px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) :</label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:50px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+            }
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            chunk += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
-            chunk += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
-
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:50px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
 #endif
+
+            chunk += "</div>";
 
 
             chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
@@ -1305,6 +1308,7 @@
                 chunk += "slider.addEventListener('input', () => {\n";
                 chunk += "  const gamma = parseFloat(slider.value);\n";
                 chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
+                chunk += "  document.querySelector(\"input[name='gamma']\").value = gamma.toFixed(1);\n";
                 chunk += "  plotGamma(gamma);\n";
                 chunk += "});\n\n";
 
@@ -1332,26 +1336,31 @@
 
             if (photoresistorFound) {
                 chunk += "<table style='margin:auto;text-align:left;'><tr>";
-                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label></td>";
+                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
 
-                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label></td>";
+                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
                 chunk += "</tr></table><hr><br>";
-
-                chunk += "<label>" + translate("Low Threshold") + " (0 - 100) : </label><br><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "'><br>";
-                chunk += "<label>" + translate("High Threshold") + " (0 - 100) : </label><br><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "'><br>";
             }
 
-            chunk += "<label>" + translate("Min Brightness") + " (0 - 255) : </label><br><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "'><br>";
+            chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
 
-            chunk += "<label>" + translate("Max Brightness") + " (0 - 255) : </label><br><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "'><br>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:50px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:50px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:50px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
 
-            chunk += "<label>" + translate("Full brightness from (hour, 0-23)") + ":</label><br><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "'><br>";
-            chunk += "<label>" + translate("Full brightness until (hour, 0-23)") + ":</label><br><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "'><br>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:50px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            if (photoresistorFound) {
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:50px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:50px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+            }
+
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            chunk += "<label>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><br>";
-            chunk += "<input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required><br>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:50px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
 #endif
+
+            chunk += "</div>";
 
 
             chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
@@ -1414,6 +1423,7 @@
                 chunk += "slider.addEventListener('input', () => {\n";
                 chunk += "  const gamma = parseFloat(slider.value);\n";
                 chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
+                chunk += "  document.querySelector(\"input[name='gamma']\").value = gamma.toFixed(1);\n";
                 chunk += "  plotGamma(gamma);\n";
                 chunk += "});\n\n";
 
