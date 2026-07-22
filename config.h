@@ -59,8 +59,8 @@
 #define ESP32_S2  //only ESP32-S2 supported
 
     // select TFT
-    //#define GC9A01
-#define GC9A01_WITH_BACKLIGHT
+#define GC9A01
+    //#define GC9A01_WITH_BACKLIGHT
     //#define GC9D01
     //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt
 
