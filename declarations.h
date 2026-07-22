@@ -9,6 +9,7 @@
     bool checkWiFiReconnect() ;
     int saveWpsCredentials(const String& ssid, const String& pass) ;
     void onWpsEvent(WiFiEvent_t event) ;
+    void restorePreviousWpsConnection() ;
     void startAP() ;
     int connectWiFi(int number, bool verboseMode) ;
     bool isInternetReachable(String pingServer) ;
@@ -17,6 +18,7 @@
     void eraseWiFiConfig() ;
     void startWiFiScan() ;
     void checkWiFiScan() ;
+    void waitForWifiScan(int delayMs) ;
     void scanAndCacheNetworks() ;
 
     // --- time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone ---
@@ -62,6 +64,7 @@
     bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) ;
     String getBmpInfo(const String& filename) ;
     bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) ;
+    void migrateBmpsToRLE(const char* prefix, int outW, int outH, const char* noneFoundLabel, const char* foundCountLabel) ;
     void migrateFaceBmpsToRLE() ;
     void migrateHandBmpsToRLE() ;
     bool peekFirstPixelIsWhite(const String& path) ;
@@ -100,6 +103,9 @@
     String generateLanguageSelector() ;
     bool naturalLess(const String& a, const String& b) ;
     void naturalSortNames(std::vector<String>& names) ;
+    void redirectTo(const String& location, const String& body = "") ;
+    String beginPage() ;
+    void updateNtpServersFromRequest() ;
     String sanitizeHostname(String input) ;
     void setupWebServer() ;
     void handleFileUpload() ;
@@ -119,5 +125,6 @@
     String trim(const String& str) ;
 
     // --- uhr3.ino: setup() & loop() ---
+    void showStatusScreen(uint16_t bgColor, const String& messageKey) ;
     void setup() ;
     void loop() ;

@@ -53,6 +53,19 @@
 #include "system_utils.h"      // Tasten, Logging, Reset, Neustart
 
 
+    // Zeigt eine Vollbild-Statusmeldung an (fillScreen + zentrierter Text) und wartet
+    // 1s - gemeinsame Anzeigelogik fuer die kurzlebigen Meldungen in setup()
+    // ("Reset WLan...", "Check RTC"), bevor es mit dem jeweiligen naechsten Schritt weitergeht.
+    void showStatusScreen(uint16_t bgColor, const String& messageKey) {
+        tft.fillScreen(bgColor);
+        tft.setTextColor(TFT_WHITE);
+        tft.setTextSize(TFT_TEXT_SIZE);
+        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+        tft.println(translate(messageKey));
+        delay(1000);
+    }
+
+
     // Setup-Funktion
     void setup() {
 
@@ -482,12 +495,7 @@
         // Wenn Button1 gedrückt oder BOOT_BUTTON gedrückt, alle Zugangsdaten löschen
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
-            tft.fillScreen(TFT_RED);
-            tft.setTextColor(TFT_WHITE);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-            tft.println(translate("Reset WLan..."));
-            delay(1000);
+            showStatusScreen(TFT_RED, "Reset WLan...");
             for (int i = 0; i < MAX_WLAN; i++) {
                 wifiSsid[i] = "";
                 wifiPass[i] = "";            
@@ -527,12 +535,7 @@
         // WLAN-Netzwerke scannen und cachen
         //scanAndCacheNetworks();
 
-        while (isScanning) {
-            checkWiFiScan();
-            delay(10);
-            if (loggingEnabled)  Serial.print("");
-        }
-        if (loggingEnabled) Serial.println("");
+        waitForWifiScan(10);
         // DEBUG_PRINTLN("[WiFi] Scan complete");
 
 
@@ -554,12 +557,7 @@
             DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan..");
             startWiFiScan();
             delay(100); // Kurze Verzögerung, damit der Scan starten kann
-            while (isScanning) {
-                checkWiFiScan();
-                delay(50);
-                if (loggingEnabled) Serial.print("");
-            }
-            if (loggingEnabled) Serial.println("");
+            waitForWifiScan(50);
         }
    
         // versuche Verbindung mit der letzten SSID
@@ -593,12 +591,7 @@
             }
         
             if (rtcOk == RTC_AVAILABLE) {
-                tft.fillScreen(TFT_BLACK);
-                tft.setTextColor(TFT_WHITE);
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                tft.println(translate("Check RTC"));
-                delay(1000);
+                showStatusScreen(TFT_BLACK, "Check RTC");
                 loadTimeFromRTC();
                 return;
             }
@@ -724,29 +717,13 @@
                 wpsPending = false;
                 // Ggf. urspruengliche Verbindung wiederherstellen, falls durch
                 // den WPS-Versuch getrennt.
-                if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
-                    for (int i = 0; i < MAX_WLAN; i++) {
-                        if (wifiSsid[i] == wpsPreviousSsid) {
-                            connectWiFi(i, false);
-                            break;
-                        }
-                    }
-                }
-                wpsPreviousSsid = "";
+                restorePreviousWpsConnection();
             }
             else if (millis() - wpsStartMillis > (2 * WAIT_1m)) {
                 DEBUG_PRINTLN("[WPS] Timeout waiting for WPS button press - disabling WPS");
                 esp_wifi_wps_disable();
                 wpsPending = false;
-                if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
-                    for (int i = 0; i < MAX_WLAN; i++) {
-                        if (wifiSsid[i] == wpsPreviousSsid) {
-                            connectWiFi(i, false);
-                            break;
-                        }
-                    }
-                }
-                wpsPreviousSsid = "";
+                restorePreviousWpsConnection();
             }
         }
 

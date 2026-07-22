@@ -106,6 +106,22 @@
     }
 
 
+    // Stellt nach einem fehlgeschlagenen/abgebrochenen WPS-Versuch die zuvor
+    // bestehende Verbindung wieder her, falls diese dadurch getrennt wurde -
+    // gemeinsame Logik der beiden Fehlerpfade (Fail-Event/Timeout) in loop().
+    void restorePreviousWpsConnection() {
+        if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
+            for (int i = 0; i < MAX_WLAN; i++) {
+                if (wifiSsid[i] == wpsPreviousSsid) {
+                    connectWiFi(i, false);
+                    break;
+                }
+            }
+        }
+        wpsPreviousSsid = "";
+    }
+
+
     int saveWpsCredentials(const String& ssid, const String& pass) {
         // Bewusst frisch aus den Preferences lesen statt dem In-Memory-Array
         // wifiSsid[] zu vertrauen: dieses wird nur beim Booten befuellt und
@@ -612,6 +628,18 @@
                 //scanAndCacheNetworks();
             }
         }
+    }
+
+
+    // Blockiert, bis ein laufender WiFi-Scan abgeschlossen ist (siehe checkWiFiScan()) -
+    // gemeinsame Warteschleife der beiden Scan-Aufrufe in setup().
+    void waitForWifiScan(int delayMs) {
+        while (isScanning) {
+            checkWiFiScan();
+            delay(delayMs);
+            if (loggingEnabled) Serial.print("");
+        }
+        if (loggingEnabled) Serial.println("");
     }
 
 
