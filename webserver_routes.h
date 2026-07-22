@@ -1462,19 +1462,18 @@
                 String info = getBmpInfo(name);
                 chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
                 chunk += "<td align=right>" + String(info) + "</td>";
-                chunk += " <td><a href = '/delete?file=" + name + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>" + translate("Delete") + "</a> ";
+                chunk += " <td><a href = '/delete?file=" + name + "' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;</a> ";
                 // Scale-Option nur für .bmp-Dateien anzeigen
                 if (name.endsWith(".bmp")) {
-                    chunk += "<a href = '/scalebmp_form?file=" + name + "'>" + translate("Scale") + "</a> ";
-                    chunk += "<a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
+                    chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128207;</a> ";
+                    chunk += "<a href='/rename_form?file=" + name + "' title='" + translate("Rename") + "'>&#9999;</a> ";
                 }
                 else {
-                    chunk += translate("Scale") + " ";
-                    chunk += translate("Rename") + " ";
+                    chunk += "&nbsp; &nbsp;";
                 }
                        
-                chunk += "<a href='/download?file=" + name + "'>" + translate("Download") + "</a> ";
-                chunk += "<a href='/file?name=" + name + "'>" + translate("View") + "</a> "; // "View"-Link für Logdateien
+                chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;</a> ";
+                chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;</a> "; // "View"-Link für Logdateien
 
                 chunk += "</td></tr>";
 
