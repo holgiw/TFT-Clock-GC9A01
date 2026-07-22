@@ -902,6 +902,22 @@
             });
 
         // NTP Server und Zeitzone setzen
+        // Testet einen NTP-Server per direkter UDP-Anfrage, ohne die aktuelle
+        // Zeitkonfiguration zu veraendern - fuer den "Test"-Button je Server-Feld.
+        webserver.on("/api/testNtp", HTTP_GET, []() {
+            if (!webserver.hasArg("server") || trim(webserver.arg("server")) == "") {
+                webserver.send(400, "text/plain", "Missing parameter");
+                return;
+            }
+            String result = testNtpServer(webserver.arg("server"));
+            if (result == "") {
+                webserver.send(200, "text/plain", "FAILED");
+            }
+            else {
+                webserver.send(200, "text/plain", "OK|" + result);
+            }
+            });
+
         webserver.on("/set_timezone", HTTP_POST, []() {
 
             updateNtpServersFromRequest();
@@ -986,11 +1002,34 @@
             html += "<form method='POST' action='/set_timezone'>";
 
             for (int i = 0; i < MAX_WLAN; i++) {
-                    html += "NTP Server" + String(i + 1) + " : <input type = 'text' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "'><br>";
+                    html += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
+                    html += "NTP Server" + String(i + 1) + " : <input type = 'text' id='ntpServerInput" + String(i + 1) + "' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "' style='width:180px;'>";
+                    html += "<button type='button' onclick='testNtp(" + String(i + 1) + ")' style='width:180px;'>" + translate("Test") + "</button>";
+                    html += "</div>";
+                    html += "<div id='ntpTestResult" + String(i + 1) + "'></div>";
                     if (trim(ntpServers[i]) == "") {
                         break;
                 }
             }
+
+            html += "<script>";
+            html += "async function testNtp(idx) {";
+            html += "  var input = document.getElementById('ntpServerInput' + idx);";
+            html += "  var result = document.getElementById('ntpTestResult' + idx);";
+            html += "  result.innerHTML = '" + translate("Testing") + "...';";
+            html += "  try {";
+            html += "    var r = await fetch('/api/testNtp?server=' + encodeURIComponent(input.value));";
+            html += "    var text = await r.text();";
+            html += "    if (text.indexOf('OK|') === 0) {";
+            html += "      result.innerHTML = '<div style=\\'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10004; ' + text.substring(3) + '</div>';";
+            html += "    } else {";
+            html += "      result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
+            html += "    }";
+            html += "  } catch (e) {";
+            html += "    result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
+            html += "  }";
+            html += "}";
+            html += "</script>";
 
 
             //html += "NTP Server1: <input type='text' name='ntpServer1' value='" + String(ntpServers[0]) + "'><br>";
