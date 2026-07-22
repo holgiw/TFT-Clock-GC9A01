@@ -1,3 +1,7 @@
+# TFT-Clock-GC9A01 (uhr3)
+
+Licensed under the GNU General Public License v3.0 - see [LICENSE](LICENSE).
+
 1. Support for Multiple TFT Displays
 •	The clock supports various TFT displays:
 •	GC9A01
