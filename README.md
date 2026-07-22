@@ -1,7 +1,3 @@
-# TFT-Clock-GC9A01 (uhr3)
-
-Licensed under the GNU General Public License v3.0 - see [LICENSE](LICENSE).
-
 1. Support for Multiple TFT Displays
 •	The clock supports various TFT displays:
 •	GC9A01
@@ -32,10 +28,12 @@ Licensed under the GNU General Public License v3.0 - see [LICENSE](LICENSE).
 •	WiFi:
 •	Supports up to 15 WiFi networks.
 •	Automatically reconnects if the connection is lost (configurable).
+•	Individual networks can be deleted directly from the web interface - remaining entries automatically move up to close the gap.
+•	Add a new network via WPS with a single button on the web interface - no need to know the SSID/password in advance.
+•	Customizable hostname (invalid characters are automatically cleaned up); falls back to an automatically generated name based on the MAC address if left empty.
 •	NTP (Network Time Protocol):
 •	Automatically synchronizes time with an NTP server.
 •	Nightly time synchronization at 02:00 and 03:00.
-• WPS supported
 ---
 6. Web Interface
 •	A built-in web interface allows:
@@ -44,13 +42,14 @@ Licensed under the GNU General Public License v3.0 - see [LICENSE](LICENSE).
 •	Enabling/disabling Smooth Minute and Train Station modes.
 •	Viewing system status (e.g., WiFi details, storage usage, uptime).
 •	Multi-language interface (German, English, French).
-•	Factory reset directly from the web interface.
+•	Factory reset page with separate options: reset everything, delete clock faces (except default), delete hand sets (except default), delete presets, or reset saved WiFi networks - each with its own confirmation.
+•	Download additional clock faces, hand sets, and presets directly from GitHub via the web interface - missing dependencies (e.g. a face/hand set referenced by a preset) are fetched automatically.
 •	Live preview (top-left corner on every page) always shows the currently active clock face/hands/hub color - click it (with confirmation) to save the current look as a new preset.
 ---
 7. File Management with LittleFS
 •	Uses the LittleFS filesystem to:
-•	Store custom clock faces and hands.
-•	Manage files (e.g., upload, download, rename, delete).
+•	Store custom clock faces and hands, RLE-compressed to save flash space.
+•	Manage files (e.g., upload, download, rename, delete) with a compact icon-based interface.
 • Logging
 ---
 8. Time Zone Customization

@@ -7,7 +7,7 @@
     String generateHtmlHeader() {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
         html.reserve(512);  // Header: klein, wird auf jeder Seite einmal aufgerufen
-        html += "<style>body{font-family:Arial;text-align:center;padding-top:100px;}input,select,button{margin:10px;padding:10px;width:80%;}";
+        html += "<style>body{font-family:Arial;text-align:center;padding-top:110px;}input,select,button{margin:10px;padding:10px;width:80%;}";
         html += "h1 { color: #333333; } ";
         html += "hr { border: 0; height: 1px; background-color: #cccccc; margin: 20px 0; } ";
         html += "table { margin: auto; border-collapse: collapse; } "; // Tabellen zentrieren
@@ -37,11 +37,12 @@
 
         html += "<br>" + translate("Storage used") + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
         html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)";
+        html += "<br>" + translate("Version") + ": " + String(version);
 
         // Oben rechts fest positioniert, neben der Live-Vorschau (oben links) -
         // kompaktere Schrift, damit die paar Zeilen nicht mehr Hoehe brauchen
         // als das 90px hohe Vorschaubild gegenueber.
-        String boxed = "<div style='position:fixed;top:0;left:100px;max-width:calc(55% + 70px);height:90px;box-sizing:border-box;background:#fff;border:2px solid #333;border-radius:8px;padding:4px 8px;font-size:0.8em;line-height:1.3;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
+        String boxed = "<div style='position:fixed;top:0;left:110px;max-width:calc(55% + 70px);height:100px;box-sizing:border-box;background:#fff;border:2px solid #333;border-radius:8px;padding:4px 8px;font-size:0.78em;line-height:1.25;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
         boxed += html;
         boxed += "</div><hr>";
 
@@ -59,7 +60,7 @@
         */
 
         String nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'><input type='hidden' id='previewSaveName' name='name'></form>";
-        nav += "<img src='/currentpreview' onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:90px;height:90px;box-sizing:border-box;border:2px solid #333;border-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
+        nav += "<img src='/currentpreview' onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #333;border-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
         nav += "<style>";
         nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
@@ -132,7 +133,7 @@
         String html = "<div id='flashMsg' style='background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
         html += "&#9989; " + message;
         html += "</div>";
-        html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 3000);</script>";
+        html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 4000);</script>";
         return html;
     }
 
