@@ -104,6 +104,8 @@
     void redirectTo(const String& location, const String& body = "") ;
     String beginPage() ;
     void updateNtpServersFromRequest() ;
+    void compactWlanCredentials() ;
+    String resetOptionHtml(const char* titleKey, const char* descriptionKey, const char* action, const char* confirmKey, bool altQuoting = false) ;
     String sanitizeHostname(String input) ;
     void setupWebServer() ;
     void handleFileUpload() ;
