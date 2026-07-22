@@ -196,6 +196,62 @@
     }
 
 
+    // Testet einen NTP-Server per direkter UDP-Anfrage (RFC 5905, minimales
+    // Client-Paket), OHNE die aktuell konfigurierte Systemzeit zu veraendern -
+    // nutzt dafuer bewusst eine eigene, lokale WiFiUDP-Instanz statt des
+    // globalen 'udp'-Objekts. Gibt bei Erfolg die vom Server gemeldete UTC-
+    // Zeit als String zurueck, bei Fehlschlag einen leeren String.
+    String testNtpServer(const String& server) {
+        if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) return "";
+
+        WiFiUDP testUdp;
+        if (!testUdp.begin(0)) return ""; // beliebiger freier lokaler Port
+
+        IPAddress serverIp;
+        if (!WiFi.hostByName(server.c_str(), serverIp)) {
+            testUdp.stop();
+            return "";
+        }
+
+        uint8_t packet[48];
+        memset(packet, 0, sizeof(packet));
+        packet[0] = 0b11100011; // LI=3 (unbekannt), VN=4, Mode=3 (Client)
+
+        testUdp.beginPacket(serverIp, 123);
+        testUdp.write(packet, sizeof(packet));
+        testUdp.endPacket();
+
+        unsigned long waitStart = millis();
+        int received = 0;
+        while (millis() - waitStart < WAIT_3s) {
+            received = testUdp.parsePacket();
+            if (received >= 48) break;
+            delay(20);
+        }
+
+        if (received < 48) {
+            testUdp.stop();
+            return "";
+        }
+
+        testUdp.read(packet, 48);
+        testUdp.stop();
+
+        // Transmit-Timestamp: Sekunden seit 1900 in Byte 40-43 (big-endian)
+        uint32_t secsSince1900 = ((uint32_t)packet[40] << 24) | ((uint32_t)packet[41] << 16) |
+                                 ((uint32_t)packet[42] << 8) | (uint32_t)packet[43];
+        const uint32_t SEVENTY_YEARS = 2208988800UL; // Differenz 1900 -> 1970
+        if (secsSince1900 < SEVENTY_YEARS) return "";
+        time_t epochTime = secsSince1900 - SEVENTY_YEARS;
+
+        struct tm resultTime;
+        gmtime_r(&epochTime, &resultTime);
+        char buf[32];
+        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &resultTime);
+        return String(buf) + " UTC";
+    }
+
+
     // Initialisiert die Zeitsynchronisierung über NTP und stellt die Zeitzone ein.
     // Im Fehlerfall wird die zuletzt bekannte Zeit verwendet.
     boolean setupNTP() {

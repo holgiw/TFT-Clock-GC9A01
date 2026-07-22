@@ -9,7 +9,6 @@
     bool checkWiFiReconnect() ;
     int saveWpsCredentials(const String& ssid, const String& pass) ;
     void onWpsEvent(WiFiEvent_t event) ;
-    void restorePreviousWpsConnection() ;
     void startAP() ;
     int connectWiFi(int number, bool verboseMode) ;
     bool isInternetReachable(String pingServer) ;
@@ -18,7 +17,6 @@
     void eraseWiFiConfig() ;
     void startWiFiScan() ;
     void checkWiFiScan() ;
-    void waitForWifiScan(int delayMs) ;
     void scanAndCacheNetworks() ;
 
     // --- time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone ---
@@ -29,6 +27,7 @@
     bool isDaylightSavingTime(struct tm* timeinfo) ;
     void printTime(time_t rawTime) ;
     void checkNightlyTimeSync() ;
+    String testNtpServer(const String& server) ;
     boolean setupNTP() ;
     void handleNTPFailure() ;
     void setTimeStruct(const struct tm& timeinfo, String source) ;
@@ -64,7 +63,6 @@
     bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) ;
     String getBmpInfo(const String& filename) ;
     bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) ;
-    void migrateBmpsToRLE(const char* prefix, int outW, int outH, const char* noneFoundLabel, const char* foundCountLabel) ;
     void migrateFaceBmpsToRLE() ;
     void migrateHandBmpsToRLE() ;
     bool peekFirstPixelIsWhite(const String& path) ;
@@ -125,6 +123,5 @@
     String trim(const String& str) ;
 
     // --- uhr3.ino: setup() & loop() ---
-    void showStatusScreen(uint16_t bgColor, const String& messageKey) ;
     void setup() ;
     void loop() ;
