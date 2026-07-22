@@ -1339,7 +1339,11 @@
     // Durchsucht das Dateisystem nach face_*.bmp-Dateien im ALTEN Standard-BMP-
     // Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
     // speichert "face_"-Dateien automatisch als RLE - Quelle=Ziel=gleicher Pfad).
-    void migrateFaceBmpsToRLE() {
+    // Gemeinsame Logik von migrateFaceBmpsToRLE()/migrateHandBmpsToRLE(): durchsucht
+    // das Dateisystem nach Dateien mit dem gegebenen Namenspraefix im ALTEN Standard-
+    // BMP-Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
+    // speichert solche Dateien seither ebenfalls automatisch als RLE).
+    void migrateBmpsToRLE(const char* prefix, int outW, int outH, const char* noneFoundLabel, const char* foundCountLabel) {
         File root = LittleFS.open("/");
         if (!root) return;
 
@@ -1349,7 +1353,7 @@
             if (!file.isDirectory()) {
                 String name = file.name();
                 String nameOnly = name.startsWith("/") ? name.substring(1) : name;
-                if (nameOnly.startsWith("face_") && nameOnly.endsWith(".bmp")) {
+                if (nameOnly.startsWith(prefix) && nameOnly.endsWith(".bmp")) {
                     uint8_t magic[4] = { 0 };
                     file.read(magic, 4);
                     if (!isRleFace(magic)) {
@@ -1361,18 +1365,18 @@
         }
 
         if (toConvert.empty()) {
-            DEBUG_PRINTLN("[MIGRATE] No clock faces in the old format found.");
+            DEBUG_PRINTLN("[MIGRATE] No " + String(noneFoundLabel) + " in the old format found.");
             return;
         }
 
-        DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " clock face(s) found in the old format, converting to RLE...");
+        DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " " + String(foundCountLabel) + " found in the old format, converting to RLE...");
 
         for (const String& path : toConvert) {
             File before = LittleFS.open(path, "r");
             size_t sizeBefore = before ? before.size() : 0;
             if (before) before.close();
 
-            if (scaleAndSaveBmp(path.c_str(), path.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
+            if (scaleAndSaveBmp(path.c_str(), path.c_str(), outW, outH)) {
                 File after = LittleFS.open(path, "r");
                 size_t sizeAfter = after ? after.size() : 0;
                 if (after) after.close();
@@ -1386,53 +1390,15 @@
     }
 
 
+    void migrateFaceBmpsToRLE() {
+        migrateBmpsToRLE("face_", CLOCK_WIDTH, CLOCK_HEIGHT, "clock faces", "clock face(s)");
+    }
+
+
     // Durchsucht das Dateisystem nach hand_set*.bmp-Dateien im ALTEN Standard-
-    // BMP-Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
-    // speichert "hand_set"-Dateien seither ebenfalls automatisch als RLE).
+    // BMP-Format und konvertiert sie einmalig zum RLE-Format.
     void migrateHandBmpsToRLE() {
-        File root = LittleFS.open("/");
-        if (!root) return;
-
-        std::vector<String> toConvert;
-        File file = root.openNextFile();
-        while (file) {
-            if (!file.isDirectory()) {
-                String name = file.name();
-                String nameOnly = name.startsWith("/") ? name.substring(1) : name;
-                if (nameOnly.startsWith("hand_set") && nameOnly.endsWith(".bmp")) {
-                    uint8_t magic[4] = { 0 };
-                    file.read(magic, 4);
-                    if (!isRleFace(magic)) {
-                        toConvert.push_back(name.startsWith("/") ? name : "/" + name);
-                    }
-                }
-            }
-            file = root.openNextFile();
-        }
-
-        if (toConvert.empty()) {
-            DEBUG_PRINTLN("[MIGRATE] No hand sets in the old format found.");
-            return;
-        }
-
-        DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " hand set file(s) found in the old format, converting to RLE...");
-
-        for (const String& path : toConvert) {
-            File before = LittleFS.open(path, "r");
-            size_t sizeBefore = before ? before.size() : 0;
-            if (before) before.close();
-
-            if (scaleAndSaveBmp(path.c_str(), path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
-                File after = LittleFS.open(path, "r");
-                size_t sizeAfter = after ? after.size() : 0;
-                if (after) after.close();
-                DEBUG_PRINTLN("[MIGRATE] OK: " + path + " (" + String(sizeBefore) + " -> " + String(sizeAfter) + " bytes)");
-                checkHeapWarning("Migration " + path);
-            }
-            else {
-                DEBUG_PRINTLN("[MIGRATE] ERROR for " + path + " - file remains in the old format");
-            }
-        }
+        migrateBmpsToRLE("hand_set", HAND_WIDTH, HAND_HEIGHT, "hand sets", "hand set file(s)");
     }
 
 

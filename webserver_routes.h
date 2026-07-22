@@ -223,6 +223,41 @@
     }
 
 
+    // Sendet eine 302-Weiterleitung an location - buendelt das sonst ueberall
+    // wiederholte sendHeader("Location", ...)/send(302, ...)-Paar.
+    void redirectTo(const String& location, const String& body) {
+        webserver.sendHeader("Location", location, true);
+        webserver.send(302, "text/plain", body);
+    }
+
+
+    // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header + Statusleiste
+    // + Navigation) - Reihenfolge entspricht der bisherigen, wiederholten Aufrufkette.
+    String beginPage() {
+        String html = generateHtmlHeader();
+        html += generateHtmlStatus();
+        html += generateNavigation();
+        return html;
+    }
+
+
+    // Liest fuer jeden konfigurierten WLAN-Slot einen evtl. mitgesendeten NTP-Server-
+    // Parameter aus der Anfrage und speichert ihn (nur bei Aenderung) in ntpServers[]/
+    // Preferences - gemeinsame Logik von /api/setMode und /set_timezone.
+    void updateNtpServersFromRequest() {
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String argName = pkNtpServer(i);
+            if (webserver.hasArg(argName)) {
+                strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
+                ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
+                if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
+                    preferences.putString(argName.c_str(), ntpServers[i]);
+                }
+            }
+        }
+    }
+
+
     // Webserver-API-Endpunkte einrichten
     void setupWebServer() {
 
@@ -230,8 +265,7 @@
         // bekannten URLs ab - Redirect (statt 404) auf die Konfigurationsseite oeffnet
         // beim AP ("clock123") automatisch ein Browserfenster, wirkt mit dnsServer.processNextRequest() zusammen.
         auto captivePortalRedirect = []() {
-            webserver.sendHeader("Location", "http://" + ipAddress + "/", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("http://" + ipAddress + "/");
             };
 
         webserver.on("/generate_204", HTTP_GET, captivePortalRedirect);       // Android
@@ -265,16 +299,14 @@
                 if (lang == "en") {
                     saveLanguage(lang);
                     // webserver.send(200, "text/plain", "Language updated to " + lang);
-                    webserver.sendHeader("Location", "/?msg=Language%20updated", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo("/?msg=Language%20updated");
                     return;
                 }
 
                 if (availableLanguages.count(lang)) {
                     saveLanguage(lang);
                     // webserver.send(200, "text/plain", "Language updated to " + lang);
-                    webserver.sendHeader("Location", "/?msg=Language%20updated", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo("/?msg=Language%20updated");
                     return;
                 }
                 else {
@@ -325,8 +357,7 @@
         // die Route auch bei direkter Browser-Navigation erreichbar ist.
         webserver.on("/api/startWPS", HTTP_GET, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
-            webserver.sendHeader("Location", "/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
             // Erst NACH dem Senden der Antwort WPS starten - startWPS() stoerte
             // sonst vermutlich die noch offene HTTP-Verbindung (Browser zeigte
             // "Seite nicht erreichbar" statt die Weiterleitung zu erhalten).
@@ -337,8 +368,7 @@
 
         webserver.on("/api/startWPS", HTTP_POST, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
-            webserver.sendHeader("Location", "/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
             startWPS();
             wpsPending = true;
             wpsStartMillis = millis();
@@ -362,14 +392,12 @@
                     // wieder automatisch "clock_" + letzte MAC-Stellen generiert
                     // wird (siehe connectWiFi() in wifi_manager.h).
                     preferences.remove(PK_HOSTNAME);
-                    webserver.sendHeader("Location", "/?msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo("/?msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
                     return;
                 }
 
                 preferences.putString(PK_HOSTNAME, newHostname);
-                webserver.sendHeader("Location", "/?msg=Hostname%20saved%20-%20requires%20a%20reboot%20to%20take%20effect", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/?msg=Hostname%20saved%20-%20requires%20a%20reboot%20to%20take%20effect");
             }
             else {
                 webserver.send(400, "text/plain", "Missing parameter");
@@ -381,9 +409,7 @@
             bool created = createPresetFromPreferences(customName); // Erstellt ein neues Preset, falls noch ein Slot frei ist
 
             if (!created) {
-                String html = generateHtmlHeader();
-                html += generateHtmlStatus();
-                html += generateNavigation();
+                String html = beginPage();
                 html += "<h2 style='color:red;'>" + translate("Maximum number of presets reached - delete an existing preset first") + "</h2>";
                 html += "<a href='/presets'><button type='button'>" + translate("Back") + "</button></a>";
                 html += "</body></html>";
@@ -392,8 +418,7 @@
             }
 
             // Weiterleitung zur Presets-Seite
-            webserver.sendHeader("Location", "/presets?msg=Preset%20created", true);
-            webserver.send(302, "text/plain", "Redirecting to /presets..");
+            redirectTo("/presets?msg=Preset%20created", "Redirecting to /presets..");
             });
 
         // API zum Setzen von Uhrmodus und anderen Einstellungen
@@ -421,18 +446,7 @@
                 setupNTP();
             }
 
-            for (int i = 0; i < MAX_WLAN; i++) {
-                String argName = pkNtpServer(i);
-                if (webserver.hasArg(argName)) {
-                    strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
-                    ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
-                    if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
-                        preferences.putString(argName.c_str(), ntpServers[i]);
-                    }
-                    // DEBUG_PRINTLN("[API] Received " + argName + ": " + String(ntpServers[i]));  
-                }
-            }
-
+            updateNtpServersFromRequest();
 
             if (webserver.hasArg("hubSize")) {
                 hubSize = webserver.arg("hubSize").toInt();
@@ -510,8 +524,7 @@
                 String sourceArg = webserver.arg("source");
                 if (sourceArg == "preset") {
                     // DEBUG_PRINTLN("[API] Request source: preset");
-                    webserver.sendHeader("Location", "/presets?msg=Preset%20applied", true);
-                    webserver.send(302, "text/plain", "Redirecting to /presets..");
+                    redirectTo("/presets?msg=Preset%20applied", "Redirecting to /presets..");
                     return;
                 }
             }
@@ -524,10 +537,8 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1024);
-            chunk += generateHtmlStatus();
-            chunk += generateNavigation();
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Presets") + "</h2>";
 
@@ -836,19 +847,17 @@
         // wiederherstellen - ersetzt ALLE aktuell gespeicherten Presets.
         webserver.on("/importpresets", HTTP_POST, []() {
             if (presetImportSuccess) {
-                webserver.sendHeader("Location", "/presets?msg=Presets%20imported%20successfully", true);
+                redirectTo("/presets?msg=Presets%20imported%20successfully");
             }
             else {
-                webserver.sendHeader("Location", "/presets?msg=Import%20failed%20-%20please%20check%20the%20file", true);
+                redirectTo("/presets?msg=Import%20failed%20-%20please%20check%20the%20file");
             }
-            webserver.send(302, "text/plain", "");
             }, handlePresetImportUpload);
 
         // Wie /importpresets, loescht dabei aber keine bestehenden Presets - wird
         // vom GitHub-Download-Button auf /presets genutzt (siehe handlePresetMergeUpload()).
         webserver.on("/importpresetsmerge", HTTP_POST, []() {
-            webserver.sendHeader("Location", "/presets?msg=Presets%20imported%20successfully", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/presets?msg=Presets%20imported%20successfully");
             }, handlePresetMergeUpload);
 
         // API zum Restart des ESP
@@ -875,8 +884,7 @@
                 if (presets[i].name.equalsIgnoreCase(presetName)) {
                     if (!presets[i].url.isEmpty()) {
                         // Redirect zur URL des Presets
-                        webserver.sendHeader("Location", presets[i].url, true);
-                        webserver.send(302, "text/plain", "Redirecting to preset URL..");
+                        redirectTo(presets[i].url, "Redirecting to preset URL..");
                         //DEBUG_PRINTLN("[setPreset] Redirecting to preset: " + presetName + " -> " + presets[i].url);
                         return;
                     }
@@ -895,17 +903,7 @@
         // NTP Server und Zeitzone setzen
         webserver.on("/set_timezone", HTTP_POST, []() {
 
-            for (int i = 0; i < MAX_WLAN; i++) {
-                String argName = pkNtpServer(i);
-                if (webserver.hasArg(argName)) {
-                    strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
-                    ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Ensure null-termination
-                    if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
-                        preferences.putString(argName.c_str(), ntpServers[i]);
-                    }
-                    //DEBUG_PRINTLN("[NTP] " + argName + " set to: " + String(ntpServers[i]));
-                }
-            }
+            updateNtpServersFromRequest();
 
             int writeIndex = 0; // Index, an den die nächste gültige NTP-Server-Adresse geschrieben wird
 
@@ -934,8 +932,7 @@
                 setupNTP();
             }
 
-            webserver.sendHeader("Location", "/timezone_form?msg=Timezone%20updated", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/timezone_form?msg=Timezone%20updated");
             }
         
         
@@ -981,10 +978,8 @@
                 {"Egypt (EET)", "EET-2"}
             };
 
-            String html = generateHtmlHeader();
+            String html = beginPage();
             html.reserve(6144);  // Zeitzonen-Formular: lange Dropdown-Liste
-            html += generateHtmlStatus(); // Statusleiste einfügen
-            html += generateNavigation(); // Navigation einfügen
             html += generateFlashMessage();
             html += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
             html += "<form method='POST' action='/set_timezone'>";
@@ -1027,11 +1022,8 @@
             }
 
             String oldName = webserver.arg("file");
-            String html = generateHtmlHeader();
+            String html = beginPage();
             html.reserve(1024);  // Umbenennen-Formular: klein
-
-            html += generateHtmlStatus(); // Statusleiste einfügen
-            html += generateNavigation(); // Navigation einfügen
             html += "<h2>" + translate("Rename File") + "</h2>";
             html += "<form action='/rename' method='POST'>";
             html += "<input type='hidden' name='old' value='" + oldName + "'>";
@@ -1062,8 +1054,7 @@
                         else if (baseName.startsWith("hand_set") && baseName.endsWith(".bmp")) {
                             redirectTarget = "/handsets";
                         }
-                        webserver.sendHeader("Location", redirectTarget + "?msg=File%20renamed", true);
-                        webserver.send(302, "text/plain", "");
+                        redirectTo(redirectTarget + "?msg=File%20renamed");
                     }
                     else {
                         webserver.send(500, "text/plain", "Rename failed");
@@ -1086,10 +1077,8 @@
                 return;
             }
             String src = webserver.arg("file");
-            String html = generateHtmlHeader();
+            String html = beginPage();
             html.reserve(1536);  // BMP-Skalieren-Formular: klein
-            html += generateHtmlStatus(); // Statusleiste einfügen
-            html += generateNavigation(); // Navigation einfügen
             html += "<h2>" + translate("Scale and Save BMP") + "</h2>";
             html += "<form action='/scalebmp_run' method='GET'>";
             html += translate("Source") + ": <input name = 'src' value = '/" + src + "' readonly><br>";
@@ -1174,9 +1163,8 @@
                 loadHandSprites();
             }
 
-       
-            webserver.sendHeader("Location", "/?msg=Settings%20saved", true);
-            webserver.send(302, "text/plain", "");
+
+            redirectTo("/?msg=Settings%20saved");
             });
 
 
@@ -1185,10 +1173,8 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1024);
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
@@ -1299,10 +1285,8 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1024);
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
 
@@ -1439,8 +1423,7 @@
             preferences.putUChar(PK_BRIGHT_END_HOUR, brightEndHour);
 
 
-            webserver.sendHeader("Location", "/brightness?msg=Settings%20saved", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/brightness?msg=Settings%20saved");
             });
 
 
@@ -1449,11 +1432,8 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1024);
-
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += generateFlashMessage();
 
             chunk += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
@@ -1562,11 +1542,8 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1024);
-
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -1977,12 +1954,8 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1024);
-
-
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
@@ -2158,21 +2131,66 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
+            String chunk = beginPage();
             chunk.reserve(1536);
-
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += generateFlashMessage(); // Erfolgsmeldung, falls vorhanden
 
-            // Nach dem Start einer WPS-Anfrage rebootet das Geraet automatisch,
-            // sobald WPS erfolgreich war (siehe loop() in uhr3.ino) - der Browser
-            // wuerde davon sonst nichts mitbekommen. Daher hier gezielt fuer
-            // genau diese Meldung ein automatisches Neuladen nach ca. 15
-            // Sekunden ergaenzen, damit die Seite von selbst wieder erreichbar
-            // ist, sobald das Geraet neu gestartet und neu verbunden hat.
+            // Waehrend WPS aktiv ist, trennt sich der ESP von seinem bisherigen WLAN,
+            // um als WPS-Client nach dem Router zu suchen (technisch notwendig fuer
+            // WPS) - er ist unter seiner bisherigen IP fuer bis zu 2 Minuten schlicht
+            // nicht erreichbar. Ein einmaliger location.reload() nach fester Wartezeit
+            // wuerde in diesem Fenster garantiert eine Browser-Fehlerseite zeigen.
+            // Stattdessen im Hintergrund per fetch() mit kurzem Timeout periodisch
+            // pruefen, ob der ESP schon wieder antwortet (verbunden, egal ob WPS
+            // erfolgreich war oder zur vorherigen Verbindung zurueckgefallen ist -
+            // siehe loop() in uhr3.ino) und erst dann neu laden. Zusaetzlich Fallback
+            // auf hostname.local (mDNS), falls der ESP nach einem WPS-Erfolg + Reboot
+            // eine ANDERE IP per DHCP bekommen hat - die alte IP waere dann dauerhaft
+            // tot, aber der Hostname bleibt gueltig (siehe pingHostname/hostname,
+            // bereits an anderer Stelle im Webinterface genutzt).
             if (webserver.arg("msg") == "WPS active - press the WPS button on your router now (within 2 minutes)") {
-                chunk += "<script>setTimeout(function(){ location.href = location.pathname; }, 15000);</script>";
+                String hostnameTargetJs = pingHostname ? ("'http://" + String(hostname) + ".local/'") : "null";
+                chunk += "<script>";
+                chunk += "(function() {";
+                chunk += "  var attempts = 0;";
+                chunk += "  var maxAttempts = 25;"; // ca. 25 * (5s Timeout + 3s Pause) = ~3.3 Minuten, etwas mehr als der 2-Minuten-WPS-Timeout plus Reboot/Reconnect-Zeit
+                chunk += "  var hostnameTarget = " + hostnameTargetJs + ";";
+                chunk += "  function tryFetch(url, opts) {";
+                chunk += "    return new Promise(function(resolve, reject) {";
+                chunk += "      var controller = new AbortController();";
+                chunk += "      var timeoutId = setTimeout(function() { controller.abort(); }, 5000);";
+                chunk += "      var fetchOpts = Object.assign({ cache: 'no-store', signal: controller.signal }, opts || {});";
+                chunk += "      fetch(url, fetchOpts)";
+                chunk += "        .then(function() { clearTimeout(timeoutId); resolve(); })";
+                chunk += "        .catch(function(e) { clearTimeout(timeoutId); reject(e); });";
+                chunk += "    });";
+                chunk += "  }";
+                chunk += "  function poll() {";
+                chunk += "    attempts++;";
+                // Zuerst dieselbe IP versuchen (schnellster Weg, falls sie unveraendert
+                // geblieben ist) - Same-Origin, daher normaler fetch() ohne CORS-Huerden.
+                chunk += "    tryFetch(location.pathname, {}).then(function() {";
+                chunk += "      location.href = location.pathname;";
+                chunk += "    }).catch(function() {";
+                // IP nicht erreichbar - falls ein Hostname bekannt ist, zusaetzlich per
+                // mDNS probieren. mode:'no-cors' liefert eine "opake" Antwort ohne
+                // lesbaren Inhalt, aber die Promise loest bereits auf, sobald die
+                // Verbindung ueberhaupt zustande kam - genau das reicht hier als
+                // Erreichbarkeits-Check, ganz ohne dass der ESP CORS-Header senden muss.
+                chunk += "      if (hostnameTarget) {";
+                chunk += "        tryFetch(hostnameTarget, { mode: 'no-cors' }).then(function() {";
+                chunk += "          location.href = hostnameTarget;";
+                chunk += "        }).catch(function() {";
+                chunk += "          if (attempts < maxAttempts) setTimeout(poll, 3000);";
+                chunk += "        });";
+                chunk += "      } else if (attempts < maxAttempts) {";
+                chunk += "        setTimeout(poll, 3000);";
+                chunk += "      }";
+                chunk += "    });";
+                chunk += "  }";
+                chunk += "  setTimeout(poll, 3000);";
+                chunk += "})();";
+                chunk += "</script>";
             }
 
             chunk += "<h2>" + translate("Clock Setup") + "</h2>";
@@ -2330,7 +2348,7 @@
             chunk += "  var hint = document.createElement('div');";
             chunk += "  hint.id = 'rescanHint';";
             chunk += "  hint.style.cssText = 'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;';";
-            chunk += "  hint.textContent = '" + translate("Scanning for WiFi networks - the page will reload automatically in 10 seconds") + "';";
+            chunk += "  hint.innerHTML = '" + translate("Scanning for WiFi networks - the page will reload automatically in 10 seconds") + "';";
             chunk += "  btn.parentNode.insertBefore(hint, btn.nextSibling);";
             chunk += "  fetch('/api/rescanwifi', {method: 'POST'})";
             chunk += "    .catch(function() {})";
@@ -2358,7 +2376,7 @@
 
 
                 chunk += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
-                chunk += "  var " + input + " = document.getElementById('ssid1');";
+                chunk += "  var " + input + " = document.getElementById('" + ssidKey + "');";
                 chunk += "  var " + current + " = " + input + ".value;";
                 chunk += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
                 chunk += "  fetch('/api/scanwifi')";
@@ -2430,8 +2448,7 @@
                         wifiPass[i] = tempPass[i];
                     }
                 }
-                webserver.sendHeader("Location", "/?msg=Network%20deleted", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/?msg=Network%20deleted");
             }
             else {
                 webserver.send(400, "text/plain", "Missing parameter");
@@ -2495,8 +2512,7 @@
             
 
                 if (WiFi.getMode() == WIFI_STA) {
-                    webserver.sendHeader("Location", "/?msg=Settings%20saved", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo("/?msg=Settings%20saved");
                 }
                 else {
                     webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
@@ -2516,8 +2532,7 @@
         // Datei-Upload verarbeiten
         webserver.on("/upload", HTTP_POST, []() {
             if (uploadSuccess) {
-                webserver.sendHeader("Location", "/listfilesFaces?msg=Clock%20face%20uploaded", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/listfilesFaces?msg=Clock%20face%20uploaded");
             }
             else {
                 String errorHtml = "<!DOCTYPE html><html><head><title>" + translate("Upload Failed") + "</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
@@ -2543,8 +2558,7 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    webserver.sendHeader("Location", "/listfilesFaces?msg=Clock%20face%20selected", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo("/listfilesFaces?msg=Clock%20face%20selected");
                     return;
                 }
 
@@ -2555,8 +2569,7 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    webserver.sendHeader("Location", "/listfilesFaces?msg=Clock%20face%20selected", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo("/listfilesFaces?msg=Clock%20face%20selected");
                     return;
                 }
             }
@@ -2604,8 +2617,7 @@
                     else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
                         redirectTarget = "/handsets";
                     }
-                    webserver.sendHeader("Location", redirectTarget + "?msg=File%20deleted", true);
-                    webserver.send(302, "text/plain", "");
+                    redirectTo(redirectTarget + "?msg=File%20deleted");
                 }
                 else {
                     webserver.send(404, "text/plain", "File not found");
@@ -2624,8 +2636,7 @@
                     savePresets();
                 }
             }
-            webserver.sendHeader("Location", "/presets?msg=Preset%20deleted", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/presets?msg=Preset%20deleted");
             });
 
         // Umbenennen-Formular fuer ein einzelnes Preset
@@ -2639,10 +2650,8 @@
                 webserver.send(404, "text/plain", "Preset not found");
                 return;
             }
-            String html = generateHtmlHeader();
+            String html = beginPage();
             html.reserve(1024);
-            html += generateHtmlStatus();
-            html += generateNavigation();
             html += "<h2>" + translate("Rename Preset") + "</h2>";
             html += "<form action='/renamepreset' method='POST'>";
             html += "<input type='hidden' name='index' value='" + String(idx) + "'>";
@@ -2672,8 +2681,7 @@
                 presets[idx].name = newName;
                 savePresets();
 
-                webserver.sendHeader("Location", "/presets?msg=Preset%20renamed", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/presets?msg=Preset%20renamed");
             }
             else {
                 webserver.send(400, "text/plain", "Missing parameters");
@@ -2752,9 +2760,7 @@
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
-            String chunk = generateHtmlHeader();
-            chunk += generateHtmlStatus(); // Statusleiste einfügen
-            chunk += generateNavigation(); // Navigation einfügen
+            String chunk = beginPage();
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
@@ -2938,8 +2944,7 @@
                 hubColor = rgb565;
 
             }
-            webserver.sendHeader("Location", "/handsets?msg=Settings%20saved", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/handsets?msg=Settings%20saved");
             });
 
         //  Handsets Datei-Upload verarbeiten
@@ -2962,8 +2967,7 @@
                 //  LittleFS.rename(uploadFilePath, finalPath);
                 //  DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + finalPath);
                 DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + uploadFilePath);
-                webserver.sendHeader("Location", "/handsets?msg=Hand%20set%20uploaded", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/handsets?msg=Hand%20set%20uploaded");
             }
             else {
                 webserver.send(500, "text/html", " Upload failed!<br><a href='/handsets'>Try again</a>");
@@ -2981,8 +2985,7 @@
                 loadClockFace();
                 loadHandSprites();
                 updateClock();
-                webserver.sendHeader("Location", "/handsets?msg=Hand%20set%20selected", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/handsets?msg=Hand%20set%20selected");
             }
             else {
                 webserver.send(400, "text/plain", "Missing set name");
@@ -3015,8 +3018,7 @@
                     updateClock();
                 }
 
-                webserver.sendHeader("Location", "/handsets?msg=Hand%20set%20deleted", true);
-                webserver.send(302, "text/plain", "");
+                redirectTo("/handsets?msg=Hand%20set%20deleted");
             }
             else {
                 webserver.send(400, "text/plain", "Missing set name");
@@ -3032,9 +3034,7 @@
         // Werkseinstellungen: Uebersichtsseite mit mehreren, einzeln
         // bestaetigten Reset-Optionen statt einer einzigen Alles-oder-nichts-Aktion.
         webserver.on("/factoryReset", HTTP_GET, []() {
-            String html = generateHtmlHeader();
-            html += generateHtmlStatus();
-            html += generateNavigation();
+            String html = beginPage();
             html += generateFlashMessage();
             html += "<h2>" + translate("Factory&nbsp;Reset") + "</h2>";
 
@@ -3073,20 +3073,17 @@
 
         webserver.on("/factoryReset/faces", HTTP_POST, []() {
             resetFacesToDefault();
-            webserver.sendHeader("Location", "/factoryReset?msg=Clock%20faces%20deleted", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/factoryReset?msg=Clock%20faces%20deleted");
             });
 
         webserver.on("/factoryReset/hands", HTTP_POST, []() {
             resetHandsToDefault();
-            webserver.sendHeader("Location", "/factoryReset?msg=Hand%20sets%20deleted", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/factoryReset?msg=Hand%20sets%20deleted");
             });
 
         webserver.on("/factoryReset/presets", HTTP_POST, []() {
             resetAllPresets();
-            webserver.sendHeader("Location", "/factoryReset?msg=Presets%20deleted", true);
-            webserver.send(302, "text/plain", "");
+            redirectTo("/factoryReset?msg=Presets%20deleted");
             });
 
         // Sofortige Zeitsynchronisation
