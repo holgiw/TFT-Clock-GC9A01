@@ -2240,6 +2240,7 @@
             chunk += "<form method='POST' action='/sethostname'>";
             chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
             chunk += "<label>" + translate("Hostname") + ":</label>";
+            chunk += "<span title='" + translate("The clock can also be reached at http://\"hostname\".local instead of its IP address, e.g.") + " http://" + String(hostname) + ".local. " + translate("A restart is required for a changed hostname to take effect. Not all routers support hostname resolution") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "<input name='hostname' maxlength='30' value='" + String(hostname) + "' style='width:170px;'>";
             chunk += "<button type='submit' style='width:140px;'>" + translate("Save") + "</button>";
             chunk += "</div>";
@@ -2253,7 +2254,9 @@
             chunk += "<form method='POST' action='/api/startWPS' style='margin:0;'>";
             chunk += "<button type='submit' style='width:170px;'>" + translate("Add Network via WPS") + "</button>";
             chunk += "</form>";
+            chunk += "<span title='" + translate("Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 3 minutes while this happens") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "<button id='rescanBtn' type='button' style='width:170px;'>" + translate("Rescan Networks") + "</button>";
+            chunk += "<span title='" + translate("Scans for available WiFi networks again and refreshes the dropdown lists below") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "</div><br>";
 
             chunk += "<form action = '/save' method = 'POST'>";
@@ -2265,9 +2268,15 @@
                 String ssidSelectId = "ssid_select" + String(i + 1);
                 wifiSsid[i] = preferences.getString(ssidKey.c_str(), "");
 
+                chunk += "<hr>";
+
                 String upperSsidKey = ssidKey; // Kopie erstellen
                 upperSsidKey.toUpperCase();    // Kopie in Großbuchstaben umwandeln
-                chunk += "<h3>" + upperSsidKey + "</h3>";
+                chunk += "<h3 style='display:flex;align-items:center;justify-content:center;gap:6px;'>" + upperSsidKey;
+                if (i == 0) {
+                    chunk += " <span title='" + translate("Up to") + " " + String(MAX_WLAN) + " " + translate("WiFi networks can be stored") + ".' style='cursor:help;'>&#9432;</span>";
+                }
+                chunk += "</h3>";
 
                 chunk += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
                 chunk += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\" style='max-width:180px;'>";
@@ -2284,7 +2293,6 @@
                     chunk += " " + translate("Password is hidden.Leave empty to keep current") + ".";
                 }
                 chunk += "</small>";
-                chunk += "<hr>";
 
                 // Alle paar Eintraege zwischendurch senden, damit auch bei vielen
                 // gespeicherten Netzwerken (bis zu MAX_WLAN) kein grosser Puffer entsteht.
@@ -2311,40 +2319,44 @@
 
             chunk += "<form action='/applydisplaysettings' method='POST'>";
 
-            chunk += "<div style='display:flex;flex-wrap:wrap;gap:15px;justify-content:center;max-width:600px;margin:auto;'>";
+            chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
 
-            chunk += "<div><input type='checkbox' name='stationMode' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='stationMode' value='1' ";
             chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
-            chunk += "> " + translate("Train Station Mode") + "</div>";
+            chunk += " style='width:auto;margin:0;'>" + translate("Train Station Mode");
+            chunk += " <span title='" + translate("The second hand rushes ahead slightly and briefly rests at 60, like a classic train station clock") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            chunk += "<div><input type='checkbox' name='showSecondHand' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='showSecondHand' value='1' ";
             chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
-            chunk += "> " + translate("Show Seconds") + "</div>";
+            chunk += " style='width:auto;margin:0;'>" + translate("Show Seconds");
+            chunk += " <span title='" + translate("Shows or hides the second hand on the clock face") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            chunk += "<div><input type='checkbox' name='smoothMinute' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothMinute' value='1' ";
             chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
-            chunk += "> " + translate("Smooth Minute Hand") + "</div>";
-
-            String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
-            chunk += "<div>" + translate("Ping Server") + "<input type='text' name='pingServer' value='" + pingServer + "'>";
-            chunk += "</div>";
+            chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
+            chunk += " <span title='" + translate("The minute hand moves smoothly instead of jumping in 1-minute steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
             // Neue Checkbox für Touch-Freigabe
             //chunk += "<div><input type='checkbox' name='useTouch' value='1' ";
             //chunk += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
             //chunk += "> " + translate("Enable Touch") + "</div>";
 
-            chunk += "<div><input type='checkbox' name='wifiActive' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='wifiActive' value='1' ";
             chunk += wifiActive ? "checked" : "";
-            chunk += "> " + translate("Reconnect WiFi") + "</div>";
+            chunk += " style='width:auto;margin:0;'>" + translate("Reconnect WiFi");
+            chunk += " <span title='" + translate("Automatically tries to reconnect if the WiFi connection is lost") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-
-            chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='loggingEnabled' value='1' ";
             chunk += loggingEnabled ? "checked" : "";
-            chunk += "> " + translate("Enable Logging") + "</div>";
+            chunk += " style='width:auto;margin:0;'>" + translate("Enable Logging");
+            chunk += " <span title='" + translate("Writes up to 9 log files to LittleFS for troubleshooting") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
+            String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Ping Server");
+            chunk += " <span title='" + translate("Server used to periodically check the internet connection") + ".' style='cursor:help;'>&#9432;</span>";
+            chunk += "<input type='text' name='pingServer' value='" + pingServer + "' style='width:100px;'></div><br>";
 
-            chunk += "<div>Rotation: <select name='rotation'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>Rotation: <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
                 chunk += "<option value='" + String(i) + "'";
