@@ -38,6 +38,7 @@
         { "Storage used", "Speicher belegt", "Stockage utilis&eacute;" },
         { "Presets used", "Presets belegt", "Pr&eacute;r&eacute;glages utilis&eacute;s" },
         { "Free", "Frei", "Libre" },
+        { "Version", "Version", "Version" },
         { "Total", "Gesamt", "Total" },
         { "Used", "Belegt", "Utilis&eacute;" },
         { "Save", "speichern", "enregistrer" },
