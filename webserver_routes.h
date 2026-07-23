@@ -6,7 +6,7 @@
     // Generiert den HTML-Header für die Weboberfläche
     String generateHtmlHeader() {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-        html.reserve(512);  // Header: klein, wird auf jeder Seite einmal aufgerufen
+        html.reserve(700);  // Header: klein, wird auf jeder Seite einmal aufgerufen
         html += "<style>body{font-family:Arial;text-align:center;padding-top:110px;}input,select,button{margin:10px;padding:10px;width:80%;}";
         html += "h1 { color: #333333; } ";
         html += "hr { border: 0; height: 1px; background-color: #cccccc; margin: 20px 0; } ";
@@ -17,6 +17,7 @@
         // Seite benötigt JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" + 
                 translate("JavaScript is disabled.This page requires JavaScript to work properly!") + "</div></noscript>";
+        
         return html;
     }
 
@@ -47,6 +48,7 @@
         boxed += "</div><hr>";
 
         setLedOff();
+
         return boxed;
     }
 
@@ -58,9 +60,150 @@
             return "";
         }
         */
+        String nav;
+        nav.reserve(2048);
+        nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'><input type='hidden' id='previewSaveName' name='name'></form>";
 
-        String nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'><input type='hidden' id='previewSaveName' name='name'></form>";
-        nav += "<img src='/currentpreview' onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #333;border-radius:8px;background:#fff;z-index:1000;cursor:pointer;'>";
+        // Live rotierendes Zeiger-Widget oben links (ersetzt die vorherige
+        // statische Rasterbild-Vorschau), auf jeder Seite (da hier in
+        // generateNavigation()) - nutzt die tatsaechlich konfigurierten Zeiger-
+        // Bitmaps, rotiert rein im Browser per Systemzeit, kein zusaetzlicher
+        // Netzwerkverkehr zum ESP32 noetig ausser dem einmaligen Laden der Bilder.
+        {
+            // WICHTIG: handHour/handMinute/handSecond enthalten nur den
+            // eingebauten Standard-Zeigersatz. Ein benutzerdefinierter Satz
+            // wird von loadHandSprites() direkt in TFT-Sprite-Objekte geladen,
+            // NICHT in diese Arrays - daher hier bei aktivem Custom-Set die
+            // Datei selbst einlesen, damit die Vorschau 1:1 dem tatsaechlich
+            // aktiven Zeigersatz aus den Preferences entspricht.
+            String activeHandSet = preferences.getString(PK_HANDSET, "");
+            uint16_t* previewHour = nullptr;
+            uint16_t* previewMinute = nullptr;
+            uint16_t* previewSecond = nullptr;
+            const uint16_t* hourSrc = handHour;
+            const uint16_t* minuteSrc = handMinute;
+            const uint16_t* secondSrc = handSecond;
+            const size_t handPixelCount = (size_t)HAND_WIDTH * HAND_HEIGHT;
+
+            if (activeHandSet != "" && activeHandSet != "default") {
+                String hourPath = "/hand_set" + activeHandSet + "_hour.bmp";
+                String minutePath = "/hand_set" + activeHandSet + "_minute.bmp";
+                String secondPath = "/hand_set" + activeHandSet + "_second.bmp";
+
+                if (LittleFS.exists(hourPath)) {
+                    previewHour = (uint16_t*)malloc(handPixelCount * 2);
+                    if (previewHour && loadHandPixelsForPreview(hourPath.c_str(), previewHour, HAND_WIDTH, HAND_HEIGHT)) {
+                        hourSrc = previewHour;
+                    }
+                }
+                if (LittleFS.exists(minutePath)) {
+                    previewMinute = (uint16_t*)malloc(handPixelCount * 2);
+                    if (previewMinute && loadHandPixelsForPreview(minutePath.c_str(), previewMinute, HAND_WIDTH, HAND_HEIGHT)) {
+                        minuteSrc = previewMinute;
+                    }
+                }
+                if (LittleFS.exists(secondPath)) {
+                    previewSecond = (uint16_t*)malloc(handPixelCount * 2);
+                    if (previewSecond && loadHandPixelsForPreview(secondPath.c_str(), previewSecond, HAND_WIDTH, HAND_HEIGHT)) {
+                        secondSrc = previewSecond;
+                    }
+                }
+            }
+
+            String hourB64 = encodePngToBase64(hourSrc, HAND_WIDTH, HAND_HEIGHT);
+            String minuteB64 = encodePngToBase64(minuteSrc, HAND_WIDTH, HAND_HEIGHT);
+            String secondB64 = encodePngToBase64(secondSrc, HAND_WIDTH, HAND_HEIGHT);
+
+            // Temporaere Puffer sofort wieder freigeben - werden nur fuer die
+            // obige Kodierung benoetigt, nicht dauerhaft.
+            if (previewHour) free(previewHour);
+            if (previewMinute) free(previewMinute);
+            if (previewSecond) free(previewSecond);
+
+            // hubColor liegt als RGB565 vor (Displayformat) - fuer CSS in RGB888 umrechnen
+            uint8_t hubR = ((hubColor >> 11) & 0x1F) * 255 / 31;
+            uint8_t hubG = ((hubColor >> 5) & 0x3F) * 255 / 63;
+            uint8_t hubB = (hubColor & 0x1F) * 255 / 31;
+            char hubHex[8];
+            snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x", hubR, hubG, hubB);
+
+            bool showSecond = preferences.getBool(PK_SHOW_SECOND_HAND, true);
+            bool stationModeActive = preferences.getBool(PK_STATION_MODE, true);
+            bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, true);
+
+            // Alle Groessen/Positionen direkt VORSKALIERT berechnen (kein
+            // transform:scale() mehr auf einem Eltern-Container - das
+            // Zusammenspiel aus verschachteltem scale() (Eltern) + rotate()
+            // (Kind) fuehrte dazu, dass die Rotation zwar im DOM korrekt
+            // gesetzt wurde, aber optisch keinerlei sichtbare Wirkung zeigte.
+            // Jetzt hat jedes Zeiger-Bild nur noch EINE Transform-Eigenschaft
+            // (rotate), angewendet auf bereits korrekt skalierte Masse.
+            float scaleFactor = 90.0 / CLOCK_WIDTH;
+            int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
+            int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
+            int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
+            int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
+            int scaledHubSize = (int)(hubSize * scaleFactor + 0.5);
+            if (scaledHubSize < 2) scaledHubSize = 2;
+
+            nav += "<div onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #333;border-radius:8px;background:#fff url(/currentfacebg) center/cover no-repeat;z-index:1000;overflow:hidden;cursor:pointer;'>";
+            nav += "<div id='liveHandsPivot' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
+            nav += "<img id='liveHourHand' src='data:image/png;base64," + hourB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            nav += "<img id='liveMinuteHand' src='data:image/png;base64," + minuteB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            if (showSecond) {
+                nav += "<img id='liveSecondHand' src='data:image/png;base64," + secondB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            }
+            nav += "<div style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
+            nav += "</div></div>";
+
+            nav += "<script>";
+            nav += "(function() {";
+            nav += "  var hourEls = document.querySelectorAll('#liveHourHand');";
+            nav += "  var minuteEls = document.querySelectorAll('#liveMinuteHand');";
+            nav += "  var secondEls = document.querySelectorAll('#liveSecondHand');";
+            nav += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
+            nav += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
+            nav += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";"; // aus der Firmware-Konstante FAST_SECOND uebernommen
+            nav += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
+            nav += "  fetch('/api/currentTime').then(function(r) { return r.json(); }).then(function(t) {";
+            nav += "    baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
+            nav += "  }).catch(function() {});";
+            nav += "  function tick() {";
+            nav += "    var h, m, s, ms;";
+            nav += "    if (haveBase) {";
+            nav += "      var elapsed = (performance.now() - baseAt) / 1000;"; // Sekunden seit dem einmaligen Abruf der ESP32-Zeit
+            nav += "      var totalSec = baseH * 3600 + baseM * 60 + baseS + elapsed;";
+            nav += "      h = Math.floor(totalSec / 3600) % 12;";
+            nav += "      m = Math.floor(totalSec / 60) % 60;";
+            nav += "      s = Math.floor(totalSec) % 60;";
+            nav += "      ms = (totalSec - Math.floor(totalSec)) * 1000;";
+            nav += "    } else {";
+            nav += "      var now = new Date();"; // Fallback, solange die ESP32-Zeit noch nicht eingetroffen ist
+            nav += "      h = now.getHours() % 12; m = now.getMinutes(); s = now.getSeconds(); ms = now.getMilliseconds();";
+            nav += "    }";
+            nav += "    var minuteDeg = smoothMinute ? (m + s / 60) * 6 : m * 6;";
+            nav += "    var hourDeg = (h + minuteDeg / 360) * 30;";
+            nav += "    var secDeg;";
+            nav += "    if (stationMode) {";
+            nav += "      var elapsedMs = (s + ms / 1000) * 1000;";
+            nav += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
+            nav += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
+            nav += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;"; // exakt wie easeInOutSine() in display.h
+            nav += "      var smoothSec = Math.min(tickIndex + eased, 60);";
+            nav += "      secDeg = smoothSec * 6;";
+            nav += "    } else {";
+            nav += "      secDeg = s * 6;"; // springt zur vollen Sekunde, keine Millisekunden-Glaettung - entspricht der echten Firmware
+            nav += "    }";
+            nav += "    hourEls.forEach(function(el) { el.style.transform = 'rotate(' + hourDeg + 'deg)'; });";
+            nav += "    minuteEls.forEach(function(el) { el.style.transform = 'rotate(' + minuteDeg + 'deg)'; });";
+            nav += "    secondEls.forEach(function(el) { el.style.transform = 'rotate(' + secDeg + 'deg)'; });";
+            nav += "    requestAnimationFrame(tick);";
+            nav += "  }";
+            nav += "  requestAnimationFrame(tick);";
+            nav += "})();";
+            nav += "</script>";
+        }
+
         nav += "<style>";
         nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
@@ -119,7 +262,7 @@
 
         nav += "</div>"; // Ende .navLinks
         nav += "</div>";
-    
+           
         return nav;
     }
 
@@ -490,8 +633,15 @@
 
                 // Validierung des Wertes
                 if (tftRotation >= 0 && tftRotation <= 3) {
+                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION, 0);
                     preferences.putUChar(PK_TFT_ROTATION, tftRotation);
-                    firstRun = true;
+                    // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
+                    // sonst wuerde jedes Speichern der Haupteinstellungen (die
+                    // das Rotationsfeld immer mitsenden, auch unveraendert) die
+                    // Bahnhofsmodus-Wartephase am Sekundenzeiger neu starten.
+                    if (tftRotation != previousRotation) {
+                        firstRun = true;
+                    }
                     if (!psramAvailable) {
                         tft.setRotation(tftRotation); // sofort anwenden
                     }
@@ -1191,8 +1341,15 @@
             if (webserver.hasArg("rotation")) {
                 tftRotation = webserver.arg("rotation").toInt();
                 if (tftRotation >= 0 && tftRotation <= 3) {
+                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION, 0);
                     preferences.putUChar(PK_TFT_ROTATION, tftRotation);
-                    firstRun = true;
+                    // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
+                    // sonst wuerde jedes Speichern dieser Seite (das Rotationsfeld
+                    // wird immer mitgesendet, auch unveraendert) die Bahnhofsmodus-
+                    // Wartephase am Sekundenzeiger unnoetig neu starten.
+                    if (tftRotation != previousRotation) {
+                        firstRun = true;
+                    }
                     if (!psramAvailable) {
                         tft.setRotation(tftRotation); // sofort anwenden
                     }
@@ -1318,7 +1475,6 @@
             }
 
             chunk += "<br><br>";
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
@@ -1432,7 +1588,6 @@
 #endif
             }
 
-            chunk += generateNavigation(); // Navigation einfügen    
             chunk += "<br><br></body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
@@ -1536,7 +1691,6 @@
                 }
             }
             chunk += "</table><br><br>";
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
@@ -1855,7 +2009,6 @@
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
 
             chunk += "</ul>";
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += "</body></html>";
 
             webserver.sendContent(chunk);
@@ -1879,6 +2032,42 @@
         // Erzeugt ein Vorschaubild aus den GERADE AKTIVEN Einstellungen (kein Parameter
         // noetig) - wird auf jeder Seite oben links eingeblendet (generateNavigation())
         // und zeigt so nach jeder Aenderung, sobald die Seite neu laedt, den aktuellen Stand.
+        // Liefert nur das aktuell aktive Zifferblatt (ohne Zeiger) als BMP - fuer
+        // das Live-Zeiger-Widget auf der Startseite als Hintergrundbild, damit
+        // nicht bei jedem Seitenaufruf ~150 KB Bilddaten inline eingebettet werden
+        // muessen (wie es bei einem direkt einkodierten Base64-String der Fall
+        // waere). clockFaceBuffer enthaelt die rohen Zifferblatt-Pixel ohne
+        // Helligkeitsanpassung und ohne eingezeichnete Zeiger.
+        // Liefert die tatsaechliche, aktuelle Uhrzeit des ESP32 (nicht die des
+        // PCs/Browsers) - wird vom Live-Zeiger-Widget einmalig beim Laden der
+        // Seite abgerufen, danach laeuft die Anzeige lokal im Browser weiter
+        // (per performance.now()-Differenz), damit kein staendiges Nachfragen
+        // noetig ist. So zeigt die Web-Vorschau exakt das, was die echte Uhr
+        // gerade anzeigt, auch wenn PC und ESP32 unterschiedlich gehen sollten.
+        webserver.on("/api/currentTime", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "no-store");
+            String json = "{\"hour\":" + String(timeinfo.tm_hour) +
+                          ",\"minute\":" + String(timeinfo.tm_min) +
+                          ",\"second\":" + String(timeinfo.tm_sec) + "}";
+            webserver.send(200, "application/json", json);
+            });
+
+        webserver.on("/currentfacebg", HTTP_GET, []() {
+            if (!clockFaceBuffer) {
+                webserver.send(500, "text/plain", "Face not loaded");
+                return;
+            }
+            size_t bmpSize = 0;
+            uint8_t* bmpBytes = encodeBmpToBytes(clockFaceBuffer, CLOCK_WIDTH, CLOCK_HEIGHT, &bmpSize);
+            if (!bmpBytes) {
+                webserver.send(500, "text/plain", "Failed to generate face background (out of memory?)");
+                return;
+            }
+            webserver.sendHeader("Cache-Control", "no-store");
+            webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
+            delete[] bmpBytes;
+            });
+
         webserver.on("/currentpreview", HTTP_GET, []() {
             String face = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
             String handSet = preferences.getString(PK_HANDSET, "");
@@ -2143,7 +2332,6 @@
             }
 
 
-            chunk += generateNavigation(); // Navigation einfügen
             chunk += "</body> </html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
@@ -2467,8 +2655,6 @@
             }
             chunk += "});";
             chunk += "</script>";
-
-            chunk += generateNavigation(); // Navigation einfügen
 
 
             chunk += "</body></html>";
@@ -2980,7 +3166,6 @@
                 chunk += "<button type='submit'>" + translate("Upload to Set") + "</button></form>";
             }
             chunk += "<br><br>";
-            chunk += generateNavigation(); // Navigation einfügen
 
             chunk += "<br><br>";
             chunk += "</body></html>";

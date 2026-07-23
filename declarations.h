@@ -51,12 +51,18 @@
     void resetFacesToDefault() ;
     void resetHandsToDefault() ;
     void loadHandSprites() ;
+    bool loadHandPixelsForPreview(const char* filename, uint16_t* outBuffer, int width, int height) ;
     bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) ;
     float shortestAngleDiff(float from, float to) ;
     void updateClock() ;
     void updateBrightness() ;
     uint16_t getAdjustedAdcValue(int rawValue) ;
     float easeInOutSine(float t) ;
+    uint32_t crc32Update(uint32_t crc, const uint8_t* buf, size_t len) ;
+    uint32_t adler32(const uint8_t* data, size_t len) ;
+    void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) ;
+    String encodePngToBase64(const uint16_t* data, int width, int height) ;
+    uint8_t* encodeBmpToBytes(const uint16_t* data, int width, int height, size_t* outSize) ;
     String encodeBmpToBase64(const uint16_t* data, int width, int height) ;
     void clearTFT() ;
     float rotatedAngle(float angle, int orientation) ;
@@ -104,8 +110,6 @@
     void redirectTo(const String& location, const String& body = "") ;
     String beginPage() ;
     void updateNtpServersFromRequest() ;
-    void compactWlanCredentials() ;
-    String resetOptionHtml(const char* titleKey, const char* descriptionKey, const char* action, const char* confirmKey, bool altQuoting = false) ;
     String sanitizeHostname(String input) ;
     void setupWebServer() ;
     void handleFileUpload() ;
