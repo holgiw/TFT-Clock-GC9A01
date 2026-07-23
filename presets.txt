@@ -1,4 +1,4 @@
-sbb	http://<clock-ip>/api/setMode?face=/face_sbb.bmp&handSet=1&stationMode=false&showSecondHand=true&smoothMinute=true&hubSize=3&hubColor=aaaaaa
+sbb	http://<clock-ip>/api/setMode?face=/face_sbb.bmp&handSet=1&stationMode=true&showSecondHand=true&smoothMinute=true&hubSize=3&hubColor=aaaaaa
 DB	http://<clock-ip>/api/setMode?face=face_default.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
 GWR	http://<clock-ip>/api/setMode?face=/face_Reading-Railway-Clock.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
 Arabisch	http://<clock-ip>/api/setMode?face=/face_arabisch.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa

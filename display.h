@@ -412,6 +412,75 @@
 
 
     // Lädt die Grafiken für die Zeiger eines Uhren-Widgets, entweder aus einer benutzerdefinierten Konfiguration oder aus Standardwerten.
+    // Liest eine Zeiger-Bitmap-Datei (RLE-komprimiert oder roh) direkt in einen
+    // einfachen Pixel-Puffer ein - fuer die Web-Vorschau des TATSAECHLICH aktiven
+    // Zeigersatzes (nicht ueber TFT_eSprite, das nur fuer das Display genutzt wird).
+    // Spiegelt die Format-Erkennung von loadHandBmp(), schreibt aber in ein Array.
+    bool loadHandPixelsForPreview(const char* filename, uint16_t* outBuffer, int width, int height) {
+        File bmp = LittleFS.open(filename, "r");
+        if (!bmp) return false;
+
+        uint8_t magic[4];
+        if (bmp.read(magic, 4) != 4) { bmp.close(); return false; }
+
+        if (isRleFace(magic)) {
+            uint8_t rest[16];
+            if (bmp.read(rest, 16) != 16) { bmp.close(); return false; }
+            int32_t bmpWidth = *(int32_t*)&rest[0];
+            int32_t bmpHeight = *(int32_t*)&rest[4];
+            uint32_t compressedSize = *(uint32_t*)&rest[8];
+            uint32_t uncompressedSize = *(uint32_t*)&rest[12];
+
+            if (bmpWidth != width || bmpHeight != height || uncompressedSize != (uint32_t)width * height * 2) {
+                bmp.close();
+                return false;
+            }
+
+            uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+            if (!compBuf) { bmp.close(); return false; }
+            if (bmp.read(compBuf, compressedSize) != compressedSize) {
+                free(compBuf); bmp.close(); return false;
+            }
+            bmp.close();
+
+            rleDecode565(compBuf, compressedSize, outBuffer, (size_t)width * height);
+            free(compBuf);
+            return true;
+        }
+        else {
+            bmp.seek(0);
+            uint8_t header[54];
+            if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
+                bmp.close();
+                return false;
+            }
+
+            int32_t bmpWidth = *(int32_t*)&header[18];
+            int32_t bmpHeight = *(int32_t*)&header[22];
+            uint16_t bpp = *(uint16_t*)&header[28];
+            uint32_t offset = *(uint32_t*)&header[10];
+
+            if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
+                bmp.close();
+                return false;
+            }
+
+            bool flip = bmpHeight > 0;
+            bmpHeight = abs(bmpHeight);
+            int rowSize = ((width * 2 + 3) / 4) * 4;
+            bmp.seek(offset);
+
+            for (int y = 0; y < height; y++) {
+                int row = flip ? height - 1 - y : y;
+                if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) { bmp.close(); return false; }
+                memcpy(&outBuffer[row * width], rowBuffer, width * 2);
+            }
+            bmp.close();
+            return true;
+        }
+    }
+
+
     void loadHandSprites() {
         String setId = preferences.getString(PK_HANDSET, "");
 
@@ -894,30 +963,158 @@
     }
 
 
-    // Kodiert ein 16-Bit RGB565 Bild in das BMP-Format und gibt es als Base64-kodierten String zurück.
-    String encodeBmpToBase64(const uint16_t* data, int width, int height) {
-        const int headerSize = 54;
+    // CRC32 (Standard-Polynom 0xEDB88320) - fuer PNG-Chunk-Pruefsummen
+    uint32_t crc32Update(uint32_t crc, const uint8_t* buf, size_t len) {
+        crc = ~crc;
+        while (len--) {
+            crc ^= *buf++;
+            for (int i = 0; i < 8; i++) {
+                crc = (crc >> 1) ^ (0xEDB88320 & (-(int32_t)(crc & 1)));
+            }
+        }
+        return ~crc;
+    }
+
+    // Adler32 - fuer den zlib-Trailer im PNG-IDAT-Chunk
+    uint32_t adler32(const uint8_t* data, size_t len) {
+        uint32_t a = 1, b = 0;
+        const uint32_t MOD_ADLER = 65521;
+        for (size_t i = 0; i < len; i++) {
+            a = (a + data[i]) % MOD_ADLER;
+            b = (b + a) % MOD_ADLER;
+        }
+        return (b << 16) | a;
+    }
+
+    // Haengt einen PNG-Chunk (Typ + Daten + CRC32) an einen dynamischen Puffer an.
+    void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) {
+        uint8_t lenBytes[4] = { (uint8_t)(len >> 24), (uint8_t)(len >> 16), (uint8_t)(len >> 8), (uint8_t)len };
+        out.insert(out.end(), lenBytes, lenBytes + 4);
+        size_t typeStart = out.size();
+        out.insert(out.end(), type, type + 4);
+        if (len > 0) out.insert(out.end(), data, data + len);
+        uint32_t crc = crc32Update(0, &out[typeStart], 4 + len);
+        uint8_t crcBytes[4] = { (uint8_t)(crc >> 24), (uint8_t)(crc >> 16), (uint8_t)(crc >> 8), (uint8_t)crc };
+        out.insert(out.end(), crcBytes, crcBytes + 4);
+    }
+
+    // Kodiert ein 16-Bit RGB565 Bild als PNG (RGBA, echte Alpha-Transparenz) und
+    // gibt es als Base64-String zurueck. Sowohl die interne Transparenzfarbe
+    // (TRANSPARENT_COLOR) als auch reines Weiss (0xFFFF) werden zu Alpha=0 -
+    // im Gegensatz zu encodeBmpToBase64(), das BMP (ohne Alpha-Kanal) erzeugt
+    // und Transparenz nur als sichtbares Weiss darstellen kann.
+    String encodePngToBase64(const uint16_t* data, int width, int height) {
+        // Rohe Bilddaten: pro Zeile 1 Filter-Byte (0 = "None") + width*4 Byte RGBA
+        size_t rawRowSize = 1 + (size_t)width * 4;
+        size_t rawSize = rawRowSize * height;
+        uint8_t* raw = (uint8_t*)malloc(rawSize);
+        if (!raw) return "";
+
+        for (int y = 0; y < height; y++) {
+            uint8_t* rowPtr = raw + y * rawRowSize;
+            rowPtr[0] = 0; // Filter-Byte: keine Filterung
+            for (int x = 0; x < width; x++) {
+                uint16_t px = data[y * width + x];
+                uint8_t r = ((px >> 11) & 0x1F) * 255 / 31;
+                uint8_t g = ((px >> 5) & 0x3F) * 255 / 63;
+                uint8_t b = (px & 0x1F) * 255 / 31;
+                uint8_t a = (px == TRANSPARENT_COLOR || px == 0xFFFF) ? 0 : 255;
+                uint8_t* px_out = rowPtr + 1 + x * 4;
+                px_out[0] = r; px_out[1] = g; px_out[2] = b; px_out[3] = a;
+            }
+        }
+
+        // zlib-Stream mit unkomprimierten ("stored") Deflate-Bloecken - vermeidet
+        // eine vollstaendige Deflate-Implementierung, bleibt aber gueltiges PNG.
+        std::vector<uint8_t> zlibStream;
+        zlibStream.push_back(0x78); zlibStream.push_back(0x01); // zlib-Header (keine Kompression)
+
+        size_t offset = 0;
+        const size_t maxBlock = 65535;
+        while (offset < rawSize) {
+            size_t blockLen = min(maxBlock, rawSize - offset);
+            bool isFinal = (offset + blockLen >= rawSize);
+            zlibStream.push_back(isFinal ? 0x01 : 0x00);
+            uint16_t len16 = (uint16_t)blockLen;
+            uint16_t nlen16 = ~len16;
+            zlibStream.push_back(len16 & 0xFF); zlibStream.push_back(len16 >> 8);
+            zlibStream.push_back(nlen16 & 0xFF); zlibStream.push_back(nlen16 >> 8);
+            zlibStream.insert(zlibStream.end(), raw + offset, raw + offset + blockLen);
+            offset += blockLen;
+        }
+        uint32_t adler = adler32(raw, rawSize);
+        zlibStream.push_back((adler >> 24) & 0xFF);
+        zlibStream.push_back((adler >> 16) & 0xFF);
+        zlibStream.push_back((adler >> 8) & 0xFF);
+        zlibStream.push_back(adler & 0xFF);
+        free(raw);
+
+        // PNG zusammenbauen: Signatur + IHDR + IDAT + IEND
+        std::vector<uint8_t> png;
+        const uint8_t pngSig[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+        png.insert(png.end(), pngSig, pngSig + 8);
+
+        uint8_t ihdr[13];
+        ihdr[0] = (width >> 24) & 0xFF; ihdr[1] = (width >> 16) & 0xFF; ihdr[2] = (width >> 8) & 0xFF; ihdr[3] = width & 0xFF;
+        ihdr[4] = (height >> 24) & 0xFF; ihdr[5] = (height >> 16) & 0xFF; ihdr[6] = (height >> 8) & 0xFF; ihdr[7] = height & 0xFF;
+        ihdr[8] = 8;  // Bittiefe
+        ihdr[9] = 6;  // Farbtyp: RGBA
+        ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+        appendPngChunk(png, "IHDR", ihdr, 13);
+        appendPngChunk(png, "IDAT", zlibStream.data(), zlibStream.size());
+        appendPngChunk(png, "IEND", nullptr, 0);
+
+        String result = base64::encode(png.data(), png.size());
+        result.replace("\n", "");
+        return result;
+    }
+
+
+    // Erzeugt rohe BMP-Bytes aus RGB565-Pixeldaten (ohne Base64) - wird sowohl
+    // von encodeBmpToBase64() (fuer Inline-Einbettung) als auch von Routen, die
+    // das Bild direkt als HTTP-Antwort senden, genutzt. Aufrufer muss delete[]
+    // auf das Ergebnis aufrufen.
+    //
+    // WICHTIG: Nutzt BI_BITFIELDS (biCompression=3) mit expliziten RGB565-
+    // Bitmasken statt des einfachen BI_RGB (0). Ohne diese Masken interpretieren
+    // die meisten Bildbetrachter/Browser ein 16-Bit-BMP standardmaessig als
+    // 5-5-5 (X1R5G5B5) statt der hier tatsaechlich genutzten 5-6-5-Kodierung -
+    // bei Schwarz/Weiss faellt das nicht auf (alle Kanaele gleich), bei echten
+    // Farben verschieben sich dadurch die Bit-Grenzen zwischen den Kanaelen und
+    // das Bild wirkt wie Rauschen.
+    uint8_t* encodeBmpToBytes(const uint16_t* data, int width, int height, size_t* outSize) {
+        const int fileHeaderSize = 14;
+        const int infoHeaderSize = 40;
+        const int bitmasksSize = 12; // 3x uint32_t: R-, G-, B-Maske
+        const int headerSize = fileHeaderSize + infoHeaderSize + bitmasksSize; // 66
         const int rowSize = ((width * 2 + 3) / 4) * 4;
         const int dataSize = rowSize * height;
         const int fileSize = headerSize + dataSize;
 
         uint8_t* bmpData = new uint8_t[fileSize];
-        if (!bmpData) return "";
+        if (!bmpData) { *outSize = 0; return nullptr; }
 
         memset(bmpData, 0, fileSize);
 
-        // BMP Header
+        // BITMAPFILEHEADER (14 Byte)
         bmpData[0] = 'B'; bmpData[1] = 'M';
         *(uint32_t*)&bmpData[2] = fileSize;
-        *(uint32_t*)&bmpData[10] = headerSize;
-        *(uint32_t*)&bmpData[14] = 40;
+        *(uint32_t*)&bmpData[10] = headerSize; // Offset zu den Pixeldaten
+
+        // BITMAPINFOHEADER (40 Byte)
+        *(uint32_t*)&bmpData[14] = infoHeaderSize;
         *(int32_t*)&bmpData[18] = width;
         *(int32_t*)&bmpData[22] = -height; // Top-down BMP
         *(uint16_t*)&bmpData[26] = 1;
         *(uint16_t*)&bmpData[28] = 16;
+        *(uint32_t*)&bmpData[30] = 3; // biCompression = BI_BITFIELDS
         *(uint32_t*)&bmpData[34] = dataSize;
 
-        // Pixel-Daten (RGB565 → BMP raw)
+        // Explizite RGB565-Bitmasken (direkt nach der BITMAPINFOHEADER)
+        *(uint32_t*)&bmpData[54] = 0xF800; // Rot:   5 Bit
+        *(uint32_t*)&bmpData[58] = 0x07E0; // Gruen: 6 Bit
+        *(uint32_t*)&bmpData[62] = 0x001F; // Blau:  5 Bit
+
         for (int y = 0; y < height; y++) {
             uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
             for (int x = 0; x < width; x++) {
@@ -928,6 +1125,16 @@
                 rowPtr[x * 2 + 1] = px >> 8;
             }
         }
+
+        *outSize = fileSize;
+        return bmpData;
+    }
+
+
+    String encodeBmpToBase64(const uint16_t* data, int width, int height) {
+        size_t fileSize = 0;
+        uint8_t* bmpData = encodeBmpToBytes(data, width, height, &fileSize);
+        if (!bmpData) return "";
 
         String result = base64::encode(bmpData, fileSize);
         result.replace("\n", "");
@@ -1339,11 +1546,7 @@
     // Durchsucht das Dateisystem nach face_*.bmp-Dateien im ALTEN Standard-BMP-
     // Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
     // speichert "face_"-Dateien automatisch als RLE - Quelle=Ziel=gleicher Pfad).
-    // Gemeinsame Logik von migrateFaceBmpsToRLE()/migrateHandBmpsToRLE(): durchsucht
-    // das Dateisystem nach Dateien mit dem gegebenen Namenspraefix im ALTEN Standard-
-    // BMP-Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
-    // speichert solche Dateien seither ebenfalls automatisch als RLE).
-    void migrateBmpsToRLE(const char* prefix, int outW, int outH, const char* noneFoundLabel, const char* foundCountLabel) {
+    void migrateFaceBmpsToRLE() {
         File root = LittleFS.open("/");
         if (!root) return;
 
@@ -1353,7 +1556,7 @@
             if (!file.isDirectory()) {
                 String name = file.name();
                 String nameOnly = name.startsWith("/") ? name.substring(1) : name;
-                if (nameOnly.startsWith(prefix) && nameOnly.endsWith(".bmp")) {
+                if (nameOnly.startsWith("face_") && nameOnly.endsWith(".bmp")) {
                     uint8_t magic[4] = { 0 };
                     file.read(magic, 4);
                     if (!isRleFace(magic)) {
@@ -1365,18 +1568,18 @@
         }
 
         if (toConvert.empty()) {
-            DEBUG_PRINTLN("[MIGRATE] No " + String(noneFoundLabel) + " in the old format found.");
+            DEBUG_PRINTLN("[MIGRATE] No clock faces in the old format found.");
             return;
         }
 
-        DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " " + String(foundCountLabel) + " found in the old format, converting to RLE...");
+        DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " clock face(s) found in the old format, converting to RLE...");
 
         for (const String& path : toConvert) {
             File before = LittleFS.open(path, "r");
             size_t sizeBefore = before ? before.size() : 0;
             if (before) before.close();
 
-            if (scaleAndSaveBmp(path.c_str(), path.c_str(), outW, outH)) {
+            if (scaleAndSaveBmp(path.c_str(), path.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
                 File after = LittleFS.open(path, "r");
                 size_t sizeAfter = after ? after.size() : 0;
                 if (after) after.close();
@@ -1390,15 +1593,53 @@
     }
 
 
-    void migrateFaceBmpsToRLE() {
-        migrateBmpsToRLE("face_", CLOCK_WIDTH, CLOCK_HEIGHT, "clock faces", "clock face(s)");
-    }
-
-
     // Durchsucht das Dateisystem nach hand_set*.bmp-Dateien im ALTEN Standard-
-    // BMP-Format und konvertiert sie einmalig zum RLE-Format.
+    // BMP-Format und konvertiert sie einmalig zum RLE-Format (scaleAndSaveBmp()
+    // speichert "hand_set"-Dateien seither ebenfalls automatisch als RLE).
     void migrateHandBmpsToRLE() {
-        migrateBmpsToRLE("hand_set", HAND_WIDTH, HAND_HEIGHT, "hand sets", "hand set file(s)");
+        File root = LittleFS.open("/");
+        if (!root) return;
+
+        std::vector<String> toConvert;
+        File file = root.openNextFile();
+        while (file) {
+            if (!file.isDirectory()) {
+                String name = file.name();
+                String nameOnly = name.startsWith("/") ? name.substring(1) : name;
+                if (nameOnly.startsWith("hand_set") && nameOnly.endsWith(".bmp")) {
+                    uint8_t magic[4] = { 0 };
+                    file.read(magic, 4);
+                    if (!isRleFace(magic)) {
+                        toConvert.push_back(name.startsWith("/") ? name : "/" + name);
+                    }
+                }
+            }
+            file = root.openNextFile();
+        }
+
+        if (toConvert.empty()) {
+            DEBUG_PRINTLN("[MIGRATE] No hand sets in the old format found.");
+            return;
+        }
+
+        DEBUG_PRINTLN("[MIGRATE] " + String(toConvert.size()) + " hand set file(s) found in the old format, converting to RLE...");
+
+        for (const String& path : toConvert) {
+            File before = LittleFS.open(path, "r");
+            size_t sizeBefore = before ? before.size() : 0;
+            if (before) before.close();
+
+            if (scaleAndSaveBmp(path.c_str(), path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
+                File after = LittleFS.open(path, "r");
+                size_t sizeAfter = after ? after.size() : 0;
+                if (after) after.close();
+                DEBUG_PRINTLN("[MIGRATE] OK: " + path + " (" + String(sizeBefore) + " -> " + String(sizeAfter) + " bytes)");
+                checkHeapWarning("Migration " + path);
+            }
+            else {
+                DEBUG_PRINTLN("[MIGRATE] ERROR for " + path + " - file remains in the old format");
+            }
+        }
     }
 
 
@@ -2321,3 +2562,6 @@
         DEBUG_PRINTLN("[TOUCH] Touch deaktiviert");
 #endif
     }
+
+
+
