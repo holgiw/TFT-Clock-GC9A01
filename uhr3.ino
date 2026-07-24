@@ -12,29 +12,27 @@
     // 
     // DCF77: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
     // 
-    // Anpassungen in DCF77.cpp:
-    //  zeile: 22: change #include <TimeLib.h>
+    // Anpassungen in DCF77.cpp:   
+    //  zeile: 22: change #include <TimeLib.h> 
     //  add IRAM_ATTR   in: void IRAM_ATTR DCF77::int0handler() {
-
-
-    // Copyright (C) 2025-2026  Holger Wagenlehner
-    //
-    // This program is free software: you can redistribute it and/or modify
-    // it under the terms of the GNU General Public License as published by
-    // the Free Software Foundation, either version 3 of the License, or
-    // (at your option) any later version.
-    //
-    // This program is distributed in the hope that it will be useful,
-    // but WITHOUT ANY WARRANTY; without even the implied warranty of
-    // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    // GNU General Public License for more details.
-    //
-    // You should have received a copy of the GNU General Public License
-    // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
 #include <WiFi.h>
 #include <WebServer.h> 
+
+#include "prefs_keys.h"
+#include "build_defs.h"
+
+// WICHTIG: Die TFT_eSPI-Konfiguration (Treiber, Pins, Schriften) MUSS in der
+// Bibliothek selbst wirksam werden (User_Setup_Select.h -> User_Setup.h),
+// da TFT_eSPI.cpp als eigene Uebersetzungseinheit kompiliert wird - ein
+// #define hier im Sketch erreicht diese Datei NICHT. Siehe README/Kommentare
+// im GC9A01-Block in config.h fuer die noetige EINMALIGE Anpassung von
+// User_Setup_Select.h in der Bibliothek (Redirect auf eine Projektdatei).
+// 
+// C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\User_Setups\Setup304_ESP32S2_GC9A01_GC9D0.h
+
+#include "config.h"        // Board-/Display-Auswahl, Pins, Timing-Makros
 #include <TFT_eSPI.h>
 #include <Preferences.h>
 #include <LittleFS.h>
@@ -53,11 +51,6 @@
                         // https://www.elkoba.com/magazin/eine-funkuhr-selbst-bauen-bauprojekt-dcf77/?srsltid=AfmBOorDPPTdSBRgDzH3HdjPTO9M7wl6MM68TusAIfYBCkYG6z13Rbt0
 
 
-#include "prefs_keys.h"
-#include "build_defs.h"
-
-
-#include "config.h"        // Board-/Display-Auswahl, Pins, Timing-Makros
 #include "globals.h"       // globale Objekte, Variablen, Structs
 #include "declarations.h"  // Forward-Deklarationen aller Funktionen
 
@@ -67,19 +60,6 @@
 #include "presets_manager.h"   // Presets laden/speichern/wechseln
 #include "webserver_routes.h"  // Webinterface (alle HTTP-Routen)
 #include "system_utils.h"      // Tasten, Logging, Reset, Neustart
-
-
-    // Zeigt eine Vollbild-Statusmeldung an (fillScreen + zentrierter Text) und wartet
-    // 1s - gemeinsame Anzeigelogik fuer die kurzlebigen Meldungen in setup()
-    // ("Reset WLan...", "Check RTC"), bevor es mit dem jeweiligen naechsten Schritt weitergeht.
-    void showStatusScreen(uint16_t bgColor, const String& messageKey) {
-        tft.fillScreen(bgColor);
-        tft.setTextColor(TFT_WHITE);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-        tft.println(translate(messageKey));
-        delay(1000);
-    }
 
 
     // Setup-Funktion
@@ -511,7 +491,12 @@
         // Wenn Button1 gedrückt oder BOOT_BUTTON gedrückt, alle Zugangsdaten löschen
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
-            showStatusScreen(TFT_RED, "Reset WLan...");
+            tft.fillScreen(TFT_RED);
+            tft.setTextColor(TFT_WHITE);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+            tft.println(translate("Reset WLan..."));
+            delay(1000);
             for (int i = 0; i < MAX_WLAN; i++) {
                 wifiSsid[i] = "";
                 wifiPass[i] = "";            
@@ -551,7 +536,12 @@
         // WLAN-Netzwerke scannen und cachen
         //scanAndCacheNetworks();
 
-        waitForWifiScan(10);
+        while (isScanning) {
+            checkWiFiScan();
+            delay(10);
+            if (loggingEnabled)  Serial.print("");
+        }
+        if (loggingEnabled) Serial.println("");
         // DEBUG_PRINTLN("[WiFi] Scan complete");
 
 
@@ -573,7 +563,12 @@
             DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan..");
             startWiFiScan();
             delay(100); // Kurze Verzögerung, damit der Scan starten kann
-            waitForWifiScan(50);
+            while (isScanning) {
+                checkWiFiScan();
+                delay(50);
+                if (loggingEnabled) Serial.print("");
+            }
+            if (loggingEnabled) Serial.println("");
         }
    
         // versuche Verbindung mit der letzten SSID
@@ -607,7 +602,12 @@
             }
         
             if (rtcOk == RTC_AVAILABLE) {
-                showStatusScreen(TFT_BLACK, "Check RTC");
+                tft.fillScreen(TFT_BLACK);
+                tft.setTextColor(TFT_WHITE);
+                tft.setTextSize(TFT_TEXT_SIZE);
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+                tft.println(translate("Check RTC"));
+                delay(1000);
                 loadTimeFromRTC();
                 return;
             }
@@ -733,13 +733,29 @@
                 wpsPending = false;
                 // Ggf. urspruengliche Verbindung wiederherstellen, falls durch
                 // den WPS-Versuch getrennt.
-                restorePreviousWpsConnection();
+                if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        if (wifiSsid[i] == wpsPreviousSsid) {
+                            connectWiFi(i, false);
+                            break;
+                        }
+                    }
+                }
+                wpsPreviousSsid = "";
             }
             else if (millis() - wpsStartMillis > (2 * WAIT_1m)) {
                 DEBUG_PRINTLN("[WPS] Timeout waiting for WPS button press - disabling WPS");
                 esp_wifi_wps_disable();
                 wpsPending = false;
-                restorePreviousWpsConnection();
+                if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        if (wifiSsid[i] == wpsPreviousSsid) {
+                            connectWiFi(i, false);
+                            break;
+                        }
+                    }
+                }
+                wpsPreviousSsid = "";
             }
         }
 
