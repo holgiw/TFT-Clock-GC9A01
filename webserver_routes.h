@@ -225,6 +225,7 @@
             String confirmMessage; // Optional: Bestätigungsnachricht
         } navItems[] = {
             {"/", translate("Main"), ""},
+            {"/preview", translate("Live Preview"), ""},
             {"/presets", translate("Presets"), ""},
             {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
             {"/handsets", translate("Hand&nbsp;Set"), ""},        
@@ -2050,6 +2051,141 @@
                           ",\"minute\":" + String(timeinfo.tm_min) +
                           ",\"second\":" + String(timeinfo.tm_sec) + "}";
             webserver.send(200, "application/json", json);
+            });
+
+        // Zeigt die Live-Zeiger-Uhr in voller Aufloesung (400x400) als eigene
+        // Seite - nutzt dieselbe Zeiger-Lade-/Kodierlogik wie das kleine Eck-
+        // Widget in generateNavigation(), nur groesser skaliert.
+        webserver.on("/preview", HTTP_GET, []() {
+            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+            webserver.send(200, "text/html", "");
+
+            String chunk = beginPage();
+            chunk.reserve(2048);
+            chunk += "<h2>" + translate("Live Preview") + "</h2>";
+
+            const int previewSize = 400;
+
+            String activeHandSet = preferences.getString(PK_HANDSET, "");
+            uint16_t* previewHour = nullptr;
+            uint16_t* previewMinute = nullptr;
+            uint16_t* previewSecond = nullptr;
+            const uint16_t* hourSrc = handHour;
+            const uint16_t* minuteSrc = handMinute;
+            const uint16_t* secondSrc = handSecond;
+            const size_t handPixelCount = (size_t)HAND_WIDTH * HAND_HEIGHT;
+
+            if (activeHandSet != "" && activeHandSet != "default") {
+                String hourPath = "/hand_set" + activeHandSet + "_hour.bmp";
+                String minutePath = "/hand_set" + activeHandSet + "_minute.bmp";
+                String secondPath = "/hand_set" + activeHandSet + "_second.bmp";
+
+                if (LittleFS.exists(hourPath)) {
+                    previewHour = (uint16_t*)malloc(handPixelCount * 2);
+                    if (previewHour && loadHandPixelsForPreview(hourPath.c_str(), previewHour, HAND_WIDTH, HAND_HEIGHT)) {
+                        hourSrc = previewHour;
+                    }
+                }
+                if (LittleFS.exists(minutePath)) {
+                    previewMinute = (uint16_t*)malloc(handPixelCount * 2);
+                    if (previewMinute && loadHandPixelsForPreview(minutePath.c_str(), previewMinute, HAND_WIDTH, HAND_HEIGHT)) {
+                        minuteSrc = previewMinute;
+                    }
+                }
+                if (LittleFS.exists(secondPath)) {
+                    previewSecond = (uint16_t*)malloc(handPixelCount * 2);
+                    if (previewSecond && loadHandPixelsForPreview(secondPath.c_str(), previewSecond, HAND_WIDTH, HAND_HEIGHT)) {
+                        secondSrc = previewSecond;
+                    }
+                }
+            }
+
+            String hourB64 = encodePngToBase64(hourSrc, HAND_WIDTH, HAND_HEIGHT);
+            String minuteB64 = encodePngToBase64(minuteSrc, HAND_WIDTH, HAND_HEIGHT);
+            String secondB64 = encodePngToBase64(secondSrc, HAND_WIDTH, HAND_HEIGHT);
+
+            if (previewHour) free(previewHour);
+            if (previewMinute) free(previewMinute);
+            if (previewSecond) free(previewSecond);
+
+            uint8_t hubR = ((hubColor >> 11) & 0x1F) * 255 / 31;
+            uint8_t hubG = ((hubColor >> 5) & 0x3F) * 255 / 63;
+            uint8_t hubB = (hubColor & 0x1F) * 255 / 31;
+            char hubHex[8];
+            snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x", hubR, hubG, hubB);
+
+            bool showSecond = preferences.getBool(PK_SHOW_SECOND_HAND, true);
+            bool stationModeActive = preferences.getBool(PK_STATION_MODE, true);
+            bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, true);
+
+            float scaleFactor = (float)previewSize / CLOCK_WIDTH;
+            int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
+            int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
+            int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
+            int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
+            int scaledHubSize = (int)(hubSize * scaleFactor + 0.5);
+            if (scaledHubSize < 2) scaledHubSize = 2;
+
+            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;margin:20px auto;box-sizing:border-box;border:3px solid #333;border-radius:50%;background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
+            chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
+            chunk += "<img id='liveHourHandFull' src='data:image/png;base64," + hourB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            chunk += "<img id='liveMinuteHandFull' src='data:image/png;base64," + minuteB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            if (showSecond) {
+                chunk += "<img id='liveSecondHandFull' src='data:image/png;base64," + secondB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            }
+            chunk += "<div style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
+            chunk += "</div></div>";
+
+            chunk += "<script>";
+            chunk += "(function() {";
+            chunk += "  var hourEl = document.getElementById('liveHourHandFull');";
+            chunk += "  var minuteEl = document.getElementById('liveMinuteHandFull');";
+            chunk += "  var secondEl = document.getElementById('liveSecondHandFull');";
+            chunk += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
+            chunk += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
+            chunk += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";";
+            chunk += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
+            chunk += "  fetch('/api/currentTime').then(function(r) { return r.json(); }).then(function(t) {";
+            chunk += "    baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
+            chunk += "  }).catch(function() {});";
+            chunk += "  function tick() {";
+            chunk += "    var h, m, s, ms;";
+            chunk += "    if (haveBase) {";
+            chunk += "      var elapsed = (performance.now() - baseAt) / 1000;";
+            chunk += "      var totalSec = baseH * 3600 + baseM * 60 + baseS + elapsed;";
+            chunk += "      h = Math.floor(totalSec / 3600) % 12;";
+            chunk += "      m = Math.floor(totalSec / 60) % 60;";
+            chunk += "      s = Math.floor(totalSec) % 60;";
+            chunk += "      ms = (totalSec - Math.floor(totalSec)) * 1000;";
+            chunk += "    } else {";
+            chunk += "      var now = new Date();";
+            chunk += "      h = now.getHours() % 12; m = now.getMinutes(); s = now.getSeconds(); ms = now.getMilliseconds();";
+            chunk += "    }";
+            chunk += "    var minuteDeg = smoothMinute ? (m + s / 60) * 6 : m * 6;";
+            chunk += "    var hourDeg = (h + minuteDeg / 360) * 30;";
+            chunk += "    var secDeg;";
+            chunk += "    if (stationMode) {";
+            chunk += "      var elapsedMs = (s + ms / 1000) * 1000;";
+            chunk += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
+            chunk += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
+            chunk += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
+            chunk += "      var smoothSec = Math.min(tickIndex + eased, 60);";
+            chunk += "      secDeg = smoothSec * 6;";
+            chunk += "    } else {";
+            chunk += "      secDeg = s * 6;";
+            chunk += "    }";
+            chunk += "    hourEl.style.transform = 'rotate(' + hourDeg + 'deg)';";
+            chunk += "    minuteEl.style.transform = 'rotate(' + minuteDeg + 'deg)';";
+            chunk += "    if (secondEl) secondEl.style.transform = 'rotate(' + secDeg + 'deg)';";
+            chunk += "    requestAnimationFrame(tick);";
+            chunk += "  }";
+            chunk += "  requestAnimationFrame(tick);";
+            chunk += "})();";
+            chunk += "</script>";
+
+            chunk += "</body></html>";
+            webserver.sendContent(chunk);
+            webserver.sendContent("");
             });
 
         webserver.on("/currentfacebg", HTTP_GET, []() {

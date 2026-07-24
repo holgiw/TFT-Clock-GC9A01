@@ -39,6 +39,7 @@
         { "Presets used", "Presets belegt", "Pr&eacute;r&eacute;glages utilis&eacute;s" },
         { "Free", "Frei", "Libre" },
         { "Version", "Version", "Version" },
+        { "Live Preview", "Live-Vorschau", "Aper&ccedil;u en direct" },
         { "Test", "Testen", "Tester" },
         { "Testing", "Teste", "Test en cours" },
         { "Server not reachable", "Server nicht erreichbar", "Serveur inaccessible" },

@@ -117,6 +117,38 @@
 #define HAND_HEIGHT 131
 
 #define TFT_TEXT_SIZE 2
+
+    // --- TFT_eSPI-Referenzkonfiguration (Arduino IDE!) ---
+    // WICHTIG: Diese #defines wirken NICHT automatisch auf die TFT_eSPI-
+    // Bibliothek selbst - sie kompiliert ihre eigenen .cpp-Dateien separat
+    // vom Sketch, ein #define hier erreicht sie nicht. Diese Werte dienen als
+    // dokumentierte Referenz, MUESSEN aber zusaetzlich EINMALIG in die
+    // Bibliothek uebernommen werden, z.B. indem in
+    // <Arduino-Bibliotheksordner>/TFT_eSPI/User_Setup_Select.h die Zeile
+    //   #include <User_Setup.h>
+    // durch einen Redirect auf diesen Block ersetzt wird (z.B. per absolutem
+    // Pfad auf eine ausgelagerte Kopie dieser Zeilen). Bei einem
+    // Bibliotheks-Update/-Neuinstallation muss dieser EINE Redirect erneut
+    // gesetzt werden, aber die eigentlichen Werte bleiben hier im Projekt.
+#define GC9A01_DRIVER
+#define TFT_MOSI  6
+#define TFT_SCLK  4
+#define TFT_CS    9   // Chip-Select
+#define TFT_DC    10  // Data/Command
+#define TFT_RST   0   // Reset
+#define TFT_BL    5   // Hintergrundbeleuchtung (Bibliotheks-eigene Steuerung -
+                      // das Projekt nutzt zusaetzlich Pin 3 fuer eigene PWM-
+                      // Helligkeitsregelung, siehe TFT_Backlight weiter unten)
+#define LOAD_GLCD
+#define LOAD_FONT2
+#define LOAD_FONT4
+#define LOAD_FONT6
+#define LOAD_FONT7
+#define LOAD_FONT8
+#define LOAD_GFXFF
+#define SMOOTH_FONT
+#define SPI_FREQUENCY       27000000
+#define SPI_READ_FREQUENCY  20000000
 #endif
 
 #ifdef GC9D01
@@ -133,6 +165,12 @@
 #define HAND_HEIGHT 86
 
 #define TFT_TEXT_SIZE 1
+
+    // ACHTUNG: Fuer GC9D01 fehlen hier noch die TFT_eSPI-Pin-/Treiber-
+    // Einstellungen (GC9D01_DRIVER, TFT_MOSI/SCLK/CS/DC/RST/BL etc.) - anders
+    // als beim GC9A01-Block oben, da keine bestaetigte Pinbelegung fuer dieses
+    // Board vorliegt. Bei Nutzung dieses Boards muessen diese analog zum
+    // GC9A01-Block oben ergaenzt werden, sonst schlaegt die Kompilierung fehl.
 #endif
 
 #ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
@@ -148,6 +186,10 @@
 #define HAND_HEIGHT 131
 
 #define TFT_TEXT_SIZE 2
+
+    // ACHTUNG: Wie beim GC9D01-Block fehlen hier ebenfalls die TFT_eSPI-Pin-/
+    // Treiber-Einstellungen - bei Nutzung dieses (ohnehin deprecateten) Boards
+    // analog zum GC9A01-Block oben ergaenzen.
 #endif
 
     // Transparent in R5G6B5 RGB(16)
