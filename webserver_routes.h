@@ -4,20 +4,60 @@
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
     // Generiert den HTML-Header für die Weboberfläche
-    String generateHtmlHeader() {
+    String generateHtmlHeader(String extraHead) {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-        html.reserve(700);  // Header: klein, wird auf jeder Seite einmal aufgerufen
-        html += "<style>body{font-family:Arial;text-align:center;padding-top:110px;}input,select,button{margin:10px;padding:10px;width:80%;}";
-        html += "h1 { color: #333333; } ";
-        html += "hr { border: 0; height: 1px; background-color: #cccccc; margin: 20px 0; } ";
-        html += "table { margin: auto; border-collapse: collapse; } "; // Tabellen zentrieren
-        html += "th, td { padding: 10px; text-align: center; border: 1px solid #cccccc; } "; // Tabellenzellen 
-        html += "li { text-align: left; } "; // <li> linksbündig formatieren
-        html += "</style></head><body>";
+        html.reserve(2600);  // Header: enthaelt jetzt Dark-Theme + Tab-CSS, wird auf jeder Seite einmal aufgerufen
+        // Dunkles Theme (angelehnt an eine externe Referenzvorlage) + CSS-only
+        // Tab-Mechanik (verstecktes radio-Input + Label + allgemeiner
+        // Geschwister-Selektor "~") fuer die neue Tab-Hub-Startseite ("/").
+        // Gilt sitenweit (jede Seite bindet generateHtmlHeader() ein), damit
+        // auch die weiterhin eigenstaendigen Seiten (Presets, Dateiverwaltung,
+        // etc.) optisch einheitlich bleiben.
+        html += "<style>";
+        html += ":root{--bg:#10151a;--panel:#1a2129;--panel-border:#2a333c;--text:#e8edf2;--muted:#8f9ba7;--accent:#f5a623;--accent-dim:#7a530f;--ok:#3ddc84;--bad:#ff5c5c;}";
+        html += "body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding-top:110px;background:var(--bg);color:var(--text);}";
+        html += "input,select,button{margin:10px;padding:10px;width:80%;box-sizing:border-box;background:#0d1216;color:var(--text);border:1px solid var(--panel-border);border-radius:6px;}";
+        html += "input[type=checkbox],input[type=radio]{width:auto;}";
+        html += "button,button[type=submit],input[type=submit]{background:var(--accent);color:#1a1200;font-weight:bold;border:none;cursor:pointer;}";
+        html += "button:hover,input[type=submit]:hover{background:#ffb84d;}";
+        html += "h1,h2,h3{color:var(--text);}";
+        html += "hr{border:0;height:1px;background-color:var(--panel-border);margin:20px 0;}";
+        html += "table{margin:auto;border-collapse:collapse;}"; // Tabellen zentrieren
+        html += "th,td{padding:10px;text-align:center;border:1px solid var(--panel-border);}"; // Tabellenzellen 
+        html += "li{text-align:left;color:var(--text);}"; // <li> linksbündig formatieren
+        html += "a{color:var(--accent);}";
+        html += "small{color:var(--muted);}";
+        // --- CSS-only Tabs: Radios ausblenden, Panels standardmaessig
+        // verstecken, per :checked ~ .panel-X wieder einblenden. Radios,
+        // .tabnav und alle .panel-* muessen dafuer direkte Geschwister
+        // sein (siehe Aufbau der neuen "/" Seite).
+        html += ".tabctrl{display:none;}";
+        html += ".tabnav{margin:20px auto;max-width:900px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;}";
+        html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
+        html += ".tabpanel{display:none;}";
+        html += ".card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:500px;margin:15px auto;padding:12px 16px;text-align:left;}";
+        for (const char* t : { "status", "wlan", "zifferblatt", "helligkeit", "zeit", "system" }) {
+            html += String("#tab-") + t + ":checked ~ .tabnav label[for='tab-" + t + "']{background:var(--accent);color:#1a1200;}";
+            html += String("#tab-") + t + ":checked ~ .panel-" + t + "{display:block;}";
+        }
+        html += "</style>" + extraHead + "</head><body>";
         // Seite benötigt JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" + 
                 translate("JavaScript is disabled.This page requires JavaScript to work properly!") + "</div></noscript>";
         
+        return html;
+    }
+
+
+    // Einfache Hinweisseite (Erfolg/Fehler/Status) im dunklen Theme - fuer Seiten wie
+    // "Settings saved", "Rebooting..." oder Upload-Fehlermeldungen, die vorher eigene,
+    // unformatierte <body style='font-family:Arial'>-Seiten ohne Dark-Theme hatten.
+    String simpleMessagePage(String heading, String bodyHtml, String extraHead) {
+        String html = generateHtmlHeader(extraHead);
+        html += "<div class='card' style='max-width:480px;'>";
+        html += "<h2>" + heading + "</h2>";
+        html += bodyHtml;
+        html += "</div></body></html>";
         return html;
     }
 
@@ -43,7 +83,7 @@
         // Oben rechts fest positioniert, neben der Live-Vorschau (oben links) -
         // kompaktere Schrift, damit die paar Zeilen nicht mehr Hoehe brauchen
         // als das 90px hohe Vorschaubild gegenueber.
-        String boxed = "<div style='position:fixed;top:0;left:110px;max-width:calc(55% + 70px);height:100px;box-sizing:border-box;background:#fff;border:2px solid #333;border-radius:8px;padding:4px 8px;font-size:0.78em;line-height:1.25;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
+        String boxed = "<div style='position:fixed;top:0;left:110px;max-width:calc(55% + 70px);height:100px;box-sizing:border-box;background:#1a2129;color:#e8edf2;border:2px solid #2a333c;border-radius:8px;padding:4px 8px;font-size:0.78em;line-height:1.25;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
         boxed += html;
         boxed += "</div><hr>";
 
@@ -146,7 +186,7 @@
             int scaledHubSize = (int)(hubSize * scaleFactor + 0.5);
             if (scaledHubSize < 2) scaledHubSize = 2;
 
-            nav += "<div onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #333;border-radius:8px;background:#fff url(/currentfacebg) center/cover no-repeat;z-index:1000;overflow:hidden;cursor:pointer;'>";
+            nav += "<div onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #2a333c;border-radius:8px;background:#1a2129 url(/currentfacebg) center/cover no-repeat;z-index:1000;overflow:hidden;cursor:pointer;'>";
             nav += "<div id='liveHandsPivot' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
             nav += "<img id='liveHourHand' src='data:image/png;base64," + hourB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
             nav += "<img id='liveMinuteHand' src='data:image/png;base64," + minuteB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
@@ -205,7 +245,7 @@
         }
 
         nav += "<style>";
-        nav += "a { text-decoration: underline; color: blue; font-weight: bold; }";
+        nav += "a { text-decoration: underline; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
         nav += ".navToggle { display: none; cursor: pointer; font-size: 1.8em; user-select: none; }";
         nav += "@media (max-width: 600px) {";
@@ -224,14 +264,16 @@
             String label;
             String confirmMessage; // Optional: Bestätigungsnachricht
         } navItems[] = {
+            // WiFi/Zeit/Helligkeit/Status sind jetzt Tabs auf "/" (siehe dortiger
+            // Tab-Hub) und daher hier bewusst NICHT mehr gelistet - die Seiten
+            // selbst (/wifi, /timezone_form, /brightness, /status) bleiben aber
+            // als eigenstaendige Routen bestehen (Rueckwaertskompatibilitaet fuer
+            // Lesezeichen/direkte Aufrufe).
             {"/", translate("Main"), ""},
             {"/preview", translate("Live Preview"), ""},
             {"/presets", translate("Presets"), ""},
             {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
-            {"/handsets", translate("Hand&nbsp;Set"), ""},        
-            {"/timezone_form", translate("NTP&nbsp;Timezone"), ""},
-            {"/brightness", translate("Brightness"), ""},
-            {"/status", translate("Status"), ""},
+            {"/handsets", translate("Hand&nbsp;Set"), ""},
             {"/files", translate("File&nbsp;Manager"), ""},
             {"/reboot", translate("Reboot"), translate("Are you sure you want to reboot?")},
             {"/factoryReset", translate("Factory&nbsp;Reset"), ""}
@@ -274,7 +316,7 @@
     String generateFlashMessage() {
         if (!webserver.hasArg("msg")) return "";
         String message = translate(webserver.arg("msg"));
-        String html = "<div id='flashMsg' style='background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
+        String html = "<div id='flashMsg' style='background:rgba(61,220,132,0.12);color:var(--ok);border:1px solid var(--ok);border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
         html += "&#9989; " + message;
         html += "</div>";
         html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 4000);</script>";
@@ -502,7 +544,7 @@
         // die Route auch bei direkter Browser-Navigation erreichbar ist.
         webserver.on("/api/startWPS", HTTP_GET, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
-            redirectTo("/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
+            redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
             // Erst NACH dem Senden der Antwort WPS starten - startWPS() stoerte
             // sonst vermutlich die noch offene HTTP-Verbindung (Browser zeigte
             // "Seite nicht erreichbar" statt die Weiterleitung zu erhalten).
@@ -513,7 +555,7 @@
 
         webserver.on("/api/startWPS", HTTP_POST, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
-            redirectTo("/?msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
+            redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
             startWPS();
             wpsPending = true;
             wpsStartMillis = millis();
@@ -537,12 +579,12 @@
                     // wieder automatisch "clock_" + letzte MAC-Stellen generiert
                     // wird (siehe connectWiFi() in wifi_manager.h).
                     preferences.remove(PK_HOSTNAME);
-                    redirectTo("/?msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
+                    redirectTo("/?tab=wlan&msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
                     return;
                 }
 
                 preferences.putString(PK_HOSTNAME, newHostname);
-                redirectTo("/?msg=Hostname%20saved%20-%20requires%20a%20reboot%20to%20take%20effect");
+                redirectTo("/?tab=wlan&msg=Hostname%20saved%20-%20requires%20a%20reboot%20to%20take%20effect");
             }
             else {
                 webserver.send(400, "text/plain", "Missing parameter");
@@ -769,7 +811,7 @@
                     displayUrl += "&source=preset";
                     presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
 
-                    chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:140px;'>";
+                    chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
                     chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
                     chunk += "<br><a href='" + displayUrl + "'>" + presets[i].name + "</a>";
                     String presetName = presets[i].name;
@@ -781,7 +823,7 @@
                         chunk += " <span onclick=\"copyPresetLink('" + hostLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + " (" + espHost + ")'>&#128203;</span>";
                     }
                     chunk += "<br><a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
-                    chunk += "<a href='/deletepreset?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + presets[i].name + "?\")'>" + translate("Delete") + "</a>";
+                    chunk += "<button type='button' onclick='if(confirm(\"" + translate("Delete") + " " + presets[i].name + "?\")){window.location.href=\"/deletepreset?index=" + String(i) + "\";}'>" + translate("Delete") + "</button>";
                     chunk += "</div>";
 
                     rowCount++;
@@ -1014,7 +1056,7 @@
 
         // API zum Restart des ESP
         webserver.on("/api/reboot", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0; url=/status'><title>Rebooting</title></head><body><h2>" + translate("Rebooting...") + "</h2></body></html>");
+            webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "", "<meta http-equiv='refresh' content='0; url=/status'>"));
             delay(WAIT_1s);
             espReboot();
             });
@@ -1100,7 +1142,7 @@
                 setupNTP();
             }
 
-            redirectTo("/timezone_form?msg=Timezone%20updated");
+            redirectTo("/?tab=zeit&msg=Timezone%20updated");
             }
         
         
@@ -1297,10 +1339,10 @@
 
             bool scaleSuccess = scaleAndSaveBmp(src.c_str(), dst.c_str(), w, h);
             if (scaleSuccess) {
-                webserver.send(200, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Scaling successful") + "!</h3><p>" + translate("Saved as") + ": " + dst + "</p><a href = '/files'><button type='button'>" + translate("Back") + "</button></a></body></html>");
+                webserver.send(200, "text/html", simpleMessagePage(translate("Scaling successful") + "!", "<p>" + translate("Saved as") + ": " + dst + "</p><a href='/files'><button type='button'>" + translate("Back") + "</button></a>"));
             }
             else {
-                webserver.send(500, "text/html", "<html><body style='font-family:Arial;'><h3>" + translate("Failed to scale BMP") + "</h3><p>Check source file and format.</p><a href='/files'><button type='button'>" + translate("Back") + "</button></a></body></html>");
+                webserver.send(500, "text/html", simpleMessagePage(translate("Failed to scale BMP"), "<p>Check source file and format.</p><a href='/files'><button type='button'>" + translate("Back") + "</button></a>"));
             }
             });
 
@@ -1362,7 +1404,7 @@
             }
 
 
-            redirectTo("/?msg=Settings%20saved");
+            redirectTo("/?tab=zifferblatt&msg=Settings%20saved");
             });
 
 
@@ -1629,7 +1671,7 @@
             preferences.putUChar(PK_BRIGHT_END_HOUR, brightEndHour);
 
 
-            redirectTo("/brightness?msg=Settings%20saved");
+            redirectTo("/?tab=helligkeit&msg=Settings%20saved");
             });
 
 
@@ -1668,18 +1710,19 @@
                 String info = getBmpInfo(name);
                 chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
                 chunk += "<td align=right>" + String(info) + "</td>";
-                chunk += " <td><a href = '/delete?file=" + name + "' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;</a> ";
+                chunk += " <td><a href = '/delete?file=" + name + "' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
                 // Scale-Option nur für .bmp-Dateien anzeigen
                 if (name.endsWith(".bmp")) {
-                    chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128207;</a> ";
-                    chunk += "<a href='/rename_form?file=" + name + "' title='" + translate("Rename") + "'>&#9999;</a> ";
+                    chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
+                    chunk += "<a href='/rename_form?file=" + name + "' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
                 }
                 else {
-                    chunk += "&nbsp; &nbsp;";
+                    chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#128208;</span> ";
+                    chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#9999;&#65039;</span> ";
                 }
                        
-                chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;</a> ";
-                chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;</a> "; // "View"-Link für Logdateien
+                chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;&#65039;</a> ";
+                chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;&#65039;</a> "; // "View"-Link für Logdateien
 
                 chunk += "</td></tr>";
 
@@ -2505,28 +2548,163 @@
             webserver.send(200, "text/html", "");
 
             String chunk = beginPage();
-            chunk.reserve(1536);
+            chunk.reserve(2048);
             chunk += generateFlashMessage(); // Erfolgsmeldung, falls vorhanden
 
-            // Waehrend WPS aktiv ist, trennt sich der ESP von seinem bisherigen WLAN,
-            // um als WPS-Client nach dem Router zu suchen (technisch notwendig fuer
-            // WPS) - er ist unter seiner bisherigen IP fuer bis zu 2 Minuten schlicht
-            // nicht erreichbar. Ein einmaliger location.reload() nach fester Wartezeit
-            // wuerde in diesem Fenster garantiert eine Browser-Fehlerseite zeigen.
-            // Stattdessen im Hintergrund per fetch() mit kurzem Timeout periodisch
-            // pruefen, ob der ESP schon wieder antwortet (verbunden, egal ob WPS
-            // erfolgreich war oder zur vorherigen Verbindung zurueckgefallen ist -
-            // siehe loop() in uhr3.ino) und erst dann neu laden. Zusaetzlich Fallback
-            // auf hostname.local (mDNS), falls der ESP nach einem WPS-Erfolg + Reboot
-            // eine ANDERE IP per DHCP bekommen hat - die alte IP waere dann dauerhaft
-            // tot, aber der Hostname bleibt gueltig (siehe pingHostname/hostname,
-            // bereits an anderer Stelle im Webinterface genutzt).
+            chunk += generateLanguageSelector();
+
+            // Ohne aktive Heimnetz-Verbindung (Erststart ohne gespeichertes WLAN,
+            // oder das zuletzt bekannte WLAN ist nicht erreichbar - siehe startAP()
+            // in wifi_manager.h) frueher hierher umgeleitet auf /wifi - jetzt
+            // stattdessen einfach den WLAN-Tab vorauswaehlen, das deckt automatisch
+            // auch das Captive-Portal-Popup ab (das auf "/" verweist, siehe
+            // captivePortalRedirect oben).
+            bool apMode = (WiFi.getMode() != WIFI_STA);
+
+            // --- CSS-only Tabs: die 6 radio-Inputs (siehe Tab-CSS in
+            // generateHtmlHeader()) - muessen direkte Geschwister von .tabnav
+            // und allen .panel-* Divs weiter unten sein.
+            chunk += "<input type='radio' name='tabs' id='tab-status' class='tabctrl'";
+            if (!apMode) chunk += " checked";
+            chunk += ">";
+            chunk += "<input type='radio' name='tabs' id='tab-wlan' class='tabctrl'";
+            if (apMode) chunk += " checked";
+            chunk += ">";
+            chunk += "<input type='radio' name='tabs' id='tab-zifferblatt' class='tabctrl'>";
+            chunk += "<input type='radio' name='tabs' id='tab-helligkeit' class='tabctrl'>";
+            chunk += "<input type='radio' name='tabs' id='tab-zeit' class='tabctrl'>";
+            chunk += "<input type='radio' name='tabs' id='tab-system' class='tabctrl'>";
+
+            chunk += "<div class='tabnav'>";
+            chunk += "<label for='tab-status'>" + translate("Status") + "</label>";
+            chunk += "<label for='tab-wlan'>" + translate("WiFi Settings") + "</label>";
+            chunk += "<label for='tab-zifferblatt'>" + translate("Clock Setup") + "</label>";
+            chunk += "<label for='tab-helligkeit'>" + translate("Brightness") + "</label>";
+            chunk += "<label for='tab-zeit'>" + translate("NTP&nbsp;Timezone") + "</label>";
+            chunk += "<label for='tab-system'>" + translate("System") + "</label>";
+            chunk += "</div>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // #####################################################################
+            // Panel: Status (read-only Systeminfos - unveraendert aus der
+            // bisherigen eigenstaendigen /status-Seite uebernommen)
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-status'>";
+            chunk += "<ul>";
+
+            String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
+            String tzDesc = tzLabel;
+
+            if (getLocalTime(&timeinfo, 100)) {
+                char nowStr[32];
+                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+                chunk += "<li>Current Time: " + String(nowStr) + "</li>";
+                chunk += "<li>Timezone: " + tzDesc + "</li>";
+                chunk += "<li>Current week: " + String(currentWeek) + "</li>";
+                chunk += "<li>Last week reset: " + String(lastResetWeek) + "</li>";
+
+                unsigned long seconds = millis() / 1000;
+                unsigned long days = seconds / 86400;
+                unsigned long hours = (seconds % 86400) / 3600;
+                unsigned long minutes = (seconds % 3600) / 60;
+                unsigned long secs = seconds % 60;
+                chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
+                chunk += "<br>";
+            }
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
+            chunk += "<li>TFT Driver: " + tftType + "</li>";
+            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
+            chunk += "<br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li>ChipModel: " + String(ESP.getChipModel()) + "</li>";
+            chunk += "<li>ChipRevision: " + String(ESP.getChipRevision()) + "</li>";
+            chunk += "<li>ChipCores: " + String(ESP.getChipCores()) + "</li>";
+            chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
+            chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li>Hostname: " + String(hostname) + ".local" + "</li>";
+            chunk += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
+            chunk += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
+            chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
+            chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
+            chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
+            chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
+            chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
+            chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
+            chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
+            chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
+            chunk += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
+            chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
+            chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
+            chunk += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
+            chunk += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+#ifdef ADC_PIN
+            if (photoresistorFound) {
+                chunk += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
+                chunk += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
+            }
+            else {
+                chunk += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
+            }
+#endif
+
+            chunk += "<li><b>tftRotation</b>: " + String(preferences.getUChar(PK_TFT_ROTATION, 0)) + "</li>";
+            chunk += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
+            chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
+            chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
+
+            chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
+            chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
+            chunk += "<li><a href='/status'>" + translate("Status") + " (" + translate("full details") + ")</a></li>";
+            chunk += "</ul>";
+            chunk += "</div>"; // Ende panel-status
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // #####################################################################
+            // Panel: WLAN (unveraendert aus der bisherigen eigenstaendigen
+            // /wifi-Seite uebernommen - Hostname-Formular, WPS/Rescan, WLAN-Slots)
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-wlan'>";
+
             if (webserver.arg("msg") == "WPS active - press the WPS button on your router now (within 2 minutes)") {
                 String hostnameTargetJs = pingHostname ? ("'http://" + String(hostname) + ".local/'") : "null";
                 chunk += "<script>";
                 chunk += "(function() {";
                 chunk += "  var attempts = 0;";
-                chunk += "  var maxAttempts = 25;"; // ca. 25 * (5s Timeout + 3s Pause) = ~3.3 Minuten, etwas mehr als der 2-Minuten-WPS-Timeout plus Reboot/Reconnect-Zeit
+                chunk += "  var maxAttempts = 25;";
                 chunk += "  var hostnameTarget = " + hostnameTargetJs + ";";
                 chunk += "  function tryFetch(url, opts) {";
                 chunk += "    return new Promise(function(resolve, reject) {";
@@ -2540,19 +2718,12 @@
                 chunk += "  }";
                 chunk += "  function poll() {";
                 chunk += "    attempts++;";
-                // Zuerst dieselbe IP versuchen (schnellster Weg, falls sie unveraendert
-                // geblieben ist) - Same-Origin, daher normaler fetch() ohne CORS-Huerden.
-                chunk += "    tryFetch(location.pathname, {}).then(function() {";
-                chunk += "      location.href = location.pathname;";
+                chunk += "    tryFetch(location.pathname + location.search, {}).then(function() {";
+                chunk += "      location.href = location.pathname + '?tab=wlan';";
                 chunk += "    }).catch(function() {";
-                // IP nicht erreichbar - falls ein Hostname bekannt ist, zusaetzlich per
-                // mDNS probieren. mode:'no-cors' liefert eine "opake" Antwort ohne
-                // lesbaren Inhalt, aber die Promise loest bereits auf, sobald die
-                // Verbindung ueberhaupt zustande kam - genau das reicht hier als
-                // Erreichbarkeits-Check, ganz ohne dass der ESP CORS-Header senden muss.
                 chunk += "      if (hostnameTarget) {";
                 chunk += "        tryFetch(hostnameTarget, { mode: 'no-cors' }).then(function() {";
-                chunk += "          location.href = hostnameTarget;";
+                chunk += "          location.href = hostnameTarget + '?tab=wlan';";
                 chunk += "        }).catch(function() {";
                 chunk += "          if (attempts < maxAttempts) setTimeout(poll, 3000);";
                 chunk += "        });";
@@ -2566,11 +2737,11 @@
                 chunk += "</script>";
             }
 
-            chunk += "<h2>" + translate("Clock Setup") + "</h2>";
+            if (apMode) {
+                chunk += "<div style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>" +
+                    translate("No WiFi network configured yet, or the last known network is unavailable - the clock created its own WiFi network. Enter your home WiFi details below, save, and the clock will restart and try to connect") + ".</div>";
+            }
 
-            chunk += generateLanguageSelector();
-
-            // --- Hostname: Textfeld (170px) + Save-Button in einer Zeile, zentriert ---
             chunk += "<form method='POST' action='/sethostname'>";
             chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
             chunk += "<label>" + translate("Hostname") + ":</label>";
@@ -2583,7 +2754,6 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // --- Add Network via WPS + Rescan Networks: je 170px, in einer Zeile, zentriert ---
             chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
             chunk += "<form method='POST' action='/api/startWPS' style='margin:0;'>";
             chunk += "<button type='submit' style='width:170px;'>" + translate("Add Network via WPS") + "</button>";
@@ -2596,7 +2766,6 @@
             chunk += "<form action = '/save' method = 'POST'>";
 
             for (int i = 0; i < MAX_WLAN; i++) {
-                // Dynamisch berechnete Schlüssel
                 String ssidKey = pkSsid(i);
                 String passKey = pkPass(i);
                 String ssidSelectId = "ssid_select" + String(i + 1);
@@ -2604,8 +2773,8 @@
 
                 chunk += "<hr>";
 
-                String upperSsidKey = ssidKey; // Kopie erstellen
-                upperSsidKey.toUpperCase();    // Kopie in Großbuchstaben umwandeln
+                String upperSsidKey = ssidKey;
+                upperSsidKey.toUpperCase();
                 chunk += "<h3 style='display:flex;align-items:center;justify-content:center;gap:6px;'>" + upperSsidKey;
                 if (i == 0) {
                     chunk += " <span title='" + translate("Up to") + " " + String(MAX_WLAN) + " " + translate("WiFi networks can be stored") + ".' style='cursor:help;'>&#9432;</span>";
@@ -2628,32 +2797,94 @@
                 }
                 chunk += "</small>";
 
-                // Alle paar Eintraege zwischendurch senden, damit auch bei vielen
-                // gespeicherten Netzwerken (bis zu MAX_WLAN) kein grosser Puffer entsteht.
                 if (i % 3 == 2) {
                     webserver.sendContent(chunk);
                     chunk = "";
                 }
 
                 if (wifiSsid[i] == "") {
-                    break; // Keine weiteren SSIDs, Schleife beenden
+                    break;
                 }
             }
 
-
             chunk += "<br><br>";
-
             chunk += "<button type='submit'>" + translate("Save WiFi settings") + "</button></form><hr>";
 
             webserver.sendContent(chunk);
             chunk = "";
 
-            //if (WiFi.getMode() == WIFI_STA) {
+            chunk += "<script>";
+            chunk += "document.getElementById('rescanBtn').onclick = function() {";
+            chunk += "  var btn = this;";
+            chunk += "  btn.disabled = true;";
+            chunk += "  var hint = document.createElement('div');";
+            chunk += "  hint.id = 'rescanHint';";
+            chunk += "  hint.style.cssText = 'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;';";
+            chunk += "  hint.innerHTML = '" + translate("Scanning for WiFi networks - the page will reload automatically in 10 seconds") + "';";
+            chunk += "  btn.parentNode.insertBefore(hint, btn.nextSibling);";
+            chunk += "  fetch('/api/rescanwifi', {method: 'POST'})";
+            chunk += "    .catch(function() {})";
+            chunk += "    .finally(function() {";
+            chunk += "      setTimeout(function() { location.href = location.pathname + '?tab=wlan'; }, 10000);";
+            chunk += "    });";
+            chunk += "};";
 
+            webserver.sendContent(chunk);
+            chunk = "";
 
+            chunk += "window.addEventListener('DOMContentLoaded', function() {";
+            chunk += "  function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}";
+            chunk += "  var wifiOpenLabel = decodeHtml('" + translate("Open") + "');";
+            chunk += "  var wifiSecuredLabel = decodeHtml('" + translate("Secured") + "');";
+            for (int i = 0; i < MAX_WLAN; i++) {
+                String ssidKey = pkSsid(i);
+                String select = "select" + String(i + 1);
+                String input = "input" + String(i + 1);
+                String current = "current" + String(i + 1);
+                String ssidSelectId = "ssid_select" + String(i + 1);
+
+                chunk += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
+                chunk += "  var " + input + " = document.getElementById('" + ssidKey + "');";
+                chunk += "  var " + current + " = " + input + ".value;";
+                chunk += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
+                chunk += "  fetch('/api/scanwifi')";
+                chunk += "    .then(response => response.json())";
+                chunk += "    .then(data => {";
+                chunk += "      " + select + ".innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
+                chunk += "      data.forEach(function(net) {";
+                chunk += "        var opt = document.createElement('option');";
+                chunk += "        opt.value = net.ssid;";
+                chunk += "        var encLabel = (net.enc === 0) ? wifiOpenLabel : wifiSecuredLabel;";
+                chunk += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm, ' + encLabel + ')';";
+                chunk += "        if(net.ssid === " + current + ") opt.selected = true;";
+                chunk += "        " + select + ".appendChild(opt);";
+                chunk += "      });";
+                chunk += "    })";
+                chunk += "    .catch(() => { " + select + ".innerHTML = \"<option>Scan failed</option>\"; });";
+
+                if (i % 3 == 2) {
+                    webserver.sendContent(chunk);
+                    chunk = "";
+                }
+
+                if (preferences.getString(ssidKey.c_str(), "") == "") {
+                    break;
+                }
+            }
+            chunk += "});";
+            chunk += "</script>";
+            chunk += "</div>"; // Ende panel-wlan
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // #####################################################################
+            // Panel: Zifferblatt (Anzeige-Einstellungen - unveraendert aus der
+            // bisherigen "/"-Seite uebernommen)
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-zifferblatt'>";
             chunk += "<form action='/applydisplaysettings' method='POST'>";
-
-            chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
+            chunk += "<div class='card'>";
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='stationMode' value='1' ";
             chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
@@ -2669,11 +2900,6 @@
             chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
             chunk += " <span title='" + translate("The minute hand moves smoothly instead of jumping in 1-minute steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            // Neue Checkbox für Touch-Freigabe
-            //chunk += "<div><input type='checkbox' name='useTouch' value='1' ";
-            //chunk += preferences.getBool(PK_USE_TOUCH, false) ? "checked" : "";
-            //chunk += "> " + translate("Enable Touch") + "</div>";
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='wifiActive' value='1' ";
             chunk += wifiActive ? "checked" : "";
@@ -2699,115 +2925,273 @@
             }
             chunk += "</select></div>";
 
-
-            // chunk += "<div><input type='checkbox' name='loggingEnabled' value='1' ";
-            // chunk += loggingEnabled ? "checked" : "";
-            // chunk += "> Logging aktivieren</div>";
-
             chunk += "</div>";
-
             chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
             chunk += "</form>";
-
-            chunk += "<hr>";
-
-            /*
-            chunk += "<a href='/timezone_form'><button>Set Timezone</button></a><br><br>";
-
-            chunk += "<a href='/listfilesFaces'><button>Manage Clock Face Files</button></a><br><br>";
-            chunk += "<a href='/handsets'><button>Manage Hand Sets</button></a><br><br>";
-
-            chunk += "<form action='/syncnow' method='POST'><button type='submit'>Sync Time Now</button></form><br>";
-            chunk += "<form action='/brightness' method='POST'><button type='submit'>Brightness Settings</button></form><br>";
-               */
-
-               // }
+            chunk += "</div>"; // Ende panel-zifferblatt
 
             webserver.sendContent(chunk);
             chunk = "";
 
-            chunk += "<script>";
-            chunk += "document.getElementById('rescanBtn').onclick = function() {";
-            chunk += "  var btn = this;";
-            chunk += "  btn.disabled = true;";
-            chunk += "  var hint = document.createElement('div');";
-            chunk += "  hint.id = 'rescanHint';";
-            chunk += "  hint.style.cssText = 'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;';";
-            chunk += "  hint.innerHTML = '" + translate("Scanning for WiFi networks - the page will reload automatically in 10 seconds") + "';";
-            chunk += "  btn.parentNode.insertBefore(hint, btn.nextSibling);";
-            chunk += "  fetch('/api/rescanwifi', {method: 'POST'})";
-            chunk += "    .catch(function() {})";
-            chunk += "    .finally(function() {";
-            chunk += "      setTimeout(function() { location.href = location.pathname; }, 10000);";
-            chunk += "    });";
-            chunk += "};";
+            // #####################################################################
+            // Panel: Helligkeit (unveraendert aus der bisherigen /brightness-Seite
+            // uebernommen, inkl. optionalem Plotly-Gamma-Chart)
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-helligkeit'>";
+            chunk += "<form method='POST' action='/save_brightness'>";
 
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "window.addEventListener('DOMContentLoaded', function() {";
-            for (int i = 0; i < MAX_WLAN; i++) {
-
-
-
-                // Dynamisch berechnete Schlüssel
-                String ssidKey = pkSsid(i);
-                String passKey = pkPass(i);
-                String select = "select" + String(i + 1);
-                String input = "input" + String(i + 1);
-                String current = "current" + String(i + 1);
-                String ssidSelectId = "ssid_select" + String(i + 1);
-
-
-
-                chunk += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
-                chunk += "  var " + input + " = document.getElementById('" + ssidKey + "');";
-                chunk += "  var " + current + " = " + input + ".value;";
-                chunk += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
-                chunk += "  fetch('/api/scanwifi')";
-                chunk += "    .then(response => response.json())";
-                chunk += "    .then(data => {";
-                chunk += "      " + select + ".innerHTML = \"<option value=''>" + translate("select network") + "</option>\";";
-                chunk += "      data.forEach(function(net) {";
-                chunk += "        var opt = document.createElement('option');";
-                chunk += "        opt.value = net.ssid;";
-                chunk += "        opt.text = net.ssid + ' (' + net.rssi + ' dBm)';";
-                chunk += "        if(net.ssid === " + current + ") opt.selected = true;";
-                chunk += "        " + select + ".appendChild(opt);";
-                chunk += "      });";
-                chunk += "    })";
-                chunk += "    .catch(() => { " + select + ".innerHTML = \"<option>Scan failed</option>\"; });";
-
-                // Alle paar Eintraege zwischendurch senden (siehe Kommentar oben).
-                if (i % 3 == 2) {
-                    webserver.sendContent(chunk);
-                    chunk = "";
-                }
-
-                if (preferences.getString(ssidKey.c_str(), "") == "") {
-                    break; // Keine weiteren SSIDs, Schleife beenden
-                }
-
+            if (photoresistorFound) {
+                chunk += "<table style='margin:auto;text-align:left;'><tr>";
+                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
+                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
+                chunk += "</tr></table><hr><br>";
             }
-            chunk += "});";
-            chunk += "</script>";
 
+            chunk += "<div class='card'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:50px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:50px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:50px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:50px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            if (photoresistorFound) {
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:50px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:50px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+            }
+
+#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:50px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
+#endif
+
+            chunk += "</div>";
+            chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            if (photoresistorFound) {
+                chunk += "<br>";
+                chunk += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
+                chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
+                chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
+                chunk += "<br>";
+                chunk += "<form method='GET' action='/?tab=helligkeit'><button type='submit'>" + translate("Refresh") + "</button></form>";
+                chunk += "<br>";
+
+                webserver.sendContent(chunk);
+                chunk = "";
+
+#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
+                chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
+                chunk += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
+                chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
+                chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
+                chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
+
+                chunk += "<script>\n";
+                chunk += "const minBrightnessG = " + String(minBrightness) + ";\n";
+                chunk += "const maxBrightnessG = " + String(maxBrightness) + ";\n";
+                chunk += "const gammaAvg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
+
+                chunk += "function computeBrightness(gamma) {\n";
+                chunk += "  return gammaAvg.map(val => {\n";
+                chunk += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
+                chunk += "    let gammaNorm = Math.pow(norm, gamma);\n";
+                chunk += "    return minBrightnessG + Math.round((maxBrightnessG - minBrightnessG) * gammaNorm);\n";
+                chunk += "  });\n";
+                chunk += "}\n\n";
+
+                webserver.sendContent(chunk);
+                chunk = "";
+
+                chunk += "function plotGamma(gamma) {\n";
+                chunk += "  const y = computeBrightness(gamma);\n";
+                chunk += "  Plotly.newPlot('plot', [{\n";
+                chunk += "    x: gammaAvg,\n";
+                chunk += "    y: y,\n";
+                chunk += "    mode: 'lines',\n";
+                chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
+                chunk += "  }], {\n";
+                chunk += "    title: 'Gamma-Korrektur-Kurve',\n";
+                chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
+                chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
+                chunk += "  });\n";
+                chunk += "}\n\n";
+
+                chunk += "const slider = document.getElementById('gammaSlider');\n";
+                chunk += "const gammaValue = document.getElementById('gammaValue');\n";
+                chunk += "slider.addEventListener('input', () => {\n";
+                chunk += "  const gamma = parseFloat(slider.value);\n";
+                chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
+                chunk += "  document.querySelector(\"input[name='gamma']\").value = gamma.toFixed(1);\n";
+                chunk += "  plotGamma(gamma);\n";
+                chunk += "});\n\n";
+
+                // WICHTIG: Plotly kann in ein per CSS verstecktes (display:none)
+                // Panel nicht sinnvoll zeichnen (Container hat dort Breite/Hoehe 0).
+                // Daher hier NICHT sofort beim Laden zeichnen, sondern erst wenn
+                // der Helligkeit-Tab tatsaechlich aktiviert wird (bzw. sofort, falls
+                // er schon beim Laden aktiv ist).
+                chunk += "var gammaTab = document.getElementById('tab-helligkeit');\n";
+                chunk += "function drawGammaIfVisible() { if (gammaTab.checked) plotGamma(parseFloat(slider.value)); }\n";
+                chunk += "gammaTab.addEventListener('change', drawGammaIfVisible);\n";
+                chunk += "drawGammaIfVisible();\n";
+                chunk += "</script>\n";
+#endif
+            }
+
+            chunk += "</div>"; // Ende panel-helligkeit
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // #####################################################################
+            // Panel: Zeit / NTP / Timezone (unveraendert aus der bisherigen
+            // /timezone_form-Seite uebernommen)
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-zeit'>";
+            {
+                String timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
+
+                struct TimezoneEntry {
+                    const char* label;
+                    const char* value;
+                } tzList[] = {
+                    {"Germany (DST auto)", TIMEZONE_DEFAULT},
+                    {"Germany (fixed summer time)", "CEST-2"},
+                    {"Germany (fixed winter time)", "CET-1"},
+                    {"UK (DST auto)", "GMT0BST,M3.5.0/1,M10.5.0"},
+                    {"UK (fixed summer time)", "BST-1"},
+                    {"UK (fixed winter time)", "GMT0"},
+                    {"USA Pacific (DST auto)", "PST8PDT,M3.2.0,M11.1.0"},
+                    {"USA Central (DST auto)", "CST6CDT,M3.2.0,M11.1.0"},
+                    {"USA Mountain (DST auto)", "MST7MDT,M3.2.0,M11.1.0"},
+                    {"USA Eastern (DST auto)", "EST5EDT,M3.2.0,M11.1.0"},
+                    {"USA Eastern (fixed summer time)", "EDT-4"},
+                    {"USA Eastern (fixed winter time)", "EST-5"},
+                    {"Japan (JST)", "JST-9"},
+                    {"Australia Sydney (DST auto)", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+                    {"Australia Sydney (fixed summer time)", "AEDT-11"},
+                    {"Australia Sydney (fixed winter time)", "AEST-10"},
+                    {"India (IST)", "IST-5:30"},
+                    {"Brazil (BRT)", "BRT-3"},
+                    {"China (CST)", "CST-8"},
+                    {"Singapore (SGT)", "SGT-8"},
+                    {"Indonesia (WIB)", "WIB-7"},
+                    {"South Korea (KST)", "KST-9"},
+                    {"Argentina (ART)", "ART-3"},
+                    {"Chile (DST auto)", "CLT4CLST,M9.1.6/24,M4.1.6/24"},
+                    {"New Zealand (DST auto)", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
+                    {"Fiji (FJT)", "FJT-12"},
+                    {"Nigeria (WAT)", "WAT-1"},
+                    {"South Africa (SAST)", "SAST-2"},
+                    {"Egypt (EET)", "EET-2"}
+                };
+
+                chunk += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
+                chunk += "<form method='POST' action='/set_timezone'>";
+
+                for (int i = 0; i < MAX_WLAN; i++) {
+                    chunk += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
+                    chunk += "NTP Server" + String(i + 1) + " : <input type = 'text' id='ntpServerInput" + String(i + 1) + "' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "' style='width:180px;'>";
+                    chunk += "<button type='button' onclick='testNtp(" + String(i + 1) + ")' style='width:180px;'>" + translate("Test") + "</button>";
+                    chunk += "</div>";
+                    chunk += "<div id='ntpTestResult" + String(i + 1) + "'></div>";
+                    if (trim(ntpServers[i]) == "") {
+                        break;
+                    }
+                }
+
+                webserver.sendContent(chunk);
+                chunk = "";
+
+                chunk += "<script>";
+                chunk += "async function testNtp(idx) {";
+                chunk += "  var input = document.getElementById('ntpServerInput' + idx);";
+                chunk += "  var result = document.getElementById('ntpTestResult' + idx);";
+                chunk += "  result.innerHTML = '" + translate("Testing") + "...';";
+                chunk += "  try {";
+                chunk += "    var r = await fetch('/api/testNtp?server=' + encodeURIComponent(input.value));";
+                chunk += "    var text = await r.text();";
+                chunk += "    if (text.indexOf('OK|') === 0) {";
+                chunk += "      result.innerHTML = '<div style=\\'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10004; ' + text.substring(3) + '</div>';";
+                chunk += "    } else {";
+                chunk += "      result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
+                chunk += "    }";
+                chunk += "  } catch (e) {";
+                chunk += "    result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
+                chunk += "  }";
+                chunk += "}";
+                chunk += "</script>";
+
+                chunk += translate("Timezone") + ": <br><select id = 'tz_select' style = 'width: 400px;' onchange = \"document.getElementById('tz_input').value=this.value\">";
+                for (size_t i = 0; i < sizeof(tzList) / sizeof(tzList[0]); i++) {
+                    chunk += "<option value='" + String(tzList[i].value) + "'";
+                    if (timezone == tzList[i].value) chunk += " selected";
+                    chunk += ">" + String(tzList[i].label) + " (" + String(tzList[i].value) + ")</option>";
+                }
+                chunk += "</select><br><br>";
+
+                chunk += "<input type='text' id='tz_input' name='timezone' style='width: 400px;' value='" + timezone + "'><br><br>";
+                chunk += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
+                chunk += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
+                chunk += "</form>";
+            }
+            chunk += "</div>"; // Ende panel-zeit
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // #####################################################################
+            // Panel: System (Reboot, Verwaltung, Factory Reset - neu, verweist auf
+            // die weiterhin eigenstaendigen Seiten fuer die komplexeren, Datei-
+            // lastigen Bereiche statt sie hier nochmal nachzubauen)
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-system'>";
+            chunk += "<div class='card'>";
+            chunk += "<h3>" + translate("Reboot") + "</h3>";
+            chunk += "<form method='GET' action='/reboot' onsubmit=\"return confirm('" + translate("Are you sure you want to reboot?") + "');\">";
+            chunk += "<button type='submit'>" + translate("Reboot") + "</button></form>";
+            chunk += "</div>";
+
+            chunk += "<div class='card'>";
+            chunk += "<h3>" + translate("Manage") + "</h3>";
+            chunk += "<div style='display:flex;flex-direction:column;gap:8px;'>";
+            chunk += "<a href='/preview'>" + translate("Live Preview") + "</a>";
+            chunk += "<a href='/presets'>" + translate("Presets") + "</a>";
+            chunk += "<a href='/listfilesFaces'>" + translate("Clock&nbsp;Face") + "</a>";
+            chunk += "<a href='/handsets'>" + translate("Hand&nbsp;Set") + "</a>";
+            chunk += "<a href='/files'>" + translate("File&nbsp;Manager") + "</a>";
+            chunk += "</div></div>";
+
+            chunk += "<div class='card'>";
+            chunk += "<h3>" + translate("Factory&nbsp;Reset") + "</h3>";
+            chunk += "<a href='/factoryReset'>" + translate("Factory&nbsp;Reset") + "</a>";
+            chunk += "</div>";
+            chunk += "</div>"; // Ende panel-system
+
+            // Erlaubt gezieltes Anspringen eines Tabs per ?tab=... (z.B. nach
+            // einem POST-Redirect von /save, /sethostname, /save_brightness,
+            // /set_timezone etc.) - rein clientseitig, da die Tab-Auswahl selbst
+            // per CSS-radio erfolgt und serverseitig kein Zustand dafuer noetig ist.
+            chunk += "<script>";
+            chunk += "(function() {";
+            chunk += "  var m = location.search.match(/[?&]tab=([a-zA-Z]+)/);";
+            chunk += "  if (m) { var el = document.getElementById('tab-' + m[1]); if (el) el.checked = true; }";
+            chunk += "})();";
+            chunk += "</script>";
 
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
             });
 
-        // Speichern der WiFi-Einstellungen
-        // Loescht ein einzelnes gespeichertes WLAN-Netzwerk und rueckt die
-        // nachfolgenden Netzwerke auf, damit keine Luecke entsteht (gleiche
-        // Kompaktierung wie beim regulaeren Speichern in /save).
         webserver.on("/deletewifi", HTTP_GET, []() {
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
                 if (idx >= 0 && idx < MAX_WLAN) {
-                    preferences.putString(pkSsid(idx).c_str(), "");
-                    preferences.putString(pkPass(idx).c_str(), "");
+                    putStringVerified(pkSsid(idx).c_str(), "");
+                    putStringVerified(pkPass(idx).c_str(), "");
 
                     String tempSsid[MAX_WLAN];
                     String tempPass[MAX_WLAN];
@@ -2822,16 +3206,16 @@
                     }
                     for (int i = 0; i < MAX_WLAN; i++) {
                         if (preferences.getString(pkSsid(i).c_str(), "") != tempSsid[i]) {
-                            preferences.putString(pkSsid(i).c_str(), tempSsid[i]);
+                            putStringVerified(pkSsid(i).c_str(), tempSsid[i]);
                         }
                         if (preferences.getString(pkPass(i).c_str(), "") != tempPass[i]) {
-                            preferences.putString(pkPass(i).c_str(), tempPass[i]);
+                            putStringVerified(pkPass(i).c_str(), tempPass[i]);
                         }
                         wifiSsid[i] = tempSsid[i];
                         wifiPass[i] = tempPass[i];
                     }
                 }
-                redirectTo("/?msg=Network%20deleted");
+                redirectTo("/?tab=wlan&msg=Network%20deleted");
             }
             else {
                 webserver.send(400, "text/plain", "Missing parameter");
@@ -2847,10 +3231,10 @@
                     String passKey = pkPass(i);
 
                     if (preferences.getString(ssidKey.c_str(), "") != webserver.arg(ssidKey)) {
-                        preferences.putString(ssidKey.c_str(), webserver.arg(ssidKey));
+                        putStringVerified(ssidKey.c_str(), webserver.arg(ssidKey));
                     }
                     if (webserver.arg(passKey) != "" && preferences.getString(passKey.c_str(), "") != webserver.arg(passKey)) {
-                        preferences.putString(passKey.c_str(), webserver.arg(passKey));
+                        putStringVerified(passKey.c_str(), webserver.arg(passKey));
                     }
                 }
 
@@ -2881,10 +3265,10 @@
                     String passKey = pkPass(i);
 
                     if (preferences.getString(ssidKey.c_str(), "") != tempSsid[i]) {
-                        preferences.putString(ssidKey.c_str(), tempSsid[i]);
+                        putStringVerified(ssidKey.c_str(), tempSsid[i]);
                     }
                     if (preferences.getString(passKey.c_str(), "") != tempPass[i]) {
-                        preferences.putString(passKey.c_str(), tempPass[i]);
+                        putStringVerified(passKey.c_str(), tempPass[i]);
                     }
 
                     wifiSsid[i] = tempSsid[i];
@@ -2895,12 +3279,10 @@
             
 
                 if (WiFi.getMode() == WIFI_STA) {
-                    redirectTo("/?msg=Settings%20saved");
+                    redirectTo("/?tab=wlan&msg=Settings%20saved");
                 }
                 else {
-                    webserver.send(200, "text/html", "<!DOCTYPE html><html><head>"
-                        "<title>Settings saved</title></head><body style='font-family:Arial;text-align:center;'>"
-                        "<h2>" + translate("Settings saved") + "</h2><p>" + translate("Please connect to your home network and go to the ESP website at") + " http:// IPADDRESS</p></body></html>");
+                    webserver.send(200, "text/html", simpleMessagePage(translate("Settings saved"), "<p>" + translate("Please connect to your home network and go to the ESP website at") + " http:// IPADDRESS</p>"));
 
                     espReboot();
                 }
@@ -2909,7 +3291,8 @@
 
         // Upload-Formular anzeigen
         webserver.on("/upload", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'><button type='button'>" + translate("Back") + "</button></a>");
+            String uploadFormHtml = "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'><button type='button'>" + translate("Back") + "</button></a>";
+            webserver.send(200, "text/html", simpleMessagePage(translate("Upload"), uploadFormHtml));
             });
 
         // Datei-Upload verarbeiten
@@ -2918,12 +3301,10 @@
                 redirectTo("/listfilesFaces?msg=Clock%20face%20uploaded");
             }
             else {
-                String errorHtml = "<!DOCTYPE html><html><head><title>" + translate("Upload Failed") + "</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
-                errorHtml += "<h2>" + translate("Upload failed") + "</h2>";
-                errorHtml += "<p>" + translate("Only .bmp files starting with") + " <code>face_</code> " + translate("or") + " <code>hand_</code> " + translate("are accepted") + ".</p>";
+                String errorHtml = "<p>" + translate("Only .bmp files starting with") + " <code>face_</code> " + translate("or") + " <code>hand_</code> " + translate("are accepted") + ".</p>";
                 errorHtml += "<p>" + translate("Please also check the available space") + ".</p>";
-                errorHtml += "<a href='/upload'><button type='button'>" + translate("Try again") + "</button></a></body></html>";
-                webserver.send(400, "text/html", errorHtml);
+                errorHtml += "<a href='/upload'><button type='button'>" + translate("Try again") + "</button></a>";
+                webserver.send(400, "text/html", simpleMessagePage(translate("Upload failed"), errorHtml));
             }
             }, handleFileUpload);
 
@@ -3334,11 +3715,9 @@
             if (uploadSuccess) {
                 // Sicherheitsprüfung auf Dateinamenmuster
                 if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
-                    String errorHtml = "<!DOCTYPE html><html><head><title>" + translate("Upload Failed") + "</title><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:Arial;text-align:center;'>";
-                    errorHtml += "<h2>" + translate("Upload failed") + "</h2>";
-                    errorHtml += "<p>" + translate("Only .bmp files starting with") + " <code>hand_</code> " + translate("are accepted for handset upload") + ".</p>";
-                    errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a></body></html>";
-                    webserver.send(400, "text/html", errorHtml);
+                    String errorHtml = "<p>" + translate("Only .bmp files starting with") + " <code>hand_</code> " + translate("are accepted for handset upload") + ".</p>";
+                    errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>";
+                    webserver.send(400, "text/html", simpleMessagePage(translate("Upload failed"), errorHtml));
                     return;
                 }
                 String setId = webserver.arg("set");
@@ -3352,7 +3731,7 @@
                 redirectTo("/handsets?msg=Hand%20set%20uploaded");
             }
             else {
-                webserver.send(500, "text/html", " Upload failed!<br><a href='/handsets'>Try again</a>");
+                webserver.send(500, "text/html", simpleMessagePage(translate("Upload failed"), "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>"));
             }
             }, handleFileUpload);
 
@@ -3409,7 +3788,7 @@
 
         // ESP neu starten
         webserver.on("/reboot", HTTP_GET, []() {
-            webserver.send(200, "text/html", "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='10; url=/'><title>Rebooting</title></head><body style='font-family:Arial;text-align:center;'><h2>" + translate("Rebooting...") + "</h2><p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p></body></html>");
+            webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "<p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>", "<meta http-equiv='refresh' content='10; url=/'>"));
             espReboot();
             });
 
@@ -3477,9 +3856,7 @@
             char timeStr[32];
             strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
 
-            String html = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3; url=/'>"
-                "<title>Time Synced</title></head><body style='font-family:Arial;text-align:center;'>"
-                "<h2>" + translate("Time synced") + "</h2><p>" + String(timeStr) + "</p><p>" + translate("Returning to main page in 3 seconds") + ".</p></body></html>";
+            String html = simpleMessagePage(translate("Time synced"), "<p>" + String(timeStr) + "</p><p>" + translate("Returning to main page in 3 seconds") + ".</p>", "<meta http-equiv='refresh' content='3; url=/'>");
 
             webserver.send(200, "text/html", html);
             });

@@ -12,7 +12,7 @@
     // Aktiviert WPS (Push-Button-Methode) am ESP32 und startet den Verbindungsversuch
     void startWPS() {
         if (esp_wifi_wps_enable(&wps_config) == ESP_OK) {
-            if (esp_wifi_wps_start(0) == ESP_OK) {           
+            if (esp_wifi_wps_start(0) == ESP_OK) {
                 DEBUG_PRINTLN("[WPS] WPS started. Please press the WPS button on the router");
             }
             else {
@@ -25,11 +25,31 @@
     }
 
 
+    // ### Verifiziertes Preferences-Schreiben #############################
+    // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
+    // um einen (z.B. durch vollen NVS-Namespace) fehlgeschlagenen Schreibvorgang
+    // zu erkennen, statt ihn erst nach einem Neustart als "Eintrag verschwunden"
+    // zu bemerken. Gibt true zurueck, wenn der zurueckgelesene Wert dem
+    // geschriebenen Wert entspricht.
+    // (Hier statt in prefs_keys.h implementiert, da dort weder "preferences"
+    // aus globals.h noch das Makro DEBUG_PRINTLN aus config.h bekannt sind -
+    // prefs_keys.h wird in uhr3.ino vor beiden eingebunden.)
+    bool putStringVerified(const char* key, const String& value) {
+        preferences.putString(key, value);
+        String readBack = preferences.getString(key, "");
+        if (readBack != value) {
+            DEBUG_PRINTLN("[Preferences] Verifikation fehlgeschlagen fuer Key '" + String(key) + "'");
+            return false;
+        }
+        return true;
+    }
+
+
     // Startet WPS und wartet wiederholt auf eine erfolgreiche Verbindung; gibt die
     // per WPS empfangenen WLAN-Zugangsdaten (SSID/Passwort) auf der seriellen Konsole aus
     void scanWPS() {
         Serial.println("[WPS] ");
-        startWPS(); // WPS starten  
+        startWPS(); // WPS starten
 
         for (int i = 0; i < 1000000; i++) {
 
@@ -38,11 +58,12 @@
             while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_10m) {
                 delay(100);
             }
-        
+
             if (WiFi.status() == WL_CONNECTED) {
                 Serial.println("");
                 Serial.println("SSID: " + WiFi.SSID());
-                Serial.println("PASS: " + WiFi.psk());
+                // Passwort wird bewusst NICHT auf der Konsole/im Log ausgegeben (Sicherheit) -
+                // es wird ja bereits automatisch in den Preferences gespeichert.
                 delay(5000); // 5 Sekunden warten, damit der Nutzer die Daten notieren kann
                 WiFi.disconnect(); // Verbindung trennen, damit der normale Verbindungsprozess mit den gespeicherten SSIDs funktioniert
                 startWPS(); // WPS erneut starten, damit es für zukünftige Verbindungsversuche bereit ist
@@ -54,7 +75,7 @@
     // überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
     bool checkWiFiReconnect() {
         static unsigned long lastAttempt = 0;
-    
+
         unsigned long now = millis();
         if (now - lastAttempt < WAIT_1h) return true;
         lastAttempt = now;
@@ -73,10 +94,10 @@
                 // return false; // Verbindung hat kein Internet, Reconnect versuchen
             }
         }
-     
+
         DEBUG_PRINTLN("[WiFi] Disconnected. Attempting reconnect..");
         WiFi.disconnect();
-        connectWiFi(preferences.getInt(PK_LAST_WLAN,0), false);    
+        connectWiFi(preferences.getInt(PK_LAST_WLAN,0), false);
         return WiFi.status() == WL_CONNECTED;
     }
 
@@ -181,7 +202,7 @@
         WiFi.mode(WIFI_MODE_STA);
         WiFi.begin();
 
-    
+
         // WPS versuchen, wenn möglich
         // leeres oder letztes WLAN finden
         String ssidKey;
@@ -192,11 +213,11 @@
             // Dynamisch berechnete Schlüssel
             ssidKey = pkSsid(lastWlanNr);
             passKey = pkPass(lastWlanNr);
-                
+
             if (preferences.getString(ssidKey.c_str(), "") == "") {
                 break; // Beende die Schleife, wenn ein leerer  gefunden wird, ansonsten letzter
-            }        
-        }    
+            }
+        }
         if (lastWlanNr >= MAX_WLAN) {
             // Alle Slots belegt: letzten gueltigen Slot (MAX_WLAN-1) ueberschreiben,
             // statt eines ungueltigen Index ausserhalb des Arrays (war zuvor ein Bug).
@@ -204,7 +225,7 @@
             ssidKey = pkSsid(lastWlanNr);
             passKey = pkPass(lastWlanNr);
         }
-    
+
         //setCS1(LOW);
         tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
         tft.fillScreen(TFT_BLACK);
@@ -212,11 +233,30 @@
         tft.setTextSize(TFT_TEXT_SIZE);
         tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
         tft.println("check for WPS..");
-                    
-        startWPS(); // WPS starten  
-    
+
+        startWPS(); // WPS starten
+
+        // Statische Beschriftung einmalig zeichnen; nur die Zahl wird danach
+        // pro Sekunde aktualisiert (verhindert Flimmern durch volles Neuzeichnen).
+        int countdownY = CLOCK_HEIGHT / 2;
+        int lastSecondsShown = -1;
+
+        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+        tft.setTextSize(TFT_TEXT_SIZE);
+        tft.setCursor(10, countdownY);
+        tft.print("AP mode in ");
+        int countdownNumX = tft.getCursorX();
+
         long wpsWaitMillis = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_30s) { 
+        while (WiFi.status() != WL_CONNECTED && (millis() - wpsWaitMillis) <= WAIT_30s) {
+            int secondsLeft = (WAIT_30s - (millis() - wpsWaitMillis)) / 1000;
+            if (secondsLeft != lastSecondsShown) {
+                lastSecondsShown = secondsLeft;
+                tft.fillRect(countdownNumX, countdownY, CLOCK_WIDTH - countdownNumX, CLOCK_HEIGHT / 8, TFT_BLACK);
+                tft.setCursor(countdownNumX, countdownY);
+                tft.print(secondsLeft);
+                tft.println("s");
+            }
             delay(100);
         }
         if (WiFi.status() == WL_CONNECTED) {
@@ -258,7 +298,7 @@
 
             tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
             tft.println("found WPS... reboot");
-        
+
             delay(WAIT_5s);
             espReboot();
         }
@@ -310,12 +350,12 @@
         softAPIPstart = millis();
 
         ipAddress = WiFi.softAPIP().toString();
-      
+
     }
 
 
-    // Versucht, eine Verbindung zum WLAN herzustellen, basierend auf den gespeicherten SSID- und Passwort-Paaren. 
-    // Zeigt während des Verbindungsversuchs Informationen auf dem Display an und überprüft die 
+    // Versucht, eine Verbindung zum WLAN herzustellen, basierend auf den gespeicherten SSID- und Passwort-Paaren.
+    // Zeigt während des Verbindungsversuchs Informationen auf dem Display an und überprüft die
     // Internet-Konnektivität nach erfolgreicher Verbindung.
     int connectWiFi(int number, bool verboseMode) {
 #ifdef TFT_Backlight
@@ -328,9 +368,9 @@
             return NOT_CONNECTED;
         }
 
- 
 
-    
+
+
         // DEBUG_PRINTLN("[WiFi] Trying SSID" + String(number+1) + ": " + wifiSsid[number]);
 
         // Wenn verboseMode aktiviert ist, zeige die Verbindungsinformationen auf dem Display an
@@ -363,9 +403,9 @@
 
         WiFi.disconnect();
         WiFi.mode(WIFI_MODE_NULL);
-    
+
         WiFi.mode(WIFI_STA);
-        // MAC-Adresse holen    
+        // MAC-Adresse holen
         WiFi.macAddress(mac);
 
         String customHostname = preferences.getString(PK_HOSTNAME, "");
@@ -384,13 +424,13 @@
         if (rtcOk == RTC_AVAILABLE) {
             waitTime = WAIT_15s; // 15 Sekunden
         }
-    
-    
+
+
         DEBUG_PRINTLN("[WiFi] Attempting connection with a timeout of " + String(waitTime / 1000) + " seconds..");
         WiFi.begin(wifiSsid[number].c_str(), wifiPass[number].c_str());
         unsigned long start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < waitTime) {
-         
+
             if (loggingEnabled) Serial.print("");
             if (verboseMode) {
                 animateCursor(tft, 20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
@@ -404,11 +444,11 @@
         if (loggingEnabled) Serial.println();
 
         if (WiFi.status() != WL_CONNECTED) {
-            DEBUG_PRINTLN("[WiFi] Connection failed or timed out");       
+            DEBUG_PRINTLN("[WiFi] Connection failed or timed out");
         } else {
             DEBUG_PRINTLN("[WiFi] Connected successfully");
         }
-    
+
         if (WiFi.status() == WL_CONNECTED) {
 
             // mDNS initialisieren
@@ -416,7 +456,7 @@
                 DEBUG_PRINTLN("[WIFI] Error starting mDNS");
             }
             else {
-               MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80  
+               MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80
             }
 
             DEBUG_PRINTLN("[WiFi] Connected to: " + wifiSsid[number]);
@@ -439,14 +479,14 @@
             }
 
             if (verboseMode) {
-                showWlanCredentials(wifiSsid[number]);           
+                showWlanCredentials(wifiSsid[number]);
             }
 
             if (preferences.getInt(PK_LAST_WLAN, -1) != number) {
-                preferences.putInt(PK_LAST_WLAN, number);        
+                preferences.putInt(PK_LAST_WLAN, number);
                 DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
             }
-              
+
           //  if (!WiFi.softAPgetStationNum()) updateClock();
 
             return CONNECTED;
@@ -456,7 +496,7 @@
     }
 
 
-    // Prüft die Internet-Konnektivität durch Verbindungsversuch zu einem konfigurierten Server.    
+    // Prüft die Internet-Konnektivität durch Verbindungsversuch zu einem konfigurierten Server.
     bool isInternetReachable(String pingServer) {
 
         if (WiFi.status() != WL_CONNECTED) {
@@ -464,14 +504,14 @@
             return false;
         }
 
-        WiFiClient client;    
-    
+        WiFiClient client;
+
         int pingPort = 80; // Standardport
 
-    if (pingServer.indexOf(':') != -1) { 
+    if (pingServer.indexOf(':') != -1) {
         pingPort = pingServer.substring(pingServer.indexOf(':') + 1).toInt();
-        pingServer = pingServer.substring(0, pingServer.indexOf(':'));    
-    } 
+        pingServer = pingServer.substring(0, pingServer.indexOf(':'));
+    }
     // DEBUG_PRINTLN("[PING] Checking internet connectivity by connect to " + pingServer + ":" + pingPort); client.setTimeout(1);
     bool connected = client.connect(pingServer.c_str(), pingPort);
         if (connected) {
@@ -523,7 +563,7 @@
             if (pingHostname) {
                 tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
                 tft.println(String(hostname) + ".local");
-            }       
+            }
         }
         else {
             tft.println("Not connected");
@@ -534,7 +574,7 @@
     // --- Funktion: Löscht die gespeicherten WiFi-Konfigurationen ---
     void eraseWiFiConfig() {
         // WLAN trennen und komplett deaktivieren
-        WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen    
+        WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen
         delay(100);
         WiFi.mode(WIFI_OFF);
         delay(WAIT_1s);
@@ -566,7 +606,7 @@
     // --- Funktion: Startet einen asynchronen WiFi-Scan ---
     void startWiFiScan() {
         if (!isScanning) {
-      
+
             isScanning = true;
 
             WiFi.mode(WIFI_STA);
@@ -592,18 +632,19 @@
 
                 // Vorherige Ergebnisse löschen
                 for (int i = 0; i < MAX_WLAN; i++) {
-                    availableNetworks[i].ssid = "";  
+                    availableNetworks[i].ssid = "";
                     availableNetworks[i].rssi = 0;
                     availableNetworks[i].enc = 0;
                 }
+                foundNetworkCount = 0; // WICHTIG: zuruecksetzen, sonst summiert sich der Zaehler ueber mehrere Scans auf und /api/scanwifi liest ueber das availableNetworks[MAX_WLAN]-Array hinaus (Absturz/leere Anzeige)
 
-                int16_t n = scanStatus; 
+                int16_t n = scanStatus;
                 DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
                 if (n > MAX_WLAN) {
-                    if (loggingEnabled) DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");            
+                    if (loggingEnabled) DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
                     n = MAX_WLAN;
                 }
-           
+
                 for (int i = 0; i < n; i++) {
                     availableNetworks[i].ssid = WiFi.SSID(i);
                     availableNetworks[i].rssi = WiFi.RSSI(i);
@@ -645,7 +686,7 @@
 
     // --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
     void scanAndCacheNetworks() {
-    
+
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
         tft.setTextSize(TFT_TEXT_SIZE);
@@ -654,10 +695,10 @@
 
         DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks..");
 #ifdef LED_BOARD
- 
+
 #endif
         int networkCount = WiFi.scanNetworks();
-        DEBUG_PRINTLN("[WiFi] found " + String(networkCount) + " WiFi networks:");    
+        DEBUG_PRINTLN("[WiFi] found " + String(networkCount) + " WiFi networks:");
         if (networkCount > MAX_WLAN) {
             DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
             networkCount = MAX_WLAN;
@@ -671,13 +712,11 @@
             foundNetworkCount++;
 
             DEBUG_PRINTLN("  [WiFi] " + availableNetworks[i].ssid +
-                          " (" + String(availableNetworks[i].rssi) + " dBm) " + 
+                          " (" + String(availableNetworks[i].rssi) + " dBm) " +
                           (availableNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
-        }    
+        }
 
         WiFi.scanDelete(); // Ergebnisse löschen
         DEBUG_PRINTLN("[WiFi] done");
-  
+
     }
-
-

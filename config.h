@@ -192,5 +192,12 @@
     // analog zum GC9A01-Block oben ergaenzen.
 #endif
 
+    // --- Web: Live-Vorschau (/preview-Route) ---
+    // Groesse (Breite/Hoehe in Pixeln) der grossen Live-Zeiger-Vorschau auf der
+    // /preview-Webseite (siehe webserver_routes.h) - zentral hier hinterlegt
+    // statt als magische Zahl im Routencode, damit sich die Groesse zum Testen
+    // an einer Stelle aendern laesst.
+#define LIVE_PREVIEW_SIZE 400
+
     // Transparent in R5G6B5 RGB(16)
 #define TRANSPARENT_COLOR 0x0120    

@@ -27,6 +27,8 @@
 5. WiFi and NTP Integration
 •	WiFi:
 •	Supports up to 15 WiFi networks.
+•	Scanning for networks shows signal strength and whether each network is open or secured.
+•	Hostname and all WiFi network settings live on their own WLAN tab on the main settings page - on first boot or whenever the last known network is unavailable, that tab opens automatically.
 •	Automatically reconnects if the connection is lost (configurable).
 •	Individual networks can be deleted directly from the web interface - remaining entries automatically move up to close the gap.
 •	Add a new network via WPS with a single button on the web interface - no need to know the SSID/password in advance.
@@ -36,6 +38,8 @@
 •	Nightly time synchronization at 02:00 and 03:00.
 ---
 6. Web Interface
+•	Redesigned dark-themed, single-page settings hub: Status, WLAN, Clock Setup, Brightness and Time/NTP are now tabs on one page (no more clicking through separate pages for basic settings).
+•	File-heavy management screens (Presets, Clock Face, Hand Set, File Manager, Live Preview, Factory Reset) remain separate pages, reachable from the navigation bar.
 •	A built-in web interface allows:
 •	Uploading, downloading, and managing clock faces and hands.
 •	Adjusting brightness, time zone, and display rotation.
