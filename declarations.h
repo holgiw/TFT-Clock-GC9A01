@@ -1,9 +1,16 @@
 #pragma once
     // ### Forward-Deklarationen aller Funktionen #########################
+
+    // ### Forward declarations of all functions #########################
     // Ersetzt die automatische Prototyp-Generierung der Arduino-IDE (scannt nur die .ino), da der Sketch auf mehrere .h-Dateien aufgeteilt ist -
     // stellt sicher, dass jede Funktion unabhaengig von der #include-Reihenfolge aufrufbar ist. Sortiert wie die jeweilige .h-Datei.
 
+    // Replaces the Arduino IDE's automatic prototype generation (which only scans the .ino), since the sketch is split across multiple .h files -
+    // ensures every function is callable regardless of #include order. Sorted like the respective .h file.
+
     // --- wifi_manager.h: WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect ---
+
+    // --- wifi_manager.h: WiFi: connection setup, access point, scan, reconnect ---
     void startWPS() ;
     void scanWPS() ;
     bool checkWiFiReconnect() ;
@@ -20,6 +27,8 @@
     void scanAndCacheNetworks() ;
 
     // --- time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone ---
+
+    // --- time_sync.h: Time: RTC, DCF77, NTP client & server, timezone ---
     void IRAM_ATTR isr() ;
     void loadTimeFromRTC() ;
     void initializeNtpServers() ;
@@ -37,6 +46,8 @@
     void createNtpResponse(byte* packet, time_t currentTime) ;
 
     // --- display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch ---
+
+    // --- display.h: Display: clock face, hands, sprites, brightness, touch ---
     void setCS1(bool state) ;
     void setCS2(bool state) ;
     uint16_t setPixelBrightness(uint16_t pixel) ;
@@ -90,6 +101,8 @@
     void disableTouch() ;
 
     // --- presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen ---
+
+    // --- presets_manager.h: Presets: load/save/switch predefined display configurations ---
     String stripRotationParam(const String& url) ;
     void loadPresets() ;
     void savePresets() ;
@@ -100,13 +113,20 @@
     void switchToNextPreset() ;
 
     // --- prefs_keys.h / wifi_manager.h: verifiziertes Preferences-Schreiben ---
+
+    // --- prefs_keys.h / wifi_manager.h: verified Preferences writing ---
     // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
-    // um einen (z.B. durch vollen NVS-Namespace) fehlgeschlagenen Schreibvorgang
-    // zu erkennen, statt ihn erst nach einem Neustart als "Eintrag verschwunden"
-    // zu bemerken.
+    // um einen fehlgeschlagenen Schreibvorgang (z.B. durch vollen NVS-Namespace) zu erkennen,
+    // statt ihn erst nach einem Neustart als "Eintrag verschwunden" zu bemerken.
+
+    // Writes a string to Preferences and immediately reads it back,
+    // to detect a failed write (e.g. due to a full NVS namespace)
+    // instead of only noticing it as a "missing entry" after a restart.
     bool putStringVerified(const char* key, const String& value) ;
 
     // --- webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung ---
+
+    // --- webserver_routes.h: Web interface: all HTTP routes & HTML generation ---
     String generateHtmlHeader(String extraHead = "") ;
     String simpleMessagePage(String heading, String bodyHtml, String extraHead = "") ;
     String generateHtmlStatus() ;
@@ -126,6 +146,8 @@
     void handlePresetMergeUpload() ;
 
     // --- system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen ---
+
+    // --- system_utils.h: System functions: buttons, logging, reset, restart, helper functions ---
     void checkButton() ;
     void checkWeeklyRestart() ;
     void eraseAllNVS() ;

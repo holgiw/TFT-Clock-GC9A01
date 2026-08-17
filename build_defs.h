@@ -3,7 +3,11 @@
 #define BUILD_DEFS_H
 
 
+// Beispiel für den __DATE__-String: "Jul 27 2012"
+
 // Example of __DATE__ string: "Jul 27 2012"
+// Beispiel für den __TIME__-String: "21:06:19"
+
 // Example of __TIME__ string: "21:06:19"
 
 #define COMPUTE_BUILD_YEAR \
@@ -50,7 +54,7 @@
         (BUILD_MONTH_IS_OCT) ? 10 : \
         (BUILD_MONTH_IS_NOV) ? 11 : \
         (BUILD_MONTH_IS_DEC) ? 12 : \
-        /* error default */  99 \
+        /* Fehler-Standardwert / error default */  99 \
     )
 
 #define COMPUTE_BUILD_HOUR ((__TIME__[0] - '0') * 10 + __TIME__[1] - '0')
