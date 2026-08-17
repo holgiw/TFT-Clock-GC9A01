@@ -99,8 +99,16 @@
     void resetAllPresets() ;
     void switchToNextPreset() ;
 
+    // --- prefs_keys.h / wifi_manager.h: verifiziertes Preferences-Schreiben ---
+    // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
+    // um einen (z.B. durch vollen NVS-Namespace) fehlgeschlagenen Schreibvorgang
+    // zu erkennen, statt ihn erst nach einem Neustart als "Eintrag verschwunden"
+    // zu bemerken.
+    bool putStringVerified(const char* key, const String& value) ;
+
     // --- webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung ---
-    String generateHtmlHeader() ;
+    String generateHtmlHeader(String extraHead = "") ;
+    String simpleMessagePage(String heading, String bodyHtml, String extraHead = "") ;
     String generateHtmlStatus() ;
     String generateFlashMessage() ;
     String generateNavigation() ;

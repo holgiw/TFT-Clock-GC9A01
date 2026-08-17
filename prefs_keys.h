@@ -77,3 +77,10 @@
 
     // Liefert den Preferences-Key fuer die URL des Presets an Index i
     inline String pkPresetUrl(int i)    { return "preset" + String(i) + "_url"; }
+
+    // HINWEIS: putStringVerified() wurde absichtlich NICHT hier definiert, obwohl
+    // es inhaltlich hierher passen wuerde: prefs_keys.h wird in uhr3.ino VOR
+    // globals.h (Objekt "preferences") und VOR config.h (Makro DEBUG_PRINTLN)
+    // eingebunden, beide waeren an dieser Stelle noch nicht bekannt. Die
+    // Implementierung steht daher in wifi_manager.h (siehe dort), das erst nach
+    // globals.h und config.h eingebunden wird.
