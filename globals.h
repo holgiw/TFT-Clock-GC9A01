@@ -3,12 +3,22 @@
     // Benoetigt config.h (davor eingebunden). Sortiert nach Modul (WLAN, Zeit/DCF77/RTC, Zifferblatt/Display, Helligkeit, Touch, Presets, System).
     // Enthaelt bewusst echte Definitionen statt extern-Deklarationen, da nur von uhr3.ino aus eingebunden (eine Uebersetzungseinheit) - hatte sonst zu Problemen gefuehrt.
 
+    // ### Global objects, variables, and data structures #################
+    // Requires config.h (included beforehand). Sorted by module (WiFi, time/DCF77/RTC, clock face/display, brightness, touch, presets, system).
+    // Contains real definitions instead of extern declarations on purpose, since only included from uhr3.ino (one translation unit) - otherwise caused problems.
+
     // --- System / Allgemein ---
+
+    // --- System / General ---
     String currentLanguage = "de"; // Standardmäßig Deutsch
+
+    // Default: German
 
     char version[20]; // Build-Version ("YYYY-MM-DD HH:MM:SS" = 19 Zeichen + Nullterminator)
 
-    bool loggingEnabled = false;  
+    // Build version ("YYYY-MM-DD HH:MM:SS" = 19 chars + null terminator)
+
+    bool loggingEnabled = false;
 
     bool initial = true;
 
@@ -16,6 +26,8 @@
 
 
     // --- Kern-Hardwareobjekte (TFT, Webserver, Preferences, RTC, ...) ---
+
+    // --- Core hardware objects (TFT, web server, preferences, RTC, ...) ---
     TFT_eSPI tft = TFT_eSPI();
     WebServer webserver(80);
     Preferences preferences;
@@ -27,6 +39,8 @@
 #endif
 
     // --- WLAN ---
+
+    // --- WiFi ---
 #define MAX_WLAN 15
     String wifiSsid[MAX_WLAN];
     String wifiPass[MAX_WLAN];
@@ -35,28 +49,47 @@
 #define CONNECTED 1
 #define CONNECTED_NO_INTERNET 2
 
-    bool wifiActive = true;    
+    bool wifiActive = true;
 
     // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
     // uhr3.ino und /api/startWPS in webserver_routes.h) - laeuft asynchron, damit
     // der Webserver waehrend der WPS-Aushandlung nicht blockiert.
+
+    // State for a WPS request triggered by a web button (see loop() in uhr3.ino
+    // and /api/startWPS in webserver_routes.h) - runs asynchronously so the web
+    // server isn't blocked during WPS negotiation.
     // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
     // uhr3.ino und /api/startWPS in webserver_routes.h) - event-basiert statt
     // Status-Polling, da WiFi.onEvent() laut offiziellem Espressif-WPS-Beispiel
     // der zuverlaessige Weg ist, den Erfolg/Fehlschlag von WPS zu erkennen.
+
+    // State for a WPS request triggered by a web button (see loop() in uhr3.ino
+    // and /api/startWPS in webserver_routes.h) - event-based instead of status
+    // polling, since WiFi.onEvent() is, per the official Espressif WPS example,
+    // the reliable way to detect WPS success/failure.
     bool wpsPending = false;
     unsigned long wpsStartMillis = 0;
     String wpsPreviousSsid = ""; // Verbindung vor dem WPS-Start, um danach ggf. dorthin zurueckzuwechseln
+
+    // Connection before the WPS start, to switch back to it afterward if needed
     volatile bool wpsSuccessEvent = false; // wird im WiFi-Event-Callback gesetzt (anderer Kontext!)
+
+    // set in the WiFi event callback (different context!)
     volatile bool wpsFailedEvent = false;
 
     // MAC Adresse
+
+    // MAC address
     uint8_t mac[6];
     char hostname[32];
     bool pingHostname = false;
 
     bool softAPIP = false;  // Flag für SoftAP IP
+
+    // Flag for SoftAP IP
     long softAPIPstart = 0;  // Startzeit für SoftAP IP
+
+    // Start time for SoftAP IP
 
     struct WifiNetwork {
         String ssid;
@@ -68,27 +101,50 @@
     bool isScanning = false;
 
     // --- Zeit, NTP, DCF77, RTC ---
+
+    // --- Time, NTP, DCF77, RTC ---
     // NTP-Server-Port
+
+    // NTP server port
     const int NTP_PORT = 123;
     // NTP-Paketgröße
+
+    // NTP packet size
     const int NTP_PACKET_SIZE = 48;
     byte ntpPacket[NTP_PACKET_SIZE];
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
     bool dcf77Flank = false; // false = fallende Flanke, true = steigende Flanke
+
+    // false = falling edge, true = rising edge
     DCF77 dcf = DCF77(DCF77_DATAPIN, DCF77_DATAPIN, dcf77Flank);
     volatile uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale (wird in der ISR verändert)
 
+    // Number of received DCF77 signals (modified in the ISR)
+
     volatile bool dcfTimeFound = false; // wird in der ISR gelesen/verändert
+
+    // read/modified in the ISR
     time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
+
+    // Unix timestamp of the last successful DCF77 sync (0 = never)
 
 #endif
 
     unsigned long lastNTPUpdate = 0; // Zeitpunkt des letzten RTC-Updates
-    unsigned long lastDCFUpdate = 0; // Wartezeit nach DCF77-Update, bevor RTC aktualisiert wird (ms)   
+
+    // Timestamp of the last RTC update
+    unsigned long lastDCFUpdate = 0; // Wartezeit nach DCF77-Update, bevor RTC aktualisiert wird (ms)
+
+    // Wait time after a DCF77 update before the RTC is updated (ms)
     unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
+
+    // Timestamp of the last RTC update
     unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten ERFOLGREICHEN NTP-Synchronisation (0 = noch nie); DCF77 uebernimmt die Systemzeit nur, wenn NTP seit laengerer Zeit nicht erfolgreich war
+
+    // Timestamp (millis()) of the last SUCCESSFUL NTP sync (0 = never); DCF77 only
+    // takes over the system time if NTP hasn't succeeded for a while
 
     unsigned long lastNTPRetry = 0;
 
@@ -109,6 +165,8 @@
     String i2cAddr = "";
 
     // --- Zifferblatt / Display ---
+
+    // --- Clock face / Display ---
     String tftType = "UNKNOWN";
 
     TFT_eSprite backgroundSprite = TFT_eSprite(&tft);
@@ -127,6 +185,8 @@
     int secondHandWidth = HAND_WIDTH;
 
     // nabe
+
+    // hub
     uint16_t hubColor = 0;
     uint8_t hubSize = 0;
 
@@ -144,14 +204,22 @@
     // Cache: clockFaceBuffer bereits mit currentBrightness vorberechnet (siehe
     // loadClockFace()) - vermeidet die teure Pixel-Helligkeitsanpassung bei
     // jedem Tick, obwohl sich die Helligkeit dazwischen fast nie aendert.
+
+    // Cache: clockFaceBuffer is pre-adjusted for currentBrightness (see
+    // loadClockFace()) - avoids the expensive per-pixel brightness adjustment
+    // on every tick, even though brightness rarely changes in between.
     uint16_t* clockFaceBrightBuffer = nullptr;
 
     bool cs = true;
 
     // --- Helligkeit / Fotowiderstand (ADC) ---
+
+    // --- Brightness / photoresistor (ADC) ---
     bool adcInverted = false; // Standardmäßig nicht invertiert
 
-    bool useAdc = false; 
+    // Not inverted by default
+
+    bool useAdc = false;
     bool photoresistorFound = false;
 
     uint8_t currentBrightness = 255;
@@ -159,34 +227,62 @@
     uint8_t targetBrightness = 255;
     int lowThreshold = 40;
     int highThreshold = 60;
-    uint8_t minBrightness = 100;  // 
-    uint8_t maxBrightness = 255;  // Obergrenze 
+    uint8_t minBrightness = 100;  //
+    uint8_t maxBrightness = 255;  // Obergrenze
+
+    // Upper limit
 
     // Zeitabhängige Helligkeit
+
+    // Time-dependent brightness
     uint8_t brightStartHour = 8;       // inkl. (z.B. 8)
+
+    // inclusive (e.g. 8)
     uint8_t brightEndHour = 22;        // exkl. (z.B. 20)
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
+    // exclusive (e.g. 20)
+
+#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
     float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit
+
+    // Gamma correction for brightness
 #endif
 
 #define ADC_SMOOTHING 20
     int adcHistory[ADC_SMOOTHING];
     int adcIndex = 0;
     int currentAdcAvg = 0;  // global definieren
+
+    // define globally
     int currentLightPercent = 0;  // global speichern für Anzeige
+
+    // store globally for display
+
+    // --- Touch ---
 
     // --- Touch ---
     // --- Touch / Debounce State ---
+
+    // --- Touch / debounce state ---
     unsigned long touchLastMillis = 0;
     const unsigned long TOUCH_DEBOUNCE_MS = 300;
     bool touchLastState = false;
     // --- Touch enable flag: aktivieren erst nach Setup-Initialisierung ---
+
+    // --- Touch enable flag: only enabled after setup initialization ---
     bool touchEnabled = false;
     unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
+
+    // Timestamp when touch is enabled (ms)
     bool useTouch = false; // Touch verwenden
 
+    // Use touch
+
     // --- Presets ---
+
+    // --- Presets ---
+    // Presets
+
     // Presets
 #define MAX_PRESETS 50
     struct Preset {
@@ -196,11 +292,15 @@
     Preset presets[MAX_PRESETS];
 
     // --- Datei-Upload / Wartung ---
+
+    // --- File upload / maintenance ---
     File uploadFile;
     String uploadFilePath = "";
     bool uploadSuccess = false;
 
     // --- Presets-Import (separat vom BMP-Upload oben, um Statuskonflikte zu vermeiden) ---
+
+    // --- Presets import (separate from the BMP upload above, to avoid status conflicts) ---
     File presetImportFile;
     bool presetImportSuccess = false;
     const char* PRESET_IMPORT_TMP_PATH = "/tmp_presets_import.txt";
@@ -209,4 +309,6 @@
     int currentWeek = -1;
 
     //Übersetzungen fÜr verschiedene Sprachen
+
+    // Translations for various languages
 #include "translation.h"

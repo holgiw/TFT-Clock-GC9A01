@@ -3,16 +3,29 @@
     // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
     // zentral in uhr3.ino VOR dieser Datei eingebunden).
 
+    // ### Web interface: all HTTP routes & HTML generation ##############
+    // Requires globals.h, config.h, prefs_keys.h and declarations.h (included
+    // centrally in uhr3.ino BEFORE this file).
+
     // Generiert den HTML-Header für die Weboberfläche
+
+    // Generates the HTML header for the web interface
     String generateHtmlHeader(String extraHead) {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-        html.reserve(2600);  // Header: enthaelt jetzt Dark-Theme + Tab-CSS, wird auf jeder Seite einmal aufgerufen
+        html.reserve(2600);  // Header: jetzt mit Dark-Theme + Tab-CSS, einmal pro Seite aufgerufen
+
+        // Header: now includes dark theme + tab CSS, called once per page
         // Dunkles Theme (angelehnt an eine externe Referenzvorlage) + CSS-only
         // Tab-Mechanik (verstecktes radio-Input + Label + allgemeiner
         // Geschwister-Selektor "~") fuer die neue Tab-Hub-Startseite ("/").
         // Gilt sitenweit (jede Seite bindet generateHtmlHeader() ein), damit
         // auch die weiterhin eigenstaendigen Seiten (Presets, Dateiverwaltung,
         // etc.) optisch einheitlich bleiben.
+
+        // Dark theme (inspired by an external reference) plus a CSS-only tab
+        // mechanism (hidden radio input + label + general sibling selector "~")
+        // for the new tab-hub home page ("/"). Applies site-wide (every page
+        // includes generateHtmlHeader()) so standalone pages stay visually consistent.
         html += "<style>";
         html += ":root{--bg:#10151a;--panel:#1a2129;--panel-border:#2a333c;--text:#e8edf2;--muted:#8f9ba7;--accent:#f5a623;--accent-dim:#7a530f;--ok:#3ddc84;--bad:#ff5c5c;}";
         html += "body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding-top:110px;background:var(--bg);color:var(--text);}";
@@ -23,14 +36,24 @@
         html += "h1,h2,h3{color:var(--text);}";
         html += "hr{border:0;height:1px;background-color:var(--panel-border);margin:20px 0;}";
         html += "table{margin:auto;border-collapse:collapse;}"; // Tabellen zentrieren
-        html += "th,td{padding:10px;text-align:center;border:1px solid var(--panel-border);}"; // Tabellenzellen 
+
+        // center tables
+        html += "th,td{padding:10px;text-align:center;border:1px solid var(--panel-border);}"; // Tabellenzellen
+
+        // table cells
         html += "li{text-align:left;color:var(--text);}"; // <li> linksbündig formatieren
+
+        // left-align <li>
         html += "a{color:var(--accent);}";
         html += "small{color:var(--muted);}";
         // --- CSS-only Tabs: Radios ausblenden, Panels standardmaessig
         // verstecken, per :checked ~ .panel-X wieder einblenden. Radios,
         // .tabnav und alle .panel-* muessen dafuer direkte Geschwister
         // sein (siehe Aufbau der neuen "/" Seite).
+
+        // --- CSS-only tabs: hide radios, hide panels by default, show them
+        // again via :checked ~ .panel-X. Radios, .tabnav and all .panel-* must
+        // be direct siblings for this (see markup of the new "/" page).
         html += ".tabctrl{display:none;}";
         html += ".tabnav{margin:20px auto;max-width:900px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;}";
         html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
@@ -42,6 +65,8 @@
         }
         html += "</style>" + extraHead + "</head><body>";
         // Seite benötigt JavaScript
+
+        // Page requires JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" + 
                 translate("JavaScript is disabled.This page requires JavaScript to work properly!") + "</div></noscript>";
         
@@ -52,6 +77,10 @@
     // Einfache Hinweisseite (Erfolg/Fehler/Status) im dunklen Theme - fuer Seiten wie
     // "Settings saved", "Rebooting..." oder Upload-Fehlermeldungen, die vorher eigene,
     // unformatierte <body style='font-family:Arial'>-Seiten ohne Dark-Theme hatten.
+
+    // Simple message page (success/error/status) in dark theme - for pages like
+    // "Settings saved", "Rebooting..." or upload error messages that previously had
+    // their own unstyled <body style='font-family:Arial'> pages without dark theme.
     String simpleMessagePage(String heading, String bodyHtml, String extraHead) {
         String html = generateHtmlHeader(extraHead);
         html += "<div class='card' style='max-width:480px;'>";
@@ -63,12 +92,16 @@
 
 
     /// Generiert den HTML-Statusabschnitt für die Weboberfläche
+
+    // Generates the HTML status section for the web interface
     String generateHtmlStatus() {
         setLedOn();
         size_t total = LittleFS.totalBytes();
         size_t used = LittleFS.usedBytes();
         String html;
         html.reserve(512);  // Statusleiste: klein
+
+        // status bar: small
         if (WiFi.getMode() == WIFI_STA) {
             html = translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong>";
             html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" +  + "'>http://" + ipAddress +"</a></strong> ";
@@ -83,6 +116,10 @@
         // Oben rechts fest positioniert, neben der Live-Vorschau (oben links) -
         // kompaktere Schrift, damit die paar Zeilen nicht mehr Hoehe brauchen
         // als das 90px hohe Vorschaubild gegenueber.
+
+        // Fixed top-right, next to the live preview (top-left) - smaller font so
+        // these few lines do not take up more height than the 90px-tall preview
+        // image next to them.
         String boxed = "<div style='position:fixed;top:0;left:110px;max-width:calc(55% + 70px);height:100px;box-sizing:border-box;background:#1a2129;color:#e8edf2;border:2px solid #2a333c;border-radius:8px;padding:4px 8px;font-size:0.78em;line-height:1.25;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
         boxed += html;
         boxed += "</div><hr>";
@@ -94,6 +131,8 @@
 
 
     // Navigationsleiste generieren
+
+    // Generate the navigation bar
     String generateNavigation() {
      /*   if (WiFi.getMode() != WIFI_STA) {
             DEBUG_PRINTLN("[HTML] Skipping HTML navigation");
@@ -109,6 +148,11 @@
         // generateNavigation()) - nutzt die tatsaechlich konfigurierten Zeiger-
         // Bitmaps, rotiert rein im Browser per Systemzeit, kein zusaetzlicher
         // Netzwerkverkehr zum ESP32 noetig ausser dem einmaligen Laden der Bilder.
+
+        // Live rotating hand widget top-left (replaces the previous static raster
+        // preview image), on every page (defined here in generateNavigation()) -
+        // uses the actually configured hand bitmaps, rotates purely in the browser
+        // via system time, no extra network traffic to the ESP32 besides the initial image load.
         {
             // WICHTIG: handHour/handMinute/handSecond enthalten nur den
             // eingebauten Standard-Zeigersatz. Ein benutzerdefinierter Satz
@@ -116,6 +160,12 @@
             // NICHT in diese Arrays - daher hier bei aktivem Custom-Set die
             // Datei selbst einlesen, damit die Vorschau 1:1 dem tatsaechlich
             // aktiven Zeigersatz aus den Preferences entspricht.
+
+            // IMPORTANT: handHour/handMinute/handSecond only contain the built-in
+            // default hand set. A custom set is loaded by loadHandSprites() directly
+            // into TFT sprite objects, NOT into these arrays - so with an active
+            // custom set, read the file itself here so the preview matches the
+            // actually active hand set from preferences exactly.
             String activeHandSet = preferences.getString(PK_HANDSET, "");
             uint16_t* previewHour = nullptr;
             uint16_t* previewMinute = nullptr;
@@ -156,11 +206,16 @@
 
             // Temporaere Puffer sofort wieder freigeben - werden nur fuer die
             // obige Kodierung benoetigt, nicht dauerhaft.
+
+            // Free temporary buffers right away - only needed for the encoding
+            // above, not permanently.
             if (previewHour) free(previewHour);
             if (previewMinute) free(previewMinute);
             if (previewSecond) free(previewSecond);
 
             // hubColor liegt als RGB565 vor (Displayformat) - fuer CSS in RGB888 umrechnen
+
+            // hubColor is in RGB565 (display format) - convert to RGB888 for CSS
             uint8_t hubR = ((hubColor >> 11) & 0x1F) * 255 / 31;
             uint8_t hubG = ((hubColor >> 5) & 0x3F) * 255 / 63;
             uint8_t hubB = (hubColor & 0x1F) * 255 / 31;
@@ -178,6 +233,12 @@
             // gesetzt wurde, aber optisch keinerlei sichtbare Wirkung zeigte.
             // Jetzt hat jedes Zeiger-Bild nur noch EINE Transform-Eigenschaft
             // (rotate), angewendet auf bereits korrekt skalierte Masse.
+
+            // Compute all sizes/positions directly PRE-SCALED (no more
+            // transform:scale() on a parent container - nesting scale() (parent)
+            // with rotate() (child) meant the rotation was set correctly in the
+            // DOM but had no visible effect). Now each hand image has only ONE
+            // transform property (rotate), applied to already correctly scaled sizes.
             float scaleFactor = 90.0 / CLOCK_WIDTH;
             int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
             int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
@@ -204,6 +265,8 @@
             nav += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
             nav += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
             nav += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";"; // aus der Firmware-Konstante FAST_SECOND uebernommen
+
+            // taken from the firmware constant FAST_SECOND
             nav += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
             nav += "  fetch('/api/currentTime').then(function(r) { return r.json(); }).then(function(t) {";
             nav += "    baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
@@ -212,6 +275,8 @@
             nav += "    var h, m, s, ms;";
             nav += "    if (haveBase) {";
             nav += "      var elapsed = (performance.now() - baseAt) / 1000;"; // Sekunden seit dem einmaligen Abruf der ESP32-Zeit
+
+            // seconds since the one-time fetch of the ESP32 time
             nav += "      var totalSec = baseH * 3600 + baseM * 60 + baseS + elapsed;";
             nav += "      h = Math.floor(totalSec / 3600) % 12;";
             nav += "      m = Math.floor(totalSec / 60) % 60;";
@@ -219,6 +284,8 @@
             nav += "      ms = (totalSec - Math.floor(totalSec)) * 1000;";
             nav += "    } else {";
             nav += "      var now = new Date();"; // Fallback, solange die ESP32-Zeit noch nicht eingetroffen ist
+
+            // fallback until the ESP32 time has arrived
             nav += "      h = now.getHours() % 12; m = now.getMinutes(); s = now.getSeconds(); ms = now.getMilliseconds();";
             nav += "    }";
             nav += "    var minuteDeg = smoothMinute ? (m + s / 60) * 6 : m * 6;";
@@ -229,10 +296,14 @@
             nav += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
             nav += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
             nav += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;"; // exakt wie easeInOutSine() in display.h
+
+            // exactly like easeInOutSine() in display.h
             nav += "      var smoothSec = Math.min(tickIndex + eased, 60);";
             nav += "      secDeg = smoothSec * 6;";
             nav += "    } else {";
             nav += "      secDeg = s * 6;"; // springt zur vollen Sekunde, keine Millisekunden-Glaettung - entspricht der echten Firmware
+
+            // jumps to the full second, no millisecond smoothing - matches the real firmware
             nav += "    }";
             nav += "    hourEls.forEach(function(el) { el.style.transform = 'rotate(' + hourDeg + 'deg)'; });";
             nav += "    minuteEls.forEach(function(el) { el.style.transform = 'rotate(' + minuteDeg + 'deg)'; });";
@@ -263,12 +334,19 @@
             String path;
             String label;
             String confirmMessage; // Optional: Bestätigungsnachricht
+
+            // optional: confirmation message
         } navItems[] = {
             // WiFi/Zeit/Helligkeit/Status sind jetzt Tabs auf "/" (siehe dortiger
             // Tab-Hub) und daher hier bewusst NICHT mehr gelistet - die Seiten
             // selbst (/wifi, /timezone_form, /brightness, /status) bleiben aber
             // als eigenstaendige Routen bestehen (Rueckwaertskompatibilitaet fuer
+
             // Lesezeichen/direkte Aufrufe).
+            // WiFi/time/brightness/status are now tabs on "/" (see the tab hub
+            // there) and are therefore deliberately no longer listed here - the
+            // pages themselves (/wifi, /timezone_form, /brightness, /status) still
+            // exist as standalone routes (backward compatibility for bookmarks/direct calls).
             {"/", translate("Main"), ""},
             {"/preview", translate("Live Preview"), ""},
             {"/presets", translate("Presets"), ""},
@@ -281,13 +359,19 @@
 
         String currentPath = webserver.uri(); // Aktueller Pfad der Seite
 
+        // current path of the page
+
         for (const auto& item : navItems) {
             if (item.path == currentPath) {
                 // Wenn der aktuelle Pfad mit dem Navigationseintrag übereinstimmt, nur Text anzeigen
+
+                // If the current path matches the nav entry, show plain text only
                 nav += "<span style=\"margin-right:15px; font-weight:bold;\">" + item.label + "</span> ";
             }
             else {
                 // Andernfalls als Link anzeigen
+
+                // Otherwise show as a link
                 nav += "<a href=\"" + item.path + "\" style=\"margin-right:15px;\"";
                 if (!item.confirmMessage.isEmpty()) {
                     nav += " onclick=\"return confirm('" + item.confirmMessage + "')\"";
@@ -298,12 +382,18 @@
             // Zeilenumbruch nach "Status" zur thematischen Trennung (Status/Betrieb
             // vs. Dateiverwaltung/Reset) - bewusst hier im Code statt in der
             // Übersetzung, da es reine Layout-Struktur ist, keine Textinhalt.
+
+            // Line break after "Status" for thematic separation (status/operation
+            // vs. file management/reset) - deliberately in code, not in the
+            // translation, since it is pure layout structure, not text content.
             if (item.path == "/status") {
                 nav += "<br>";
             }
         }
 
         nav += "</div>"; // Ende .navLinks
+
+        // end .navLinks
         nav += "</div>";
            
         return nav;
@@ -313,6 +403,10 @@
     // Zeigt eine einheitliche Erfolgsmeldung, wenn die Route per Weiterleitung
     // einen "msg"-Parameter mitgibt (translate()-Schluessel, automatisch uebersetzt) -
     // blendet sich nach ein paar Sekunden per JS aus, ein Muster fuer alle Aktionen.
+
+    // Shows a uniform success message when the route redirect passes a
+    // "msg" parameter (translate() key, auto-translated) - fades out after
+    // a few seconds via JS, a pattern used for all actions.
     String generateFlashMessage() {
         if (!webserver.hasArg("msg")) return "";
         String message = translate(webserver.arg("msg"));
@@ -325,9 +419,13 @@
 
 
     // Sprachselector generieren
+
+    // Generate the language selector
     String generateLanguageSelector() {
         String html = "<form method='POST' action='/setLanguage'>";
         html.reserve(512);  // Sprachauswahl: klein
+
+        // language selector: small
         html += "<label for='lang'>Language/Sprache/Langue:</label>";
         html += "<select name='lang' onchange='this.form.submit()'>";
         html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
@@ -342,6 +440,9 @@
 
     // Vergleicht zwei Dateinamen "natuerlich": Ziffernfolgen werden als Zahl
     // verglichen statt zeichenweise, damit z.B. "hand_set2..." vor "hand_set10..." einsortiert wird.
+
+    // Compares two filenames "naturally": digit sequences are compared as
+    // numbers instead of character by character, so e.g. "hand_set2..." sorts before "hand_set10..."
     bool naturalLess(const String& a, const String& b) {
         unsigned int i = 0, j = 0;
         while (i < a.length() && j < b.length()) {
@@ -356,6 +457,8 @@
                 long valB = numB.toInt();
                 if (valA != valB) return valA < valB;
                 if (numA != numB) return numA < numB; // z.B. fuehrende Nullen als Tiebreaker
+
+                // e.g. leading zeros as a tiebreaker
                 continue;
             }
             if (ca != cb) {
@@ -363,6 +466,8 @@
                 char lcb = tolower(cb);
                 if (lca != lcb) return lca < lcb;
                 return ca < cb; // bei gleichem Buchstaben unterschiedlicher Groesse: Grossbuchstabe zuerst (stabiler Tiebreaker)
+
+                // for the same letter in different case: uppercase first (stable tiebreaker)
             }
             i++; j++;
         }
@@ -372,6 +477,9 @@
 
     // Sortiert eine Liste von Dateinamen "natuerlich" (siehe naturalLess()) - Insertion-Sort
     // statt std::sort, um keine <algorithm>-Abhaengigkeit zu benoetigen (Dateianzahl ueberschaubar).
+
+    // Sorts a list of filenames "naturally" (see naturalLess()) - insertion sort
+    // instead of std::sort, to avoid an <algorithm> dependency (file counts are small).
     void naturalSortNames(std::vector<String>& names) {
         for (size_t i = 1; i < names.size(); i++) {
             String key = names[i];
@@ -389,6 +497,11 @@
     // nur Buchstaben, Ziffern und Bindestriche; Leerzeichen/Unterstriche werden
     // zu Bindestrichen, alle anderen ungueltigen Zeichen (Umlaute, Sonderzeichen,
     // etc.) werden entfernt; darf nicht mit Bindestrich beginnen/enden; max. 30 Zeichen.
+
+    // Sanitizes user input into a valid hostname (RFC 952/1123): only letters,
+    // digits and hyphens; spaces/underscores become hyphens, all other invalid
+    // characters (umlauts, special characters, etc.) are removed; must not
+    // start/end with a hyphen; max. 30 characters.
     String sanitizeHostname(String input) {
         input.trim();
         String result;
@@ -401,6 +514,8 @@
                 result += '-';
             }
             // alle anderen Zeichen werden stillschweigend entfernt
+
+            // all other characters are silently removed
         }
         while (result.startsWith("-")) result = result.substring(1);
         while (result.endsWith("-")) result = result.substring(0, result.length() - 1);
@@ -412,6 +527,9 @@
 
     // Sendet eine 302-Weiterleitung an location - buendelt das sonst ueberall
     // wiederholte sendHeader("Location", ...)/send(302, ...)-Paar.
+
+    // Sends a 302 redirect to location - bundles the sendHeader("Location", ...)/
+    // send(302, ...) pair that would otherwise be repeated everywhere.
     void redirectTo(const String& location, const String& body) {
         webserver.sendHeader("Location", location, true);
         webserver.send(302, "text/plain", body);
@@ -420,6 +538,9 @@
 
     // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header + Statusleiste
     // + Navigation) - Reihenfolge entspricht der bisherigen, wiederholten Aufrufkette.
+
+    // Generates the page start common to almost every page (header + status bar
+    // + navigation) - order matches the previous, repeated call chain.
     String beginPage() {
         String html = generateHtmlHeader();
         html += generateHtmlStatus();
@@ -431,12 +552,18 @@
     // Liest fuer jeden konfigurierten WLAN-Slot einen evtl. mitgesendeten NTP-Server-
     // Parameter aus der Anfrage und speichert ihn (nur bei Aenderung) in ntpServers[]/
     // Preferences - gemeinsame Logik von /api/setMode und /set_timezone.
+
+    // Reads a possibly submitted NTP server parameter for each configured WiFi
+    // slot from the request and stores it (only on change) in ntpServers[]/
+    // preferences - shared logic of /api/setMode and /set_timezone.
     void updateNtpServersFromRequest() {
         for (int i = 0; i < MAX_WLAN; i++) {
             String argName = pkNtpServer(i);
             if (webserver.hasArg(argName)) {
                 strncpy(ntpServers[i], webserver.arg(argName).c_str(), sizeof(ntpServers[i]) - 1);
                 ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
+
+                // null-terminate
                 if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
                     preferences.putString(argName.c_str(), ntpServers[i]);
                 }
@@ -446,26 +573,44 @@
 
 
     // Webserver-API-Endpunkte einrichten
+
+    // Set up the webserver API endpoints
     void setupWebServer() {
 
         // Captive-Portal-Erkennung: Android/iOS/Windows fragen beim Verbinden diese
         // bekannten URLs ab - Redirect (statt 404) auf die Konfigurationsseite oeffnet
         // beim AP ("clock123") automatisch ein Browserfenster, wirkt mit dnsServer.processNextRequest() zusammen.
+
+        // Captive portal detection: Android/iOS/Windows probe these known URLs
+        // when connecting - redirecting (instead of 404) to the config page opens
+        // a browser window automatically on the AP ("clock123"), works together with dnsServer.processNextRequest().
         auto captivePortalRedirect = []() {
             redirectTo("http://" + ipAddress + "/");
             };
 
         webserver.on("/generate_204", HTTP_GET, captivePortalRedirect);       // Android
         webserver.on("/gen_204", HTTP_GET, captivePortalRedirect);            // Android (aeltere Versionen)
-        webserver.on("/hotspot-detect.html", HTTP_GET, captivePortalRedirect); // iOS / macOS
-        webserver.on("/library/test/success.html", HTTP_GET, captivePortalRedirect); // iOS / macOS (alternative)
+
+        // Android (older versions)
+        webserver.on("/hotspot-detect.html", HTTP_GET, captivePortalRedirect); // iOS
+
+        // macOS
+        webserver.on("/library/test/success.html", HTTP_GET, captivePortalRedirect); // iOS
+
+        // macOS (alternative)
         webserver.on("/ncsi.txt", HTTP_GET, captivePortalRedirect);           // Windows
         webserver.on("/connecttest.txt", HTTP_GET, captivePortalRedirect);    // Windows
 
         // Catch-all fuer alle sonstigen, unbekannten Anfragen (z.B. Varianten
         // der obigen URLs oder Domains, die nicht explizit registriert sind) -
         // statt eines 404 lieber ebenfalls auf die Konfigurationsseite leiten.
+
+        // Catch-all for all other, unknown requests (e.g. variants of the URLs
+        // above or domains that are not explicitly registered) - redirect to the
+        // config page instead of a 404.
         webserver.onNotFound(captivePortalRedirect);
+
+        // API zum Setzen von Zifferblatt, Zeigersatz, Zeitzone, Mittelpunkt-Groesse/-Farbe, Bahnhofsmodus, Rotation, Sekundenzeiger-Sichtbarkeit und sanftem Minutenzeiger
 
         // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
 
@@ -478,6 +623,8 @@
 
 
         // API zum Zurücksetzen der WiFi-Einstellungen
+
+        // API to reset the WiFi settings
         // http://192.168.0.214/api/resetWiFi  
    
         webserver.on("/setLanguage", HTTP_POST, []() {
@@ -512,27 +659,39 @@
             eraseWiFiConfig();
 
             // Sende eine Bestätigung zurück
+
+            // Send back a confirmation
             webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
             DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
             delay(WAIT_1s);
             // Neustart des ESP
+
+            // Restart the ESP
             espReboot();
 
             });
 
         // resetWifi POST API, um WiFi-Einstellungen zurückzusetzen
+
+        // resetWifi POST API to reset WiFi settings
         webserver.on("/api/resetWiFi", HTTP_POST, []() {
             DEBUG_PRINTLN("[API] Received POST request to /api/resetWiFi, resetting WiFi settings..");
        
             eraseWiFiConfig();
             // Sende eine Bestätigung zurück
+
+            // Send back a confirmation
             webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
             DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
             preferences.end(); // Schließe die Preferences, um sicherzustellen, dass alle Änderungen gespeichert werden
+
+            // close preferences to make sure all changes are saved
             delay(WAIT_1s);
             // Neustart des ESP
+
+            // Restart the ESP
             espReboot();
             });
 
@@ -542,12 +701,22 @@
         // in loop() (siehe uhr3.ino), analog zur bestehenden WPS-Logik in setup().
         // GET zusaetzlich zu POST registriert (analog zu /api/resetWiFi), damit
         // die Route auch bei direkter Browser-Navigation erreichbar ist.
+
+        // Starts a WPS request via web button to add a new WiFi network. Returns
+        // IMMEDIATELY (does not block the webserver) - the actual connection attempt
+        // and saving credentials runs asynchronously in loop() (see uhr3.ino),
+        // like the existing WPS logic in setup(). Also registered for GET (like
+        // /api/resetWiFi) so the route is reachable via direct browser navigation.
         webserver.on("/api/startWPS", HTTP_GET, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
             redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
             // Erst NACH dem Senden der Antwort WPS starten - startWPS() stoerte
             // sonst vermutlich die noch offene HTTP-Verbindung (Browser zeigte
             // "Seite nicht erreichbar" statt die Weiterleitung zu erhalten).
+
+            // Only start WPS AFTER sending the response - startWPS() would otherwise
+            // probably disturb the still-open HTTP connection (browser showed
+            // "page not reachable" instead of receiving the redirect).
             startWPS();
             wpsPending = true;
             wpsStartMillis = millis();
@@ -569,6 +738,12 @@
         // zu Bindestrichen, alle anderen ungueltigen Zeichen (Umlaute, Sonderzeichen,
         // etc.) werden entfernt; darf nicht mit Bindestrich beginnen/enden; max. 30 Zeichen.
 
+        // Saves a custom hostname (only takes effect after a reboot, since
+        // WiFi.setHostname()/MDNS.begin() are only called once when connecting
+        // in connectWiFi()). Sanitizes user input into a valid hostname (RFC
+        // 952/1123): only letters, digits and hyphens; spaces/underscores become
+        // hyphens, other invalid characters are removed; max. 30 characters, no leading/trailing hyphen.
+
         webserver.on("/sethostname", HTTP_POST, []() {
             if (webserver.hasArg("hostname")) {
                 String newHostname = sanitizeHostname(webserver.arg("hostname"));
@@ -578,6 +753,11 @@
                     // gespeicherten Override entfernen, damit beim naechsten Boot
                     // wieder automatisch "clock_" + letzte MAC-Stellen generiert
                     // wird (siehe connectWiFi() in wifi_manager.h).
+
+                    // No valid hostname could be extracted from the input - remove the
+                    // stored override so that on the next boot "clock_" + the last MAC
+                    // digits is generated automatically again (see connectWiFi() in
+                    // wifi_manager.h).
                     preferences.remove(PK_HOSTNAME);
                     redirectTo("/?tab=wlan&msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
                     return;
@@ -595,6 +775,8 @@
             String customName = webserver.hasArg("name") ? webserver.arg("name") : "";
             bool created = createPresetFromPreferences(customName); // Erstellt ein neues Preset, falls noch ein Slot frei ist
 
+            // creates a new preset if a slot is still free
+
             if (!created) {
                 String html = beginPage();
                 html += "<h2 style='color:red;'>" + translate("Maximum number of presets reached - delete an existing preset first") + "</h2>";
@@ -605,10 +787,14 @@
             }
 
             // Weiterleitung zur Presets-Seite
+
+            // Redirect to the presets page
             redirectTo("/presets?msg=Preset%20created", "Redirecting to /presets..");
             });
 
         // API zum Setzen von Uhrmodus und anderen Einstellungen
+
+        // API to set clock mode and other settings
         webserver.on("/api/setMode", HTTP_GET, []() {
             Serial.println("[API] Received GET request to /api/setMode with arguments");
             if (webserver.hasArg("face")) {
@@ -641,12 +827,22 @@
             }
             if (webserver.hasArg("hubColor")) {
                 uint32_t rgb = strtoul(webserver.arg("hubColor").c_str(), NULL, 16); // 24-Bit RGB
+
+                // 24-bit RGB
                 // DEBUG_PRINTLN("[API] Received hubColor: " + webserver.arg("hubColor") + " -> " + String(rgb, HEX));
                 uint8_t r = (rgb >> 16) & 0xFF; // Rot extrahieren
+
+                // extract red
                 uint8_t g = (rgb >> 8) & 0xFF;  // Grün extrahieren
+
+                // extract green
                 uint8_t b = rgb & 0xFF;         // Blau extrahieren
 
+                // extract blue
+
                 // Konvertiere RGB888 zu RGB565
+
+                // Convert RGB888 to RGB565
                 hubColor = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
                 preferences.putLong(PK_CENTER_COLOR, rgb);
             }
@@ -654,7 +850,9 @@
 
             if (webserver.hasArg("stationMode")) {
                 String stationModeArg = webserver.arg("stationMode");
-                stationMode = (stationModeArg == "1" || stationModeArg.equalsIgnoreCase("true")); // Konvertiere zu bool            
+                stationMode = (stationModeArg == "1" || stationModeArg.equalsIgnoreCase("true")); // Konvertiere zu bool
+
+                // convert to bool
                 preferences.putBool(PK_STATION_MODE, stationMode);
             }
 
@@ -663,6 +861,8 @@
                 uint8_t tftRotation = 0;
 
                 // Prüfe, ob der Wert in Grad angegeben ist
+
+                // Check whether the value is given in degrees
                 if (rotationArg == "0" || rotationArg == "90" || rotationArg == "180" || rotationArg == "270") {
                     if (rotationArg == "0") tftRotation = 0;
                     else if (rotationArg == "90") tftRotation = 1;
@@ -670,11 +870,15 @@
                     else if (rotationArg == "270") tftRotation = 3;
                 }
                 // Prüfe, ob der Wert als Index (0-3) angegeben ist
+
+                // Check whether the value is given as an index (0-3)
                 else {
                     tftRotation = rotationArg.toInt();
                 }
 
                 // Validierung des Wertes
+
+                // Validate the value
                 if (tftRotation >= 0 && tftRotation <= 3) {
                     uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION, 0);
                     preferences.putUChar(PK_TFT_ROTATION, tftRotation);
@@ -682,11 +886,17 @@
                     // sonst wuerde jedes Speichern der Haupteinstellungen (die
                     // das Rotationsfeld immer mitsenden, auch unveraendert) die
                     // Bahnhofsmodus-Wartephase am Sekundenzeiger neu starten.
+
+                    // Only reset firstRun on an ACTUAL change - otherwise every save of the
+                    // main settings (which always submit the rotation field, even unchanged)
+                    // would restart the station-mode wait phase on the second hand.
                     if (tftRotation != previousRotation) {
                         firstRun = true;
                     }
                     if (!psramAvailable) {
                         tft.setRotation(tftRotation); // sofort anwenden
+
+                        // apply immediately
                     }
                 }
             }
@@ -695,12 +905,16 @@
             if (webserver.hasArg("showSecondHand")) {
                 String showSecondHandArg = webserver.arg("showSecondHand");
                 showSecondHand = (showSecondHandArg == "1" || showSecondHandArg.equalsIgnoreCase("true")); // Konvertiere zu bool
+
+                // convert to bool
                 preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
             }
 
             if (webserver.hasArg("smoothMinute")) {
                 String smoothMinuteArg = webserver.arg("smoothMinute");
-                smoothMinute = (smoothMinuteArg == "1" || smoothMinuteArg.equalsIgnoreCase("true")); // Konvertiere zu bool 
+                smoothMinute = (smoothMinuteArg == "1" || smoothMinuteArg.equalsIgnoreCase("true")); // Konvertiere zu bool
+
+                // convert to bool
                 preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
             }
 
@@ -727,6 +941,8 @@
             });
 
         // Preset-Verwaltung
+
+        // Preset management
         webserver.on("/presets", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -737,6 +953,8 @@
             chunk += "<h2>" + translate("Manage Presets") + "</h2>";
 
             // Links oben anzeigen
+
+            // Show links at the top
             chunk += "<div style='text-align:center;'>";
 
             if (pingHostname) {
@@ -747,6 +965,8 @@
 
          
             String espHost = "http://" + String(hostname) + ".local"; // Aktueller Hostname des ESP
+
+            // current hostname of the ESP
 
             chunk += "<script>";
             chunk += "function copyPresetLink(text, el) {";
@@ -777,6 +997,10 @@
             // Nur die Anzeige-Reihenfolge sortieren (Array-Indizes bleiben unveraendert,
             // damit Rename-/Delete-/Vorschau-Links stimmen) - Insertion-Sort wie bei
             // naturalSortNames(), um keine <algorithm>-Abhaengigkeit zu benoetigen.
+
+            // Only sort the display order (array indices stay unchanged so
+            // rename/delete/preview links remain correct) - insertion sort like
+            // naturalSortNames(), to avoid an <algorithm> dependency.
             std::vector<int> sortedIndices;
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
@@ -799,23 +1023,35 @@
                     String displayUrl = presets[i].url;
 
                     // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
+
+                    // Replace the stored IP with the ESP's current IP
                     if (displayUrl.startsWith("http://")) {
                         int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
+
+                        // find the end of the IP address
                         if (ipEnd != -1) {
                             displayUrl = "http://" + ipAddress + displayUrl.substring(ipEnd); // Ersetze die IP
+
+                            // replace the IP
                         }
                         else {
                             displayUrl = "http://" + ipAddress; // Nur die IP ohne Pfad
+
+                            // just the IP, without path
                         }
                     }
                     displayUrl += "&source=preset";
                     presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
+
+                    // replace spaces with underscores
 
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
                     chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
                     chunk += "<br><a href='" + displayUrl + "'>" + presets[i].name + "</a>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
+
+                    // replace spaces with underscores
                     String ipLink = "http://" + ipAddress + "/api/setPreset?name=" + presetName;
                     chunk += "<br><span onclick=\"copyPresetLink('" + ipLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
                     if (pingHostname) {
@@ -844,6 +1080,11 @@
             // vorhandene Zifferblatt-/Zeigersatz-Dateien bereitstellen, damit der
             // GitHub-Download nur wirklich Neues hinzufuegt und automatisch die
             // dafuer noch fehlenden Zifferblaetter/Zeigersaetze mitlaedt.
+
+            // For the JS merge comparison: provide already existing preset names
+            // and existing clock-face/hand-set files, so the GitHub download only
+            // adds what is really new and automatically fetches the still-missing
+            // faces/hand sets needed for it.
             std::vector<String> existingPresetNamesForJs;
             for (int gi = 0; gi < MAX_PRESETS; gi++) {
                 if (!presets[gi].name.isEmpty() && !presets[gi].url.isEmpty()) {
@@ -964,7 +1205,13 @@
             // Erreichbarkeit von GitHub mehrfach (mit kurzer Pause dazwischen),
             // bevor gefragt wird, damit direkt nach einem Neustart (WLAN evtl.
             // noch nicht ganz stabil) keine Nachfrage fuer eine dann sowieso
+
             // fehlschlagende Aktion erscheint.
+            // If no presets exist when the page loads, automatically ask whether
+            // some should be loaded from GitHub - relevant e.g. after a factory
+            // reset or initial setup. Checks GitHub reachability multiple times
+            // (with a short pause in between) before asking, so that right after a
+            // reboot (WiFi maybe not fully stable yet) there is no prompt for an action that would fail anyway.
             if (rowCount == 0) {
                 chunk += "<script>";
                 chunk += "async function checkGithubReachable(retries) {";
@@ -995,6 +1242,8 @@
             chunk += "<hr>";
 
             // Presets als Datei sichern/wiederherstellen
+
+            // Back up/restore presets as a file
             chunk += "<h3>" + translate("Backup / Restore Presets") + "</h3>";
             chunk += "<a href='/exportpresets'><button type='button'>" + translate("Save Presets to File") + "</button></a> ";
             chunk += "<form method='POST' action='/importpresets' enctype='multipart/form-data' style='display:inline;'>";
@@ -1005,10 +1254,15 @@
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         // Alle belegten Presets (Name + URL) als herunterladbare Textdatei
         // exportieren - eine Zeile pro Preset, Name und URL durch Tab getrennt.
+
+        // Export all occupied presets (name + URL) as a downloadable text file -
+        // one line per preset, name and URL separated by a tab.
         webserver.on("/exportpresets", HTTP_GET, []() {
             String content;
             for (int i = 0; i < MAX_PRESETS; i++) {
@@ -1020,7 +1274,13 @@
                     // durch die dann aktuelle IP ersetzt (siehe loadPresets() und
                     // savePresets() - beide schneiden alles zwischen "http://" und
                     // dem naechsten "/" ab und setzen dort die aktuelle IP ein,
+
                     // unabhaengig davon, was zuvor dort stand).
+                    // Replace the host part (this device's current IP) with a placeholder:
+                    // the file should not look like a fixed address for ONE specific device.
+                    // It gets replaced by the then-current IP on load/import anyway (see
+                    // loadPresets() and savePresets() - both cut everything between
+                    // "http://" and the next "/" and insert the current IP there, regardless of what was there before).
                     if (exportUrl.startsWith("http://")) {
                         int ipEnd = exportUrl.indexOf('/', 7);
                         if (ipEnd != -1) {
@@ -1039,6 +1299,9 @@
 
         // Presets aus einer zuvor per /exportpresets erzeugten Textdatei
         // wiederherstellen - ersetzt ALLE aktuell gespeicherten Presets.
+
+        // Restore presets from a text file previously created via /exportpresets
+        // - replaces ALL currently stored presets.
         webserver.on("/importpresets", HTTP_POST, []() {
             if (presetImportSuccess) {
                 redirectTo("/presets?msg=Presets%20imported%20successfully");
@@ -1050,11 +1313,16 @@
 
         // Wie /importpresets, loescht dabei aber keine bestehenden Presets - wird
         // vom GitHub-Download-Button auf /presets genutzt (siehe handlePresetMergeUpload()).
+
+        // Like /importpresets, but does not delete existing presets - used by the
+        // GitHub download button on /presets (see handlePresetMergeUpload()).
         webserver.on("/importpresetsmerge", HTTP_POST, []() {
             redirectTo("/presets?msg=Presets%20imported%20successfully");
             }, handlePresetMergeUpload);
 
         // API zum Restart des ESP
+
+        // API to restart the ESP
         webserver.on("/api/reboot", HTTP_GET, []() {
             webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "", "<meta http-equiv='refresh' content='0; url=/status'>"));
             delay(WAIT_1s);
@@ -1063,6 +1331,8 @@
 
 
         // API zum Setzen eines Presets
+
+        // API to set a preset
         webserver.on("/api/setPreset", HTTP_GET, []() {
             Serial.println("[API] Received request to /api/setPreset with args: " + webserver.arg("name"));
             if (!webserver.hasArg("name")) {
@@ -1073,11 +1343,17 @@
             String presetName = webserver.arg("name");
             presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
 
+            // replace spaces with underscores
+
             // Suche das Preset mit dem angegebenen Namen
+
+            // Find the preset with the given name
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (presets[i].name.equalsIgnoreCase(presetName)) {
                     if (!presets[i].url.isEmpty()) {
                         // Redirect zur URL des Presets
+
+                        // Redirect to the preset's URL
                         redirectTo(presets[i].url, "Redirecting to preset URL..");
                         //DEBUG_PRINTLN("[setPreset] Redirecting to preset: " + presetName + " -> " + presets[i].url);
                         return;
@@ -1090,6 +1366,8 @@
             }
 
             // Preset nicht gefunden
+
+            // Preset not found
             webserver.send(404, "text/plain", "Preset not found");
             DEBUG_PRINTLN("[setPreset] Preset not found: " + presetName);
             });
@@ -1097,6 +1375,10 @@
         // NTP Server und Zeitzone setzen
         // Testet einen NTP-Server per direkter UDP-Anfrage, ohne die aktuelle
         // Zeitkonfiguration zu veraendern - fuer den "Test"-Button je Server-Feld.
+
+        // Set NTP server and timezone.
+        // Tests an NTP server via a direct UDP request without changing the
+        // current time configuration - for the "Test" button next to each server field.
         webserver.on("/api/testNtp", HTTP_GET, []() {
             if (!webserver.hasArg("server") || trim(webserver.arg("server")) == "") {
                 webserver.send(400, "text/plain", "Missing parameter");
@@ -1117,18 +1399,28 @@
 
             int writeIndex = 0; // Index, an den die nächste gültige NTP-Server-Adresse geschrieben wird
 
+            // index where the next valid NTP server address is written
+
             for (int readIndex = 0; readIndex < MAX_WLAN; readIndex++) {
                 if (strlen(ntpServers[readIndex]) > 0) { // Nur nicht-leere Einträge berücksichtigen
+
+                // only consider non-empty entries
                     if (writeIndex != readIndex) {
                         strncpy(ntpServers[writeIndex], ntpServers[readIndex], sizeof(ntpServers[writeIndex]) - 1);
                         ntpServers[writeIndex][sizeof(ntpServers[writeIndex]) - 1] = '\0'; // Null-terminieren
+
+                        // null-terminate
                         memset(ntpServers[readIndex], 0, sizeof(ntpServers[readIndex])); // Ursprünglichen Eintrag löschen
+
+                        // clear the original entry
                     }
                     writeIndex++;
                 }
             }
 
             // Leere Einträge am Ende sicherstellen
+
+            // Ensure empty entries at the end
             for (int i = writeIndex; i < MAX_WLAN; i++) {
                 memset(ntpServers[i], 0, sizeof(ntpServers[i]));
             }
@@ -1150,6 +1442,8 @@
 
 
         // NTP Server und Zeitzone Formular
+
+        // NTP server and timezone form
         webserver.on("/timezone_form", HTTP_GET, []() {
             String timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
 
@@ -1190,6 +1484,8 @@
 
             String html = beginPage();
             html.reserve(6144);  // Zeitzonen-Formular: lange Dropdown-Liste
+
+            // timezone form: long dropdown list
             html += generateFlashMessage();
             html += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
             html += "<form method='POST' action='/set_timezone'>";
@@ -1229,6 +1525,8 @@
             //html += "NTP Server2: <input type='text' name='ntpServer2' value='" + String(ntpServers[1]) + "'><br><br>";
 
             // Kombiniertes Select + Input
+
+            // Combined select + input
             html += translate("Timezone") + ": <br><select id = 'tz_select' style = 'width: 400px;' onchange = \"document.getElementById('tz_input').value=this.value\">";
             for (size_t i = 0; i < sizeof(tzList) / sizeof(tzList[0]); i++) {
                 html += "<option value='" + String(tzList[i].value) + "'";
@@ -1248,6 +1546,8 @@
             });
 
         // Datei umbenennen Formular
+
+        // Rename file form
         webserver.on("/rename_form", HTTP_GET, []() {
             if (!webserver.hasArg("file")) {
                 webserver.send(400, "text/plain", "Missing file parameter");
@@ -1257,6 +1557,8 @@
             String oldName = webserver.arg("file");
             String html = beginPage();
             html.reserve(1024);  // Umbenennen-Formular: klein
+
+            // rename form: small
             html += "<h2>" + translate("Rename File") + "</h2>";
             html += "<form action='/rename' method='POST'>";
             html += "<input type='hidden' name='old' value='" + oldName + "'>";
@@ -1268,6 +1570,8 @@
             });
 
         // Datei umbenennen Aktion
+
+        // Rename file action
         webserver.on("/rename", HTTP_POST, []() {
             if (webserver.hasArg("old") && webserver.hasArg("new")) {
                 String oldName = webserver.arg("old");
@@ -1304,6 +1608,8 @@
 
 
         // BMP skalieren Formular
+
+        // Scale BMP form
         webserver.on("/scalebmp_form", HTTP_GET, []() {
             if (!webserver.hasArg("file")) {
                 webserver.send(400, "text/plain", "Missing file name");
@@ -1312,6 +1618,8 @@
             String src = webserver.arg("file");
             String html = beginPage();
             html.reserve(1536);  // BMP-Skalieren-Formular: klein
+
+            // scale-BMP form: small
             html += "<h2>" + translate("Scale and Save BMP") + "</h2>";
             html += "<form action='/scalebmp_run' method='GET'>";
             html += translate("Source") + ": <input name = 'src' value = '/" + src + "' readonly><br>";
@@ -1326,6 +1634,8 @@
             });
 
         // BMP skalieren Aktion 
+
+        // Scale BMP action
         webserver.on("/scalebmp_run", HTTP_GET, []() {
             if (!webserver.hasArg("src") || !webserver.hasArg("dst") || !webserver.hasArg("w") || !webserver.hasArg("h")) {
                 webserver.send(400, "text/plain", "Missing parameters");
@@ -1347,7 +1657,11 @@
             });
 
         // Anzeigeeinstellungen speichern
+
+        // Save display settings
         webserver.on("/applydisplaysettings", HTTP_POST, []() {
+            // In den Preferences speichern
+
             // Save to Preferences
 
             if (webserver.hasArg("pingServer")) {
@@ -1371,6 +1685,8 @@
             else disableTouch();
 
             // Logging-Einstellung speichern
+
+            // Save logging setting
             loggingEnabled = webserver.hasArg("loggingEnabled");
             preferences.putBool(PK_LOGGING_ENABLED, loggingEnabled);
 
@@ -1390,16 +1706,24 @@
                     // sonst wuerde jedes Speichern dieser Seite (das Rotationsfeld
                     // wird immer mitgesendet, auch unveraendert) die Bahnhofsmodus-
                     // Wartephase am Sekundenzeiger unnoetig neu starten.
+
+                    // Only reset firstRun on an ACTUAL change - otherwise every save of
+                    // this page (rotation field is always submitted, even unchanged) would
+                    // needlessly restart the station-mode wait phase on the second hand.
                     if (tftRotation != previousRotation) {
                         firstRun = true;
                     }
                     if (!psramAvailable) {
                         tft.setRotation(tftRotation); // sofort anwenden
+
+                        // apply immediately
                     }
                 }
 
                 freeClockFaceBuffer();
                 loadClockFace();      // neu zeichnen mit neuer Ausrichtung
+
+                // redraw with new orientation
                 loadHandSprites();
             }
 
@@ -1409,6 +1733,8 @@
 
 
         // Helligkeitseinstellungen Formular
+
+        // Brightness settings form
         webserver.on("/brightness", HTTP_POST, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -1521,9 +1847,13 @@
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         // Helligkeitseinstellungen Formular
+
+        // Brightness settings form
         webserver.on("/brightness", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -1634,9 +1964,13 @@
             chunk += "<br><br></body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         // Helligkeitseinstellungen speichern
+
+        // Save brightness settings
         webserver.on("/save_brightness", HTTP_POST, []() {
             useAdc = webserver.hasArg("use_adc");
             adcInverted = webserver.hasArg("adcInverted");
@@ -1647,6 +1981,8 @@
             minBrightness = (uint8_t)webserver.arg("minBrightness").toInt();
 
             // neue: Zeitabhängige Helligkeit speichern
+
+            // new: save time-based brightness
 
 
             brightStartHour = (uint8_t)constrain(webserver.arg("brightStart").toInt(), 0, 23);
@@ -1665,6 +2001,8 @@
             preferences.putUChar(PK_MAX_BRIGHTNESS, maxBrightness);
             preferences.putUChar(PK_MIN_BRIGHTNESS, minBrightness);
 
+            // Zeitabhängige Einstellungen dauerhaft speichern
+
             // persist time-based settings
 
             preferences.putUChar(PK_BRIGHT_START_HOUR, brightStartHour);
@@ -1676,6 +2014,8 @@
 
 
         // Alle Dateien auflisten
+
+        // List all files
         webserver.on("/files", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -1692,6 +2032,10 @@
             // Erst alle Dateinamen sammeln und natuerlich sortieren (Zahlen im
             // Namen numerisch statt alphabetisch, z.B. hand_set2 vor hand_set10),
             // bevor die Tabelle daraus aufgebaut wird.
+
+            // First collect all filenames and sort them naturally (numbers in the
+            // name sorted numerically instead of alphabetically, e.g. hand_set2
+            // before hand_set10), before building the table from them.
             std::vector<String> fileNames;
             File root = LittleFS.open("/");
             File file = root.openNextFile();
@@ -1712,6 +2056,8 @@
                 chunk += "<td align=right>" + String(info) + "</td>";
                 chunk += " <td><a href = '/delete?file=" + name + "' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
                 // Scale-Option nur für .bmp-Dateien anzeigen
+
+                // Show the scale option only for .bmp files
                 if (name.endsWith(".bmp")) {
                     chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
                     chunk += "<a href='/rename_form?file=" + name + "' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
@@ -1724,10 +2070,15 @@
                 chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;&#65039;</a> ";
                 chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;&#65039;</a> "; // "View"-Link für Logdateien
 
+                // "View" link for log files
+
                 chunk += "</td></tr>";
 
                 // Alle paar Zeilen zwischendurch senden, damit der Puffer auch
                 // bei sehr vielen Dateien nicht unbegrenzt waechst.
+
+                // Send every few lines in between so the buffer does not grow
+                // unbounded even with very many files.
                 rowCount++;
                 if (rowCount % 5 == 0) {
                     webserver.sendContent(chunk);
@@ -1738,6 +2089,8 @@
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         webserver.on("/download", HTTP_GET, []() {
@@ -1748,6 +2101,9 @@
                 if (LittleFS.exists(path)) {
                     // Pruefen, ob RLE-komprimierte face_*.bmp - falls ja, vor dem Download
                     // zu einem echten Standard-BMP dekodieren (nutzbar ausserhalb der Uhr).
+
+                    // Check whether it is an RLE-compressed face_*.bmp - if so, decode it to
+                    // a real standard BMP before download (usable outside the clock).
                     bool isRle = false;
                     if (path.endsWith(".bmp")) {
                         File probe = LittleFS.open(path, "r");
@@ -1767,6 +2123,9 @@
                         }
                         // Streaming fehlgeschlagen (z.B. Lesefehler) - Header ggf. schon
                         // gesendet, daher kein sauberer 500-Code mehr moeglich.
+
+                        // Streaming failed (e.g. read error) - headers may already have been
+                        // sent, so a clean 500 status is no longer possible.
                         DEBUG_PRINTLN("[DOWNLOAD] RLE streaming failed for " + path);
                         return;
                     }
@@ -1774,6 +2133,8 @@
                     File file = LittleFS.open(path, "r");
 
                     // Setze den Content-Disposition-Header, um den Dateinamen festzulegen
+
+                    // Set the Content-Disposition header to define the file name
                     webserver.sendHeader("Content-Disposition", "attachment; filename=\"" + String(file.name()) + "\"");
                     webserver.streamFile(file, "application/octet-stream");
                     file.close();
@@ -1784,6 +2145,8 @@
             });
 
         // Systemstatus Seite
+
+        // System status page
         webserver.on("/status", HTTP_GET, []() {
 
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -1985,6 +2348,8 @@
 
             for (int i = 0; i < MAX_WLAN; i++) {
                 // Dynamisch berechnete Schlüssel
+
+                // Dynamically computed keys
                 String ssidKey = pkSsid(i);
 
                 if (preferences.getString(ssidKey.c_str(), "") != "") {
@@ -2023,6 +2388,8 @@
             chunk = "";
 
             // Booleans als Text
+
+            // Booleans as text
         
             chunk += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
             chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
@@ -2057,11 +2424,17 @@
 
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         // Kleine Vorschau (80x80) fuer hochgeladene Zifferblaetter - siehe
         // sendScaledBmpPreview() in display.h. Vermeidet, dass fuer ein
         // 80x80-<img> die volle Aufloesung (z.B. 240x240 = ~115 KB) uebertragen wird.
+
+        // Small preview (80x80) for uploaded clock faces - see
+        // sendScaledBmpPreview() in display.h. Avoids transferring the full
+        // resolution (e.g. 240x240 = ~115 KB) for an 80x80 <img>.
         webserver.on("/facepreview", HTTP_GET, []() {
             if (webserver.hasArg("file")) {
                 String path = webserver.arg("file");
@@ -2088,6 +2461,22 @@
         // (per performance.now()-Differenz), damit kein staendiges Nachfragen
         // noetig ist. So zeigt die Web-Vorschau exakt das, was die echte Uhr
         // gerade anzeigt, auch wenn PC und ESP32 unterschiedlich gehen sollten.
+
+        // Generates a preview image from the CURRENTLY ACTIVE settings (no
+        // parameter needed) - shown top-left on every page (generateNavigation())
+        // so it reflects the current state after every change once the page reloads.
+        // Returns only the currently active clock face (without hands) as a BMP -
+        // used as the background image for the live hand widget on the home page,
+        // so ~150 KB of image data does not have to be embedded inline on every
+        // page load (as would happen with a directly encoded base64 string).
+        // clockFaceBuffer holds the raw face pixels without brightness adjustment
+        // and without drawn-in hands.
+        // Returns the ESP32's actual current time (not the PC's/browser's) -
+        // fetched once by the live hand widget when the page loads; afterwards
+        // the display keeps running locally in the browser (via performance.now()
+        // differences), so no constant polling is needed. This way the web preview
+        // shows exactly what the real clock is currently displaying, even if the
+        // PC and ESP32 clocks should drift apart.
         webserver.on("/api/currentTime", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
             String json = "{\"hour\":" + String(timeinfo.tm_hour) +
@@ -2099,6 +2488,10 @@
         // Zeigt die Live-Zeiger-Uhr in voller Aufloesung (400x400) als eigene
         // Seite - nutzt dieselbe Zeiger-Lade-/Kodierlogik wie das kleine Eck-
         // Widget in generateNavigation(), nur groesser skaliert.
+
+        // Shows the live hand clock at full resolution (400x400) as its own
+        // page - uses the same hand loading/encoding logic as the small corner
+        // widget in generateNavigation(), just scaled up.
         webserver.on("/preview", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -2275,6 +2668,10 @@
         // Vorschaubild fuer die Preset-Verwaltung: Zifferblatt + Zeiger (feste Demo-
         // Zeit) + Mittelpunkt-Farbe/-Groesse, komponiert aus den im Preset gespeicherten
         // Einstellungen (siehe parsePresetForPreview() und generatePresetPreviewBmp()).
+
+        // Preview image for preset management: clock face + hands (fixed demo
+        // time) + hub color/size, composed from the settings stored in the
+        // preset (see parsePresetForPreview() and generatePresetPreviewBmp()).
         webserver.on("/presetpreview", HTTP_GET, []() {
             if (!webserver.hasArg("index")) {
                 webserver.send(400, "text/plain", "missing 'index' argument");
@@ -2307,6 +2704,10 @@
             // Kleine Vorschau statt voller Aufloesung (spart ~90% Uebertragungsgroesse
             // fuer ein 80x80-<img> - siehe sendScaledBmpPreview() fuer den
             // gleichwertigen Ansatz bei hochgeladenen Zifferblaettern).
+
+            // Small preview instead of full resolution (saves ~90% transfer size
+            // for an 80x80 <img> - see sendScaledBmpPreview() for the equivalent
+            // approach used for uploaded clock faces).
             const int outW = 80;
             const int outH = 80;
             const float scaleX = (float)CLOCK_WIDTH / outW;
@@ -2314,6 +2715,8 @@
 
             const int headerSize = 54;
             const int rowSize = ((outW * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel für RGB888
+
+            // 3 bytes per pixel for RGB888
             const int dataSize = rowSize * outH;
             const int fileSize = headerSize + dataSize;
 
@@ -2321,17 +2724,25 @@
             memset(bmpData, 0, fileSize);
 
             // BMP-Header
+
+            // BMP header
             bmpData[0] = 'B'; bmpData[1] = 'M';
             *(uint32_t*)&bmpData[2] = fileSize;
             *(uint32_t*)&bmpData[10] = headerSize;
             *(uint32_t*)&bmpData[14] = 40;
             *(int32_t*)&bmpData[18] = outW;
             *(int32_t*)&bmpData[22] = -outH; // Top-down BMP
+
+            // top-down BMP
             *(uint16_t*)&bmpData[26] = 1;
             *(uint16_t*)&bmpData[28] = 24; // 24-Bit Farbtiefe
+
+            // 24-bit color depth
             *(uint32_t*)&bmpData[34] = dataSize;
 
             // Pixel-Daten (RGB565 -> RGB888, mit Downscaling)
+
+            // Pixel data (RGB565 -> RGB888, with downscaling)
             for (int y = 0; y < outH; y++) {
                 int srcY = int(y * scaleY);
                 uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
@@ -2340,21 +2751,43 @@
                     uint16_t px = clockFace[srcY * CLOCK_WIDTH + srcX];
 
                     // Transparente Farbe ersetzen
+
+                    // Replace the transparent color
                     if (px == TRANSPARENT_COLOR) {
                         rowPtr[x * 3 + 0] = 255; // Blau
+
+                        // blue
                         rowPtr[x * 3 + 1] = 255; // Grün
+
+                        // green
                         rowPtr[x * 3 + 2] = 255; // Rot
+
+                        // red
                         continue;
                     }
 
                     // RGB565 ? RGB888
+
+                    // RGB565 to RGB888
                     uint8_t r = (px >> 8) & 0xF8; // obere 5 Bits
+
+                    // upper 5 bits
                     uint8_t g = (px >> 3) & 0xFC; // mittlere 6 Bits
+
+                    // middle 6 bits
                     uint8_t b = (px << 3) & 0xF8; // untere 5 Bits
 
+                    // lower 5 bits
+
                     rowPtr[x * 3 + 0] = b; // Blau
+
+                    // blue
                     rowPtr[x * 3 + 1] = g; // Grün
+
+                    // green
                     rowPtr[x * 3 + 2] = r; // Rot
+
+                    // red
                 }
             }
 
@@ -2363,6 +2796,8 @@
             });
 
         // Uhr-Gesichter verwalten
+
+        // Manage clock faces
         webserver.on("/listfilesFaces", HTTP_GET, []() {
 
             size_t total = LittleFS.totalBytes();
@@ -2378,6 +2813,8 @@
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
 
             String activeBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
+
+            // Eingebautes Standard-Zifferblatt hinzufuegen
 
             // Add built-in default face
             chunk += "<div style='text-align:center;width:100px;'>";
@@ -2395,6 +2832,10 @@
             // Erst alle passenden Zifferblatt-Dateinamen sammeln und sortieren
             // (der eingebaute Standard oben bleibt davon unberuehrt, da er bereits
             // separat und fest an erster Stelle ausgegeben wurde).
+
+            // First collect and sort all matching clock-face filenames (the built-in
+            // default above is unaffected by this, since it was already output
+            // separately and fixed in first place).
             std::vector<String> faceNames;
             while (file) {
                 String name = file.name();
@@ -2424,6 +2865,9 @@
 
                 // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
                 // bei vielen Zifferblaettern nicht unbegrenzt waechst.
+
+                // Send every few entries in between so the buffer does not grow
+                // unbounded even with many clock faces.
                 rowCount++;
                 if (rowCount % 5 == 0) {
                     webserver.sendContent(chunk);
@@ -2439,6 +2883,11 @@
             // und raw.githubusercontent.com unterstuetzt) die Dateien per HTTPS
             // herunter und laedt sie dann per normalem lokalem HTTP ueber /upload
             // hoch - die Uhr selbst muss dabei nie eine HTTPS-Verbindung aufbauen.
+
+            // Automatic download of new clock faces directly in the browser: the
+            // browser downloads the files via HTTPS (via CORS, officially supported
+            // by GitHub for api.github.com and raw.githubusercontent.com) and then
+            // uploads them via normal local HTTP through /upload - the clock itself never needs to open an HTTPS connection.
             chunk += "<h3>" + translate("Download Additional Clock Faces from GitHub") + "</h3>";
             chunk += "<button type='button' id='ghFaceBtn' onclick='loadFacesFromGithub()'>" + translate("Download Additional Clock Faces from GitHub") + "</button>";
             chunk += "<div id='ghFaceStatus'></div>";
@@ -2477,6 +2926,8 @@
             chunk += "</script><hr>";
 
             // Hinweis und Download-Link für die ZIP-Datei
+
+            // Notice and download link for the ZIP file
             if (TFT_WIDTH == 240) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
@@ -2514,13 +2965,19 @@
             chunk += "</body> </html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         // WLAN Netzwerke scannen
+
+        // Scan WiFi networks
         webserver.on("/api/scanwifi", HTTP_GET, []() {
             String json = "";
                
             // die letzten Scan-Ergebnisse zurückgeben
+
+            // Return the last scan results
             json = "[";
             for (int i = 0; i < foundNetworkCount; ++i) {
                 if (i > 0) json += ",";
@@ -2542,6 +2999,8 @@
 
 
         // Hauptseite - WLAN Einstellungen
+
+        // Main page - WiFi settings
         webserver.on("/", HTTP_GET, []() {
 
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -2551,6 +3010,8 @@
             chunk.reserve(2048);
             chunk += generateFlashMessage(); // Erfolgsmeldung, falls vorhanden
 
+            // success message, if present
+
             chunk += generateLanguageSelector();
 
             // Ohne aktive Heimnetz-Verbindung (Erststart ohne gespeichertes WLAN,
@@ -2559,11 +3020,21 @@
             // stattdessen einfach den WLAN-Tab vorauswaehlen, das deckt automatisch
             // auch das Captive-Portal-Popup ab (das auf "/" verweist, siehe
             // captivePortalRedirect oben).
+
+            // Without an active home-network connection (first start with no saved
+            // WiFi, or the last known WiFi is unreachable - see startAP() in
+            // wifi_manager.h), this used to redirect to /wifi - now instead just
+            // pre-select the WiFi tab, which automatically also covers the captive
+            // portal popup (which points to "/", see captivePortalRedirect above).
             bool apMode = (WiFi.getMode() != WIFI_STA);
 
             // --- CSS-only Tabs: die 6 radio-Inputs (siehe Tab-CSS in
             // generateHtmlHeader()) - muessen direkte Geschwister von .tabnav
             // und allen .panel-* Divs weiter unten sein.
+
+            // --- CSS-only tabs: the 6 radio inputs (see tab CSS in
+            // generateHtmlHeader()) - must be direct siblings of .tabnav and all
+            // .panel-* divs further below.
             chunk += "<input type='radio' name='tabs' id='tab-status' class='tabctrl'";
             if (!apMode) chunk += " checked";
             chunk += ">";
@@ -2590,6 +3061,11 @@
             // #####################################################################
             // Panel: Status (read-only Systeminfos - unveraendert aus der
             // bisherigen eigenstaendigen /status-Seite uebernommen)
+            // #####################################################################
+
+            // #####################################################################
+            // Panel: status (read-only system info - unchanged, taken over from the
+            // previous standalone /status page)
             // #####################################################################
             chunk += "<div class='tabpanel panel-status'>";
             chunk += "<ul>";
@@ -2690,12 +3166,19 @@
             chunk += "</ul>";
             chunk += "</div>"; // Ende panel-status
 
+            // end panel-status
+
             webserver.sendContent(chunk);
             chunk = "";
 
             // #####################################################################
             // Panel: WLAN (unveraendert aus der bisherigen eigenstaendigen
             // /wifi-Seite uebernommen - Hostname-Formular, WPS/Rescan, WLAN-Slots)
+            // #####################################################################
+
+            // #####################################################################
+            // Panel: WiFi (unchanged, taken over from the previous standalone
+            // /wifi page - hostname form, WPS/rescan, WiFi slots)
             // #####################################################################
             chunk += "<div class='tabpanel panel-wlan'>";
 
@@ -2875,12 +3358,19 @@
             chunk += "</script>";
             chunk += "</div>"; // Ende panel-wlan
 
+            // end panel-wlan
+
             webserver.sendContent(chunk);
             chunk = "";
 
             // #####################################################################
             // Panel: Zifferblatt (Anzeige-Einstellungen - unveraendert aus der
             // bisherigen "/"-Seite uebernommen)
+            // #####################################################################
+
+            // #####################################################################
+            // Panel: clock face (display settings - unchanged, taken over from the
+            // previous "/" page)
             // #####################################################################
             chunk += "<div class='tabpanel panel-zifferblatt'>";
             chunk += "<form action='/applydisplaysettings' method='POST'>";
@@ -2930,12 +3420,19 @@
             chunk += "</form>";
             chunk += "</div>"; // Ende panel-zifferblatt
 
+            // end panel-zifferblatt
+
             webserver.sendContent(chunk);
             chunk = "";
 
             // #####################################################################
             // Panel: Helligkeit (unveraendert aus der bisherigen /brightness-Seite
             // uebernommen, inkl. optionalem Plotly-Gamma-Chart)
+            // #####################################################################
+
+            // #####################################################################
+            // Panel: brightness (unchanged, taken over from the previous
+            // /brightness page, incl. optional Plotly gamma chart)
             // #####################################################################
             chunk += "<div class='tabpanel panel-helligkeit'>";
             chunk += "<form method='POST' action='/save_brightness'>";
@@ -3032,6 +3529,11 @@
                 // Daher hier NICHT sofort beim Laden zeichnen, sondern erst wenn
                 // der Helligkeit-Tab tatsaechlich aktiviert wird (bzw. sofort, falls
                 // er schon beim Laden aktiv ist).
+
+                // IMPORTANT: Plotly cannot meaningfully draw into a panel hidden via CSS
+                // (display:none) (the container has width/height 0 there). So do not
+                // draw immediately on load here, only once the brightness tab is
+                // actually activated (or immediately, if it is already active on load).
                 chunk += "var gammaTab = document.getElementById('tab-helligkeit');\n";
                 chunk += "function drawGammaIfVisible() { if (gammaTab.checked) plotGamma(parseFloat(slider.value)); }\n";
                 chunk += "gammaTab.addEventListener('change', drawGammaIfVisible);\n";
@@ -3042,12 +3544,19 @@
 
             chunk += "</div>"; // Ende panel-helligkeit
 
+            // end panel-helligkeit
+
             webserver.sendContent(chunk);
             chunk = "";
 
             // #####################################################################
             // Panel: Zeit / NTP / Timezone (unveraendert aus der bisherigen
             // /timezone_form-Seite uebernommen)
+            // #####################################################################
+
+            // #####################################################################
+            // Panel: time / NTP / timezone (unchanged, taken over from the previous
+            // /timezone_form page)
             // #####################################################################
             chunk += "<div class='tabpanel panel-zeit'>";
             {
@@ -3139,6 +3648,8 @@
             }
             chunk += "</div>"; // Ende panel-zeit
 
+            // end panel-zeit
+
             webserver.sendContent(chunk);
             chunk = "";
 
@@ -3146,6 +3657,11 @@
             // Panel: System (Reboot, Verwaltung, Factory Reset - neu, verweist auf
             // die weiterhin eigenstaendigen Seiten fuer die komplexeren, Datei-
             // lastigen Bereiche statt sie hier nochmal nachzubauen)
+
+            // #####################################################################
+            // #####################################################################
+            // Panel: system (reboot, management, factory reset - new, links to the
+            // still-standalone pages for the more complex, file-heavy areas instead of rebuilding them here)
             // #####################################################################
             chunk += "<div class='tabpanel panel-system'>";
             chunk += "<div class='card'>";
@@ -3170,10 +3686,16 @@
             chunk += "</div>";
             chunk += "</div>"; // Ende panel-system
 
+            // end panel-system
+
             // Erlaubt gezieltes Anspringen eines Tabs per ?tab=... (z.B. nach
             // einem POST-Redirect von /save, /sethostname, /save_brightness,
             // /set_timezone etc.) - rein clientseitig, da die Tab-Auswahl selbst
             // per CSS-radio erfolgt und serverseitig kein Zustand dafuer noetig ist.
+
+            // Allows jumping directly to a tab via ?tab=... (e.g. after a POST
+            // redirect from /save, /sethostname, /save_brightness, /set_timezone
+            // etc.) - purely client-side, since tab selection itself works via CSS radio and needs no server-side state.
             chunk += "<script>";
             chunk += "(function() {";
             chunk += "  var m = location.search.match(/[?&]tab=([a-zA-Z]+)/);";
@@ -3184,6 +3706,8 @@
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         webserver.on("/deletewifi", HTTP_GET, []() {
@@ -3227,6 +3751,8 @@
 
                 for (int i = 0; i < MAX_WLAN; i++) {
                     // Dynamisch berechnete Schlüssel
+
+                    // Dynamically computed keys
                     String ssidKey = pkSsid(i);
                     String passKey = pkPass(i);
 
@@ -3240,6 +3766,8 @@
 
 
                 // leere Einträge aussortieren
+
+                // Filter out empty entries
                 String tempSsid[MAX_WLAN];
                 String tempPass[MAX_WLAN];
 
@@ -3248,6 +3776,8 @@
                 for (int i = 0; i < MAX_WLAN; i++) {
 
                     // Dynamisch berechnete Schlüssel
+
+                    // Dynamically computed keys
                     String ssidKey = pkSsid(i);
                     String passKey = pkPass(i);
 
@@ -3261,6 +3791,8 @@
 
                 for (int i = 0; i < MAX_WLAN; i++) {
                     // Dynamisch berechnete Schlüssel
+
+                    // Dynamically computed keys
                     String ssidKey = pkSsid(i);
                     String passKey = pkPass(i);
 
@@ -3290,12 +3822,16 @@
             });
 
         // Upload-Formular anzeigen
+
+        // Show upload form
         webserver.on("/upload", HTTP_GET, []() {
             String uploadFormHtml = "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'><button type='button'>" + translate("Back") + "</button></a>";
             webserver.send(200, "text/html", simpleMessagePage(translate("Upload"), uploadFormHtml));
             });
 
         // Datei-Upload verarbeiten
+
+        // Process file upload
         webserver.on("/upload", HTTP_POST, []() {
             if (uploadSuccess) {
                 redirectTo("/listfilesFaces?msg=Clock%20face%20uploaded");
@@ -3309,6 +3845,8 @@
             }, handleFileUpload);
 
         // Hintergrundbild setzen
+
+        // Set background image
         webserver.on("/setbackground", HTTP_GET, []() {
             Serial.println("setbackground");
             if (webserver.hasArg("file")) {
@@ -3341,6 +3879,8 @@
             });
 
         // Datei löschen
+
+        // Delete file
         webserver.on("/delete", HTTP_GET, []() {
             if (webserver.hasArg("file")) {
                 String path = webserver.arg("file");
@@ -3351,12 +3891,19 @@
 
                     // Falls ein Zifferblatt oder Teil eines Zeigersatzes geloescht
                     // wurde, alle Presets entfernen, die darauf verweisen.
+
+                    // If a clock face or part of a hand set was deleted, remove all
+                    // presets that reference it.
                     String name = path.substring(1); // fuehrenden Slash entfernen
+
+                    // remove the leading slash
                     if (name.startsWith("face_") && name.endsWith(".bmp")) {
                         removeOrphanedPresets(path, "");
                     }
                     else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
                         int start = 8; // Laenge von "hand_set"
+
+                        // length of "hand_set"
                         int end = name.indexOf('_', start);
                         if (end > start) {
                             String setId = name.substring(start, end);
@@ -3364,6 +3911,9 @@
 
                             // Falls der betroffene Zeigersatz gerade aktiv war,
                             // sofort auf den eingebauten Standard zurueckschalten.
+
+                            // If the affected hand set was currently active, switch back to the
+                            // built-in default immediately.
                             if (preferences.getString(PK_HANDSET, "") == setId) {
                                 preferences.putString(PK_HANDSET, "default");
                                 freeClockFaceBuffer();
@@ -3391,6 +3941,9 @@
 
         // Einzelnes Preset loeschen (Slot wird dadurch wieder frei fuer
         // createPresetFromPreferences())
+
+        // Delete a single preset (frees up the slot again for
+        // createPresetFromPreferences())
         webserver.on("/deletepreset", HTTP_GET, []() {
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
@@ -3404,6 +3957,8 @@
             });
 
         // Umbenennen-Formular fuer ein einzelnes Preset
+
+        // Rename form for a single preset
         webserver.on("/renamepreset_form", HTTP_GET, []() {
             if (!webserver.hasArg("index")) {
                 webserver.send(400, "text/plain", "Missing index parameter");
@@ -3427,11 +3982,15 @@
             });
 
         // Preset umbenennen Aktion
+
+        // Rename preset action
         webserver.on("/renamepreset", HTTP_POST, []() {
             if (webserver.hasArg("index") && webserver.hasArg("new")) {
                 int idx = webserver.arg("index").toInt();
                 String newName = webserver.arg("new");
                 newName.replace(" ", "_"); // Konsistent zur Anzeige/den API-Links (siehe /presets)
+
+                // consistent with the display/API links (see /presets)
 
                 if (idx < 0 || idx >= MAX_PRESETS || presets[idx].name.isEmpty()) {
                     webserver.send(404, "text/plain", "Preset not found");
@@ -3453,6 +4012,8 @@
             });
 
         // Datei anzeigen (BMP)
+
+        // Show file (BMP)
         webserver.on("/file", HTTP_GET, []() {
             if (webserver.hasArg("name")) {
 
@@ -3464,14 +4025,21 @@
                 if (LittleFS.exists(path)) {
 
                     // Prüfe den Dateityp basierend auf der Dateiendung
+
+                    // Check the file type based on its extension
                     if (path.endsWith(".log") || path.endsWith(".txt")) {
                         File file = LittleFS.open(path, "r");
                         webserver.streamFile(file, "text/plain"); // Logdateien als Text senden
+
+                        // send log files as text
                         file.close();
                     }
                     else if (path.endsWith(".bmp")) {
                         // Pruefen, ob RLE-komprimiert - falls ja, vor der Auslieferung zu
                         // einem echten Standard-BMP dekodieren (sonst fuer externe Tools nicht lesbar).
+
+                        // Check whether it is RLE-compressed - if so, decode it to a real
+                        // standard BMP before serving it (otherwise unreadable by external tools).
                         bool isRle = false;
                         File probe = LittleFS.open(path, "r");
                         if (probe) {
@@ -3489,6 +4057,10 @@
                             // Streaming fehlgeschlagen (z.B. Lesefehler) - NICHT stillschweigend
                             // die rohen komprimierten Bytes ausliefern (kein gueltiges BMP mehr),
                             // stattdessen klarer Fehler (500-Code ggf. nicht mehr moeglich, falls Header schon gesendet).
+
+                            // Streaming failed (e.g. read error) - do NOT silently serve the raw
+                            // compressed bytes (no longer a valid BMP), instead a clear error
+                            // (500 status may no longer be possible if headers were already sent).
                             DEBUG_PRINTLN("[FILE] RLE streaming failed for " + path);
                             setLedOff();
                             return;
@@ -3496,11 +4068,15 @@
 
                         File file = LittleFS.open(path, "r");
                         webserver.streamFile(file, "image/bmp"); // BMP-Dateien als Bild senden
+
+                        // send BMP files as an image
                         file.close();
                     }
                     else {
                         File file = LittleFS.open(path, "r");
                         webserver.streamFile(file, "application/octet-stream"); // Andere Dateien als Binärdaten senden
+
+                        // send other files as binary data
                         file.close();
                     }
 
@@ -3513,6 +4089,8 @@
             });
 
         // Hand-Sets verwalten
+
+        // Manage hand sets
         webserver.on("/handsets", HTTP_GET, []() {
 
             size_t total = LittleFS.totalBytes();
@@ -3521,6 +4099,10 @@
             // Chunked-Response (Variante B): Seite bettet Vorschaubilder als Base64 ein und
             // kann dadurch sehr gross werden - wird daher Stueck fuer Stueck gesendet
             // (webserver.sendContent()), Speicherbedarf haengt nur von der groessten Zeile ab.
+
+            // Chunked response (variant B): the page embeds preview images as base64
+            // and can therefore get very large - sent piece by piece
+            // (webserver.sendContent()), memory use only depends on the largest line.
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
@@ -3534,6 +4116,10 @@
             // Numerisch sortieren (std::map<int,String>), damit z.B. "10" nach "9" statt
             // zwischen "1" und "2" landet. Nicht-numerische Namen (unueblich) landen
             // zusaetzlich unsortiert in einer separaten Liste, damit sie nicht verloren gehen.
+
+            // Sort numerically (std::map<int,String>) so e.g. "10" ends up after "9"
+            // instead of between "1" and "2". Non-numeric names (unusual) land
+            // additionally, unsorted, in a separate list so they are not lost.
             std::set<String> seenSetIds;
             std::map<int, String> numericSets;
             std::vector<String> otherSets;
@@ -3549,6 +4135,8 @@
                     if (end > start) {
                         String setIdStr = name.substring(start, end);
                         if (seenSetIds.insert(setIdStr).second) { // true, wenn neu (noch nicht gesehen)
+
+                        // true if new (not seen yet)
                             bool isNumeric = setIdStr.length() > 0;
                             for (unsigned int k = 0; k < setIdStr.length(); k++) {
                                 if (!isDigit(setIdStr[k])) { isNumeric = false; break; }
@@ -3567,6 +4155,8 @@
             String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_HEIGHT);
 
             // Default-Zeigersatz (eingebaut) - eigener Chunk
+
+            // Default hand set (built-in) - its own chunk
             bool defaultSetActive = (activeSet == "default" || activeSet.isEmpty());
             chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
             chunk += "<a href='/sethandset?set=default'>";
@@ -3579,6 +4169,9 @@
 
             // Jeden gefundenen Zeigersatz SOFORT senden statt zu sammeln - so liegt
             // nie mehr als ein Zeigersatz gleichzeitig im Speicher.
+
+            // Send each found hand set IMMEDIATELY instead of collecting them - so
+            // never more than one hand set is in memory at a time.
             auto renderSetRow = [&](const String& setId) {
                 chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
                 String hourPath = "/hand_set" + setId + "_hour.bmp";
@@ -3596,15 +4189,21 @@
                 };
 
             // Zuerst alle numerisch benannten Zeigersaetze in aufsteigender Reihenfolge...
+
+            // First all numerically named hand sets in ascending order...
             for (auto& entry : numericSets) {
                 renderSetRow(entry.second);
             }
             // ...danach eventuelle Sonderfaelle mit nicht-numerischem Namen (unsortiert)
+
+            // ...then any special cases with non-numeric names (unsorted)
             for (const String& setId : otherSets) {
                 renderSetRow(setId);
             }
 
             // Ab hier sind die grossen Base64-Strings nicht mehr benoetigt.
+
+            // From here on the large base64 strings are no longer needed.
             handHourBase64 = String();
             handMinuteBase64 = String();
             handSecondBase64 = String();
@@ -3624,6 +4223,8 @@
             }
             else {
                 // Vorhandene Zeigersatz-Dateinamen fuer den Vergleich mit GitHub einsammeln
+
+                // Collect existing hand-set filenames to compare with GitHub
                 std::vector<String> existingHandFiles;
                 File handRootScan = LittleFS.open("/");
                 File handFileScan = handRootScan.openNextFile();
@@ -3638,6 +4239,10 @@
                 // Automatischer Download neuer Zeigersaetze direkt im Browser (siehe
                 // ausfuehrlichen Kommentar bei /listfilesFaces - gleiches Prinzip:
                 // Browser laedt per CORS von GitHub, laedt lokal per /uploadhandset hoch).
+
+                // Automatic download of new hand sets directly in the browser (see the
+                // detailed comment at /listfilesFaces - same principle: browser
+                // downloads via CORS from GitHub, uploads locally via /uploadhandset).
                 chunk += "<h3>" + translate("Download Additional Hand Sets from GitHub") + "</h3>";
                 chunk += "<button type='button' id='ghHandBtn' onclick='loadHandsFromGithub()'>" + translate("Download Additional Hand Sets from GitHub") + "</button>";
                 chunk += "<div id='ghHandStatus'></div>";
@@ -3688,12 +4293,16 @@
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
+
+            // signal the end of the chunked transfer
             });
 
         webserver.on("/setcenter", HTTP_POST, []() {
             if (webserver.hasArg("size") && webserver.hasArg("color")) {
                 hubSize = webserver.arg("size").toInt();
                 uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16);
+
+                // 24-Bit RGB888 in RGB565 umwandeln
 
                 // Convert 24-bit RGB888 to RGB565
                 uint8_t r = (rgb >> 16) & 0xFF;
@@ -3711,9 +4320,13 @@
             });
 
         //  Handsets Datei-Upload verarbeiten
+
+        // Process hand-set file upload
         webserver.on("/uploadhandset", HTTP_POST, []() {
             if (uploadSuccess) {
                 // Sicherheitsprüfung auf Dateinamenmuster
+
+                // Security check on the filename pattern
                 if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
                     String errorHtml = "<p>" + translate("Only .bmp files starting with") + " <code>hand_</code> " + translate("are accepted for handset upload") + ".</p>";
                     errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>";
@@ -3737,6 +4350,8 @@
 
 
         // Handset setzen
+
+        // Set hand set
         webserver.on("/sethandset", HTTP_GET, []() {
             if (webserver.hasArg("set")) {
                 String chosen = webserver.arg("set");
@@ -3754,6 +4369,8 @@
             });
 
         // Handset löschen
+
+        // Delete hand set
         webserver.on("/deletehandset", HTTP_GET, []() {
             if (webserver.hasArg("set")) {
                 String setId = webserver.arg("set");
@@ -3771,6 +4388,10 @@
                 // Falls der geloeschte Zeigersatz gerade aktiv war, sofort auf
                 // den eingebauten Standard zurueckschalten - sonst wuerde die
                 // Uhr versuchen, einen nicht mehr existierenden Zeigersatz zu laden.
+
+                // If the deleted hand set was currently active, switch back to the
+                // built-in default immediately - otherwise the clock would try to load
+                // a hand set that no longer exists.
                 if (preferences.getString(PK_HANDSET, "") == setId) {
                     preferences.putString(PK_HANDSET, "default");
                     freeClockFaceBuffer();
@@ -3787,6 +4408,8 @@
             });
 
         // ESP neu starten
+
+        // Restart the ESP
         webserver.on("/reboot", HTTP_GET, []() {
             webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "<p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>", "<meta http-equiv='refresh' content='10; url=/'>"));
             espReboot();
@@ -3794,6 +4417,9 @@
 
         // Werkseinstellungen: Uebersichtsseite mit mehreren, einzeln
         // bestaetigten Reset-Optionen statt einer einzigen Alles-oder-nichts-Aktion.
+
+        // Factory settings: overview page with several individually confirmed
+        // reset options instead of one single all-or-nothing action.
         webserver.on("/factoryReset", HTTP_GET, []() {
             String html = beginPage();
             html += generateFlashMessage();
@@ -3848,6 +4474,8 @@
             });
 
         // Sofortige Zeitsynchronisation
+
+        // Immediate time synchronization
         webserver.on("/syncnow", HTTP_POST, []() {
             setupNTP();
            // struct tm timeinfo;
@@ -3865,6 +4493,8 @@
 
 
     // Handhabt den Datei-Upload
+
+    // Handles the file upload
     void handleFileUpload() {
         HTTPUpload& upload = webserver.upload();
 
@@ -3876,6 +4506,8 @@
             if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
 
             // Nur bestimmte Dateinamenmuster zulassen
+
+            // Only allow certain filename patterns
             if (!uploadFilePath.endsWith(".bmp") ||
                 !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set"))) {
                 DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp' : " + uploadFilePath);
@@ -3937,11 +4569,19 @@
     // Prueft, ob das in einer Preset-URL angegebene Zifferblatt existiert - case-
     // insensitiv (LittleFS ist case-sensitiv, Nutzer koennten abweichend schreiben),
     // korrigiert die URL bei Treffer. False = kein passendes Zifferblatt (face_default.bmp immer gueltig).
+
+    // Checks whether the clock face given in a preset URL exists - case-
+    // insensitive (LittleFS is case-sensitive, users might type it differently),
+    // corrects the URL on a match. False = no matching face (face_default.bmp is always valid).
     bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) {
         int facePos = url.indexOf("face=");
         if (facePos == -1) return true; // kein face-Parameter, nichts zu pruefen
 
+        // no face parameter, nothing to check
+
         int valueStart = facePos + 5; // Laenge von "face="
+
+        // length of "face="
         int valueEnd = url.indexOf('&', valueStart);
         if (valueEnd == -1) valueEnd = url.length();
 
@@ -3950,6 +4590,8 @@
 
         if (faceName.equalsIgnoreCase("face_default.bmp")) {
             return true; // eingebautes Standard-Zifferblatt ist immer gueltig
+
+            // built-in default face is always valid
         }
 
         for (const String& existing : existingFaces) {
@@ -3957,6 +4599,8 @@
                 String correctValue = "/" + existing;
                 if (correctValue != faceValue) {
                     // Gross-/Kleinschreibung weicht ab - URL korrigieren
+
+                    // Case differs - correct the URL
                     url = url.substring(0, valueStart) + correctValue + url.substring(valueEnd);
                 }
                 return true;
@@ -3964,6 +4608,8 @@
         }
 
         return false; // kein passendes Zifferblatt gefunden
+
+        // no matching face found
     }
 
 
@@ -3972,6 +4618,12 @@
     // und fuegt nur NEUE Presets in freie Slots ein. Bestehende Presets werden NICHT
     // geloescht - auch nicht, wenn eine Zeile aus der Importdatei denselben Namen
     // traegt (der bestehende Eintrag bleibt dann einfach unangetastet erhalten).
+
+    // Processes the file upload for /importpresets: writes the file
+    // temporarily, reads it line by line (format "Name<TAB>URL", as produced
+    // by /exportpresets) and inserts only NEW presets into free slots.
+    // Existing presets are NOT deleted - not even if a line from the import
+    // file has the same name (the existing entry is simply left untouched).
     void handlePresetImportUpload() {
         HTTPUpload& upload = webserver.upload();
 
@@ -3999,6 +4651,10 @@
                 // Namen der bereits vorhandenen Presets einmalig einsammeln, um
                 // importierte Zeilen mit gleichem Namen ueberspringen zu koennen -
                 // das bestehende Preset bleibt dadurch unveraendert erhalten.
+
+                // Collect the names of already existing presets once, so imported
+                // lines with the same name can be skipped - the existing preset stays
+                // unchanged as a result.
                 std::vector<String> existingPresetNames;
                 for (int i = 0; i < MAX_PRESETS; i++) {
                     if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
@@ -4008,6 +4664,9 @@
 
                 // Vorhandene Zifferblaetter einmalig einlesen, um jede
                 // importierte Preset-Zeile dagegen pruefen zu koennen.
+
+                // Read existing clock faces once, so each imported preset line can
+                // be checked against them.
                 std::vector<String> existingFaces;
                 File faceRoot = LittleFS.open("/");
                 File faceEntry = faceRoot.openNextFile();
@@ -4038,6 +4697,9 @@
 
                     // Preset mit gleichem Namen existiert bereits - ueberspringen,
                     // statt es zu ueberschreiben oder zu loeschen.
+
+                    // A preset with the same name already exists - skip it instead of
+                    // overwriting or deleting it.
                     bool alreadyExists = false;
                     for (const String& existingName : existingPresetNames) {
                         if (existingName == name) { alreadyExists = true; break; }
@@ -4069,6 +4731,8 @@
                     presets[freeIndex].name = name;
                     presets[freeIndex].url = url;
                     existingPresetNames.push_back(name); // schuetzt auch vor Duplikaten INNERHALB der Importdatei
+
+                    // also protects against duplicates WITHIN the import file
                     importedCount++;
                 }
                 readFile.close();
@@ -4080,6 +4744,8 @@
 
                 DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " presets imported, " + String(skippedCount) + " skipped");
                 presetImportSuccess = true; // auch 0 neue Presets ist kein Fehler (z.B. alles schon vorhanden)
+
+                // 0 new presets is also not an error (e.g. everything already existed)
             }
             else {
                 DEBUG_PRINTLN("[PRESET-IMPORT] Failed while writing");
@@ -4093,6 +4759,12 @@
     // genutzt: das Herausfiltern bereits vorhandener Namen erledigt hier schon die
     // aufrufende JavaScript-Funktion, bevor die Datei hier ankommt (daher KEINE
     // serverseitige Namens-Dopplungspruefung wie in handlePresetImportUpload()).
+
+    // Similar to handlePresetImportUpload() - only inserts new presets into
+    // free slots, existing ones are kept. Used by the GitHub download button
+    // on /presets: filtering out already-existing names is already done by
+    // the calling JavaScript function before the file arrives here (so
+    // there is NO server-side name-duplicate check like in handlePresetImportUpload()).
     void handlePresetMergeUpload() {
         HTTPUpload& upload = webserver.upload();
 
@@ -4171,6 +4843,8 @@
                     savePresets();
                 }
                 presetImportSuccess = true; // Auch bei 0 neuen Presets kein Fehler (z.B. alles schon vorhanden)
+
+                // 0 new presets is also not an error (e.g. everything already existed)
                 DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " new presets added, " + String(skippedCount) + " skipped");
             }
             else {
