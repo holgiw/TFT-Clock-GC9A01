@@ -237,8 +237,19 @@
             int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
             int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
             int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
-            int scaledHubSize = (int)(hubSize * scaleFactor + 0.5);
-            if (scaledHubSize < 2) scaledHubSize = 2;
+            // hubSize ist ein RADIUS (wie bei fillCircle() auf dem echten Display,
+            // siehe display.h, und bei generatePresetPreviewBmp()) - fuer den CSS-
+            // Kreis unten wird aber der DURCHMESSER (width/height) gebraucht, daher
+            // hier verdoppeln. Vorher fehlte die Verdopplung, wodurch der Punkt in
+            // dieser Live-Vorschau nur halb so gross wie auf dem echten Display war.
+
+            // hubSize is a RADIUS (like fillCircle() on the real display, see
+            // display.h, and generatePresetPreviewBmp()) - but the CSS circle
+            // below needs the DIAMETER (width/height), hence doubled here.
+            // Previously missing this doubling made the hub in this live
+            // preview only half as large as on the real display.
+            int scaledHubSize = (int)(hubSize * 2 * scaleFactor + 0.5);
+            if (scaledHubSize < 4) scaledHubSize = 4;
 
             nav += "<div onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #2a333c;border-radius:8px;background:#1a2129 url(/currentfacebg) center/cover no-repeat;z-index:1000;overflow:hidden;cursor:pointer;'>";
             nav += "<div id='liveHandsPivot' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
@@ -335,7 +346,7 @@
             // pages themselves (/wifi, /timezone_form, /brightness, /status) still
             // exist as standalone routes (backward compatibility for bookmarks/direct calls).
             {"/", translate("Main"), ""},
-            {"/preview", translate("Live Preview"), ""},
+            {"/preview", translate("Preview"), ""},
             {"/presets", translate("Presets"), ""},
             {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
             {"/handsets", translate("Hand&nbsp;Set"), ""},
@@ -557,6 +568,68 @@
     }
 
 
+    // Wandelt esp_reset_reason() in lesbaren Text um - fuer die Status-
+    // Anzeige, hilfreich um z.B. einen Watchdog-Reset oder Panic von
+    // einem normalen Neustart zu unterscheiden (siehe die WPS-Freeze-
+    // Diagnose weiter oben in wifi_manager.h). Als eigenstaendige Funktion
+    // (nicht verschachtelt in setupWebServer()) definiert, da C++ keine
+    // Funktionsdefinitionen innerhalb einer anderen Funktion erlaubt.
+
+    // Converts esp_reset_reason() into readable text - for the status
+    // display, useful to distinguish e.g. a watchdog reset or panic from a
+    // normal restart (see the WPS freeze diagnosis further up in
+    // wifi_manager.h). Defined as a standalone function (not nested inside
+    // setupWebServer()), since C++ does not allow function definitions
+    // inside another function.
+
+    String resetReasonToString(esp_reset_reason_t reason) {
+        switch (reason) {
+            case ESP_RST_POWERON: return "Power-on";
+            case ESP_RST_EXT: return "External pin";
+            case ESP_RST_SW: return "Software (esp_restart)";
+            case ESP_RST_PANIC: return "Panic / exception";
+            case ESP_RST_INT_WDT: return "Interrupt watchdog";
+            case ESP_RST_TASK_WDT: return "Task watchdog";
+            case ESP_RST_WDT: return "Other watchdog";
+            case ESP_RST_DEEPSLEEP: return "Deep sleep wake";
+            case ESP_RST_BROWNOUT: return "Brownout";
+            case ESP_RST_SDIO: return "SDIO";
+            case ESP_RST_USB: return "USB";
+            case ESP_RST_JTAG: return "JTAG";
+            case ESP_RST_EFUSE: return "Efuse error";
+            case ESP_RST_PWR_GLITCH: return "Power glitch";
+            case ESP_RST_CPU_LOCKUP: return "CPU lockup";
+            default: return "Unknown";
+        }
+    }
+
+
+    // Wandelt rtcOk (siehe globals.h) in lesbaren Text um.
+    // Converts rtcOk (see globals.h) into readable text.
+
+    String rtcStatusToString(int status) {
+        if (status == RTC_AVAILABLE) return "OK";
+        if (status == RTC_AVAILABLE_BUT_INVALID) return "found, but time invalid";
+        return "not found";
+    }
+
+
+    // Formatiert eine Millis-Zeitspanne wie bei Uptime (Xd Xh Xm Xs) -
+    // gemeinsam genutzt fuer "letzter NTP-Sync vor ...".
+
+    // Formats a millis duration the same way as Uptime (Xd Xh Xm Xs) -
+    // shared for "last NTP sync ... ago".
+
+    String formatDurationMs(unsigned long ms) {
+        unsigned long seconds = ms / 1000;
+        unsigned long days = seconds / 86400;
+        unsigned long hours = (seconds % 86400) / 3600;
+        unsigned long minutes = (seconds % 3600) / 60;
+        unsigned long secs = seconds % 60;
+        return String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s";
+    }
+
+
     // Webserver-API-Endpunkte einrichten
     // Set up the webserver API endpoints
 
@@ -661,8 +734,13 @@
             webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
             DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
-            preferences.end(); // Schließe die Preferences, um sicherzustellen, dass alle Änderungen gespeichert werden
-                               // close preferences to make sure all changes are saved
+            // preferences.end() nicht mehr hier, sondern in espReboot() selbst -
+            // sonst faellt der dort geloggte Reboot-Eintrag auf die falsche
+            // Logdatei zurueck (siehe Kommentar in espReboot()).
+
+            // preferences.end() no longer called here, but inside espReboot()
+            // itself - otherwise the reboot log entry logged there falls back
+            // to the wrong log file (see comment in espReboot()).
             delay(WAIT_1s);
             // Neustart des ESP
             // Restart the ESP
@@ -2089,6 +2167,14 @@
                 unsigned long minutes = (seconds % 3600) / 60;
                 unsigned long secs = seconds % 60;
                 chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
+                chunk += "<li>Last Reset Reason: " + resetReasonToString(esp_reset_reason()) + "</li>";
+                chunk += "<li>RTC Status: " + rtcStatusToString(rtcOk) + "</li>";
+                if (lastNtpSuccessMillis == 0) {
+                    chunk += "<li>Last NTP Sync: never</li>";
+                }
+                else {
+                    chunk += "<li>Last NTP Sync: " + formatDurationMs(millis() - lastNtpSuccessMillis) + " ago</li>";
+                }
 
                 chunk += "<br>";
             }
@@ -2128,12 +2214,14 @@
             chunk = "";
 
             chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
+            chunk += "<li>Arduino Core Version: " ESP_ARDUINO_VERSION_STR "</li><br>";
 
             webserver.sendContent(chunk);
             chunk = "";
 
             chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
             chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
+            chunk += "<li>Max Allocatable Block: " + String(ESP.getMaxAllocHeap() / 1024) + " KB</li>";
             chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
             chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
             chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
@@ -2404,7 +2492,7 @@
 
             String chunk = beginPage();
             chunk.reserve(2048);
-            chunk += "<h2>" + translate("Live Preview") + "</h2>";
+            chunk += "<h2>" + translate("Preview") + "</h2>";
 
             const int previewSize = 400;
 
@@ -2465,8 +2553,19 @@
             int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
             int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
             int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
-            int scaledHubSize = (int)(hubSize * scaleFactor + 0.5);
-            if (scaledHubSize < 2) scaledHubSize = 2;
+            // hubSize ist ein RADIUS (wie bei fillCircle() auf dem echten Display,
+            // siehe display.h, und bei generatePresetPreviewBmp()) - fuer den CSS-
+            // Kreis unten wird aber der DURCHMESSER (width/height) gebraucht, daher
+            // hier verdoppeln. Vorher fehlte die Verdopplung, wodurch der Punkt in
+            // dieser Live-Vorschau nur halb so gross wie auf dem echten Display war.
+
+            // hubSize is a RADIUS (like fillCircle() on the real display, see
+            // display.h, and generatePresetPreviewBmp()) - but the CSS circle
+            // below needs the DIAMETER (width/height), hence doubled here.
+            // Previously missing this doubling made the hub in this live
+            // preview only half as large as on the real display.
+            int scaledHubSize = (int)(hubSize * 2 * scaleFactor + 0.5);
+            if (scaledHubSize < 4) scaledHubSize = 4;
 
             chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;margin:20px auto;box-sizing:border-box;border:3px solid #333;border-radius:50%;background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
@@ -2940,8 +3039,15 @@
             // #####################################################################
 
             // #####################################################################
-            // Panel: status (read-only system info - unchanged, taken over from the
-            // previous standalone /status page)
+            // Panel: status (read-only system info - identisch zur bisherigen
+            // eigenstaendigen /status-Seite, inklusive "Actual Preferences" -
+            // es gibt bewusst nur noch EINE Status-Ansicht mit vollem Umfang,
+            // nicht mehr eine gekuerzte Tab-Version plus separate volle Seite.
+
+            // Panel: status (read-only system info - identical to the previous
+            // standalone /status page, including "Actual Preferences" -
+            // deliberately only ONE full-detail status view now, not a
+            // shortened tab version plus a separate full page)
             // #####################################################################
             chunk += "<div class='tabpanel panel-status'>";
             chunk += "<ul>";
@@ -2963,6 +3069,14 @@
                 unsigned long minutes = (seconds % 3600) / 60;
                 unsigned long secs = seconds % 60;
                 chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
+                chunk += "<li>Last Reset Reason: " + resetReasonToString(esp_reset_reason()) + "</li>";
+                chunk += "<li>RTC Status: " + rtcStatusToString(rtcOk) + "</li>";
+                if (lastNtpSuccessMillis == 0) {
+                    chunk += "<li>Last NTP Sync: never</li>";
+                }
+                else {
+                    chunk += "<li>Last NTP Sync: " + formatDurationMs(millis() - lastNtpSuccessMillis) + " ago</li>";
+                }
                 chunk += "<br>";
             }
 
@@ -2998,12 +3112,14 @@
             chunk = "";
 
             chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
+            chunk += "<li>Arduino Core Version: " ESP_ARDUINO_VERSION_STR "</li><br>";
 
             webserver.sendContent(chunk);
             chunk = "";
 
             chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
             chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
+            chunk += "<li>Max Allocatable Block: " + String(ESP.getMaxAllocHeap() / 1024) + " KB</li>";
             chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
             chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
             chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
@@ -3031,14 +3147,157 @@
             }
 #endif
 
-            chunk += "<li><b>tftRotation</b>: " + String(preferences.getUChar(PK_TFT_ROTATION, 0)) + "</li>";
+            chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
+            chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
+            chunk += "<li>TFT_CS GPIO: " + String(TFT_CS) + "</li>";
+#if defined CS_2
+            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + "</li>";
+#endif
+
+            chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
+            chunk += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
+
+#if defined SDA_PIN && defined SCL_PIN
+            if (!i2cAddr.isEmpty()) {
+                chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
+                chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
+                chunk += "<li>I2C SDL GPIO: " + String(SCL_PIN) + "</li><br>";
+            }
+            else {
+                chunk += "<li>I2C: no device found</li><br>";
+            }
+#endif
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+            if (dcf77Count == 0) {
+                chunk += "<li>DCF77: No signal received so far</li>";
+            }
+            else {
+                chunk += "<li>DCF77: Pulses received</li>";
+            }
+            if (lastDcfSyncTime == 0) {
+                chunk += "<li>DCF77 last sync: never</li>";
+            }
+            else {
+                struct tm syncInfo;
+                localtime_r(&lastDcfSyncTime, &syncInfo);
+                char syncBuf[24];
+                snprintf(syncBuf, sizeof(syncBuf), "%04d-%02d-%02d %02d:%02d:%02d",
+                    syncInfo.tm_year + 1900, syncInfo.tm_mon + 1, syncInfo.tm_mday,
+                    syncInfo.tm_hour, syncInfo.tm_min, syncInfo.tm_sec);
+                chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
+            }
+            chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";
+            chunk += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
+#endif
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+#ifdef BUTTON1
+            chunk += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
+#endif
+            chunk += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
+
+#ifdef LED_BOARD
+            chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
+#endif
+#ifdef TOUCH_PIN
+            chunk += "<li>TOUCH_PIN GPIO: " + String(TOUCH_PIN) + "</li>";
+            chunk += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
+#endif
+#ifdef ADC_PIN
+            chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
+            chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
+            chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
+            if (photoresistorFound) {
+                chunk += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
+            }
+#endif
+
+#ifndef TFT_Backlight
+            chunk += "<li>TFT_Backlight: none</li>";
+#else
+            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + "</li>";
+#endif
+            chunk += "<br>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            chunk += "<li><h3>Actual Preferences</h3></li><ul>";
+
+            for (int i = 0; i < MAX_WLAN; i++) {
+                // Dynamisch berechnete Schlüssel
+                // Dynamically computed keys
+                String ssidKey = pkSsid(i);
+
+                if (preferences.getString(ssidKey.c_str(), "") != "") {
+                    if (preferences.getInt(PK_LAST_WLAN) != i) {
+                        chunk += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
+                    }
+                    else {
+                        chunk += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
+                    }
+                }
+            }
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            for (int i = 0; i < MAX_WLAN; i++) {
+                if (preferences.getString((pkNtpServer(i)).c_str(), "") != "") {
+                    chunk += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString((pkNtpServer(i)).c_str(), "") + "</li>";
+                }
+            }
+
+            chunk += "<li><b>pingServer:port</b>: " + preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER) + "</li>";
+
+            chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
+            chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
+            chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
+            chunk += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
+            chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
+
+            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION, 0);
+            const char* statusRotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
+            chunk += "<li><b>tftRotation</b>: " + String(statusRotationLabels[rotation]) + "</li>";
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // Booleans als Text
+            // Booleans as text
+
             chunk += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
             chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
             chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
 
+            chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
+            chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
+
+            uint16_t brightEndPanel = preferences.getUChar(PK_BRIGHT_END_HOUR, 20);
+            brightEndPanel += 1;
+            if (brightEndPanel > 23) brightEndPanel = 0;
+
+            chunk += "<li><b>daywindow</b>: " + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 8)) + ":00 - " + String(brightEndPanel) + ":00</li>";
+
+            if (preferences.getBool(PK_USE_ADC, true)) {
+                chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
+                chunk += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt(PK_LOW_THRESHOLD, 40)) + "</li>";
+                chunk += "<li><b>adc highThreshold</b>: " + String(preferences.getInt(PK_HIGH_THRESHOLD, 60)) + "</li>";
+                chunk += "<li><b>adc Inverted</b>: " + String(preferences.getBool(PK_ADC_INVERTED, false) ? "true" : "false") + "</li>";
+            }
+            if (preferences.getBool(PK_USE_TOUCH, false)) {
+                chunk += "<li><b>use Touch</b>: " + String(preferences.getBool(PK_USE_TOUCH, false) ? "true" : "false") + "</li>";
+            }
+            chunk += "</ul>";
+            chunk += "</br>";
             chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
-            chunk += "<li><a href='/status'>" + translate("Status") + " (" + translate("full details") + ")</a></li>";
             chunk += "</ul>";
             chunk += "</div>"; // Ende panel-status
                                // end panel-status
@@ -3100,6 +3359,18 @@
                     translate("No WiFi network configured yet, or the last known network is unavailable - the clock created its own WiFi network. Enter your home WiFi details below, save, and the clock will restart and try to connect") + ".</div>";
             }
 
+            // Zeigt an, mit welcher SSID die Uhr aktuell verbunden ist (oder
+            // dass keine Verbindung besteht) - direkt oben im WLAN-Tab.
+
+            // Shows which SSID the clock is currently connected to (or that
+            // there is no connection) - right at the top of the WLAN tab.
+            if (WiFi.status() == WL_CONNECTED) {
+                chunk += "<div style='text-align:center;margin:10px auto;'>" + translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong></div>";
+            }
+            else if (!apMode) {
+                chunk += "<div style='text-align:center;margin:10px auto;color:#856404;'>" + translate("Not connected") + "</div>";
+            }
+
             chunk += "<form method='POST' action='/sethostname'>";
             chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
             chunk += "<label>" + translate("Hostname") + ":</label>";
@@ -3120,6 +3391,18 @@
             chunk += "<button id='rescanBtn' type='button' style='width:170px;'>" + translate("Rescan Networks") + "</button>";
             chunk += "<span title='" + translate("Scans for available WiFi networks again and refreshes the dropdown lists below") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "</div><br>";
+
+            // Zaehlt die bereits gespeicherten Netzwerke, um den "Verbinden"-Button
+            // je Eintrag nur anzuzeigen, wenn es ueberhaupt eine Auswahl gibt
+            // (mehr als 1 gespeichertes Netzwerk).
+
+            // Counts the already saved networks, to only show the "Connect"
+            // button per entry when there is actually a choice (more than
+            // 1 saved network).
+            int savedWifiCount = 0;
+            for (int i = 0; i < MAX_WLAN; i++) {
+                if (preferences.getString(pkSsid(i).c_str(), "") != "") savedWifiCount++;
+            }
 
             chunk += "<form action = '/save' method = 'POST'>";
 
@@ -3145,7 +3428,17 @@
                 chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifiSsid[i] + "' style='width:110px;'>";
                 chunk += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value='' style='width:110px;'>";
                 if (wifiSsid[i] != "") {
-                    chunk += "<a href='/deletewifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + wifiSsid[i] + "?\")'>" + translate("Delete") + "</a>";
+                    // "Verbinden"-Button nur anzeigen, wenn mehr als ein Netzwerk
+                    // gespeichert ist - bei nur einem Eintrag ist er bereits
+                    // (oder wird beim Speichern) die aktive Verbindung.
+
+                    // Only show the "Connect" button when more than one network
+                    // is saved - with just one entry it's already (or will
+                    // become, once saved) the active connection anyway.
+                    if (savedWifiCount > 1) {
+                        chunk += " <a href='/api/connectWifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Connect") + " " + wifiSsid[i] + "?\")'>" + translate("Connect") + "</a>";
+                    }
+                    chunk += " <a href='/deletewifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + wifiSsid[i] + "?\")'>" + translate("Delete") + "</a>";
                 }
                 chunk += "</div>";
 
@@ -3559,6 +3852,16 @@
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
                 if (idx >= 0 && idx < MAX_WLAN) {
+
+                    // Merkt sich vor dem Loeschen, ob es sich um das gerade aktiv
+                    // verbundene Netzwerk handelt - wird nach dem Umsortieren der
+                    // Liste (Indizes verschieben sich) fuer den Neustart gebraucht.
+
+                    // Remembers, before deleting, whether this is the network the
+                    // clock is currently actively connected to - needed after the
+                    // list is reindexed (indices shift) to decide on a reboot.
+                    bool deletingActiveNetwork = (WiFi.status() == WL_CONNECTED && wifiSsid[idx] != "" && WiFi.SSID() == wifiSsid[idx]);
+
                     putStringVerified(pkSsid(idx).c_str(), "");
                     putStringVerified(pkPass(idx).c_str(), "");
 
@@ -3583,8 +3886,83 @@
                         wifiSsid[i] = tempSsid[i];
                         wifiPass[i] = tempPass[i];
                     }
+
+                    if (deletingActiveNetwork) {
+
+                        // Das aktuell verbundene Netzwerk wurde geloescht - PK_LAST_WLAN
+                        // wird komplett entfernt (statt auf einen Index gesetzt), damit
+                        // beim Neustart kein veralteter/falscher Index verwendet wird.
+                        // getInt() faellt dann auf den Default-Wert 0 zurueck und die
+                        // Uhr versucht ueber die normale Boot-Sequenz ein anderes
+                        // gespeichertes WLAN (oder startet den Access-Point-Modus,
+                        // falls kein Eintrag mehr uebrig ist).
+
+                        // The currently connected network was deleted - PK_LAST_WLAN is
+                        // removed entirely (instead of set to an index), so a stale/wrong
+                        // index isn't used after reboot. getInt() then falls back to its
+                        // default value 0, and the clock tries a different saved WiFi
+                        // network via the normal boot sequence (or starts access point
+                        // mode if no entry remains).
+                        DEBUG_PRINTLN("[WiFi] Active network was deleted via Web UI - rebooting to connect to a different saved network");
+                        preferences.remove(PK_LAST_WLAN);
+                        redirectTo("/?tab=wlan&msg=Network%20deleted%2C%20reconnecting...");
+
+                        // preferences.end() nicht mehr hier, sondern in espReboot() selbst -
+                        // sonst faellt der dort geloggte Reboot-Eintrag auf die falsche
+                        // Logdatei zurueck (siehe Kommentar in espReboot()).
+
+                        // preferences.end() no longer called here, but inside espReboot()
+                        // itself - otherwise the reboot log entry logged there falls back
+                        // to the wrong log file (see comment in espReboot()).
+                        delay(WAIT_1s);
+                        // Neustart des ESP
+                        // Restart the ESP
+                        espReboot();
+                    }
                 }
                 redirectTo("/?tab=wlan&msg=Network%20deleted");
+            }
+            else {
+                webserver.send(400, "text/plain", "Missing parameter");
+            }
+            });
+
+        // Verbindet die Uhr sofort mit einem bestimmten gespeicherten WLAN-Netzwerk
+        // (Button "Verbinden" in der WLAN-Uebersicht). connectWiFi() selbst blockiert
+        // bis zu 30s und wuerde daher den Webserver waehrend der Antwort blockieren -
+        // stattdessen wird PK_LAST_WLAN gesetzt (einzige Quelle der Wahrheit fuer das
+        // beim Boot verwendete Netzwerk, siehe wifi_manager.h) und die Uhr neu
+        // gestartet, die dann ueber die normale Boot-Sequenz sauber verbindet.
+
+        // Connects the clock immediately to a specific saved WiFi network (the
+        // "Connect" button in the WLAN overview). connectWiFi() itself blocks for
+        // up to 30s, which would block the webserver while the response is being
+        // sent - instead PK_LAST_WLAN is set (single source of truth for which
+        // network is used at boot, see wifi_manager.h) and the clock reboots,
+        // connecting cleanly via the normal boot sequence.
+        webserver.on("/api/connectWifi", HTTP_GET, []() {
+            if (webserver.hasArg("index")) {
+                int idx = webserver.arg("index").toInt();
+                if (idx >= 0 && idx < MAX_WLAN && preferences.getString(pkSsid(idx).c_str(), "") != "") {
+                    DEBUG_PRINTLN("[WiFi] Web UI requested switch to saved network: " + preferences.getString(pkSsid(idx).c_str(), ""));
+                    preferences.putInt(PK_LAST_WLAN, idx);
+                    redirectTo("/?tab=wlan&msg=Connecting...");
+
+                    // preferences.end() nicht mehr hier, sondern in espReboot() selbst -
+                    // sonst faellt der dort geloggte Reboot-Eintrag auf die falsche
+                    // Logdatei zurueck (siehe Kommentar in espReboot()).
+
+                    // preferences.end() no longer called here, but inside espReboot()
+                    // itself - otherwise the reboot log entry logged there falls back
+                    // to the wrong log file (see comment in espReboot()).
+                    delay(WAIT_1s);
+                    // Neustart des ESP
+                    // Restart the ESP
+                    espReboot();
+                }
+                else {
+                    webserver.send(400, "text/plain", "Invalid index");
+                }
             }
             else {
                 webserver.send(400, "text/plain", "Missing parameter");

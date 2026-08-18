@@ -54,6 +54,24 @@
 #include <map>
 #include <esp_wps.h>
 #include <esp_wifi.h>
+
+// Liefert ESP_ARDUINO_VERSION_STR - die arduino-esp32-Core-Version, mit der
+// dieser Sketch tatsaechlich kompiliert wurde (Anzeige im Status, siehe
+// webserver_routes.h) - hilfreich, um z.B. WPS-Regressionen zwischen
+// Core-Versionen (siehe wifi_manager.h) ohne Blick in die IDE zu erkennen.
+
+// Provides ESP_ARDUINO_VERSION_STR - the arduino-esp32 core version this
+// sketch was actually compiled with (shown in Status, see
+// webserver_routes.h) - useful for spotting e.g. WPS regressions between
+// core versions (see wifi_manager.h) without checking the IDE.
+#include <esp_arduino_version.h>
+
+// Fuer esp_reset_reason() - Grund des letzten Neustarts (Power-On, Watchdog,
+// Panic, Brownout, ...), Anzeige im Status (siehe webserver_routes.h).
+
+// For esp_reset_reason() - reason for the last restart (power-on, watchdog,
+// panic, brownout, ...), shown in Status (see webserver_routes.h).
+#include <esp_system.h>
 #include <Wire.h>
 #include <RTClib.h>
 #include <WiFiUdp.h>
@@ -253,23 +271,23 @@
 
 
 
-        // Prüfen, ob PSRAM vorhanden ist
-        // Check whether PSRAM is available
+        // Prüfen, ob PSRAM vorhanden ist. GC9D01 wird treiberseitig genauso
+        // wie GC9A01 angesteuert (siehe config.h) und braucht daher keine
+        // Sonderbehandlung mehr - die PSRAM-Erkennung gilt einheitlich fuer
+        // alle Boards, ebenso die Hardware-Rotation weiter unten.
+
+        // Check whether PSRAM is available. GC9D01 is driven at the driver
+        // level exactly like GC9A01 (see config.h) and therefore no longer
+        // needs special handling - PSRAM detection applies uniformly to all
+        // boards, as does the hardware rotation further below.
         if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
             psramAvailable = true;
             DEBUG_PRINTLN("[INFO] found PSRAM");
         }
         else {
             psramAvailable = false;
-            DEBUG_PRINTLN("[INFO] no PSRAM, use Hardware-Rotation");
-#ifdef GC9D01
-            preferences.putUChar(PK_TFT_ROTATION, 0);
-#endif
+            DEBUG_PRINTLN("[INFO] no PSRAM found");
         }
-#ifndef GC9D01 // wird nur bei Display GC9D01 benötigt
-               // only needed for the GC9D01 display
-        psramAvailable = false;
-#endif
 
 
 
@@ -485,26 +503,19 @@
 
         validateSelectedBackground();
 
-#ifndef GC9D01
+        // GC9D01 wird treiberseitig wie GC9A01 angesteuert (siehe config.h),
+        // die Hardware-Rotation funktioniert daher fuer beide gleich - keine
+        // GC9D01-spezifische Sonderbehandlung mehr noetig.
+
+        // GC9D01 is driven at the driver level like GC9A01 (see config.h),
+        // so hardware rotation works the same way for both - no more
+        // GC9D01-specific special handling needed.
 #if defined CS_2
         setCS2(LOW);
         tft.setRotation(tftRotation);
         setCS1(LOW);
 #endif
         tft.setRotation(tftRotation);
-#else
-        if (!psramAvailable) {
-            tftRotation = 0;
-            preferences.putUChar(PK_TFT_ROTATION, tftRotation);
-#if defined CS_2
-            setCS2(LOW);
-            tft.setRotation(tftRotation);
-            setCS1(LOW);
-#endif
-            tft.setRotation(tftRotation);
-            DEBUG_PRINTF("[TFT] Using stored rotation: %d\n", tftRotation);
-        }
-#endif
 
 
 #ifdef TFT_Backlight

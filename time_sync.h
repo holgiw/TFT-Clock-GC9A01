@@ -265,10 +265,34 @@
         for (int i = 0; i < MAX_WLAN; i++) {
             String ntpServer = ntpServers[i];
             if (ntpServer.length() == 0) continue;
-            //DEBUG_PRINTLN("[NTP] Trying server: " + String(ntpServers[i]));
+
+            // Diagnose: DNS-Aufloesung separat pruefen und loggen, damit im
+            // Fehlerfall im Log sichtbar wird, ob der Server ueberhaupt
+            // erreichbar/aufloesbar war, statt nur "failed" ohne Ursache zu
+            // sehen (siehe testNtpServer() weiter oben fuer denselben Ansatz).
+
+            // Diagnostic: check and log DNS resolution separately, so on
+            // failure the log shows whether the server was reachable/
+            // resolvable at all, instead of just "failed" with no cause
+            // (see testNtpServer() further above for the same approach).
+            IPAddress ntpServerIp;
+            if (WiFi.hostByName(ntpServers[i], ntpServerIp)) {
+                DEBUG_PRINTLN("[NTP] Trying server: " + ntpServer + " (" + ntpServerIp.toString() + ")");
+            }
+            else {
+                DEBUG_PRINTLN("[NTP] DNS lookup failed for server: " + ntpServer);
+            }
+
             configTzTime(timezone.c_str(), ntpServers[i]);
-            //  struct tm timeinfo;
-            if (getLocalTime(&timeinfo, 500)) {
+
+            // 500ms waren in der Praxis oft zu knapp fuer DNS-Aufloesung plus
+            // NTP-Antwort ueber das offene Internet - auf 3s verlaengert, wie
+            // bei testNtpServer() weiter oben.
+
+            // 500ms was often too short in practice for DNS resolution plus
+            // the NTP response over the open internet - extended to 3s,
+            // matching testNtpServer() further above.
+            if (getLocalTime(&timeinfo, WAIT_3s)) {
 
                 DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + ntpServer);
                 lastNtpSuccessMillis = millis();

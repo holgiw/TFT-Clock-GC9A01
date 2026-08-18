@@ -109,10 +109,20 @@
             if (currentWeek != lastResetWeek) {
                 DEBUG_PRINTF("Woechentlicher Reboot in Woche %d\n", currentWeek);
                 preferences.putInt(PK_LAST_RESET_WEEK, currentWeek);
-                preferences.end();
                 delay(WAIT_1s);
                 DEBUG_PRINTLN("reboot now..");
                 delay(WAIT_1s);
+
+                // preferences.end() erst NACH dem letzten Log-Eintrag - logToFile()
+                // liest selbst PK_LOG_FILE_NUMBER aus preferences, ein bereits
+                // geschlossener Handle wuerde den Eintrag in die falsche Logdatei
+                // schreiben lassen (siehe Kommentar in espReboot()).
+
+                // preferences.end() only AFTER the last log entry - logToFile()
+                // itself reads PK_LOG_FILE_NUMBER from preferences, an already
+                // closed handle would cause the entry to be written to the
+                // wrong log file (see comment in espReboot()).
+                preferences.end();
                 ESP.restart();
             }
         }
@@ -162,6 +172,53 @@
     // --- Function: Performs a reboot with display ---
 
     void espReboot() {
+
+        // Generischer Log-Eintrag fuer JEDEN per Software ausgeloesten Reboot
+        // (WLAN-Wechsel, Einstellungen speichern, manueller Neustart-Button, etc.) -
+        // zentral hier statt an jeder einzelnen Aufrufstelle, damit kein Aufrufer
+        // vergessen werden kann. Wird VOR den Display-Aktionen geloggt, damit der
+        // Eintrag sicher im aktuellen Logfile landet, bevor der ESP neu startet.
+
+        // Generic log entry for EVERY software-triggered reboot (WiFi switch,
+        // saving settings, manual restart button, etc.) - centralized here
+        // instead of at each individual call site, so no caller can be missed.
+        // Logged BEFORE the display actions, so the entry reliably ends up in
+        // the current log file before the ESP restarts.
+        DEBUG_PRINTLN("[SYSTEM] Software-triggered reboot - restarting now..");
+
+        // preferences.end() wird bewusst ERST HIER (nach dem obigen Log-Eintrag)
+        // aufgerufen, nicht schon vom Aufrufer davor: logToFile() liest selbst
+        // preferences.getInt(PK_LOG_FILE_NUMBER, ...), um die aktuelle Logdatei
+        // zu bestimmen - war der Handle bereits geschlossen, lieferte das nur
+        // noch den Default-Wert zurueck und der Log-Eintrag landete in der
+        // falschen Datei (dort fehlte er dann scheinbar). Ein expliziter
+        // preferences.end() ist fuer die Datensicherheit ohnehin nicht noetig -
+        // jedes putXxx()/remove() committet laut Preferences-Quellcode bereits
+        // synchron per nvs_commit() - dient hier nur dem sauberen Schliessen
+        // des Handles vor dem Neustart.
+
+        // preferences.end() is deliberately called HERE (after the log entry
+        // above), not already by the caller beforehand: logToFile() itself
+        // calls preferences.getInt(PK_LOG_FILE_NUMBER, ...) to determine the
+        // current log file - if the handle was already closed, that only
+        // returned the default value and the log entry ended up in the wrong
+        // file (appearing to be missing there). An explicit preferences.end()
+        // isn't actually needed for data safety anyway - per the Preferences
+        // source, every putXxx()/remove() already commits synchronously via
+        // nvs_commit() - this only cleanly closes the handle before restarting.
+        preferences.end();
+
+        // Kleine zusaetzliche Verzoegerung nach dem Log-Eintrag: logToFile()
+        // schliesst die Datei zwar bereits synchron (flusht auf den Flash),
+        // dies gibt dem Flash-Subsystem aber noch etwas Luft, bevor unten
+        // der eigentliche Neustart angestossen wird - reine Sicherheitsmarge.
+
+        // Small extra delay after the log entry: logToFile() already closes
+        // the file synchronously (flushes to flash), but this gives the flash
+        // subsystem a little more breathing room before the actual restart
+        // further down - purely an extra safety margin.
+        delay(100);
+
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
         tft.setTextSize(TFT_TEXT_SIZE);
@@ -296,11 +353,23 @@
         // Generate timestamp
         char timestamp[32];
 
-        // Zeitzone aus den Preferences abrufen
-        // Get timezone from preferences
-        String timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
-        configTzTime(timezone.c_str(), ntpServers[0]); // Zeitzone anwenden
-                                                       // Apply timezone
+        // Zeitzone NICHT hier erneut setzen: configTzTime() startet dabei
+        // auch den SNTP-Client neu - bei jedem einzelnen Log-Eintrag (diese
+        // Funktion wird von JEDEM DEBUG_PRINTLN() aufgerufen, siehe config.h)
+        // waere das ein staendiger Neustart der Zeitsynchronisation und
+        // Ursache fuer eine driftende/falsche Anzeige trotz erfolgreichem
+        // NTP-Sync. Die Zeitzone wird bereits einmalig in setupNTP() beim
+        // Boot gesetzt und bleibt fuer die gesamte Laufzeit gueltig -
+        // getLocalTime() unten liest sie automatisch mit.
+
+        // Do NOT set the timezone again here: configTzTime() also restarts
+        // the SNTP client - since this function is called by EVERY single
+        // DEBUG_PRINTLN() (see config.h), that would mean constantly
+        // restarting time sync on every log line, causing the display to
+        // drift/show a wrong time despite a successful NTP sync. The
+        // timezone is already set once in setupNTP() at boot and stays
+        // valid for the whole runtime - getLocalTime() below picks it up
+        // automatically.
 
         // Berechne die Millisekunden relativ zur aktuellen Sekunde
         // Calculate milliseconds relative to the current second

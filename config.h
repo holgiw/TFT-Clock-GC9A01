@@ -227,17 +227,38 @@
 
 #define TFT_TEXT_SIZE 1
 
-    // ACHTUNG: Fuer GC9D01 fehlen hier noch die TFT_eSPI-Pin-/Treiber-
-    // Einstellungen (GC9D01_DRIVER, TFT_MOSI/SCLK/CS/DC/RST/BL etc.) - anders
-    // als beim GC9A01-Block oben, da keine bestaetigte Pinbelegung fuer dieses
-    // Board vorliegt. Bei Nutzung dieses Boards muessen diese analog zum
-    // GC9A01-Block oben ergaenzt werden, sonst schlaegt die Kompilierung fehl.
+    // GC9D01 wird elektrisch/treiberseitig wie GC9A01 angesteuert (gleicher
+    // Treiber, gleiche Pinbelegung) - daher hier dieselben TFT_eSPI-Pin-/
+    // Treibereinstellungen wie im GC9A01-Block oben, nur mit den
+    // GC9D01-spezifischen Aufloesungs-/Zeiger-Massen oben in diesem Block.
 
-    // NOTE: TFT_eSPI pin/driver settings for GC9D01 (GC9D01_DRIVER,
-    // TFT_MOSI/SCLK/CS/DC/RST/BL etc.) are still missing here - unlike the
-    // GC9A01 block above, since no confirmed pinout exists for this board.
-    // If using this board, add them analogous to the GC9A01 block above,
-    // otherwise compilation will fail.
+    // GC9D01 is driven electrically/at the driver level the same as GC9A01
+    // (same driver, same pinout) - so the same TFT_eSPI pin/driver settings
+    // as in the GC9A01 block above apply here, only with the GC9D01-specific
+    // resolution/hand dimensions set earlier in this block.
+#define GC9A01_DRIVER
+#define TFT_MOSI  6
+#define TFT_SCLK  4
+#define TFT_CS    9   // Chip-Select
+#define TFT_DC    10  // Data/Command
+#define TFT_RST   0   // Reset
+#define TFT_BL    5   // Hintergrundbeleuchtung (Bibliotheks-eigene Steuerung -
+                      // das Projekt nutzt zusaetzlich Pin 3 fuer eigene PWM-
+                      // Helligkeitsregelung, siehe TFT_Backlight weiter unten)
+
+                      // Backlight (library's own control - the project also
+                      // uses pin 3 for its own PWM brightness control, see
+                      // TFT_Backlight further below)
+#define LOAD_GLCD
+#define LOAD_FONT2
+#define LOAD_FONT4
+#define LOAD_FONT6
+#define LOAD_FONT7
+#define LOAD_FONT8
+#define LOAD_GFXFF
+#define SMOOTH_FONT
+#define SPI_FREQUENCY       27000000
+#define SPI_READ_FREQUENCY  20000000
 #endif
 
 #ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
