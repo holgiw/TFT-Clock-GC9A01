@@ -36,55 +36,36 @@
 #define GITHUB_RAW_BASE "https://raw.githubusercontent.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/master/"
 
     // --- Zeit / NTP-Standardwerte & Timing-Makros ---
-
     // --- Time / NTP defaults & timing macros ---
     // Zeitserver & Zeitzone Standardwert
-
     // time server & timezone default
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "ptbtime1.ptb.de"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Mitteleuropaeische Zeit
-
-// Central European Time
+                                                      // Central European Time
 
 #define DEFAULT_PING_SERVER "1.1.1.1:80"
 
 #define WAIT_1s 1000 // 1 Sekunde in Millisekunden
-
-// 1 second in milliseconds
+                     // 1 second in milliseconds
 #define WAIT_3s 3000 // 3 Sekunden in Millisekunden
-
-// 3 seconds in milliseconds
+                     // 3 seconds in milliseconds
 #define WAIT_5s 5000 // 5 Sekunden in Millisekunden
-
-// 5 seconds in milliseconds
+                     // 5 seconds in milliseconds
 #define WAIT_10s 10000 // 10 Sekunden in Millisekunden
-
-// 10 seconds in milliseconds
+                       // 10 seconds in milliseconds
 #define WAIT_15s 15000 // 15 Sekunden in Millisekunden
-
-// 15 seconds in milliseconds
+                       // 15 seconds in milliseconds
 #define WAIT_30s 30000 // 30 Sekunden in Millisekunden
-
-// 30 seconds in milliseconds
+                       // 30 seconds in milliseconds
 #define WAIT_1m 60000 // 1 Minute in Millisekunden
-
-// 1 minute in milliseconds
-#define WAIT_5m 300000 // 5 Minuten in Millisekunden
-
-// 5 minutes in milliseconds
-#define WAIT_10m 600000 // 10 Minuten in Millisekunden
-
-// 10 minutes in milliseconds
+                      // 1 minute in milliseconds
 #define WAIT_30m 1800000 // 30 Minuten in Millisekunden
-
-// 30 minutes in milliseconds
+                         // 30 minutes in milliseconds
 #define WAIT_1h 3600000 // 1 Stunde in Millisekunden
-
-// 1 hour in milliseconds
+                        // 1 hour in milliseconds
 #define WAIT_6h 21600000 // 6 Stunden in Millisekunden
-
-// 6 hours in milliseconds
+                         // 6 hours in milliseconds
 
     // DCF77 uebernimmt die Systemzeit nur, wenn NTP seit mindestens dieser Zeit
     // nicht mehr synchronisiert hat (bzw. kein WLAN verbunden ist) - verhindert,
@@ -105,17 +86,13 @@
 #define FAST_SECOND 972.0f
 
     // --- Board-Auswahl (Prozessor, TFT-Typ) ---
-
     // --- Board selection (processor, TFT type) ---
     // Prozessor
-
     // Processor
 #define ESP32_S2  //nur ESP32-S2 unterstuetzt
-
-// only ESP32-S2 supported
+                  // only ESP32-S2 supported
 
     // TFT auswaehlen
-
     // select TFT
 #define GC9A01
     //#define GC9A01_WITH_BACKLIGHT
@@ -123,7 +100,6 @@
     //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt / DEPRECATED - no longer maintained, GC9A01 is preferred
 
     // --- Pin-Belegung: ESP32-S2 (Lolin S2 Pico) ---
-
     // --- Pin mapping: ESP32-S2 (Lolin S2 Pico) ---
 #ifdef ESP32_S2  // Lolin S2 Pico
     // Pinbelegung ESP32<->TFT: 3.3V->vcc (rot), GND->gnd (blau), weitere siehe Referenzschaltplan.
@@ -150,7 +126,6 @@
 #define SCL_PIN 37
 
     // SPI Chipselect für 2. identisches Display
-
     // SPI chip-select for 2nd identical display
     //#define CS_2    18
 
@@ -160,11 +135,9 @@
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
 #define TFT_Backlight 3  // Hintergrundbeleuchtung
-
-// Backlight
+                         // Backlight
 #define BACKLIGHT_CHANNEL 0  // PWM-Kanal
-
-// PWM channel
+                             // PWM channel
 #define BACKLIGHT_FREQ 5000
 #define BACKLIGHT_RESOLUTION 8
 #endif
@@ -172,14 +145,12 @@
 #endif
 
     // --- Display: Dimensionen je Zifferblatt-Typ ---
-
     // --- Display: dimensions per dial type ---
 #if defined GC9A01 || defined(GC9A01_WITH_BACKLIGHT)
 #include "graphic/240/clock_default.h"
 
 #define ROUND_DISPLAY // Rundes Display - Kreismaskierung der Zifferblatt-Ecken anwenden (siehe scaleAndSaveBmp() in display.h)
-
-// Round display - apply circular masking to the dial corners (see scaleAndSaveBmp() in display.h)
+                      // Round display - apply circular masking to the dial corners (see scaleAndSaveBmp() in display.h)
 #define TFT_WIDTH 240
 #define TFT_HEIGHT 240
 
@@ -244,8 +215,7 @@
 #include "graphic/160/clock_default.h"
 
 #define ROUND_DISPLAY // Rundes Display - Kreismaskierung der Zifferblatt-Ecken anwenden (siehe scaleAndSaveBmp() in display.h)
-
-// Round display - apply circular masking to the dial corners (see scaleAndSaveBmp() in display.h)
+                      // Round display - apply circular masking to the dial corners (see scaleAndSaveBmp() in display.h)
 #define TFT_WIDTH 160
 #define TFT_HEIGHT 160
 
@@ -271,8 +241,7 @@
 #endif
 
 #ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
-
-// DEPRECATED - no longer maintained
+               // DEPRECATED - no longer maintained
 #include "graphic/240/clock_default.h"
 
 #define TFT_WIDTH 240

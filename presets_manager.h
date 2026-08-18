@@ -7,6 +7,7 @@
     // Requires globals.h, config.h, prefs_keys.h and declarations.h (included
     // centrally in uhr3.ino BEFORE this file).
 
+
     // Entfernt ein "rotation=..."-Query-Parameter aus einer Preset-URL (Altlast aus
     // frueheren Versionen, die die Display-Rotation faelschlich mit im Preset
     // gespeichert haben - siehe switchToNextPreset() und createPresetFromPreferences()).
@@ -14,6 +15,7 @@
     // Removes a "rotation=..." query parameter from a preset URL (legacy from
     // older versions that mistakenly stored the display rotation in the preset -
     // see switchToNextPreset() and createPresetFromPreferences()).
+
     String stripRotationParam(const String& url) {
         int qIdx = url.indexOf('?');
         if (qIdx == -1) return url;
@@ -34,9 +36,10 @@
         return base + "?" + result;
     }
 
-    // Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
 
+    // Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
     // Load presets, replacing the stored IP address with the ESP's current IP
+
     void loadPresets() {
 
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -60,21 +63,17 @@
             }
 
             // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
-
             // Replace the stored IP with the ESP's current IP
             if (presets[i].url.startsWith("http://")) {
                 int ipEnd = presets[i].url.indexOf('/', 7); // Suche Ende der IP-Adresse
-
-                // Find end of IP address
+                                                            // Find end of IP address
                 if (ipEnd != -1) {
                     presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
-
-                    // Replace the IP
+                                           // Replace the IP
                 }
                 else {
                     presets[i].url = "http://" + ipAddress; // Nur IP ohne Pfad
-
-                    // IP only, no path
+                                           // IP only, no path
                 }
             }
         }
@@ -82,8 +81,8 @@
 
 
     // Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
-
     // Save presets, using the ESP's current IP address in the URL
+
     void savePresets() {
 
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -91,21 +90,17 @@
             String urlKey = pkPresetUrl(i);
 
             // Ersetze eine vorhandene IP-Adresse durch die aktuelle IP des ESP
-
             // Replace an existing IP address with the ESP's current IP
             if (presets[i].url.startsWith("http://")) {
                 int ipEnd = presets[i].url.indexOf('/', 7); // Suche Ende der IP-Adresse
-
-                // Find end of IP address
+                                                            // Find end of IP address
                 if (ipEnd != -1) {
                     presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
-
-                    // Replace the IP
+                                           // Replace the IP
                 }
                 else {
                     presets[i].url = "http://" + ipAddress; // Nur IP ohne Pfad
-
-                    // IP only, no path
+                                           // IP only, no path
                 }
             }
 
@@ -127,11 +122,10 @@
 
 
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
-
     // Creates a new preset based on the current settings in the preferences
+
     bool createPresetFromPreferences(const String& customName) {
         // Suche das erste leere Preset
-
         // Find the first empty preset
         int presetIndex = -1;
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -142,7 +136,6 @@
         }
 
         // Wenn kein leeres Preset gefunden wurde, abbrechen
-
         // Abort if no empty preset was found
         if (presetIndex == -1) {
             DEBUG_PRINTLN("[Preset] No empty preset slot available");
@@ -150,7 +143,6 @@
         }
 
         // Lese die aktuellen Einstellungen aus den Preferences
-
         // Read the current settings from the preferences
         String background = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
         String handset = preferences.getString(PK_HANDSET, "default");
@@ -162,7 +154,6 @@
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
         // Hole die aktuelle IP-Adresse des ESP
-
         // Get the ESP's current IP address
 
 
@@ -174,8 +165,7 @@
         String url = "http://" + ipAddress + "/api/setMode?";
         if (background.startsWith("/")) {
             background = background.substring(1); // Entferne führenden Slash
-
-            // Remove leading slash
+                                                  // Remove leading slash
         }
         url += "face=" + background;
         url += "&handSet=" + handset;
@@ -187,14 +177,12 @@
         url += "&hubColor=" + String(hubColor, HEX);
 
         // Speichere das Preset
-
         // Save the preset
         String presetName;
         if (!customName.isEmpty()) {
             presetName = customName;
             presetName.replace(" ", "_"); // Konsistent zu Anzeige/API-Links (siehe /presets)
-
-            // Consistent with display/API links (see /presets)
+                                          // Consistent with display/API links (see /presets)
         }
         else {
             presetName = String(presetIndex + 1) + "_Preset";
@@ -203,7 +191,6 @@
         presets[presetIndex].url = url;
 
         // Schreibe das Preset in die Preferences
-
         // Write the preset to the preferences
         String nameKey = pkPresetName(presetIndex);
         String urlKey = pkPresetUrl(presetIndex);
@@ -223,16 +210,15 @@
     // Parses the query-string URL stored in a preset and extracts ONLY the
     // values relevant for a preview (face, handSet, hubColor, hubSize,
     // showSecondHand) - read-only, does not apply anything to preferences.
+
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut,
         uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) {
         // Sinnvolle Standardwerte, falls ein Parameter im Preset fehlt
-
         // Sensible defaults in case a parameter is missing from the preset
         faceOut = "/face_default.bmp";
         handSetOut = "default";
         hubColorOut = 0xF800; // Rot in RGB565 (entspricht TFT_RED)
-
-        // Red in RGB565 (roughly TFT_RED)
+                              // Red in RGB565 (roughly TFT_RED)
         hubSizeOut = 6;
         showSecondOut = true;
 
@@ -281,6 +267,7 @@
     // Removes all presets whose face or hand set matches the given value
     // (empty = not checked) - called after deleting a face/hand-set file so
     // no presets are left orphaned.
+
     void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) {
         bool anyRemoved = false;
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -307,8 +294,8 @@
 
 
     // Loescht alle gespeicherten Presets (leert alle Slots).
-
     // Deletes all saved presets (clears all slots).
+
     void resetAllPresets() {
         for (int i = 0; i < MAX_PRESETS; i++) {
             presets[i].name = "";
@@ -319,11 +306,10 @@
 
 
     // --- Funktion: Wechselt zum nächsten Preset ---
-
     // --- Function: switches to the next preset ---
+
     void switchToNextPreset() {
         // Sammle alle gültigen Presets
-
         // Collect all valid presets
         std::vector<int> validPresets;
         for (int i = 0; i < MAX_PRESETS; i++) {
@@ -338,7 +324,6 @@
         }
 
         // Bestimme den aktuellen Preset-Index
-
         // Determine the current preset index
         String currentPresetName = preferences.getString(PK_CURRENT_PRESET, "");
         int currentIndex = -1;
@@ -350,18 +335,15 @@
         }
 
         // Wähle das nächste Preset
-
         // Select the next preset
         int nextIndex = (currentIndex + 1) % validPresets.size();
         int nextPresetIndex = validPresets[nextIndex];
 
         // Lade das nächste Preset
-
         // Load the next preset
         String nextPresetUrl = presets[nextPresetIndex].url;
 
         // Sicherstellen, dass die URL ab "/api" beginnt
-
         // Ensure the URL starts with "/api"
         if (!nextPresetUrl.startsWith("/api")) {
             DEBUG_PRINTLN("[PRESET] Invalid URL format, adjusting..");
@@ -378,12 +360,10 @@
         DEBUG_PRINTLN("[PRESET] Switching to preset: " + presets[nextPresetIndex].name + " -> " + nextPresetUrl);
 
         // Speichere den aktuellen Preset-Namen
-
         // Save the current preset name
         preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);
 
         // Entferne die Basis-URL, falls vorhanden
-
         // Remove the base URL, if present
         int queryStart = nextPresetUrl.indexOf('?');
         if (queryStart == -1) {
@@ -393,7 +373,6 @@
         String query = nextPresetUrl.substring(queryStart + 1);
 
         // Parse die Parameter
-
         // Parse the parameters
         while (query.length() > 0) {
             int ampersandIndex = query.indexOf('&');
@@ -412,7 +391,6 @@
             String value = param.substring(equalsIndex + 1);
 
             // Wende die Einstellungen an
-
             // Apply the settings
             if (key == "face") {
                 //value.replace(".", "");
@@ -470,7 +448,6 @@
         updateClock();
 
         // Speichere den aktuellen Preset-Namen
-
         // Save the current preset name
         preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);
 
