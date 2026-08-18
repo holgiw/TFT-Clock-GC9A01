@@ -42,8 +42,7 @@
 // C:\Users\hwage\Documents\Arduino\libraries\TFT_eSPI\User_Setups\Setup304_ESP32S2_GC9A01_GC9D0.h
 
 #include "config.h"        // Board-/Display-Auswahl, Pins, Timing-Makros
-
-// board/display selection, pins, timing macros
+                           // board/display selection, pins, timing macros
 #include <TFT_eSPI.h>
 #include <Preferences.h>
 #include <LittleFS.h>
@@ -63,33 +62,26 @@
 
 
 #include "globals.h"       // globale Objekte, Variablen, Structs
-
-// global objects, variables, structs
+                           // global objects, variables, structs
 #include "declarations.h"  // Forward-Deklarationen aller Funktionen
-
-// forward declarations of all functions
+                           // forward declarations of all functions
 
 #include "wifi_manager.h"      // WLAN: Verbindung, AP, Scan, Reconnect
-
-// WiFi: connection, AP, scan, reconnect
+                               // WiFi: connection, AP, scan, reconnect
 #include "time_sync.h"         // RTC, DCF77, NTP
 #include "display.h"           // Zifferblatt, Zeiger, Helligkeit, Touch
-
-// dial, hands, brightness, touch
+                               // dial, hands, brightness, touch
 #include "presets_manager.h"   // Presets laden/speichern/wechseln
-
-// load/save/switch presets
+                               // load/save/switch presets
 #include "webserver_routes.h"  // Webinterface (alle HTTP-Routen)
-
-// web interface (all HTTP routes)
+                               // web interface (all HTTP routes)
 #include "system_utils.h"      // Tasten, Logging, Reset, Neustart
-
-// buttons, logging, reset, restart
+                               // buttons, logging, reset, restart
 
 
     // Setup-Funktion
-
     // Setup function
+
     void setup() {
 
         setLedOn();
@@ -97,7 +89,6 @@
         Serial.begin(115200);
 
         // Pin 12 (Chipselect) auf Output, Low
-
         // Pin 12 (chip select) as output, low
 
 #if defined CS_2
@@ -140,7 +131,6 @@
         preferences.begin("clock", false);
 
         // Workaround für neuen Parameter
-
         // Workaround for new parameter
         String pingServer = preferences.getString(PK_PING_SERVER,"#");
         if (pingServer.startsWith("8.8.8.8") or pingServer == "#") {
@@ -191,13 +181,11 @@
             DEBUG_PRINTLN("[Preferences] Version change detected, updating version in preferences..");
             preferences.putString(PK_VERSION, String(version));
             preferences.putBool(PK_LOGGING_ENABLED, true); // Logging bei Version-Änderung aktivieren
-
-            // enable logging on version change
+                                                           // enable logging on version change
             deleteAllLogFiles();
         }
 
         // Logging aktivieren, wenn in den Preferences aktiviert
-
         // Enable logging if enabled in preferences
         loggingEnabled = preferences.getBool(PK_LOGGING_ENABLED, false);
         if (loggingEnabled) {
@@ -209,7 +197,6 @@
         DEBUG_PRINTLN("[SETUP] Initializing..");
 
         // I2C-Scanner starten, um RTC zu erkennen
-
         // Start I2C scanner to detect the RTC
 #if defined SDA_PIN && defined SCL_PIN
         Wire.begin(SDA_PIN, SCL_PIN);
@@ -218,13 +205,11 @@
             if (rtc.begin()) {
 
                 DateTime compileTime(F(__DATE__), F(__TIME__)); // Kompilierzeit
-
-                // compile time
+                                                                // compile time
 
                 DEBUG_PRINTLN("[RTC] found RTC");
 
                 // Überprüfen, ob die RTC eine gültige Zeit zurückgibt
-
                 // Check whether the RTC returns a valid time
                 // DateTime now = rtc.now();
 
@@ -241,8 +226,7 @@
                 }
 
                 rtc.disable32K(); // 32kHz-Output deaktivieren, wird nicht benötigt
-
-                // disable 32kHz output, not needed
+                                  // disable 32kHz output, not needed
                 DEBUG_PRINTLN("[RTC] Temperature: " + String(rtc.getTemperature()) + " C");
             } else {
                 DEBUG_PRINTLN("[RTC] RTC not found");
@@ -264,14 +248,12 @@
         tftType = "GC9D01";
 #else
         tftType = "ILI9341"; // DEPRECATED - nicht mehr aktiv gepflegt
-
-        // deprecated, no longer actively maintained
+                             // deprecated, no longer actively maintained
 #endif
 
 
 
         // Prüfen, ob PSRAM vorhanden ist
-
         // Check whether PSRAM is available
         if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
             psramAvailable = true;
@@ -285,16 +267,14 @@
 #endif
         }
 #ifndef GC9D01 // wird nur bei Display GC9D01 benötigt
-
-// only needed for the GC9D01 display
+               // only needed for the GC9D01 display
         psramAvailable = false;
 #endif
 
 
 
 #define MAGIC_NUMBER 42  // Erster Start: Alle Preferences mit Standardwerten belegen
-
-// first start: set all preferences to defaults
+                         // first start: set all preferences to defaults
 
         if (preferences.getInt(PK_FIRST_START, 0) != MAGIC_NUMBER) {
             DEBUG_PRINTLN("[Preferences] First start detected, initializing..");
@@ -340,8 +320,7 @@
             preferences.putUChar(PK_MAX_BRIGHTNESS, 255);
 
             preferences.putFloat(PK_GAMMA_BRIGHTNESS, 2.2f);  // Gamma-Korrektur für Helligkeit
-
-            // gamma correction for brightness
+                                                              // gamma correction for brightness
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
             preferences.putInt(PK_LOW_THRESHOLD, 1);
@@ -376,14 +355,12 @@
 
 
         loadLanguage(); // liest currentLanguage aus den Preferences (siehe translation.h)
-
-        // reads currentLanguage from preferences (see translation.h)
+                        // reads currentLanguage from preferences (see translation.h)
 
         wifiActive = preferences.getBool(PK_WIFI_ACTIVE, true);
 
 
         // NTP-Server initialisieren
-
         // Initialize NTP servers
         initializeNtpServers();
 
@@ -396,11 +373,9 @@
         showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
 
         // Nabe
-
         // Hub
         uint32_t hubColorRgb = preferences.getLong(PK_CENTER_COLOR, 0xEC0016); //DB-Rot
-
-        // DB red
+                                                                               // DB red
         hubColor = tft.color565((hubColorRgb >> 16) & 0xFF, (hubColorRgb >> 8) & 0xFF, hubColorRgb & 0xFF);
         hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
 
@@ -410,7 +385,6 @@
         maxBrightness = preferences.getUChar(PK_MAX_BRIGHTNESS, 255);
 
         // Zeitabhängige Helligkeit aus Preferences
-
         // Time-dependent brightness from preferences
 
         brightStartHour = preferences.getUChar(PK_BRIGHT_START_HOUR, 7);
@@ -423,8 +397,7 @@
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
         gammaBrightness = preferences.getFloat(PK_GAMMA_BRIGHTNESS, 2.2f);  // Gamma-Korrektur für Helligkeit
-
-        // gamma correction for brightness
+                                                                            // gamma correction for brightness
 #endif
 
 #ifdef BUTTON1
@@ -432,7 +405,6 @@
 #endif
 
         // auf Fotowiderstand prüfen
-
         // Check for photoresistor
 #ifdef ADC_3V
 
@@ -443,7 +415,6 @@
         analogReadResolution(12);
 
         // ADC +3,3V / GND über GPIO
-
         // ADC +3.3V / GND via GPIO
         pinMode(ADC_GND, OUTPUT);
         pinMode(ADC_3V, OUTPUT);
@@ -471,7 +442,6 @@
             useAdc = true;
             photoresistorFound = true;
             // evtl. überschreiben
-
             // possibly override
             useAdc = preferences.getBool(PK_USE_ADC, true);
         }
@@ -581,14 +551,12 @@
         webserver.begin();
 
         // DCF77-Interrupt einrichten
-
         // Set up the DCF77 interrupt
         dcf.Start();
         pinMode(DCF77_DATAPIN, INPUT_PULLUP);
         attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
 
         // Wenn Button1 oder BOOT_BUTTON gedrückt ist, alle Zugangsdaten löschen
-
         // If Button1 or BOOT_BUTTON is pressed, clear all credentials
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
@@ -611,11 +579,9 @@
         }
 
         // WLAN-Zugangsdaten laden
-
         // Load WiFi credentials
         for (int i = 0; i < MAX_WLAN; i++) {
             // Dynamisch berechnete Schlüssel
-
             // Dynamically computed keys
             String ssidKey = pkSsid(i);
             String passKey = pkPass(i);
@@ -625,7 +591,6 @@
 
 
         // AP starten, wenn keine SSID gespeichert ist
-
         // Start AP if no SSID is stored
         for (int i = 0; i < MAX_WLAN; i++) {
             if (wifiSsid[i].length() > 0) {
@@ -641,7 +606,6 @@
 
 
         // WLAN-Netzwerke scannen und cachen
-
         // Scan and cache WiFi networks
         //scanAndCacheNetworks();
 
@@ -660,7 +624,6 @@
 
 
         // ist die letzte SSID im Scan vorhanden?
-
         // Is the last SSID present in the scan?
         bool foundLastSSID = false;
         for (int i = 0; i < MAX_WLAN; i++) {
@@ -674,8 +637,7 @@
             DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan..");
             startWiFiScan();
             delay(100); // Kurze Verzögerung, damit der Scan starten kann
-
-            // brief delay to let the scan start
+                        // brief delay to let the scan start
             while (isScanning) {
                 checkWiFiScan();
                 delay(50);
@@ -685,17 +647,14 @@
         }
 
         // versuche Verbindung mit der letzten SSID
-
         // Try connecting with the last SSID
         if (!foundLastSSID or connectWiFi(number, true) != CONNECTED) {
 
             // Wenn Verbindung fehlschlägt, scannen und vergleichen
-
             // If connection fails, scan and compare
             DEBUG_PRINTLN("[WiFi] Connection failed. Looking for available networks..");
 
             // Durchsuche gefundene Netzwerke nach gespeicherten SSIDs
-
             // Search found networks for stored SSIDs
             for (int i = 0; i < MAX_WLAN; i++) {
                 String availableSSID = availableNetworks[i].ssid;
@@ -704,11 +663,9 @@
                 for (int j = 0; j < MAX_WLAN; j++) {
 
                     if (j == number) continue; // überspringe bereits versuchte SSID
-
-                    // skip already-tried SSID
+                                               // skip already-tried SSID
                     if (trim(wifiSsid[j]) == "") continue; // überspringe leere SSID
-
-                    // skip empty SSID
+                                                           // skip empty SSID
 
                     // DEBUG_PRINTLN("vergleiche " + wifiSsid[j] + " mit " + availableSSID);
 
@@ -746,12 +703,10 @@
 
                 unsigned long startWait = millis();
                 while (millis() - startWait < WAIT_1h) { // Warte bis zu 1 Stunde auf gültige DCF77-Zeit
-
-                // wait up to 1 hour for a valid DCF77 time
+                                                         // wait up to 1 hour for a valid DCF77 time
                     if (dcf.getUTCTime() > 0) {
                         dcfTimeFound = true; // gültige Zeit gefunden
-
-                        // valid time found
+                                             // valid time found
                         return;
                     }
                     tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
@@ -775,7 +730,6 @@
 
         if (useTouch) {
             // Touch-Eingang initialisieren
-
             // Initialize touch input
             enableTouch();
         }
@@ -784,7 +738,6 @@
 
         if (rtcOk == RTC_AVAILABLE) {
             // UDP starten
-
             // Start UDP
             udp.begin(NTP_PORT);
             DEBUG_PRINTLN("[NTPD] NTP Server started");
@@ -798,8 +751,8 @@
 
 
     // Main-Loop
-
     // Main loop
+
     void loop() {
 
 
@@ -812,8 +765,6 @@
             setCS2(LOW);
         }
 #endif
-
-        //scanWPS(); // WPS-Scan durchführen
 
         // Asynchrone Pruefung einer per Web-Button gestarteten WPS-Anfrage (siehe
         // /api/startWPS) - blockiert loop() nicht, reagiert auf die im WiFi-Event-
@@ -834,17 +785,28 @@
                 // After several failed attempts to restore the connection in this session
                 // (esp_wifi_connect() kept failing): save the credentials instead and
                 // reboot - connectWiFi() handles reconnecting after restart.
-                wifi_config_t wpsResultConfig;
-                bool gotConfig = (esp_wifi_get_config(WIFI_IF_STA, &wpsResultConfig) == ESP_OK);
+
+                // esp_wifi_get_config() liefert direkt nach dem Erfolgs-Event manchmal
+                // leere Daten (bekannter ESP-IDF/arduino-esp32-Bug, #10339/#11705) -
+                // daher mehrfach mit kurzer Pause versuchen statt sofort aufzugeben.
+
+                // esp_wifi_get_config() sometimes returns empty data right after the
+                // success event (known ESP-IDF/arduino-esp32 bug, #10339/#11705) -
+                // so retry a few times with a short delay instead of giving up at once.
                 String newSsid = "";
                 String newPass = "";
-                if (gotConfig) {
-                    char ssidBuf[33] = { 0 };
-                    char passBuf[65] = { 0 };
-                    memcpy(ssidBuf, wpsResultConfig.sta.ssid, sizeof(wpsResultConfig.sta.ssid));
-                    memcpy(passBuf, wpsResultConfig.sta.password, sizeof(wpsResultConfig.sta.password));
-                    newSsid = String(ssidBuf);
-                    newPass = String(passBuf);
+                for (int wpsReadAttempt = 0; wpsReadAttempt < 20 && newSsid == ""; wpsReadAttempt++) {
+                    wifi_config_t wpsResultConfig;
+                    if (esp_wifi_get_config(WIFI_IF_STA, &wpsResultConfig) == ESP_OK) {
+                        char ssidBuf[33] = { 0 };
+                        char passBuf[65] = { 0 };
+                        memcpy(ssidBuf, wpsResultConfig.sta.ssid, sizeof(wpsResultConfig.sta.ssid));
+                        memcpy(passBuf, wpsResultConfig.sta.password, sizeof(wpsResultConfig.sta.password));
+                        newSsid = String(ssidBuf);
+                        newPass = String(passBuf);
+                    }
+                    if (newSsid == "") delay(100); // kurz warten, dann erneut versuchen
+                                                   // wait briefly, then retry
                 }
                 DEBUG_PRINTLN("[WPS] Captured SSID '" + newSsid + "', password length: " + String(newPass.length()));
 
@@ -852,7 +814,7 @@
                     saveWpsCredentials(newSsid, newPass);
                 }
                 else {
-                    DEBUG_PRINTLN("[WPS] Could not read back SSID - nothing saved");
+                    DEBUG_PRINTLN("[WPS] Could not read back SSID after retries - nothing saved");
                 }
 
                 esp_wifi_wps_disable();
@@ -905,12 +867,10 @@
         }
 
         // DCF77-Zeit abrufen
-
         // Fetch DCF77 time
         getDCF77Time();
 
         // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
-
         // Check whether time has passed since the last call
         if (millis() - lastNTPUpdate > WAIT_1h) {
             if (timeinfo.tm_sec < 10 || timeinfo.tm_sec > 55) {
@@ -924,11 +884,9 @@
         }
 
         if (timeinfo.tm_sec == 0) setLedOff(); // wg. DCF
-
-        // because of DCF
+                                               // because of DCF
 
         // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
-
         // In AP mode: process DNS requests (captive portal)
         if (softAPIP) {
             dnsServer.processNextRequest();
@@ -966,28 +924,23 @@
             int packetSize = udp.parsePacket();
             if (packetSize) {
                 // IP-Adresse des Clients abrufen
-
                 // Get the client's IP address
                 IPAddress clientIP = udp.remoteIP();
                 DEBUG_PRINTLN("[NTPD] Request from: " + clientIP.toString());
 
                 // NTP-Paket lesen
-
                 // Read NTP packet
                 udp.read(ntpPacket, NTP_PACKET_SIZE);
 
                 // Aktuelle Zeit holen
-
                 // Get current time
                 time_t currentTime = mktime(&timeinfo);
 
                 // Antwort erstellen
-
                 // Build response
                 createNtpResponse(ntpPacket, currentTime);
 
                 // Antwort senden
-
                 // Send response
                 udp.beginPacket(udp.remoteIP(), udp.remotePort());
                 udp.write(ntpPacket, NTP_PACKET_SIZE);
@@ -1000,7 +953,6 @@
 
         if (useTouch) {
             // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
-
             // Enable touch only once the startup delay has passed
             if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
                 touchEnabled = true;
@@ -1009,14 +961,12 @@
 
             if (touchEnabled) {
                 // Touch-Input prüfen und ggf. Hintergrund wechseln
-
                 // Check touch input and switch background if needed
                 checkTouchInput();
             }
         }
 
         // restart im AP Mode nach 30 Minuten
-
         // Restart in AP mode after 30 minutes
         if (softAPIP == true) {
             if (millis() - softAPIPstart > WAIT_30m) {
@@ -1025,10 +975,8 @@
         }
 
 #ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
-
-// deprecated, no longer actively maintained
+               // deprecated, no longer actively maintained
         // Datum und Uhrzeit auf dem TFT ausgeben
-
         // Print date and time on the TFT
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.setTextSize(3);
@@ -1036,17 +984,14 @@
         String hourStr = String(timeinfo.tm_hour);
         int xPos = 50;
         // vornull entfernen wenn vorhanden
-
         // Remove leading zero if present
         if (hourStr.startsWith("0")) {
             hourStr = hourStr.substring(1);
             xPos = 30; // etwas weiter links positionieren, wenn nur 1-stellige Stunde
-
-            // position a bit further left for a single-digit hour
+                       // position a bit further left for a single-digit hour
         }
 
         // Uhrzeit auf dem TFT ausgeben
-
         // Print time on the TFT
         if (!preferences.getBool(PK_SHOW_SECOND_HAND, true)) {
             tft.setCursor(xPos, 260);
@@ -1064,7 +1009,6 @@
         }
 
         // Datum auf dem TFT ausgeben
-
         // Print date on the TFT
         if (timeinfo.tm_mday < 10) {
             tft.setCursor(20, 290);

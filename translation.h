@@ -19,7 +19,6 @@
 
 
     // Uebersetzungstabelle (Erklaerung siehe Kommentar am Dateianfang)
-
     // English: translation table (see comment at top of file for explanation)
     struct TranslationEntry {
         const char* key;
@@ -320,14 +319,15 @@
     // English: loads the last saved language setting from Preferences
     // (called once in setup()). Nothing needs to be built anymore -
     // translate() reads directly from the flash-resident table.
+
     void loadLanguage() {
         currentLanguage = preferences.getString(PK_LANGUAGE, "en");
     }
 
 
     // Setzt die aktive Sprache und speichert sie dauerhaft in den Preferences
-
     // English: sets the active language and persists it in Preferences
+
     void saveLanguage(String lang) {
         currentLanguage = lang;
         preferences.putString(PK_LANGUAGE, lang);
@@ -341,11 +341,11 @@
     // English: translates an English key string into the currently active
     // language (fallback: the key itself for English/missing entry). Searches
     // the flash-resident translationTable directly - no heap copying needed.
+
     String translate(const String& key) {
 
         if (currentLanguage == "en") return key;  // Englisch: Schlüssel zurückgeben
-
-        // English: return the key
+                                                  // English: return the key
 
         for (size_t i = 0; i < translationTableSize; i++) {
             if (key == translationTable[i].key) {
@@ -356,8 +356,7 @@
         }
 
         return key; // Fallback: Schlüssel zurückgeben
-
-        // English: fallback - return the key
+                    // English: fallback - return the key
     }
 
 
