@@ -54,7 +54,7 @@
         html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
         html += ".tabpanel{display:none;}";
         html += ".card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:500px;margin:15px auto;padding:12px 16px;text-align:left;}";
-        for (const char* t : { "status", "wlan", "zifferblatt", "helligkeit", "zeit", "system" }) {
+        for (const char* t : { "status", "wlan", "zifferblatt", "helligkeit", "zeit" }) {
             html += String("#tab-") + t + ":checked ~ .tabnav label[for='tab-" + t + "']{background:var(--accent);color:#1a1200;}";
             html += String("#tab-") + t + ":checked ~ .panel-" + t + "{display:block;}";
         }
@@ -2896,45 +2896,39 @@
 
             chunk += generateLanguageSelector();
 
-            // Ohne aktive Heimnetz-Verbindung (Erststart ohne gespeichertes WLAN,
-            // oder das zuletzt bekannte WLAN ist nicht erreichbar - siehe startAP()
-            // in wifi_manager.h) frueher hierher umgeleitet auf /wifi - jetzt
-            // stattdessen einfach den WLAN-Tab vorauswaehlen, das deckt automatisch
-            // auch das Captive-Portal-Popup ab (das auf "/" verweist, siehe
-            // captivePortalRedirect oben).
-
-            // Without an active home-network connection (first start with no saved
-            // WiFi, or the last known WiFi is unreachable - see startAP() in
-            // wifi_manager.h), this used to redirect to /wifi - now instead just
-            // pre-select the WiFi tab, which automatically also covers the captive
-            // portal popup (which points to "/", see captivePortalRedirect above).
             bool apMode = (WiFi.getMode() != WIFI_STA);
 
-            // --- CSS-only Tabs: die 6 radio-Inputs (siehe Tab-CSS in
+            // --- CSS-only Tabs: die 5 radio-Inputs (siehe Tab-CSS in
             // generateHtmlHeader()) - muessen direkte Geschwister von .tabnav
-            // und allen .panel-* Divs weiter unten sein.
+            // und allen .panel-* Divs weiter unten sein. Reihenfolge der
+            // Labels weiter unten bestimmt die sichtbare Tab-Reihenfolge -
+            // Status bewusst ganz nach rechts (ans Ende), die anderen zuerst.
+            // Beim Aufruf wird immer der erste Tab (WLAN) vorausgewaehlt,
+            // unabhaengig vom Verbindungsstatus - das deckt automatisch auch
+            // das Captive-Portal-Popup ab (das auf "/" verweist, siehe
+            // captivePortalRedirect oben).
 
-            // --- CSS-only tabs: the 6 radio inputs (see tab CSS in
-            // generateHtmlHeader()) - must be direct siblings of .tabnav and all
-            // .panel-* divs further below.
-            chunk += "<input type='radio' name='tabs' id='tab-status' class='tabctrl'";
-            if (!apMode) chunk += " checked";
-            chunk += ">";
-            chunk += "<input type='radio' name='tabs' id='tab-wlan' class='tabctrl'";
-            if (apMode) chunk += " checked";
-            chunk += ">";
+            // --- CSS-only tabs: the 5 radio inputs (see tab CSS in
+            // generateHtmlHeader()) - must be direct siblings of .tabnav and
+            // all .panel-* divs further below. Order of the labels below
+            // determines the visible tab order - Status is deliberately
+            // moved to the far right (last), the others come first. The
+            // first tab (WiFi) is always preselected on load, regardless of
+            // connection status - this also automatically covers the
+            // captive portal popup (which points to "/", see
+            // captivePortalRedirect above).
+            chunk += "<input type='radio' name='tabs' id='tab-wlan' class='tabctrl' checked>";
             chunk += "<input type='radio' name='tabs' id='tab-zifferblatt' class='tabctrl'>";
             chunk += "<input type='radio' name='tabs' id='tab-helligkeit' class='tabctrl'>";
             chunk += "<input type='radio' name='tabs' id='tab-zeit' class='tabctrl'>";
-            chunk += "<input type='radio' name='tabs' id='tab-system' class='tabctrl'>";
+            chunk += "<input type='radio' name='tabs' id='tab-status' class='tabctrl'>";
 
             chunk += "<div class='tabnav'>";
-            chunk += "<label for='tab-status'>" + translate("Status") + "</label>";
             chunk += "<label for='tab-wlan'>" + translate("WiFi Settings") + "</label>";
             chunk += "<label for='tab-zifferblatt'>" + translate("Clock Setup") + "</label>";
             chunk += "<label for='tab-helligkeit'>" + translate("Brightness") + "</label>";
             chunk += "<label for='tab-zeit'>" + translate("NTP&nbsp;Timezone") + "</label>";
-            chunk += "<label for='tab-system'>" + translate("System") + "</label>";
+            chunk += "<label for='tab-status'>" + translate("Status") + "</label>";
             chunk += "</div>";
 
             webserver.sendContent(chunk);
@@ -3540,29 +3534,6 @@
             // Panel: system (reboot, management, factory reset - new, links to the
             // still-standalone pages for the more complex, file-heavy areas instead of rebuilding them here)
             // #####################################################################
-            chunk += "<div class='tabpanel panel-system'>";
-            chunk += "<div class='card'>";
-            chunk += "<h3>" + translate("Reboot") + "</h3>";
-            chunk += "<form method='GET' action='/reboot' onsubmit=\"return confirm('" + translate("Are you sure you want to reboot?") + "');\">";
-            chunk += "<button type='submit'>" + translate("Reboot") + "</button></form>";
-            chunk += "</div>";
-
-            chunk += "<div class='card'>";
-            chunk += "<h3>" + translate("Manage") + "</h3>";
-            chunk += "<div style='display:flex;flex-direction:column;gap:8px;'>";
-            chunk += "<a href='/preview'>" + translate("Live Preview") + "</a>";
-            chunk += "<a href='/presets'>" + translate("Presets") + "</a>";
-            chunk += "<a href='/listfilesFaces'>" + translate("Clock&nbsp;Face") + "</a>";
-            chunk += "<a href='/handsets'>" + translate("Hand&nbsp;Set") + "</a>";
-            chunk += "<a href='/files'>" + translate("File&nbsp;Manager") + "</a>";
-            chunk += "</div></div>";
-
-            chunk += "<div class='card'>";
-            chunk += "<h3>" + translate("Factory&nbsp;Reset") + "</h3>";
-            chunk += "<a href='/factoryReset'>" + translate("Factory&nbsp;Reset") + "</a>";
-            chunk += "</div>";
-            chunk += "</div>"; // Ende panel-system
-                               // end panel-system
             // Erlaubt gezieltes Anspringen eines Tabs per ?tab=... (z.B. nach
             // einem POST-Redirect von /save, /sethostname, /save_brightness,
             // /set_timezone etc.) - rein clientseitig, da die Tab-Auswahl selbst
