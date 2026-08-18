@@ -47,6 +47,7 @@
     // --- display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch ---
     // --- display.h: Display: clock face, hands, sprites, brightness, touch ---
 
+    void* preferPsramMalloc(size_t size) ;
     void setCS1(bool state) ;
     void setCS2(bool state) ;
     uint16_t setPixelBrightness(uint16_t pixel) ;
@@ -133,6 +134,9 @@
     String generateFlashMessage() ;
     String generateNavigation() ;
     String generateLanguageSelector() ;
+    String resetReasonToString(esp_reset_reason_t reason) ;
+    String rtcStatusToString(int status) ;
+    String formatDurationMs(unsigned long ms) ;
     bool naturalLess(const String& a, const String& b) ;
     void naturalSortNames(std::vector<String>& names) ;
     void redirectTo(const String& location, const String& body = "") ;

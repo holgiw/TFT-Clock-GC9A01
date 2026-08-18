@@ -7,6 +7,35 @@
     // Requires globals.h, config.h, prefs_keys.h and declarations.h (included
     // centrally in uhr3.ino BEFORE this file).
 
+    // Bevorzugt PSRAM fuer Allokationen, die nicht dauerhaft gehalten werden
+    // (kurzlebige Puffer waehrend BMP/PNG-Verarbeitung im Webinterface) -
+    // haelt den knappen internen Heap frei von Fragmentierung durch die
+    // vielen unterschiedlich grossen malloc()/free()-Zyklen. Nutzt bewusst
+    // einen eigenen psramFound()-Check statt der globalen Variable
+    // psramAvailable, da diese nur fuer die GC9D01-Hardware-Rotation gilt
+    // und auf anderen Boards immer false ist, auch wenn dort PSRAM
+    // vorhanden ist (siehe deren Verwendung bei clockFaceBuffer weiter
+    // unten, die bewusst unveraendert bleibt).
+
+    // Prefers PSRAM for allocations that are not held long-term (short-
+    // lived buffers during BMP/PNG processing in the web interface) - keeps
+    // the scarce internal heap free of fragmentation caused by the many
+    // differently-sized malloc()/free() cycles. Deliberately uses its own
+    // psramFound() check instead of the global psramAvailable variable,
+    // since that one only applies to the GC9D01 hardware rotation
+    // workaround and is always false on other boards, even where PSRAM is
+    // actually present (see its use for clockFaceBuffer further below,
+    // which is deliberately left unchanged).
+
+    void* preferPsramMalloc(size_t size) {
+        if (psramFound()) {
+            void* p = ps_malloc(size);
+            if (p) return p;
+        }
+        return malloc(size);
+    }
+
+
 #if defined CS_2
 
 
@@ -252,7 +281,7 @@
                 return false;
             }
 
-            uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
             if (!compBuf) { f.close(); return false; }
             if (f.read(compBuf, compressedSize) != compressedSize) {
                 free(compBuf); f.close(); return false;
@@ -527,7 +556,7 @@
                 return false;
             }
 
-            uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
             if (!compBuf) { bmp.close(); return false; }
             if (bmp.read(compBuf, compressedSize) != compressedSize) {
                 free(compBuf); bmp.close(); return false;
@@ -682,14 +711,14 @@
                 return false;
             }
 
-            uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
             if (!compBuf) { bmp.close(); return false; }
             if (bmp.read(compBuf, compressedSize) != compressedSize) {
                 free(compBuf); bmp.close(); return false;
             }
             bmp.close();
 
-            fullImage = (uint16_t*)malloc(uncompressedSize);
+            fullImage = (uint16_t*)preferPsramMalloc(uncompressedSize);
             if (!fullImage) { free(compBuf); return false; }
             rleDecode565(compBuf, compressedSize, fullImage, (size_t)width * height);
             free(compBuf);
@@ -803,6 +832,15 @@
         static uint32_t stationLastMillis = 0;
         static bool stationWaiting = false;
 
+        // Minute, in der die Wartephase (Zeiger auf 12) begonnen hat - wird
+        // gebraucht, um das Aufwachen robust an einem Minutenwechsel statt an
+        // exakt "Sekunde 0" festzumachen (siehe Kommentar weiter unten).
+
+        // Minute in which the wait phase (hand parked at 12) started - needed
+        // to make waking up robust against a minute change instead of pinning
+        // it to exactly "second 0" (see comment further below).
+        static int stationWaitStartMinute = -1;
+
         unsigned long currentMillis = millis();
 
         if (firstRun) {
@@ -838,10 +876,33 @@
                 if (stationTick >= 60) {
                     stationTick = 60;
                     stationWaiting = true;
+                    stationWaitStartMinute = timeinfo.tm_min;
                 }
             }
             else if (stationWaiting) {
-                if (timeinfo.tm_sec == 0) {
+
+                // Aufwachen ueber einen Minutenwechsel statt exakt "Sekunde 0"
+                // pruefen: blockierende Operationen wie loadClockFace() beim
+                // Wechsel von Zifferblatt/Preset (Bild laden + Pixel-fuer-Pixel
+                // Helligkeitsberechnung) koennen updateClock() fuer einen Moment
+                // aussetzen lassen. Traf das genau die eine Sekunde mit
+                // tm_sec==0, wurde sie nie beobachtet und der Zeiger blieb bis
+                // zur naechsten vollen Minute auf 12 stehen. Ein Minutenwechsel
+                // bleibt dagegen auch bei einem verpassten Aufruf zuverlaessig
+                // erkennbar, solange updateClock() irgendwann innerhalb der
+                // neuen Minute wieder laeuft.
+
+                // Wake up based on a minute change instead of checking for
+                // exactly "second 0": blocking operations like loadClockFace()
+                // when switching the clock face/preset (loading the image +
+                // per-pixel brightness computation) can cause updateClock() to
+                // be skipped for a moment. If that happened to hit the one
+                // second where tm_sec==0, it was never observed and the hand
+                // stayed parked at 12 until the next full minute. A minute
+                // change, in contrast, stays reliably detectable even after a
+                // missed call, as long as updateClock() runs again at some
+                // point within the new minute.
+                if (timeinfo.tm_min != stationWaitStartMinute) {
                     stationTick = 0;
                     stationWaiting = false;
                     stationLastMillis = currentMillis;
@@ -932,7 +993,7 @@
         hourAngle = lastHourAngle;
 
 
-        loadClockFace();   
+        loadClockFace();
 
         hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
         minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
@@ -1158,7 +1219,7 @@
         // Raw image data: 1 filter byte per row (0 = "None") + width*4 bytes RGBA
         size_t rawRowSize = 1 + (size_t)width * 4;
         size_t rawSize = rawRowSize * height;
-        uint8_t* raw = (uint8_t*)malloc(rawSize);
+        uint8_t* raw = (uint8_t*)preferPsramMalloc(rawSize);
         if (!raw) return "";
 
         for (int y = 0; y < height; y++) {
@@ -1341,13 +1402,33 @@
     }
 
 
-    // Rotiert die Zeiger basierend auf der Display-Rotation
-    // Rotates the hands based on the display rotation
+    // Rotiert die Zeiger basierend auf der Display-Rotation.
+    //
+    // Fruehere Logik: addierte die Rotation zusaetzlich in Software, wenn
+    // psramAvailable true war - das war urspruenglich fuer GC9D01 gedacht,
+    // wo (bei vorhandenem PSRAM) die Hardware-Rotation bewusst uebersprungen
+    // wurde (siehe die inzwischen entfernte GC9D01-Sonderbehandlung in
+    // uhr3.ino) und die Zeiger deshalb per Software nachgedreht werden
+    // mussten. Seit tft.setRotation() jetzt fuer alle Boards unbedingt
+    // laeuft, wuerde diese Software-Rotation die Hardware-Rotation ein
+    // zweites Mal draufaddieren (doppelte/inkonsistente Drehung der Zeiger,
+    // sobald PSRAM vorhanden ist) - daher entfernt, angle bleibt unveraendert.
+
+    // Rotates the hands based on the display rotation.
+    //
+    // Previous logic: additionally added the rotation in software when
+    // psramAvailable was true - this was originally meant for GC9D01, where
+    // (with PSRAM present) hardware rotation was deliberately skipped (see
+    // the now-removed GC9D01 special handling in uhr3.ino), so the hands had
+    // to be rotated in software instead. Since tft.setRotation() now always
+    // runs unconditionally for every board, this software rotation would add
+    // on top of the hardware rotation a second time (double/inconsistent
+    // hand rotation whenever PSRAM is present) - so it was removed, angle is
+    // returned unchanged.
 
     float rotatedAngle(float angle, int orientation) {
-        if (psramAvailable) {
-            return angle + (orientation * 90);
-        }   
+        (void)orientation; // Parameter bleibt fuer Aufrufkompatibilitaet erhalten, aktuell ungenutzt
+                           // parameter kept for call-site compatibility, currently unused
         return angle;
     }
 
@@ -1516,7 +1597,7 @@
                 return false;
             }
 
-            uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
             if (!compBuf) {
                 bmp.close();
                 DEBUG_PRINTLN("[BMP Scale] Memory allocation failed (compBuf)");
@@ -1529,7 +1610,7 @@
             }
             bmp.close();
 
-            rleSrcBuf = (uint16_t*)malloc(uncompressedSize);
+            rleSrcBuf = (uint16_t*)preferPsramMalloc(uncompressedSize);
             if (!rleSrcBuf) {
                 free(compBuf);
                 DEBUG_PRINTLN("[BMP Scale] Memory allocation failed (rleSrcBuf)");
@@ -1566,7 +1647,7 @@
             inH = abs(inH);
 
             inRowSize = ((inW * (bpp / 8) + 3) / 4) * 4;
-            rowBuf = (uint8_t*)malloc(inRowSize);
+            rowBuf = (uint8_t*)preferPsramMalloc(inRowSize);
             if (!rowBuf) {
                 bmp.close();
                 DEBUG_PRINTLN("[BMP Scale] Memory allocation failed");
@@ -1698,7 +1779,7 @@
         if (storeAsRle) {
             size_t pixelCount = (size_t)outW * outH;
             size_t maxSize = rleMaxEncodedSize(pixelCount);
-            uint8_t* rleBuf = (uint8_t*)malloc(maxSize);
+            uint8_t* rleBuf = (uint8_t*)preferPsramMalloc(maxSize);
             if (!rleBuf) {
                 out.close();
                 delete[] outImage;
@@ -2172,7 +2253,7 @@
             // Standard BMP: jump directly to the needed rows via
             // file seek, as before - memory efficiency was already
             // a given here (no full buffer needed).
-            uint8_t* rowBuf = (uint8_t*)malloc(inRowSizeStd);
+            uint8_t* rowBuf = (uint8_t*)preferPsramMalloc(inRowSizeStd);
             if (rowBuf) {
                 for (int y = 0; y < outH; y++) {
                     int srcY = flipStd ? (inH - 1 - int(y * scaleY)) : int(y * scaleY);
@@ -2258,7 +2339,7 @@
         // sendContent() calls would otherwise dominate. Large clock faces stay streamed row by row.
         const uint32_t SMALL_IMAGE_THRESHOLD = 20000;
         if (uncompressedSize <= SMALL_IMAGE_THRESHOLD) {
-            uint8_t* compBuf = (uint8_t*)malloc(compressedSize);
+            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
             if (!compBuf) { f.close(); return false; }
             if (f.read(compBuf, compressedSize) != compressedSize) {
                 free(compBuf); f.close(); return false;
@@ -2435,7 +2516,7 @@
         checkHeapWarning("generatePresetPreviewBmp Start (" + faceFile + ")");
 
         const int PREVIEW_SIZE = 100;
-        uint16_t* canvas = (uint16_t*)malloc((size_t)PREVIEW_SIZE * PREVIEW_SIZE * 2);
+        uint16_t* canvas = (uint16_t*)preferPsramMalloc((size_t)PREVIEW_SIZE * PREVIEW_SIZE * 2);
         if (!canvas) return false;
 
         // 1) Zifferblatt laden und auf die Vorschaugroesse herunterskalieren
@@ -2459,7 +2540,7 @@
             }
         }
         else {
-            uint16_t* faceBuf = (uint16_t*)malloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2);
+            uint16_t* faceBuf = (uint16_t*)preferPsramMalloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2);
             if (!faceBuf) { free(canvas); return false; }
             if (!loadFaceBmpInto(faceFile, faceBuf, CLOCK_WIDTH, CLOCK_HEIGHT)) {
                 for (int i = 0; i < CLOCK_WIDTH * CLOCK_HEIGHT; i++) faceBuf[i] = clockFace[i];
@@ -2482,16 +2563,16 @@
         bool useCustomSet = (handSetName != "default" && handSetName != "");
 
         if (useCustomSet) {
-            hourPix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+            hourPix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
             if (hourPix && !loadFaceBmpInto("/hand_set" + handSetName + "_hour.bmp", hourPix, HAND_WIDTH, HAND_HEIGHT)) {
                 free(hourPix); hourPix = nullptr;
             }
-            minutePix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+            minutePix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
             if (minutePix && !loadFaceBmpInto("/hand_set" + handSetName + "_minute.bmp", minutePix, HAND_WIDTH, HAND_HEIGHT)) {
                 free(minutePix); minutePix = nullptr;
             }
             if (showSecond) {
-                secondPix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+                secondPix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
                 if (secondPix && !loadFaceBmpInto("/hand_set" + handSetName + "_second.bmp", secondPix, HAND_WIDTH, HAND_HEIGHT)) {
                     free(secondPix); secondPix = nullptr;
                 }
