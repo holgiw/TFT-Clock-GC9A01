@@ -80,7 +80,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="uhr3.h" />
     <ClInclude Include="__vm\.uhr3.vsarduino.h" />
   </ItemGroup>
   <PropertyGroup>

@@ -271,23 +271,41 @@
 
 
 
-        // Prüfen, ob PSRAM vorhanden ist. GC9D01 wird treiberseitig genauso
-        // wie GC9A01 angesteuert (siehe config.h) und braucht daher keine
-        // Sonderbehandlung mehr - die PSRAM-Erkennung gilt einheitlich fuer
-        // alle Boards, ebenso die Hardware-Rotation weiter unten.
+        // Pruefen, ob PSRAM vorhanden ist. GC9D01 braucht fuer korrekte
+        // Hardware-Rotation eigentlich einen eigenen TFT_eSPI-Treiber
+        // (GC9D01_Defines.h/Init.h/Rotation.h), der hier nicht eingebunden
+        // ist - stattdessen wird der GC9A01-Treiber wiederverwendet (siehe
+        // config.h), dessen Rotations-Register-Mapping beim GC9D01 aber
+        // nicht wie erwartet funktioniert (tft.setRotation() bleibt ohne
+        // sichtbare Wirkung). Workaround: bei vorhandenem PSRAM wird die
+        // Hardware-Rotation uebersprungen und die Zeiger stattdessen per
+        // Software gedreht (siehe rotatedAngle() in display.h sowie den
+        // Rotations-Block weiter unten).
 
-        // Check whether PSRAM is available. GC9D01 is driven at the driver
-        // level exactly like GC9A01 (see config.h) and therefore no longer
-        // needs special handling - PSRAM detection applies uniformly to all
-        // boards, as does the hardware rotation further below.
+        // Check whether PSRAM is available. GC9D01 would actually need its
+        // own TFT_eSPI driver (GC9D01_Defines.h/Init.h/Rotation.h) for
+        // correct hardware rotation, which isn't wired up here - the GC9A01
+        // driver is reused instead (see config.h), whose rotation register
+        // mapping doesn't work as expected on the GC9D01 (tft.setRotation()
+        // has no visible effect). Workaround: when PSRAM is available,
+        // hardware rotation is skipped and the hands are rotated in software
+        // instead (see rotatedAngle() in display.h and the rotation block
+        // further below).
         if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
             psramAvailable = true;
             DEBUG_PRINTLN("[INFO] found PSRAM");
         }
         else {
             psramAvailable = false;
-            DEBUG_PRINTLN("[INFO] no PSRAM found");
+            DEBUG_PRINTLN("[INFO] no PSRAM, use Hardware-Rotation");
+#ifdef GC9D01
+            preferences.putUChar(PK_TFT_ROTATION, 0);
+#endif
         }
+#ifndef GC9D01 // wird nur bei Display GC9D01 benoetigt
+                // only needed for the GC9D01 display
+        psramAvailable = false;
+#endif
 
 
 
@@ -503,19 +521,39 @@
 
         validateSelectedBackground();
 
-        // GC9D01 wird treiberseitig wie GC9A01 angesteuert (siehe config.h),
-        // die Hardware-Rotation funktioniert daher fuer beide gleich - keine
-        // GC9D01-spezifische Sonderbehandlung mehr noetig.
+        // GC9D01 nutzt hier den GC9A01-Treiber (siehe config.h/PSRAM-Block
+        // oben), dessen Hardware-Rotation beim GC9D01 aber wirkungslos
+        // bleibt. Deshalb: bei vorhandenem PSRAM (psramAvailable, nur beim
+        // GC9D01 relevant) tft.setRotation() ueberspringen - die Rotation
+        // wird dann stattdessen per Software in rotatedAngle() (display.h)
+        // auf die Zeigerwinkel angewendet. Fuer alle anderen Boards (GC9A01,
+        // ILI9341) laeuft die Hardware-Rotation unveraendert unbedingt.
 
-        // GC9D01 is driven at the driver level like GC9A01 (see config.h),
-        // so hardware rotation works the same way for both - no more
-        // GC9D01-specific special handling needed.
+        // GC9D01 uses the GC9A01 driver here (see config.h/PSRAM block
+        // above), but its hardware rotation has no effect on the GC9D01.
+        // Therefore: when PSRAM is available (psramAvailable, only relevant
+        // for the GC9D01) skip tft.setRotation() - the rotation is then
+        // applied to the hand angles in software instead, in rotatedAngle()
+        // (display.h). For all other boards (GC9A01, ILI9341) hardware
+        // rotation still runs unconditionally as before.
 #if defined CS_2
         setCS2(LOW);
+#ifndef GC9D01
         tft.setRotation(tftRotation);
+#else
+        if (!psramAvailable) {
+            tft.setRotation(tftRotation);
+        }
+#endif
         setCS1(LOW);
 #endif
+#ifndef GC9D01
         tft.setRotation(tftRotation);
+#else
+        if (!psramAvailable) {
+            tft.setRotation(tftRotation);
+        }
+#endif
 
 
 #ifdef TFT_Backlight

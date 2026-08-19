@@ -21,8 +21,5 @@
     <ClInclude Include="__vm\.uhr3.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="uhr3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>
