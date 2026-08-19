@@ -424,14 +424,59 @@
             lastAppliedBrightness = currentBrightness;
         }
 
-        // Guenstiger Regelfall: den vorberechneten Puffer in einem Rutsch ins
-        // Sprite kopieren - loescht dabei auch die alte Zeigerposition vom
-        // letzten Tick, ohne die Helligkeit erneut pro Pixel berechnen zu muessen.
+        // Bei GC9D01 mit PSRAM wird die Hardware-Rotation in uhr3.ino bewusst
+        // uebersprungen (tft.setRotation() bleibt dort wirkungslos) und die
+        // Zeiger werden stattdessen per Software gedreht (rotatedAngle()).
+        // Das Zifferblatt selbst muss dann hier ebenso per Software gedreht
+        // werden - sonst würden nur die Zeiger rotiert erscheinen, der
+        // Hintergrund aber nicht.
 
-        // Cheap common case: copy the precomputed buffer into the
-        // sprite in one go - this also clears the old hand position
-        // from the last tick, without recalculating brightness per pixel.
-        backgroundSprite.pushImage(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, clockFaceBrightBuffer);
+        // On GC9D01 with PSRAM, hardware rotation is deliberately skipped in
+        // uhr3.ino (tft.setRotation() has no effect there) and the hands are
+        // rotated in software instead (rotatedAngle()). The clock face
+        // itself then also has to be rotated here in software - otherwise
+        // only the hands would appear rotated, but not the background.
+        int faceOrientation = psramAvailable ? preferences.getUChar(PK_TFT_ROTATION, 0) : 0;
+
+        if (faceOrientation == 0) {
+            // Guenstiger Regelfall: den vorberechneten Puffer in einem Rutsch ins
+            // Sprite kopieren - loescht dabei auch die alte Zeigerposition vom
+            // letzten Tick, ohne die Helligkeit erneut pro Pixel berechnen zu muessen.
+
+            // Cheap common case: copy the precomputed buffer into the
+            // sprite in one go - this also clears the old hand position
+            // from the last tick, without recalculating brightness per pixel.
+            backgroundSprite.pushImage(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, clockFaceBrightBuffer);
+        }
+        else {
+            // Zeilenweise mit gedrehten Quellkoordinaten kopieren (CLOCK_WIDTH
+            // == CLOCK_HEIGHT, also quadratisch - kein Breiten-/Hoehentausch
+            // bei 90/270 Grad noetig). Richtung passend zur Zeigerformel
+            // (angle + orientation*90, im Uhrzeigersinn) gewaehlt, damit
+            // Zifferblatt und Zeiger uebereinstimmend gedreht erscheinen.
+
+            // Copy row by row with rotated source coordinates (CLOCK_WIDTH ==
+            // CLOCK_HEIGHT, i.e. square - no width/height swap needed for
+            // 90/270 degrees). Direction chosen to match the hand formula
+            // (angle + orientation*90, clockwise), so the clock face and
+            // hands appear rotated consistently.
+            const int N = CLOCK_WIDTH;
+            for (int y = 0; y < N; y++) {
+                for (int x = 0; x < N; x++) {
+                    int srcX, srcY;
+                    switch (faceOrientation) {
+                        case 1:  srcX = y;         srcY = N - 1 - x; break; // 90 Grad im Uhrzeigersinn
+                                                                            // 90 degrees clockwise
+                        case 2:  srcX = N - 1 - x; srcY = N - 1 - y; break; // 180 Grad
+                                                                            // 180 degrees
+                        default: srcX = N - 1 - y; srcY = x;         break; // 270 Grad im Uhrzeigersinn
+                                                                            // 270 degrees clockwise
+                    }
+                    rowBuffer[x] = clockFaceBrightBuffer[srcY * N + srcX];
+                }
+                backgroundSprite.pushImage(0, y, N, 1, rowBuffer);
+            }
+        }
     }
 
 
@@ -1404,31 +1449,28 @@
 
     // Rotiert die Zeiger basierend auf der Display-Rotation.
     //
-    // Fruehere Logik: addierte die Rotation zusaetzlich in Software, wenn
-    // psramAvailable true war - das war urspruenglich fuer GC9D01 gedacht,
-    // wo (bei vorhandenem PSRAM) die Hardware-Rotation bewusst uebersprungen
-    // wurde (siehe die inzwischen entfernte GC9D01-Sonderbehandlung in
-    // uhr3.ino) und die Zeiger deshalb per Software nachgedreht werden
-    // mussten. Seit tft.setRotation() jetzt fuer alle Boards unbedingt
-    // laeuft, wuerde diese Software-Rotation die Hardware-Rotation ein
-    // zweites Mal draufaddieren (doppelte/inkonsistente Drehung der Zeiger,
-    // sobald PSRAM vorhanden ist) - daher entfernt, angle bleibt unveraendert.
+    // Nur relevant fuer GC9D01 mit vorhandenem PSRAM: dort wird die Hardware-
+    // Rotation in uhr3.ino bewusst uebersprungen (tft.setRotation() bleibt
+    // beim GC9D01 wirkungslos, siehe Kommentar dort), daher muss die Drehung
+    // hier stattdessen auf die Zeigerwinkel addiert werden. psramAvailable
+    // ist fuer alle anderen Boards (GC9A01, ILI9341) hart auf false gesetzt
+    // (siehe uhr3.ino), dort greift ausschliesslich die Hardware-Rotation
+    // und diese Funktion gibt angle unveraendert zurueck.
 
     // Rotates the hands based on the display rotation.
     //
-    // Previous logic: additionally added the rotation in software when
-    // psramAvailable was true - this was originally meant for GC9D01, where
-    // (with PSRAM present) hardware rotation was deliberately skipped (see
-    // the now-removed GC9D01 special handling in uhr3.ino), so the hands had
-    // to be rotated in software instead. Since tft.setRotation() now always
-    // runs unconditionally for every board, this software rotation would add
-    // on top of the hardware rotation a second time (double/inconsistent
-    // hand rotation whenever PSRAM is present) - so it was removed, angle is
-    // returned unchanged.
+    // Only relevant for the GC9D01 with PSRAM available: there, hardware
+    // rotation is deliberately skipped in uhr3.ino (tft.setRotation() has no
+    // effect on the GC9D01, see comment there), so the rotation has to be
+    // added to the hand angles here instead. psramAvailable is hard-set to
+    // false for all other boards (GC9A01, ILI9341) (see uhr3.ino), where
+    // hardware rotation alone applies and this function returns angle
+    // unchanged.
 
     float rotatedAngle(float angle, int orientation) {
-        (void)orientation; // Parameter bleibt fuer Aufrufkompatibilitaet erhalten, aktuell ungenutzt
-                           // parameter kept for call-site compatibility, currently unused
+        if (psramAvailable) {
+            return angle + (orientation * 90);
+        }
         return angle;
     }
 
