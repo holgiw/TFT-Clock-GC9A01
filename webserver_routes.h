@@ -3760,10 +3760,10 @@
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='useCS2' value='1' ";
             chunk += preferences.getBool(PK_USE_CS2, false) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Enable Display 2 (CS2)");
+            chunk += " style='width:auto;margin:0;'>" + translate("Enable Display 2");
             chunk += " <span title='" + translate("Enables chip-select control for Display 2, a second identical display wired to CS2 (GPIO 18) - requires a restart to take effect") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation (Display 1)") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
                 chunk += "<option value='" + String(i) + "'";
@@ -3772,7 +3772,7 @@
             }
             chunk += "</select></div>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation (Display 2 / CS2)") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1 - only relevant when Display 2 is enabled above") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:100px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1 - only relevant when Display 2 is enabled above") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:100px;'>";
             for (int i = 0; i <= 3; i++) {
                 chunk += "<option value='" + String(i) + "'";
                 if (i == tftRotation2) chunk += " selected";
