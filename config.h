@@ -125,9 +125,40 @@
 #define SDA_PIN 39
 #define SCL_PIN 37
 
-    // SPI Chipselect für 2. identisches Display
-    // SPI chip-select for 2nd identical display
-    //#define CS_2    18
+    // SPI Chipselect für Display 1 - wird MANUELL vom Sketch gesteuert (siehe
+    // setCS1()/setCS2() in display.h), NICHT mehr automatisch von der
+    // TFT_eSPI-Bibliothek. Derselbe physische Pin, der vorher als TFT_CS lief -
+    // nur jetzt manuell statt automatisch angesteuert. Dafuer MUSS TFT_CS in der
+    // Referenzkonfiguration weiter unten (und in der tatsaechlichen User_Setup.h
+    // der Bibliothek!) auf -1 gesetzt sein. Grund: die Bibliothek wuerde ihren
+    // eigenen CS-Pin sonst bei JEDER SPI-Uebertragung automatisch mit ansteuern -
+    // unabhaengig vom Zustand von CS_2 - wodurch sich Display 1 und Display 2 bei
+    // unterschiedlichen Rotationen gegenseitig die zuletzt gesendeten Bilddaten
+    // "stehlen" wuerden.
+
+    // SPI chip-select for display 1 - now driven MANUALLY by the sketch (see
+    // setCS1()/setCS2() in display.h), no longer automatically by the TFT_eSPI
+    // library. Same physical pin that used to be TFT_CS - just now driven
+    // manually instead of automatically. For this, TFT_CS in the reference
+    // config further below (and in the library's actual User_Setup.h!) MUST be
+    // set to -1. Reason: otherwise the library would still drive its own CS pin
+    // automatically on EVERY SPI transfer - regardless of CS_2's state - which
+    // would cause display 1 and display 2 to "steal" each other's last-sent
+    // frame whenever they have different rotations.
+#define CS_1    12
+
+    // SPI Chipselect für Display 2 (baugleich mit Display 1) - der Pin wird
+    // jetzt immer eingebunden (nicht mehr abhaengig von diesem #define); ob er
+    // tatsaechlich angesteuert wird, entscheidet die Laufzeit-Einstellung
+    // cs2Enabled (Preferences-Key PK_USE_CS2, Default aus), siehe uhr3.ino und
+    // webserver_routes.h ("Zifferblatt"-Tab).
+
+    // SPI chip-select for Display 2 (identical to Display 1) - the pin is now
+    // always compiled in (no longer gated by this #define); whether it's
+    // actually driven is decided at runtime by cs2Enabled (preferences key
+    // PK_USE_CS2, default off), see uhr3.ino and webserver_routes.h ("Clock
+    // Face" tab).
+#define CS_2    18
 
     // DCF77
 #define DCF77_INTERRUPT 0
@@ -189,7 +220,14 @@
 #define GC9A01_DRIVER
 #define TFT_MOSI  6
 #define TFT_SCLK  4
-#define TFT_CS    9   // Chip-Select
+#define TFT_CS    -1  // WICHTIG: manuelle CS-Steuerung aktiv (siehe CS_1 weiter oben) -
+                      // die Bibliothek darf ihren CS-Pin hier NICHT mehr selbst
+                      // automatisch schalten. In der tatsaechlichen User_Setup.h der
+                      // Bibliothek MUSS dieser Wert ebenfalls -1 sein.
+
+                      // IMPORTANT: manual CS control is active (see CS_1 above) - the
+                      // library must NOT drive its CS pin automatically here anymore.
+                      // The library's actual User_Setup.h MUST also have this set to -1.
 #define TFT_DC    10  // Data/Command
 #define TFT_RST   0   // Reset
 #define TFT_BL    5   // Hintergrundbeleuchtung (Bibliotheks-eigene Steuerung -
@@ -239,7 +277,14 @@
 #define GC9A01_DRIVER
 #define TFT_MOSI  6
 #define TFT_SCLK  4
-#define TFT_CS    9   // Chip-Select
+#define TFT_CS    -1  // WICHTIG: manuelle CS-Steuerung aktiv (siehe CS_1 weiter oben) -
+                      // die Bibliothek darf ihren CS-Pin hier NICHT mehr selbst
+                      // automatisch schalten. In der tatsaechlichen User_Setup.h der
+                      // Bibliothek MUSS dieser Wert ebenfalls -1 sein.
+
+                      // IMPORTANT: manual CS control is active (see CS_1 above) - the
+                      // library must NOT drive its CS pin automatically here anymore.
+                      // The library's actual User_Setup.h MUST also have this set to -1.
 #define TFT_DC    10  // Data/Command
 #define TFT_RST   0   // Reset
 #define TFT_BL    5   // Hintergrundbeleuchtung (Bibliotheks-eigene Steuerung -

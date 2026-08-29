@@ -57,7 +57,8 @@
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
     void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) ;
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) ;
-    void loadClockFace() ;
+    void loadClockFace(uint8_t rotation = tftRotation1) ; // ohne Argument = Rotation von Display 1 (Standardverhalten fuer alle Aufrufer ausserhalb von renderClockFrame())
+                                                          // no argument = display 1's rotation (default behaviour for every caller outside renderClockFrame())
     void freeClockFaceBuffer() ;
     void resetFacesToDefault() ;
     void resetHandsToDefault() ;
@@ -65,6 +66,7 @@
     bool loadHandPixelsForPreview(const char* filename, uint16_t* outBuffer, int width, int height) ;
     bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) ;
     float shortestAngleDiff(float from, float to) ;
+    void renderClockFrame(uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, bool& firstRunRef) ;
     void updateClock() ;
     void updateBrightness() ;
     uint16_t getAdjustedAdcValue(int rawValue) ;
