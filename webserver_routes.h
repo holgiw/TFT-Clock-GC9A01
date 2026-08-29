@@ -630,6 +630,95 @@
     }
 
 
+    // Baut den wiederverwendeten inneren Teil des Helligkeits-Formulars (Auto-
+    // Helligkeit-Checkboxen + alle Zahlenfelder) - war frueher an drei Stellen
+    // dupliziert (eigenstaendige /brightness-Seite per GET/POST sowie das
+    // Helligkeit-Tab-Panel auf "/"), was schon zu kleinen Inkonsistenzen
+    // gefuehrt hat (z.B. abweichender "%"-Hinweistext beim Schwellwert).
+    // Umschliessendes <form>/<div> und der Save-Button bleiben bewusst bei den
+    // Aufrufern, da sich Action-URL, "returnTo"-Feld und Wrapper-Div dort
+    // unterscheiden.
+
+    // Builds the reused inner part of the brightness form (auto-brightness
+    // checkboxes + all number fields) - used to be duplicated in three places
+    // (standalone /brightness page via GET/POST, and the Brightness tab panel
+    // on "/"), which had already led to small inconsistencies (e.g. a
+    // differing "%" hint text on the threshold fields). The surrounding
+    // <form>/<div> and the Save button stay with the callers on purpose,
+    // since the action URL, "returnTo" field, and wrapper div differ there.
+
+    String brightnessFormFieldsHtml() {
+        String html = "";
+
+        if (photoresistorFound) {
+            html += "<table style='margin:auto;text-align:left;'><tr>";
+            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
+            html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
+            html += "</tr></table><hr><br>";
+        }
+
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+        if (photoresistorFound) {
+            html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100 %) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+            html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+        }
+
+#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
+#endif
+
+        return html;
+    }
+
+
+    // Liest ein GET/POST-Formularfeld als int, mit echter Validierung: fehlt
+    // das Feld oder enthaelt es keine gueltige Ganzzahl (z.B. leer oder
+    // Buchstaben), wird defaultValue zurueckgegeben statt stillschweigend 0
+    // (so verhaelt sich String::toInt() bei ungueltiger Eingabe) - anschliessend
+    // wird das Ergebnis auf [minVal, maxVal] begrenzt, damit fehlerhafte/boese
+    // Werte (z.B. riesige oder negative Zahlen) nicht unbemerkt in Preferences
+    // landen oder bei der Zuweisung an kleinere Typen (uint8_t etc.) ueberlaufen.
+
+    // Reads a GET/POST form field as an int, with real validation: if the
+    // field is missing or does not contain a valid integer (e.g. empty or
+    // letters), defaultValue is returned instead of silently 0 (which is
+    // String::toInt()'s behavior on invalid input) - the result is then
+    // clamped to [minVal, maxVal] so malformed/malicious values (e.g. huge or
+    // negative numbers) don't end up unnoticed in Preferences or overflow when
+    // assigned to smaller types (uint8_t etc.).
+
+    int argToIntClamped(const String& name, int defaultValue, int minVal, int maxVal) {
+        // defaultValue selbst wird ebenfalls begrenzt, damit ein Aufrufer nicht
+        // versehentlich einen Default ausserhalb von [minVal, maxVal] uebergeben
+        // und so die Begrenzung fuer den "Feld fehlt/ungueltig"-Fall aushebeln kann.
+
+        // defaultValue itself is also clamped, so a caller can't accidentally
+        // pass a default outside [minVal, maxVal] and thereby bypass the bound
+        // for the "field missing/invalid" case.
+        if (defaultValue < minVal) defaultValue = minVal;
+        if (defaultValue > maxVal) defaultValue = maxVal;
+
+        if (!webserver.hasArg(name)) return defaultValue;
+        String val = webserver.arg(name);
+        val.trim();
+        if (val.length() == 0) return defaultValue;
+        for (size_t i = 0; i < val.length(); i++) {
+            char c = val.charAt(i);
+            bool isSign = (i == 0 && (c == '-' || c == '+'));
+            if (!isDigit(c) && !isSign) return defaultValue;
+        }
+        long parsed = val.toInt();
+        if (parsed < minVal) parsed = minVal;
+        if (parsed > maxVal) parsed = maxVal;
+        return (int)parsed;
+    }
+
+
     // Webserver-API-Endpunkte einrichten
     // Set up the webserver API endpoints
 
@@ -871,7 +960,7 @@
             updateNtpServersFromRequest();
 
             if (webserver.hasArg("hubSize")) {
-                hubSize = webserver.arg("hubSize").toInt();
+                hubSize = argToIntClamped("hubSize", hubSize, 0, 100);
                 preferences.putUInt(PK_CENTER_SIZE, hubSize);
             }
             if (webserver.hasArg("hubColor")) {
@@ -901,27 +990,42 @@
 
             if (webserver.hasArg("rotation")) {
                 String rotationArg = webserver.arg("rotation");
-                uint8_t tftRotation = 0;
+                // Bugfix: hiess vorher ebenfalls "tftRotation" (heute tftRotation1)
+                // und ueberschattete damit die GLOBALE Variable - der
+                // Preferences-Wert wurde zwar korrekt gespeichert und die Drehung
+                // einmalig sofort angewendet, aber renderClockFrame() liest
+                // weiterhin die globale Variable und fiel beim naechsten Tick auf
+                // die alte Rotation zurueck.
+
+                // Bugfix: this used to also be named "tftRotation" (today
+                // tftRotation1) and therefore shadowed the GLOBAL variable - the
+                // value was correctly saved to Preferences and the rotation
+                // applied immediately once, but renderClockFrame() still reads
+                // the global variable and fell back to the old rotation on the
+                // next tick.
+                uint8_t newRotation = 0;
 
                 // Prüfe, ob der Wert in Grad angegeben ist
                 // Check whether the value is given in degrees
                 if (rotationArg == "0" || rotationArg == "90" || rotationArg == "180" || rotationArg == "270") {
-                    if (rotationArg == "0") tftRotation = 0;
-                    else if (rotationArg == "90") tftRotation = 1;
-                    else if (rotationArg == "180") tftRotation = 2;
-                    else if (rotationArg == "270") tftRotation = 3;
+                    if (rotationArg == "0") newRotation = 0;
+                    else if (rotationArg == "90") newRotation = 1;
+                    else if (rotationArg == "180") newRotation = 2;
+                    else if (rotationArg == "270") newRotation = 3;
                 }
                 // Prüfe, ob der Wert als Index (0-3) angegeben ist
                 // Check whether the value is given as an index (0-3)
                 else {
-                    tftRotation = rotationArg.toInt();
+                    newRotation = rotationArg.toInt();
                 }
 
                 // Validierung des Wertes
                 // Validate the value
-                if (tftRotation >= 0 && tftRotation <= 3) {
-                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION, 0);
-                    preferences.putUChar(PK_TFT_ROTATION, tftRotation);
+                if (newRotation >= 0 && newRotation <= 3) {
+                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
+                    preferences.putUChar(PK_TFT_ROTATION1, newRotation);
+                    tftRotation1 = newRotation; // globale Variable aktualisieren (siehe Bugfix-Kommentar oben)
+                                               // update the global variable (see bugfix comment above)
                     // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
                     // sonst wuerde jedes Speichern der Haupteinstellungen (die
                     // das Rotationsfeld immer mitsenden, auch unveraendert) die
@@ -930,11 +1034,19 @@
                     // Only reset firstRun on an ACTUAL change - otherwise every save of the
                     // main settings (which always submit the rotation field, even unchanged)
                     // would restart the station-mode wait phase on the second hand.
-                    if (tftRotation != previousRotation) {
+                    if (tftRotation1 != previousRotation) {
                         firstRun = true;
                     }
-                    if (!psramAvailable) {
-                        tft.setRotation(tftRotation); // sofort anwenden
+                    if (!gc9d01SwRotation) {
+                        // Wie bei /applydisplaysettings: explizit auf Display 1 umschalten,
+                        // bevor die Rotation gesetzt wird - mit deaktiviertem CS2 ist
+                        // setCS1() ein No-Op.
+
+                        // Same as in /applydisplaysettings: explicitly switch to Display 1
+                        // before applying the rotation - with CS2 disabled, setCS1()
+                        // is a no-op.
+                        if (cs2Enabled) setCS1(LOW);
+                        tft.setRotation(tftRotation1); // sofort anwenden
                                                       // apply immediately
                     }
                 }
@@ -1649,8 +1761,8 @@
 
             String src = webserver.arg("src");
             String dst = webserver.arg("dst");
-            int w = webserver.arg("w").toInt();
-            int h = webserver.arg("h").toInt();
+            int w = argToIntClamped("w", 0, 1, 1000);
+            int h = argToIntClamped("h", 0, 1, 1000);
 
             bool scaleSuccess = scaleAndSaveBmp(src.c_str(), dst.c_str(), w, h);
             if (scaleSuccess) {
@@ -1699,11 +1811,21 @@
             preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
             preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
 
+            // Display 2 (CS2): Pin ist immer eingebunden (config.h), die
+            // pinMode()/Ansteuerung passiert aber nur einmalig in setup() - eine
+            // Aenderung hier wird daher erst nach einem Neustart wirksam.
+
+            // Display 2 (CS2): the pin is always compiled in (config.h), but
+            // its pinMode()/driving only happens once in setup() - a change here
+            // therefore only takes effect after a restart.
+            cs2Enabled = webserver.hasArg("useCS2");
+            preferences.putBool(PK_USE_CS2, cs2Enabled);
+
             if (webserver.hasArg("rotation")) {
-                tftRotation = webserver.arg("rotation").toInt();
-                if (tftRotation >= 0 && tftRotation <= 3) {
-                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION, 0);
-                    preferences.putUChar(PK_TFT_ROTATION, tftRotation);
+                tftRotation1 = webserver.arg("rotation").toInt();
+                if (tftRotation1 >= 0 && tftRotation1 <= 3) {
+                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
+                    preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
                     // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
                     // sonst wuerde jedes Speichern dieser Seite (das Rotationsfeld
                     // wird immer mitgesendet, auch unveraendert) die Bahnhofsmodus-
@@ -1712,11 +1834,23 @@
                     // Only reset firstRun on an ACTUAL change - otherwise every save of
                     // this page (rotation field is always submitted, even unchanged) would
                     // needlessly restart the station-mode wait phase on the second hand.
-                    if (tftRotation != previousRotation) {
+                    if (tftRotation1 != previousRotation) {
                         firstRun = true;
                     }
-                    if (!psramAvailable) {
-                        tft.setRotation(tftRotation); // sofort anwenden
+                    if (!gc9d01SwRotation) {
+                        // Explizit auf Display 1 umschalten, bevor die Rotation gesetzt wird -
+                        // tft.setRotation() wirkt nur auf den aktuell gewaehlten Chip.
+                        // updateClock() laesst nach jedem Tick zwar bereits Display 1 selektiert
+                        // zurueck, aber das hier nochmal sicherzustellen macht diesen Code
+                        // unabhaengig davon. Bei deaktiviertem CS2 ist setCS1() ein No-Op.
+
+                        // Explicitly switch to Display 1 before applying the rotation -
+                        // tft.setRotation() only affects the currently selected chip.
+                        // updateClock() already leaves Display 1 selected after every tick, but
+                        // making sure of it here too keeps this code independent of that.
+                        // With CS2 disabled, setCS1() is a no-op.
+                        if (cs2Enabled) setCS1(LOW);
+                        tft.setRotation(tftRotation1); // sofort anwenden
                                                       // apply immediately
                     }
                 }
@@ -1725,6 +1859,52 @@
                 loadClockFace();      // neu zeichnen mit neuer Ausrichtung
                                       // redraw with new orientation
                 loadHandSprites();
+            }
+
+            // Rotation von Display 2 (CS2) - eigener, unabhaengiger Wert.
+            // Rotation of Display 2 (CS2) - own, independent value.
+            if (webserver.hasArg("rotation2")) {
+                tftRotation2 = webserver.arg("rotation2").toInt();
+                if (tftRotation2 >= 0 && tftRotation2 <= 3) {
+                    uint8_t previousRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
+                    preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
+
+                    // firstRun2 nur bei TATSAECHLICHER Aenderung setzen (wie bei Display 1)
+                    // - sorgt dafuer, dass Display 2 sofort auf die neue Ausrichtung
+                    // "springt" statt sich erst dorthin einzupendeln.
+
+                    // Only set firstRun2 on an ACTUAL change (same as for Display 1) -
+                    // makes Display 2 "snap" to the new orientation immediately instead
+                    // of gradually easing into it.
+                    if (tftRotation2 != previousRotation2) {
+                        firstRun2 = true;
+                    }
+
+                    if (cs2Enabled && !gc9d01SwRotation) {
+                        // Hardware-Rotation: das MADCTL-Register muss explizit auf dem
+                        // Display-2-Chip gesetzt werden. Bei GC9D01-Software-Rotation
+                        // (gc9d01SwRotation) ist hier NICHTS zu tun - renderClockFrame()
+                        // liest tftRotation2 direkt und wendet es beim naechsten Tick an.
+
+                        // Nur wirksam, wenn CS2 in einem frueheren Boot bereits aktiviert
+                        // (und der Pin dadurch schon als Output konfiguriert) wurde - siehe
+                        // Hinweis "requires a restart" bei der CS2-Checkbox weiter oben.
+
+                        // Hardware rotation: the MADCTL register has to be explicitly set
+                        // on the Display 2 chip. With GC9D01 software rotation
+                        // (gc9d01SwRotation) there is NOTHING to do here - renderClockFrame()
+                        // reads tftRotation2 directly and applies it on the next tick.
+
+                        // Only takes effect if CS2 was already enabled in an earlier boot
+                        // (and the pin is therefore already configured as an output) - see
+                        // the "requires a restart" note on the CS2 checkbox above.
+                        setCS2(LOW);
+                        tft.setRotation(tftRotation2); // sofort auf Display 2 anwenden
+                                                       // apply immediately to Display 2
+                        setCS1(LOW); // zurueck auf Display 1, damit loop() im gewohnten Zustand weiterlaeuft
+                                    // back to Display 1, so loop() continues from its usual state
+                    }
+                }
             }
 
 
@@ -1741,34 +1921,10 @@
             String chunk = beginPage();
             chunk.reserve(1024);
             chunk += generateFlashMessage();
-            chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
-
-            if (photoresistorFound) {
-                chunk += "<table style='margin:auto;text-align:left;'><tr>";
-                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
-
-                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
-                chunk += "</tr></table><hr><br>";
-            }
+            chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'><input type='hidden' name='returnTo' value='/brightness'>";
 
             chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            if (photoresistorFound) {
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100 %) :</label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) :</label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-            }
-
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
-#endif
-
+            chunk += brightnessFormFieldsHtml();
             chunk += "</div>";
 
 
@@ -1858,34 +2014,10 @@
             String chunk = beginPage();
             chunk.reserve(1024);
             chunk += generateFlashMessage();
-            chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'>";
-
-            if (photoresistorFound) {
-                chunk += "<table style='margin:auto;text-align:left;'><tr>";
-                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
-
-                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
-                chunk += "</tr></table><hr><br>";
-            }
+            chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'><input type='hidden' name='returnTo' value='/brightness'>";
 
             chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            if (photoresistorFound) {
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-            }
-
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
-#endif
-
+            chunk += brightnessFormFieldsHtml();
             chunk += "</div>";
 
 
@@ -1969,18 +2101,18 @@
         webserver.on("/save_brightness", HTTP_POST, []() {
             useAdc = webserver.hasArg("use_adc");
             adcInverted = webserver.hasArg("adcInverted");
-            lowThreshold = webserver.arg("lowThreshold").toInt();
-            highThreshold = webserver.arg("highThreshold").toInt();
+            lowThreshold = argToIntClamped("lowThreshold", lowThreshold, 0, 100);
+            highThreshold = argToIntClamped("highThreshold", highThreshold, 0, 100);
 
-            maxBrightness = (uint8_t)webserver.arg("maxBrightness").toInt();
-            minBrightness = (uint8_t)webserver.arg("minBrightness").toInt();
+            maxBrightness = (uint8_t)argToIntClamped("maxBrightness", maxBrightness, 0, 255);
+            minBrightness = (uint8_t)argToIntClamped("minBrightness", minBrightness, 0, 255);
 
             // neue: Zeitabhängige Helligkeit speichern
             // new: save time-based brightness
 
 
-            brightStartHour = (uint8_t)constrain(webserver.arg("brightStart").toInt(), 0, 23);
-            brightEndHour = (uint8_t)constrain(webserver.arg("brightEnd").toInt(), 0, 23);
+            brightStartHour = (uint8_t)argToIntClamped("brightStart", brightStartHour, 0, 23);
+            brightEndHour = (uint8_t)argToIntClamped("brightEnd", brightEndHour, 0, 23);
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
             gammaBrightness = webserver.arg("gamma").toFloat();
@@ -2001,8 +2133,22 @@
             preferences.putUChar(PK_BRIGHT_START_HOUR, brightStartHour);
             preferences.putUChar(PK_BRIGHT_END_HOUR, brightEndHour);
 
+            // Nach dem Speichern zur Seite zurueckkehren, von der aus
+            // abgeschickt wurde (Helligkeit-Tab auf "/" oder die eigenstaendige
+            // /brightness-Seite) - statt immer fest zum Tab-Hub umzuleiten.
+            // Das Formular der eigenstaendigen Seite sendet dafuer ein
+            // verstecktes "returnTo"-Feld mit; das Tab-Panel sendet keines und
+            // faellt daher weiterhin auf den Tab-Hub zurueck.
 
-            redirectTo("/?tab=helligkeit&msg=Settings%20saved");
+            // After saving, return to the page the form was submitted from
+            // (the Brightness tab on "/" or the standalone /brightness page)
+            // instead of always redirecting to the tab hub. The standalone
+            // page's form sends a hidden "returnTo" field for this; the tab
+            // panel doesn't send one and therefore still falls back to the
+            // tab hub.
+            String returnTo = webserver.hasArg("returnTo") ? webserver.arg("returnTo") : "/?tab=helligkeit";
+            String sep = (returnTo.indexOf('?') >= 0) ? "&" : "?";
+            redirectTo(returnTo + sep + "msg=Settings%20saved");
             });
 
 
@@ -2232,7 +2378,6 @@
 
             chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
             chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
-            // chunk += "<li>PSRam used: " + String(psramAvailable == true ? "true" : "false") + "</li><br>";
 
 
             chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
@@ -2260,9 +2405,10 @@
             chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
             //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
             chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-            chunk += "<li>TFT_CS GPIO: " + String(TFT_CS) + "</li>";
+            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + "</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
+                                                                     // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
 #if defined CS_2
-            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + "</li>";
+            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (" + (cs2Enabled ? "enabled" : "disabled") + ")</li>";
 #endif
 
 
@@ -2376,9 +2522,28 @@
             chunk += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
-            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION, 0);
+            // useCS2 steht bewusst VOR tftRotation1/tftRotation2, damit sofort klar
+            // ist, ob (und dass) die Rotation direkt darunter zu zwei Displays gehoert.
+
+            // useCS2 is placed BEFORE tftRotation1/tftRotation2 on purpose, so it's
+            // immediately clear whether (and that) the rotation right below belongs
+            // to two displays.
+            if (preferences.getBool(PK_USE_CS2, false)) {
+                chunk += "<li><b>useCS2</b>: " + String(preferences.getBool(PK_USE_CS2, false) ? "true" : "false") + "</li>";
+            }
+
+            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-            chunk += "<li><b>tftRotation</b>: " + String(rotationLabels[rotation]) + "</li>";
+            chunk += "<li><b>tftRotation1</b>: " + String(rotationLabels[rotation]) + "</li>";
+            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen
+            // (nur sichtbar, wenn Display 2/CS2 aktiv ist, siehe useCS2 direkt darueber).
+
+            // Directly under tftRotation1, so both rotation values are listed one below
+            // the other (only shown when Display 2/CS2 is active, see useCS2 directly above).
+            if (preferences.getBool(PK_USE_CS2, false)) {
+                uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
+                chunk += "<li><b>tftRotation2</b>: " + String(rotationLabels[rotation2]) + "</li>";
+            }
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -3149,9 +3314,10 @@
 
             chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
             chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-            chunk += "<li>TFT_CS GPIO: " + String(TFT_CS) + "</li>";
+            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + "</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
+                                                                     // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
 #if defined CS_2
-            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + "</li>";
+            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (" + (cs2Enabled ? "enabled" : "disabled") + ")</li>";
 #endif
 
             chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
@@ -3262,9 +3428,28 @@
             chunk += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
-            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION, 0);
+            // useCS2 steht bewusst VOR tftRotation1/tftRotation2, damit sofort klar
+            // ist, ob (und dass) die Rotation direkt darunter zu zwei Displays gehoert.
+
+            // useCS2 is placed BEFORE tftRotation1/tftRotation2 on purpose, so it's
+            // immediately clear whether (and that) the rotation right below belongs
+            // to two displays.
+            if (preferences.getBool(PK_USE_CS2, false)) {
+                chunk += "<li><b>useCS2</b>: " + String(preferences.getBool(PK_USE_CS2, false) ? "true" : "false") + "</li>";
+            }
+
+            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
             const char* statusRotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-            chunk += "<li><b>tftRotation</b>: " + String(statusRotationLabels[rotation]) + "</li>";
+            chunk += "<li><b>tftRotation1</b>: " + String(statusRotationLabels[rotation]) + "</li>";
+            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen
+            // (nur sichtbar, wenn Display 2/CS2 aktiv ist, siehe useCS2 direkt darueber).
+
+            // Directly under tftRotation1, so both rotation values are listed one below
+            // the other (only shown when Display 2/CS2 is active, see useCS2 directly above).
+            if (preferences.getBool(PK_USE_CS2, false)) {
+                uint8_t rotation2Panel = preferences.getUChar(PK_TFT_ROTATION2, 0);
+                chunk += "<li><b>tftRotation2</b>: " + String(statusRotationLabels[rotation2Panel]) + "</li>";
+            }
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -3573,11 +3758,24 @@
             chunk += " <span title='" + translate("Server used to periodically check the internet connection") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "<input type='text' name='pingServer' value='" + pingServer + "' style='width:100px;'></div><br>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>Rotation: <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='useCS2' value='1' ";
+            chunk += preferences.getBool(PK_USE_CS2, false) ? "checked" : "";
+            chunk += " style='width:auto;margin:0;'>" + translate("Enable Display 2 (CS2)");
+            chunk += " <span title='" + translate("Enables chip-select control for Display 2, a second identical display wired to CS2 (GPIO 18) - requires a restart to take effect") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation (Display 1)") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
                 chunk += "<option value='" + String(i) + "'";
-                if (i == tftRotation) chunk += " selected";
+                if (i == tftRotation1) chunk += " selected";
+                chunk += ">" + String(rotationLabels[i]) + "</option>";
+            }
+            chunk += "</select></div>";
+
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation (Display 2 / CS2)") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1 - only relevant when Display 2 is enabled above") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:100px;'>";
+            for (int i = 0; i <= 3; i++) {
+                chunk += "<option value='" + String(i) + "'";
+                if (i == tftRotation2) chunk += " selected";
                 chunk += ">" + String(rotationLabels[i]) + "</option>";
             }
             chunk += "</select></div>";
@@ -3603,29 +3801,8 @@
             chunk += "<div class='tabpanel panel-helligkeit'>";
             chunk += "<form method='POST' action='/save_brightness'>";
 
-            if (photoresistorFound) {
-                chunk += "<table style='margin:auto;text-align:left;'><tr>";
-                chunk += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
-                chunk += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
-                chunk += "</tr></table><hr><br>";
-            }
-
             chunk += "<div class='card'>";
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            if (photoresistorFound) {
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-            }
-
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
-#endif
-
+            chunk += brightnessFormFieldsHtml();
             chunk += "</div>";
             chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
 
@@ -3638,7 +3815,19 @@
                 chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
                 chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
                 chunk += "<br>";
-                chunk += "<form method='GET' action='/?tab=helligkeit'><button type='submit'>" + translate("Refresh") + "</button></form>";
+                // Bei einem GET-Formular ersetzt der Browser die Query-String
+                // des "action"-Attributs durch die serialisierten Formularfelder -
+                // "?tab=helligkeit" in der Action-URL ginge also beim Abschicken
+                // verloren (Seite landete danach auf dem Standard-Tab statt auf
+                // Helligkeit). Daher als verstecktes Feld mitschicken, statt es
+                // nur in der Action-URL zu haben.
+
+                // With a GET form, the browser replaces the "action" attribute's
+                // query string with the serialized form fields - "?tab=helligkeit"
+                // in the action URL would therefore be lost on submit (page ended
+                // up on the default tab instead of Brightness). So send it as a
+                // hidden field instead of only having it in the action URL.
+                chunk += "<form method='GET' action='/'><input type='hidden' name='tab' value='helligkeit'><button type='submit'>" + translate("Refresh") + "</button></form>";
                 chunk += "<br>";
 
                 webserver.sendContent(chunk);
@@ -4496,7 +4685,7 @@
 
         webserver.on("/setcenter", HTTP_POST, []() {
             if (webserver.hasArg("size") && webserver.hasArg("color")) {
-                hubSize = webserver.arg("size").toInt();
+                hubSize = argToIntClamped("size", hubSize, 0, 100);
                 uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16);
 
                 // 24-Bit RGB888 in RGB565 umwandeln

@@ -106,15 +106,35 @@
 
         Serial.begin(115200);
 
-        // Pin 12 (Chipselect) auf Output, Low
-        // Pin 12 (chip select) as output, low
+        // CS_1 (Chip-Select von Display 1, vormals TFT_CS) manuell auf Output/LOW
+        // setzen - die TFT_eSPI-Bibliothek steuert ihren eigenen CS-Pin nicht mehr
+        // automatisch (TFT_CS = -1 in der Referenzkonfiguration/User_Setup.h,
+        // siehe config.h). Muss hier, VOR tft.init() weiter unten, passieren und
+        // ist UNABHAENGIG von cs2Enabled noetig - ohne das wuerde auch der
+        // Einzeldisplay-Betrieb (kein CS2) nichts mehr anzeigen, weil kein Chip
+        // mehr automatisch selektiert wird.
 
-#if defined CS_2
-        pinMode(CS_2, OUTPUT);
+        // Manually set CS_1 (display 1's chip select, formerly TFT_CS) to
+        // output/LOW - the TFT_eSPI library no longer drives its own CS pin
+        // automatically (TFT_CS = -1 in the reference config/User_Setup.h, see
+        // config.h). Has to happen here, BEFORE tft.init() further below, and is
+        // needed REGARDLESS of cs2Enabled - without this, even single-display
+        // operation (no CS2) would show nothing, since no chip is automatically
+        // selected anymore.
+        pinMode(CS_1, OUTPUT);
+        digitalWrite(CS_1, LOW);
 
-        setCS1(LOW);
-        setCS2(HIGH);
-#endif
+        // HINWEIS: Die eigentliche CS2-Pin-Initialisierung (pinMode + setCS1/setCS2)
+        // steht jetzt weiter unten, NACH preferences.begin()/dem Laden von
+        // cs2Enabled - vorher waere cs2Enabled noch auf seinem Default (false)
+        // und die gespeicherte Einstellung wuerde bei diesem fruehen Aufruf
+        // ignoriert (siehe Ladepunkt bei "cs2Enabled = preferences.getBool(...)").
+
+        // NOTE: The actual CS2 pin initialization (pinMode + setCS1/setCS2) now
+        // lives further below, AFTER preferences.begin()/loading cs2Enabled -
+        // any earlier, cs2Enabled would still be at its default (false) and the
+        // saved setting would be ignored at this early call (see the load point
+        // at "cs2Enabled = preferences.getBool(...)").
 
         // Asynchronen WLAN-Scan starten, damit Netzwerke schon erkannt sind, wenn
         // der Nutzer die WLAN-Einstellungen zum ersten Mal öffnet
@@ -277,34 +297,38 @@
         // ist - stattdessen wird der GC9A01-Treiber wiederverwendet (siehe
         // config.h), dessen Rotations-Register-Mapping beim GC9D01 aber
         // nicht wie erwartet funktioniert (tft.setRotation() bleibt ohne
-        // sichtbare Wirkung). Workaround: bei vorhandenem PSRAM wird die
-        // Hardware-Rotation uebersprungen und die Zeiger stattdessen per
-        // Software gedreht (siehe rotatedAngle() in display.h sowie den
-        // Rotations-Block weiter unten).
+        // sichtbare Wirkung). Workaround, gesteuert ueber gc9d01SwRotation:
+        // bei vorhandenem PSRAM wird die Hardware-Rotation uebersprungen
+        // (siehe Rotations-Block weiter unten in dieser Datei) und Zeiger
+        // sowie Zifferblatt werden stattdessen per Software gedreht (siehe
+        // rotatedAngle() und der Zifferblatt-Rotationsblock in loadClockFace(),
+        // beide in display.h).
 
         // Check whether PSRAM is available. GC9D01 would actually need its
         // own TFT_eSPI driver (GC9D01_Defines.h/Init.h/Rotation.h) for
         // correct hardware rotation, which isn't wired up here - the GC9A01
         // driver is reused instead (see config.h), whose rotation register
         // mapping doesn't work as expected on the GC9D01 (tft.setRotation()
-        // has no visible effect). Workaround: when PSRAM is available,
-        // hardware rotation is skipped and the hands are rotated in software
-        // instead (see rotatedAngle() in display.h and the rotation block
-        // further below).
+        // has no visible effect). Workaround, controlled via gc9d01SwRotation:
+        // when PSRAM is available, hardware rotation is skipped (see the
+        // rotation block further below in this file) and both the hands and
+        // the clock face are rotated in software instead (see rotatedAngle()
+        // and the clock face rotation block in loadClockFace(), both in
+        // display.h).
         if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
-            psramAvailable = true;
+            gc9d01SwRotation = true;
             DEBUG_PRINTLN("[INFO] found PSRAM");
         }
         else {
-            psramAvailable = false;
+            gc9d01SwRotation = false;
             DEBUG_PRINTLN("[INFO] no PSRAM, use Hardware-Rotation");
 #ifdef GC9D01
-            preferences.putUChar(PK_TFT_ROTATION, 0);
+            preferences.putUChar(PK_TFT_ROTATION1, 0);
 #endif
         }
 #ifndef GC9D01 // wird nur bei Display GC9D01 benoetigt
                 // only needed for the GC9D01 display
-        psramAvailable = false;
+        gc9d01SwRotation = false;
 #endif
 
 
@@ -339,7 +363,8 @@
 
             preferences.putString(PK_TIMEZONE, TIMEZONE_DEFAULT);
 
-            preferences.putUChar(PK_TFT_ROTATION, 0);
+            preferences.putUChar(PK_TFT_ROTATION1, 0);
+            preferences.putUChar(PK_TFT_ROTATION2, 0);
             preferences.putString(PK_HANDSET, "default");
             preferences.putString(PK_BACKGROUND, "/face_default.bmp");
 
@@ -376,12 +401,13 @@
             }
 
 #if defined GC9A01_WITH_BACKLIGHT
-            preferences.putUChar(PK_TFT_ROTATION, 2);
+            preferences.putUChar(PK_TFT_ROTATION1, 2);
 #else
-            preferences.putUChar(PK_TFT_ROTATION, 0);
+            preferences.putUChar(PK_TFT_ROTATION1, 0);
 #endif
             preferences.putBool(PK_ADC_INVERTED, false);
             preferences.putBool(PK_USE_TOUCH, false);
+            preferences.putBool(PK_USE_CS2, false);
 
             preferences.putBool(PK_LOGGING_ENABLED, true);
 
@@ -407,6 +433,31 @@
         stationMode = preferences.getBool(PK_STATION_MODE, true);
         smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
         showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
+        cs2Enabled = preferences.getBool(PK_USE_CS2, false);
+
+        // CS2-Pin ist immer eingebunden (siehe config.h), wird aber nur bei
+        // aktivierter Einstellung (Zifferblatt-Tab, Default aus) tatsaechlich
+        // als Output konfiguriert und angesteuert (CS_1 = Pin 12 = Display 1,
+        // siehe Kommentar weiter oben in setup()).
+
+        // The CS2 pin is always compiled in (see config.h), but is only
+        // actually configured as an output and driven when the setting is
+        // enabled (Clock Face tab, default off) (CS_1 = pin 12 = display 1, see
+        // comment further up in setup()).
+        if (cs2Enabled) {
+            pinMode(CS_2, OUTPUT);
+
+            // Definierter Ausgangszustand: Display 1 (CS_1) ausgewaehlt, Display 2
+            // (CS_2) abgewaehlt. setCS2(HIGH) waere hier ein No-Op (setCS2()
+            // reagiert nur auf LOW) - setCS1(LOW) erledigt beides bereits (siehe
+            // display.h), deshalb reicht dieser eine Aufruf.
+
+            // Defined starting state: display 1 (CS_1) selected, display 2 (CS_2)
+            // deselected. setCS2(HIGH) here would be a no-op (setCS2() only reacts
+            // to LOW) - setCS1(LOW) already handles both (see display.h), so this
+            // one call is enough.
+            setCS1(LOW);
+        }
 
         // Nabe
         // Hub
@@ -498,9 +549,9 @@
 
         if (loggingEnabled)  Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
 
-#if defined CS_2
-        digitalWrite(CS_2, LOW);
-#endif
+        if (cs2Enabled) {
+            digitalWrite(CS_2, LOW);
+        }
 
         tft.init();
 
@@ -508,13 +559,46 @@
         tft.fillScreen(TFT_BLACK);
 
 
-        tftRotation = preferences.getUChar(PK_TFT_ROTATION, 0);
-        if (tftRotation > 3) {
-            if (tftRotation == 90) tftRotation = 1;
-            else if (tftRotation == 180) tftRotation = 2;
-            else if (tftRotation == 270) tftRotation = 3;
-            else tftRotation = 0;
-            preferences.putUChar(PK_TFT_ROTATION, tftRotation);
+        // Migration: alter Preferences-Key "tftRotation" (aus Versionen vor der
+        // Display-2-Unterstuetzung) auf den neuen Key "tftRotation1" uebertragen,
+        // falls unter dem neuen Key noch kein Wert existiert - sonst wuerde eine
+        // bereits gespeicherte Rotationseinstellung nach diesem Update verloren
+        // gehen und auf 0 Grad zurueckfallen. Einmalig: sobald PK_TFT_ROTATION1
+        // existiert, greift dieser Zweig nie wieder (auch auf einem komplett
+        // neuen Geraet nicht, da der Erststart-Block weiter oben PK_TFT_ROTATION1
+        // bereits mit einem Default belegt).
+
+        // Migration: transfer the old Preferences key "tftRotation" (from
+        // versions before Display 2 support) to the new key "tftRotation1" if
+        // no value exists yet under the new key - otherwise an already-saved
+        // rotation setting would be lost after this update and fall back to 0
+        // degrees. One-time: once PK_TFT_ROTATION1 exists, this branch never
+        // runs again (not even on a brand-new device, since the first-start
+        // block further above already gives PK_TFT_ROTATION1 a default).
+        if (!preferences.isKey(PK_TFT_ROTATION1) && preferences.isKey(PK_TFT_ROTATION_LEGACY)) {
+            preferences.putUChar(PK_TFT_ROTATION1, preferences.getUChar(PK_TFT_ROTATION_LEGACY, 0));
+        }
+
+        tftRotation1 = preferences.getUChar(PK_TFT_ROTATION1, 0);
+        if (tftRotation1 > 3) {
+            if (tftRotation1 == 90) tftRotation1 = 1;
+            else if (tftRotation1 == 180) tftRotation1 = 2;
+            else if (tftRotation1 == 270) tftRotation1 = 3;
+            else tftRotation1 = 0;
+            preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
+        }
+
+        // Rotation von Display 2 (CS2) - unabhaengig von tftRotation1, damit
+        // beide Displays unterschiedlich ausgerichtet montiert sein koennen.
+        // rotation of Display 2 (CS2) - independent of tftRotation1, so
+        // both displays can be mounted with a different orientation.
+        tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
+        if (tftRotation2 > 3) {
+            if (tftRotation2 == 90) tftRotation2 = 1;
+            else if (tftRotation2 == 180) tftRotation2 = 2;
+            else if (tftRotation2 == 270) tftRotation2 = 3;
+            else tftRotation2 = 0;
+            preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
         }
 
         selectedBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
@@ -523,35 +607,50 @@
 
         // GC9D01 nutzt hier den GC9A01-Treiber (siehe config.h/PSRAM-Block
         // oben), dessen Hardware-Rotation beim GC9D01 aber wirkungslos
-        // bleibt. Deshalb: bei vorhandenem PSRAM (psramAvailable, nur beim
-        // GC9D01 relevant) tft.setRotation() ueberspringen - die Rotation
-        // wird dann stattdessen per Software in rotatedAngle() (display.h)
-        // auf die Zeigerwinkel angewendet. Fuer alle anderen Boards (GC9A01,
-        // ILI9341) laeuft die Hardware-Rotation unveraendert unbedingt.
+        // bleibt. Deshalb: bei aktivem Software-Rotations-Workaround
+        // (gc9d01SwRotation, nur beim GC9D01 relevant) tft.setRotation()
+        // ueberspringen - die Rotation wird dann stattdessen per Software auf
+        // die Zeigerwinkel (rotatedAngle()) und das Zifferblatt (Rotationsblock
+        // in loadClockFace()) angewendet, beide in display.h. Fuer alle
+        // anderen Boards (GC9A01, ILI9341) laeuft die Hardware-Rotation
+        // unveraendert unbedingt.
 
         // GC9D01 uses the GC9A01 driver here (see config.h/PSRAM block
         // above), but its hardware rotation has no effect on the GC9D01.
-        // Therefore: when PSRAM is available (psramAvailable, only relevant
-        // for the GC9D01) skip tft.setRotation() - the rotation is then
-        // applied to the hand angles in software instead, in rotatedAngle()
-        // (display.h). For all other boards (GC9A01, ILI9341) hardware
-        // rotation still runs unconditionally as before.
-#if defined CS_2
-        setCS2(LOW);
+        // Therefore: when the software rotation workaround is active
+        // (gc9d01SwRotation, only relevant for the GC9D01) skip
+        // tft.setRotation() - the rotation is then applied in software to
+        // both the hand angles (rotatedAngle()) and the clock face (rotation
+        // block in loadClockFace()), both in display.h. For all other boards
+        // (GC9A01, ILI9341) hardware rotation still runs unconditionally as
+        // before.
+        // CS2 bekommt seine EIGENE Rotation (tftRotation2) - das MADCTL-Kommando
+        // von tft.setRotation() wird nur vom gerade selektierten Chip uebernommen,
+        // jedes der beiden Displays behaelt seine Ausrichtung danach dauerhaft im
+        // eigenen Register, ein wiederholtes Setzen pro Tick ist nicht noetig
+        // (siehe loop() - dort wird nur noch das Chip-Select umgeschaltet).
+
+        // CS2 gets its OWN rotation (tftRotation2) - the MADCTL command from
+        // tft.setRotation() is only picked up by the currently selected chip;
+        // each display then keeps that orientation permanently in its own
+        // register, so it doesn't need to be re-applied every tick (see loop() -
+        // it only toggles the chip select from here on).
+        if (cs2Enabled) {
+            setCS2(LOW);
 #ifndef GC9D01
-        tft.setRotation(tftRotation);
+            tft.setRotation(tftRotation2);
 #else
-        if (!psramAvailable) {
-            tft.setRotation(tftRotation);
+            if (!gc9d01SwRotation) {
+                tft.setRotation(tftRotation2);
+            }
+#endif
+            setCS1(LOW);
         }
-#endif
-        setCS1(LOW);
-#endif
 #ifndef GC9D01
-        tft.setRotation(tftRotation);
+        tft.setRotation(tftRotation1);
 #else
-        if (!psramAvailable) {
-            tft.setRotation(tftRotation);
+        if (!gc9d01SwRotation) {
+            tft.setRotation(tftRotation1);
         }
 #endif
 
@@ -804,16 +903,19 @@
 
     void loop() {
 
+        // HINWEIS: Das frueher hier stehende Umschalten zwischen CS1/CS2 (abwechselnd
+        // pro Tick) entfaellt - updateClock() steuert beide Displays jetzt selbst und
+        // vollstaendig pro Tick an (siehe renderClockFrame()/updateClock() in
+        // display.h), inklusive je eigener Rotation. So bekommen bei GC9D01 (Software-
+        // Rotation) beide Displays wirklich unabhaengige Ausrichtungen statt sich die
+        // Anzeige abwechselnd zu teilen.
 
-#if defined CS_2
-        cs = !cs;
-        if (cs == true) {
-            setCS1(LOW);
-        }
-        else {
-            setCS2(LOW);
-        }
-#endif
+        // NOTE: The CS1/CS2 toggling that used to sit here (alternating per tick) is
+        // gone - updateClock() now drives both displays itself, fully, every tick
+        // (see renderClockFrame()/updateClock() in display.h), each with its own
+        // rotation. This way, with GC9D01 (software rotation) both displays get
+        // genuinely independent orientations instead of taking turns sharing the
+        // same rendered frame.
 
         // Asynchrone Pruefung einer per Web-Button gestarteten WPS-Anfrage (siehe
         // /api/startWPS) - blockiert loop() nicht, reagiert auf die im WiFi-Event-

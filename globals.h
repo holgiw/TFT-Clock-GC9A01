@@ -169,13 +169,28 @@
     uint8_t hubSize = 0;
 
     bool firstRun = true;
+    bool firstRun2 = true; // wie firstRun, aber fuer Display 2 (CS2) - siehe renderClockFrame() in display.h
+                           // like firstRun, but for Display 2 (CS2) - see renderClockFrame() in display.h
 
-    uint8_t tftRotation = 0;
+    uint8_t tftRotation1 = 0;
+    uint8_t tftRotation2 = 0; // Rotation von Display 2 (CS2) - eigener Wert, damit beide Displays
+                              // unterschiedlich ausgerichtet montiert sein koennen (siehe uhr3.ino/webserver_routes.h)
+                              // rotation of Display 2 (CS2) - its own value, so both displays can be
+                              // mounted with a different orientation (see uhr3.ino/webserver_routes.h)
 
 
     uint16_t rowBuffer[CLOCK_WIDTH];
 
-    static bool psramAvailable = false;
+    // Nicht "ist PSRAM vorhanden" allgemein (dafuer wird ueberall direkt
+    // psramFound() aufgerufen) - steuert ausschliesslich den GC9D01-
+    // Software-Rotations-Workaround (siehe uhr3.ino und rotatedAngle() /
+    // loadClockFace() in display.h). Fuer alle anderen Boards fest false.
+
+    // Not "is PSRAM available" in general (psramFound() is called directly
+    // everywhere for that) - controls exclusively the GC9D01 software
+    // rotation workaround (see uhr3.ino and rotatedAngle() / loadClockFace()
+    // in display.h). Hard-set to false for all other boards.
+    static bool gc9d01SwRotation = false;
 
     uint16_t* clockFaceBuffer = nullptr;
 
@@ -188,7 +203,16 @@
     // on every tick, even though brightness rarely changes in between.
     uint16_t* clockFaceBrightBuffer = nullptr;
 
-    bool cs = true;
+    // Display 2, baugleich mit Display 1, am CS2-Pin (siehe config.h) -
+    // Hardware-Pin wird immer eingebunden, per Preferences-Schalter (siehe
+    // webserver_routes.h, Tab "Zifferblatt") aber standardmaessig deaktiviert,
+    // damit Geraete ohne Display 2 den Pin nicht unnoetig ansteuern.
+
+    // Display 2, identical to Display 1, on the CS2 pin (see config.h) - the
+    // hardware pin is always compiled in, but disabled by default via a
+    // preferences toggle (see webserver_routes.h, "Clock Face" tab) so devices
+    // without Display 2 don't needlessly drive the pin.
+    bool cs2Enabled = false;
 
     // --- Helligkeit / Fotowiderstand (ADC) ---
     // --- Brightness / photoresistor (ADC) ---

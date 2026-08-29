@@ -12,17 +12,17 @@
     // haelt den knappen internen Heap frei von Fragmentierung durch die
     // vielen unterschiedlich grossen malloc()/free()-Zyklen. Nutzt bewusst
     // einen eigenen psramFound()-Check statt der globalen Variable
-    // psramAvailable, da diese nur fuer die GC9D01-Hardware-Rotation gilt
-    // und auf anderen Boards immer false ist, auch wenn dort PSRAM
-    // vorhanden ist (siehe deren Verwendung bei clockFaceBuffer weiter
-    // unten, die bewusst unveraendert bleibt).
+    // gc9d01SwRotation, da diese nur fuer den GC9D01-Software-Rotations-
+    // Workaround gilt und auf anderen Boards immer false ist, auch wenn dort
+    // PSRAM tatsaechlich vorhanden ist (siehe deren Verwendung bei
+    // clockFaceBuffer weiter unten, die bewusst unveraendert bleibt).
 
     // Prefers PSRAM for allocations that are not held long-term (short-
     // lived buffers during BMP/PNG processing in the web interface) - keeps
     // the scarce internal heap free of fragmentation caused by the many
     // differently-sized malloc()/free() cycles. Deliberately uses its own
-    // psramFound() check instead of the global psramAvailable variable,
-    // since that one only applies to the GC9D01 hardware rotation
+    // psramFound() check instead of the global gc9d01SwRotation variable,
+    // since that one only applies to the GC9D01 software rotation
     // workaround and is always false on other boards, even where PSRAM is
     // actually present (see its use for clockFaceBuffer further below,
     // which is deliberately left unchanged).
@@ -39,28 +39,43 @@
 #if defined CS_2
 
 
-    // Waehlt bei Dual-Display-Aufbauten das erste TFT ueber sein Chip-Select-Pin aus
-    // (deaktiviert dabei das zweite Display)
+    // Waehlt bei Dual-Display-Aufbauten Display 1 ueber seinen Chip-Select-Pin aus
+    // (deaktiviert dabei Display 2). Steuert JETZT beide CS-Pins manuell (CS_1
+    // UND CS_2) - vorher wurde CS_1 (der bisherige TFT_CS-Pin) automatisch von
+    // der TFT_eSPI-Bibliothek mitgeschaltet, wodurch Display 1 bei jeder SPI-
+    // Uebertragung "mithoerte", egal was hier mit CS_2 passierte. Jetzt ist die
+    // automatische CS-Steuerung der Bibliothek deaktiviert (TFT_CS = -1, siehe
+    // config.h), daher muss CS_1 hier explizit mit ausgewaehlt werden.
 
-    // Selects the first TFT via its chip-select pin in dual-display setups
-    // (disables the second display)
+    // Selects Display 1 via its chip-select pin in dual-display setups
+    // (disables Display 2). Now drives BOTH CS pins manually (CS_1 AND CS_2) -
+    // previously CS_1 (the former TFT_CS pin) was toggled automatically by the
+    // TFT_eSPI library, so Display 1 "listened in" on every SPI transfer
+    // regardless of what happened here with CS_2. The library's automatic CS
+    // control is now disabled (TFT_CS = -1, see config.h), so CS_1 has to be
+    // explicitly selected here as well.
 
     void setCS1(bool state) {
         if (state == LOW) {
+            digitalWrite(CS_1, LOW);
             digitalWrite(CS_2, HIGH);
         }
-    
+
     }
 
 
-    // Waehlt das zweite TFT bei Dual-Display-Aufbauten ueber seinen Chip-Select-Pin aus
-    // Selects the second TFT via its chip-select pin in dual-display setups
+    // Waehlt Display 2 bei Dual-Display-Aufbauten ueber seinen Chip-Select-Pin aus
+    // (deaktiviert dabei Display 1, siehe Kommentar bei setCS1())
+
+    // Selects Display 2 via its chip-select pin in dual-display setups
+    // (disables Display 1, see comment on setCS1())
 
     void setCS2(bool state) {
         if (state == LOW) {
-            digitalWrite(CS_2, state);
+            digitalWrite(CS_2, LOW);
+            digitalWrite(CS_1, HIGH);
         }
-    
+
     }
 #endif
 
@@ -331,7 +346,7 @@
     // (standard BMP or RLEB, falling back to the built-in default face),
     // applies the current brightness and draws it into backgroundSprite
 
-    void loadClockFace() {
+    void loadClockFace(uint8_t rotation) {
         bool forceRecompute = false; // Neues Zifferblatt geladen -> Cache muss neu berechnet werden
                                      // New clock face loaded -> cache must be recalculated
         // Prüfen, ob Buffer schon existiert
@@ -436,7 +451,16 @@
         // rotated in software instead (rotatedAngle()). The clock face
         // itself then also has to be rotated here in software - otherwise
         // only the hands would appear rotated, but not the background.
-        int faceOrientation = psramAvailable ? preferences.getUChar(PK_TFT_ROTATION, 0) : 0;
+        // 'rotation' ist die fuer DIESES Display gewuenschte Ausrichtung (bei
+        // Hardware-Rotation, also allen Displays ausser GC9D01, uebernimmt das
+        // MADCTL-Register des Chips die eigentliche Drehung - hier wird dann
+        // ohnehin nur faceOrientation=0 verwendet, siehe rotatedAngle()).
+
+        // 'rotation' is the orientation wanted for THIS display (with hardware
+        // rotation, i.e. every display except GC9D01, the chip's own MADCTL
+        // register does the actual rotation - here faceOrientation=0 is used
+        // regardless, see rotatedAngle()).
+        int faceOrientation = gc9d01SwRotation ? rotation : 0;
 
         if (faceOrientation == 0) {
             // Guenstiger Regelfall: den vorberechneten Puffer in einem Rutsch ins
@@ -842,32 +866,41 @@
     static float lastHourAngle = 0.0f;
     static float lastMinuteAngle = 0.0f;
 
+    // Eigener Glaettungs-Zustand fuer Display 2 (CS2) - nur relevant,
+    // wenn beide Displays per Software (GC9D01) unterschiedlich rotiert werden
+    // (siehe renderClockFrame()/updateClock()). Bei Hardware-Rotation landen
+    // hier dieselben Werte wie in lastHourAngle/lastMinuteAngle, da rotatedAngle()
+    // dort den Winkel unveraendert durchreicht - kostet also nichts zusaetzlich.
 
-    // updateClock Funktion
-    // updateClock function
-
-    void updateClock() {
-       // struct tm timeinfo;
-        if (!getLocalTime(&timeinfo, 1000)) {
-            // Keine gültige Uhrzeit verfügbar
-            // No valid time available
-            loadTimeFromRTC();
-        }
+    // Own smoothing state for Display 2 (CS2) - only relevant when
+    // both displays are rotated differently in software (GC9D01) (see
+    // renderClockFrame()/updateClock()). With hardware rotation this ends up
+    // holding the same values as lastHourAngle/lastMinuteAngle, since
+    // rotatedAngle() passes the angle through unchanged there - so it costs
+    // nothing extra.
+    static float lastHourAngle2 = 0.0f;
+    static float lastMinuteAngle2 = 0.0f;
 
 
-        static unsigned long lastRtcReloadMillis = 0; // Zeitpunkt des letzten RTC-Lesevorgangs (eigenstaendig, NICHT dieselbe Variable wie das globale lastRTCUpdate in time_sync.h/getDCF77Time)
-                                                      // timestamp of the last RTC read (independent, NOT the same variable as the global lastRTCUpdate in time_sync.h/getDCF77Time)
-        if (rtcOk == RTC_AVAILABLE) {            
-            // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
-            // Check whether time has passed since the last call
-            if (millis() - lastRtcReloadMillis >= WAIT_1h) {            
-                loadTimeFromRTC();
-                lastRtcReloadMillis = millis();
-            }
-        }
-    
+    // Rendert genau EIN Frame (Zifferblatt + Zeiger + Nabe) fuer die uebergebene
+    // Rotation und sendet es an das Display, das gerade per Chip-Select
+    // ausgewaehlt ist (siehe Aufrufer updateClock()). lastHourAngleRef/
+    // lastMinuteAngleRef/firstRunRef sind bewusst Referenzen auf pro-Display
+    // getrennte Variablen, damit jedes physische Display seine eigene,
+    // durchgaengige Zeiger-Glaettung hat, statt sie sich beim abwechselnden
+    // Rendern mit dem jeweils anderen Display zu teilen.
 
-        int orientation = preferences.getUChar(PK_TFT_ROTATION, 0);
+    // Renders exactly ONE frame (clock face + hands + hub) for the given
+    // rotation and sends it to whichever display is currently selected via
+    // chip-select (see caller updateClock()). lastHourAngleRef/
+    // lastMinuteAngleRef/firstRunRef are deliberately references to per-display
+    // variables, so each physical display keeps its own continuous hand
+    // smoothing instead of sharing it with the other display when rendering
+    // alternates between them.
+
+    void renderClockFrame(uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, bool& firstRunRef) {
+
+        int orientation = rotation;
 
         float secAngle = timeinfo.tm_sec * 6.0f;
         float minAngle = timeinfo.tm_min * 6.0f;
@@ -888,20 +921,20 @@
 
         unsigned long currentMillis = millis();
 
-        if (firstRun) {
+        if (firstRunRef) {
             stationTick = timeinfo.tm_sec + 2;
             if (stationTick >= 60) {
                 stationTick = 60;
-            }   
+            }
             stationLastMillis = millis();
             stationWaiting = false;
-            firstRun = false;
+            firstRunRef = false;
 
-            lastHourAngle = rotatedAngle(hourAngle, orientation);
-            lastMinuteAngle = rotatedAngle(minAngle, orientation);
+            lastHourAngleRef = rotatedAngle(hourAngle, orientation);
+            lastMinuteAngleRef = rotatedAngle(minAngle, orientation);
 
-            hourHandSprite.pushRotated(&backgroundSprite, lastHourAngle, TRANSPARENT_COLOR);
-            minuteHandSprite.pushRotated(&backgroundSprite, lastMinuteAngle, TRANSPARENT_COLOR);
+            hourHandSprite.pushRotated(&backgroundSprite, lastHourAngleRef, TRANSPARENT_COLOR);
+            minuteHandSprite.pushRotated(&backgroundSprite, lastMinuteAngleRef, TRANSPARENT_COLOR);
 
             if (showSecondHand) {
                 secondHandSprite.pushRotated(&backgroundSprite, rotatedAngle(secAngle, orientation), TRANSPARENT_COLOR);
@@ -909,11 +942,11 @@
             backgroundSprite.pushSprite(0, 0);
         }
 
-    
+
         // Station Mode: Sekundenzeiger springt nicht, sondern läuft in 672ms Schritten mit sanfter Bewegung dazwischen
         // Station mode: second hand doesn't jump, but moves in 672ms steps with smooth motion in between
         if (stationMode) {
-        
+
             if (!stationWaiting && currentMillis - stationLastMillis >= FAST_SECOND) {
                 stationTick++;
                 stationLastMillis += FAST_SECOND;
@@ -964,34 +997,17 @@
             float smoothSec = (stationTick >= 60) ? 60.0f : stationTick + easeInOutSine(subTick);
             secAngle = rotatedAngle(smoothSec * 6.0f, orientation);
 
-            minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);   
+            minAngle = rotatedAngle(timeinfo.tm_min * 6.0f, orientation);
         }
 
         // Normaler Modus: Sekundenzeiger läuft normal, Minutenzeiger kann optional sanft laufen
         // Normal mode: second hand runs normally, minute hand can optionally move smoothly
         if (!stationMode) {
             secAngle = rotatedAngle(secAngle, orientation);
-          
+
             smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
             if (smoothMinute) {
-                // Millisekunden einbeziehen
-                // Include milliseconds
-                /*unsigned long currentMillis = millis();
-                int milliseconds = currentMillis % 1000;
-                float smoothMinuteValue = timeinfo.tm_min + (timeinfo.tm_sec / 60.0f) + (milliseconds / 60000.0f);
-
-                float rawMinAngle = smoothMinuteValue * 6.0f;
-                float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
-                float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
-
-                // Sicherstellen, dass der Zeiger immer vorwärts läuft
-                if (angleDiff < -180.0f) angleDiff += 360.0f;
-                if (angleDiff > 180.0f) angleDiff -= 360.0f;
-
-                lastMinuteAngle += angleDiff * 0.06f;  // noch feinere Bewegung
-                */
-
                 // Millisekunden einbeziehen
                 // Include milliseconds
                 unsigned long currentMillis = millis();
@@ -1000,8 +1016,8 @@
 
                 float rawMinAngle = smoothMinuteValue * 6.0f;
                 minAngle = rotatedAngle(rawMinAngle, orientation);
-                lastMinuteAngle = minAngle; // Direkt setzen, da wir den exakten Winkel berechnen
-                                            // set directly since we compute the exact angle
+                lastMinuteAngleRef = minAngle; // Direkt setzen, da wir den exakten Winkel berechnen
+                                               // set directly since we compute the exact angle
 
             }
             else {
@@ -1009,36 +1025,36 @@
                 // Normal minute display with smooth correction on change
                 float rawMinAngle = timeinfo.tm_min * 6.0f;
                 float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
-                float angleDiff = shortestAngleDiff(lastMinuteAngle, targetMinAngle);
+                float angleDiff = shortestAngleDiff(lastMinuteAngleRef, targetMinAngle);
 
                 if (fabs(angleDiff) > 0.1f) {
-                    lastMinuteAngle += angleDiff * 0.1f;
-                    if (lastMinuteAngle < 0.0f) lastMinuteAngle += 360.0f;
-                    if (lastMinuteAngle >= 360.0f) lastMinuteAngle -= 360.0f;
+                    lastMinuteAngleRef += angleDiff * 0.1f;
+                    if (lastMinuteAngleRef < 0.0f) lastMinuteAngleRef += 360.0f;
+                    if (lastMinuteAngleRef >= 360.0f) lastMinuteAngleRef -= 360.0f;
                 }
                 else {
-                    lastMinuteAngle = targetMinAngle;
+                    lastMinuteAngleRef = targetMinAngle;
                 }
             }
 
-            minAngle = lastMinuteAngle;
+            minAngle = lastMinuteAngleRef;
         }
-         
-   
+
+
         float targetHourAngle = rotatedAngle(hourAngle, orientation);
-        float hourAngleDiff = shortestAngleDiff(lastHourAngle, targetHourAngle);
+        float hourAngleDiff = shortestAngleDiff(lastHourAngleRef, targetHourAngle);
 
         if (fabs(hourAngleDiff) > 0.05f) {
-            lastHourAngle += hourAngleDiff * 0.1f;  // Glättungsfaktor
-                                                    // smoothing factor
+            lastHourAngleRef += hourAngleDiff * 0.1f;  // Glättungsfaktor
+                                                       // smoothing factor
         }
         else {
-            lastHourAngle = targetHourAngle;
+            lastHourAngleRef = targetHourAngle;
         }
-        hourAngle = lastHourAngle;
+        hourAngle = lastHourAngleRef;
 
 
-        loadClockFace();
+        loadClockFace(rotation);
 
         hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
         minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
@@ -1046,7 +1062,7 @@
             secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
         }
 
-   
+
         // Nabe (hub)
         // hub
         if (hubSize > 0) {
@@ -1054,6 +1070,68 @@
         }
 
         backgroundSprite.pushSprite(0, 0);
+    }
+
+
+    // updateClock Funktion - liest Zeit/RTC einmal (orientierungsunabhaengig) und
+    // stoesst dann pro Display genau einen renderClockFrame()-Durchlauf an: bei
+    // Hardware-Rotation (GC9A01/ILI9341, oder GC9D01 ohne PSRAM) reicht fuer
+    // Display 2 ein erneutes Senden des bereits fertigen Frames, weil die
+    // Ausrichtung dort allein ueber das MADCTL-Register des jeweiligen Chips
+    // laeuft (einmalig beim Booten gesetzt, siehe uhr3.ino). Bei GC9D01 mit
+    // aktivem Software-Rotations-Workaround steckt die Ausrichtung dagegen in
+    // den Pixel-Daten selbst - dort wird das Frame fuer Display 2 deshalb mit
+    // eigener Rotation, eigener Zeiger-Glaettung und eigenem firstRun-Flag
+    // komplett neu berechnet.
+
+    // updateClock function - reads time/RTC once (orientation-independent) and
+    // then triggers exactly one renderClockFrame() pass per display: with
+    // hardware rotation (GC9A01/ILI9341, or GC9D01 without PSRAM), simply
+    // re-sending the already-finished frame is enough for Display 2,
+    // because the orientation there is handled entirely by that chip's own
+    // MADCTL register (set once at boot, see uhr3.ino). With GC9D01's software
+    // rotation workaround active, the orientation is instead baked into the
+    // pixel data itself - so the frame for display 2 is fully recomputed there,
+    // with its own rotation, its own hand smoothing, and its own firstRun flag.
+
+    void updateClock() {
+       // struct tm timeinfo;
+        if (!getLocalTime(&timeinfo, 1000)) {
+            // Keine gültige Uhrzeit verfügbar
+            // No valid time available
+            loadTimeFromRTC();
+        }
+
+
+        static unsigned long lastRtcReloadMillis = 0; // Zeitpunkt des letzten RTC-Lesevorgangs (eigenstaendig, NICHT dieselbe Variable wie das globale lastRTCUpdate in time_sync.h/getDCF77Time)
+                                                      // timestamp of the last RTC read (independent, NOT the same variable as the global lastRTCUpdate in time_sync.h/getDCF77Time)
+        if (rtcOk == RTC_AVAILABLE) {
+            // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
+            // Check whether time has passed since the last call
+            if (millis() - lastRtcReloadMillis >= WAIT_1h) {
+                loadTimeFromRTC();
+                lastRtcReloadMillis = millis();
+            }
+        }
+
+        if (cs2Enabled) {
+            setCS1(LOW);
+            renderClockFrame(tftRotation1, lastHourAngle, lastMinuteAngle, firstRun);
+
+            setCS2(LOW);
+            if (gc9d01SwRotation) {
+                renderClockFrame(tftRotation2, lastHourAngle2, lastMinuteAngle2, firstRun2);
+            }
+            else {
+                backgroundSprite.pushSprite(0, 0);
+            }
+
+            setCS1(LOW); // definierter Zustand fuer alles, was danach noch direkt auf 'tft' zeichnet
+                        // defined state for anything that draws directly to 'tft' afterwards
+        }
+        else {
+            renderClockFrame(tftRotation1, lastHourAngle, lastMinuteAngle, firstRun);
+        }
     }
 
 
@@ -1438,37 +1516,41 @@
     // clear TFT display
 
     void clearTFT() {
-#if defined CS_2
-        setCS2(LOW);
-        tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
-        setCS1(LOW);
-#endif
+        if (cs2Enabled) {
+            setCS2(LOW);
+            tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
+            setCS1(LOW);
+        }
         tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
     }
 
 
     // Rotiert die Zeiger basierend auf der Display-Rotation.
     //
-    // Nur relevant fuer GC9D01 mit vorhandenem PSRAM: dort wird die Hardware-
-    // Rotation in uhr3.ino bewusst uebersprungen (tft.setRotation() bleibt
-    // beim GC9D01 wirkungslos, siehe Kommentar dort), daher muss die Drehung
-    // hier stattdessen auf die Zeigerwinkel addiert werden. psramAvailable
+    // Nur relevant fuer GC9D01 mit aktivem Software-Rotations-Workaround:
+    // dort wird die Hardware-Rotation in uhr3.ino bewusst uebersprungen
+    // (tft.setRotation() bleibt beim GC9D01 wirkungslos, siehe Kommentar
+    // dort), daher muss die Drehung hier stattdessen auf die Zeigerwinkel
+    // addiert werden. Das Zifferblatt-Bild wird passend dazu im Rotationsblock
+    // von loadClockFace() (ebenfalls in dieser Datei) gedreht. gc9d01SwRotation
     // ist fuer alle anderen Boards (GC9A01, ILI9341) hart auf false gesetzt
-    // (siehe uhr3.ino), dort greift ausschliesslich die Hardware-Rotation
-    // und diese Funktion gibt angle unveraendert zurueck.
+    // (siehe uhr3.ino), dort greift ausschliesslich die Hardware-Rotation und
+    // diese Funktion gibt angle unveraendert zurueck.
 
     // Rotates the hands based on the display rotation.
     //
-    // Only relevant for the GC9D01 with PSRAM available: there, hardware
-    // rotation is deliberately skipped in uhr3.ino (tft.setRotation() has no
-    // effect on the GC9D01, see comment there), so the rotation has to be
-    // added to the hand angles here instead. psramAvailable is hard-set to
+    // Only relevant for the GC9D01 with the software rotation workaround
+    // active: there, hardware rotation is deliberately skipped in uhr3.ino
+    // (tft.setRotation() has no effect on the GC9D01, see comment there), so
+    // the rotation has to be added to the hand angles here instead. The
+    // clock face image is rotated to match in the rotation block of
+    // loadClockFace() (also in this file). gc9d01SwRotation is hard-set to
     // false for all other boards (GC9A01, ILI9341) (see uhr3.ino), where
     // hardware rotation alone applies and this function returns angle
     // unchanged.
 
     float rotatedAngle(float angle, int orientation) {
-        if (psramAvailable) {
+        if (gc9d01SwRotation) {
             return angle + (orientation * 90);
         }
         return angle;
