@@ -7,10 +7,41 @@
     // Requires globals.h, config.h, prefs_keys.h and declarations.h (these are
     // included centrally in uhr3.ino BEFORE this file).
 
+    // Interrupt-Handler fuer den DCF77-Eingang.
+    //
+    // Hier darf NICHTS stehen, was im Flash liegt: waehrend der Flash-Cache
+    // deaktiviert ist (jeder LittleFS-Schreibvorgang - also auch jede Logzeile
+    // ueber logToFile() - und jedes nvs_commit() aus preferences.putXxx())
+    // fuehrt ein solcher Zugriff zu einem "Cache disabled but cached memory
+    // region accessed"-Panic-Reset. Deshalb wird die LED hier NICHT mehr
+    // direkt geschaltet (toggleLED() -> setLedOn()/setLedOff() -> pinMode()/
+    // digitalWrite(), alle Flash-resident), sondern nur ein Flag gesetzt, das
+    // loop() abarbeitet.
+    //
+    // HINWEIS: DCF77::int0handler() liegt in der Bibliothek und damit ebenfalls
+    // im Flash - das laesst sich von hier aus nicht aendern, ohne die
+    // Bibliothek zu patchen. Ein Restrisiko bleibt daher bestehen, ist aber
+    // deutlich kleiner als vorher (ein Aufruf statt vier).
+
+    // Interrupt handler for the DCF77 input.
+    //
+    // NOTHING that lives in flash may run here: while the flash cache is
+    // disabled (every LittleFS write - so also every log line via logToFile()
+    // - and every nvs_commit() from preferences.putXxx()) such an access
+    // causes a "Cache disabled but cached memory region accessed" panic reset.
+    // That's why the LED is no longer switched directly here (toggleLED() ->
+    // setLedOn()/setLedOff() -> pinMode()/digitalWrite(), all flash-resident);
+    // only a flag is set, which loop() processes.
+    //
+    // NOTE: DCF77::int0handler() lives in the library and therefore also in
+    // flash - that can't be changed from here without patching the library. A
+    // residual risk remains, but it's much smaller than before (one call
+    // instead of four).
+
     void IRAM_ATTR isr() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
         DCF77::int0handler();
-        if (!dcfTimeFound) toggleLED();
+        if (!dcfTimeFound) dcfLedTogglePending = true;
         dcf77Count++;
         if (dcf77Count > 120) dcf77Count = 1;
 #endif
@@ -280,8 +311,73 @@
                 DEBUG_PRINTLN("[NTP] Trying server: " + ntpServer + " (" + ntpServerIp.toString() + ")");
             }
             else {
+                // Ohne aufloesbaren Namen kann auch der SNTP-Client den Server
+                // nicht erreichen - direkt zum naechsten springen, statt unten
+                // WAIT_3s auf eine Antwort zu warten, die nicht kommen kann.
+                // Das haelt setupNTP() ohne Internet kurz: vorher hat die
+                // Funktion (faelschlich) beim ersten Server sofort Erfolg
+                // gemeldet, jetzt wird echt gewartet - ohne diesen Ausstieg
+                // waeren das WAIT_3s pro konfiguriertem Server.
+
+                // Without a resolvable name the SNTP client can't reach the
+                // server either - skip straight to the next one instead of
+                // waiting WAIT_3s below for a response that cannot arrive.
+                // This keeps setupNTP() short when offline: previously the
+                // function (wrongly) reported success on the first server
+                // immediately, now it really waits - without this early exit
+                // that would be WAIT_3s per configured server.
                 DEBUG_PRINTLN("[NTP] DNS lookup failed for server: " + ntpServer);
+                continue;
             }
+
+            // getLocalTime() prueft NUR, ob das Jahr > 2016 ist - nicht, ob
+            // tatsaechlich eine NTP-Antwort eingetroffen ist. Da die Systemzeit
+            // beim Boot bereits von der RTC gesetzt wurde (loadTimeFromRTC()
+            // laeuft in setup() VOR setupNTP()), meldete der erste Server
+            // deshalb sofort Erfolg, ohne dass je ein Paket ankam. Folge:
+            // lastNtpSuccessMillis wurde gesetzt und von checkNTPRetry()
+            // staendig erneuert, wodurch ntpCurrentlyAvailable in
+            // getDCF77Time() dauerhaft wahr blieb - DCF77 kam NIE zur
+            // Zeituebernahme, und ein Geraet ohne Internet driftete mit der RTC
+            // unkorrigiert weg.
+            //
+            // Loesung: die Systemzeit vorher sichern und bewusst auf einen
+            // ungueltigen Wert (1970) setzen. getLocalTime() kann dann nur noch
+            // true liefern, wenn der SNTP-Client die Zeit wirklich neu gesetzt
+            // hat. Schlaegt der Server fehl, wird die gesicherte Zeit um die
+            // verstrichene Wartezeit fortgeschrieben wieder eingesetzt, damit
+            // die Uhr nicht auf 1970 stehen bleibt.
+
+            // getLocalTime() ONLY checks whether the year is > 2016 - not
+            // whether an NTP response actually arrived. Since the system time
+            // was already set from the RTC at boot (loadTimeFromRTC() runs in
+            // setup() BEFORE setupNTP()), the first server therefore reported
+            // success immediately without a single packet arriving. Result:
+            // lastNtpSuccessMillis was set and kept refreshed by
+            // checkNTPRetry(), so ntpCurrentlyAvailable in getDCF77Time()
+            // stayed permanently true - DCF77 NEVER got to set the time, and a
+            // device without internet drifted along with the RTC uncorrected.
+            //
+            // Fix: save the system time beforehand and deliberately set it to
+            // an invalid value (1970). getLocalTime() can then only return true
+            // if the SNTP client really set the time anew. If the server fails,
+            // the saved time is restored, advanced by the elapsed waiting time,
+            // so the clock doesn't stay stuck at 1970.
+            struct timeval savedTime;
+            gettimeofday(&savedTime, nullptr);
+
+            // Schwelle bewusst identisch zu der, die getLocalTime() intern
+            // anlegt (Jahr > 2016) - sonst gaebe es ein Fenster, in dem eine
+            // zwar gueltige, aber aeltere Systemzeit nicht wiederhergestellt
+            // wuerde.
+            // Threshold deliberately identical to the one getLocalTime() applies
+            // internally (year > 2016) - otherwise there would be a window in
+            // which a valid but older system time would not be restored.
+            bool hadValidTime = (savedTime.tv_sec > 1483228800L); // 2017-01-01
+            unsigned long syncStart = millis();
+
+            struct timeval invalidTime = { 0, 0 };
+            settimeofday(&invalidTime, nullptr);
 
             configTzTime(timezone.c_str(), ntpServers[i]);
 
@@ -308,6 +404,21 @@
                 }
                 return true;
             }
+
+            // Keine Server-Antwort: die oben absichtlich ungueltig gemachte
+            // Systemzeit wieder auf den gesicherten Stand setzen, fortgeschrieben
+            // um die waehrend des Versuchs verstrichene Zeit.
+
+            // No server response: restore the system time that was
+            // deliberately invalidated above to its saved value, advanced by
+            // the time elapsed during the attempt.
+            if (hadValidTime) {
+                struct timeval restoreTime;
+                restoreTime.tv_sec = savedTime.tv_sec + (time_t)((millis() - syncStart) / 1000);
+                restoreTime.tv_usec = savedTime.tv_usec;
+                settimeofday(&restoreTime, nullptr);
+            }
+
             DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + ntpServer);
         }
         handleNTPFailure();
@@ -432,6 +543,22 @@
                     DEBUG_PRINT("0");
                 }
                 DEBUG_PRINTLN(String(address, HEX) + " ");
+
+                // Zaehler wurde vorher nie hochgezaehlt: die Funktion lieferte
+                // deshalb IMMER 0 und loggte "No I2C devices found", auch wenn
+                // direkt darueber Geraete ausgegeben wurden. Ein RTC-Modul auf
+                // einer abweichenden Adresse (oder ein anderes I2C-Geraet)
+                // wurde vom Aufrufer in uhr3.ino dadurch nie erkannt.
+
+                // The counter was never incremented: the function therefore
+                // ALWAYS returned 0 and logged "No I2C devices found", even
+                // when devices were printed right above. An RTC module on a
+                // different address (or any other I2C device) was therefore
+                // never detected by the caller in uhr3.ino.
+                nDevices++;
+
+                if (i2cAddr != "") i2cAddr += ", ";
+                i2cAddr += "0x" + String(address, HEX);
             }
             else if (error == 4) {
                 DEBUG_PRINT("[I2C] Unknow error at address 0x");
@@ -456,6 +583,27 @@
     // Function to build an NTP packet
 
     void createNtpResponse(byte* packet, time_t currentTime) {
+
+        // Originate Timestamp: der Transmit-Timestamp der ANFRAGE (Byte 40-47)
+        // muss unveraendert in Byte 24-31 der Antwort zurueckgespiegelt werden.
+        // RFC-konforme Clients (ntpd, chrony, systemd-timesyncd) vergleichen
+        // dieses Feld mit dem Zeitstempel, den sie selbst gesendet haben, und
+        // verwerfen die Antwort sonst als "bogus packet" - vorher blieb das
+        // Feld durchgehend 0, die Antwort war also fuer echte NTP-Clients
+        // unbrauchbar. Muss VOR dem memset gesichert werden, da Anfrage und
+        // Antwort denselben Puffer benutzen (siehe Aufrufstelle in uhr3.ino).
+
+        // Originate Timestamp: the REQUEST's transmit timestamp (bytes 40-47)
+        // has to be mirrored back unchanged into bytes 24-31 of the response.
+        // RFC-compliant clients (ntpd, chrony, systemd-timesyncd) compare this
+        // field against the timestamp they sent themselves and otherwise
+        // discard the response as a "bogus packet" - previously the field
+        // stayed 0 throughout, making the response unusable for real NTP
+        // clients. Has to be saved BEFORE the memset, since request and
+        // response share the same buffer (see the call site in uhr3.ino).
+        byte originateTimestamp[8];
+        memcpy(originateTimestamp, &packet[40], sizeof(originateTimestamp));
+
         memset(packet, 0, NTP_PACKET_SIZE);
 
         // Flags und Stratum
@@ -484,9 +632,22 @@
         uint32_t refSeconds = htonl((uint32_t)(refTime + 2208988800UL));
         memcpy(&packet[16], &refSeconds, 4);
 
-        // Origin Timestamp (kann leer bleiben)
-        // Origin Timestamp (can remain empty)
+        // Originate Timestamp: gespiegelter Transmit-Timestamp der Anfrage
+        // (oben vor dem memset gesichert), damit der Client die Antwort
+        // seiner eigenen Anfrage zuordnen kann.
+        // Originate Timestamp: mirrored transmit timestamp of the request
+        // (saved above before the memset), so the client can match the
+        // response to its own request.
+        memcpy(&packet[24], originateTimestamp, sizeof(originateTimestamp));
+
+        uint32_t nowSeconds = htonl((uint32_t)(currentTime + 2208988800UL));
+
+        // Receive Timestamp: Zeitpunkt, zu dem die Anfrage eingetroffen ist.
+        // Blieb vorher 0; Clients berechnen daraus Verzoegerung und Offset.
+        // Receive Timestamp: the moment the request arrived. Previously stayed
+        // 0; clients use it to compute delay and offset.
+        memcpy(&packet[32], &nowSeconds, 4);
+
         // Transmit Timestamp
-        uint32_t transmitSeconds = htonl((uint32_t)(currentTime + 2208988800UL));
-        memcpy(&packet[40], &transmitSeconds, 4);
+        memcpy(&packet[40], &nowSeconds, 4);
     }

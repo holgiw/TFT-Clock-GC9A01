@@ -4,12 +4,13 @@
 •	GC9D01
 •	ILI9341 (deprecated - no longer actively maintained)
 •	Display resolution and size are dynamically adjusted (e.g., 240x240 or 160x160 pixels).
-•	Optional second, identical display: enable "Display 2" in the web interface (Clock Face tab) to drive a second display of the same type via its own chip-select pin (CS2) on the shared SPI bus - each display gets its own, independently configurable rotation (Rotation Display 1 / Rotation Display 2), so the two can be mounted in different orientations.
+•	Second, identical display always active: drives a second display of the same type via its own chip-select pin (CS2) on the shared SPI bus - each display gets its own, independently configurable rotation (Rotation Display 1 / Rotation Display 2), so the two can be mounted in different orientations. Status/boot messages (startup, reboot, SSID, WPS, factory reset, ...) are shown on both displays, each correctly rotated to match that display's own orientation.
 ---
 2. Customizable Clock Hands and Faces
 •	Clock Hands:
 •	Custom hour, minute, and second hands can be uploaded as BMP files.
 •	Default hands are included as a fallback.
+•	Anti-aliased hour and minute hands: both are rendered with 3x3 supersampling and per-pixel coverage blending instead of the library's nearest-neighbour rotation, which removes the stair-stepping on their edges. They are drawn into a cached composite image that is only rebuilt when an angle actually changed, so this costs no time in the frames where only the sweeping second hand moves - the per-frame work is in fact lower than before.
 •	Clock Faces:
 •	Custom clock faces can be uploaded and selected.
 •	A built-in default clock face is available.
@@ -18,7 +19,7 @@
 •	Smooth Minute Mode:
 •	The minute hand moves smoothly instead of jumping in 1-minute increments.
 •	Train Station Mode:
-•	The second hand stops briefly at 60 seconds, mimicking a classic train station clock.
+•	The second hand steps around in 60 steps, accelerating and braking within each step the way older station clocks did, completes its round in 58.5 seconds and then rests at the top on the 12 for the remaining ~1.5 seconds of the real minute. At the minute change the minute hand jumps forward and the next round starts.
 ---
 4. Brightness Control
 •	Automatic brightness adjustment using a photoresistor.
@@ -45,7 +46,7 @@
 •	Uploading, downloading, and managing clock faces and hands.
 •	Adjusting brightness, time zone, and display rotation.
 •	Enabling/disabling Smooth Minute and Train Station modes.
-•	Viewing system status (e.g., WiFi details, storage usage, uptime).
+•	Viewing system status (e.g., WiFi details, storage usage, uptime) - including whether PSRAM was detected and which rotation mode is active (hardware MADCTL register vs. software pixel remapping on the GC9D01 with PSRAM), so it is visible from the outside how the configured rotation values are actually applied.
 •	Multi-language interface (German, English, French).
 •	Factory reset page with separate options: reset everything, delete clock faces (except default), delete hand sets (except default), delete presets, or reset saved WiFi networks - each with its own confirmation.
 •	Download additional clock faces, hand sets, and presets directly from GitHub via the web interface - missing dependencies (e.g. a face/hand set referenced by a preset) are fetched automatically.

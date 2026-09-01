@@ -6,6 +6,16 @@
     // ### Web interface: all HTTP routes & HTML generation ##############
     // Requires globals.h, config.h, prefs_keys.h and declarations.h (included
     // centrally in uhr3.ino BEFORE this file).
+
+    // Fuer "new (std::nothrow)" in /preview_defaultface: liefert bei
+    // fehlgeschlagener Allokation garantiert nullptr, statt sich auf das
+    // (implementierungsabhaengige) Verhalten von "new" ohne Exceptions zu
+    // verlassen.
+    // For "new (std::nothrow)" in /preview_defaultface: guarantees a nullptr on
+    // a failed allocation instead of relying on the (implementation-defined)
+    // behaviour of plain "new" without exceptions.
+#include <new>
+
     // Generiert den HTML-Header für die Weboberfläche
     // Generates the HTML header for the web interface
 
@@ -98,10 +108,33 @@
                             // status bar: small
         if (WiFi.getMode() == WIFI_STA) {
             html = translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong>";
-            html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" +  + "'>http://" + ipAddress +"</a></strong> ";
+            // Bugfix: hier fehlte der Operand zwischen den beiden "+" ("http://" +  + "'>").
+            // Das war gueltiges C++ (unaeres Plus auf einen const char*), lieferte aber
+            // href='http://' ohne IP - der Link auf JEDER Seite fuehrte ins Leere.
+            // Bugfix: the operand between the two "+" was missing ("http://" +  + "'>").
+            // That was valid C++ (unary plus on a const char*) but produced
+            // href='http://' without the IP - the link on EVERY page went nowhere.
+            html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" + ipAddress + "'>http://" + ipAddress +"</a></strong> ";
             if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + "<a href='http://" + hostname + ".local'>http://" + hostname + ".local</a>" + "</strong>";
         }
-        else html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
+        else {
+            // Im AP-Modus auch das Passwort mit anzeigen: es wird zur Laufzeit
+            // aus der MAC-Adresse gebildet (siehe startAP() in wifi_manager.h)
+            // und steht sonst nur waehrend des AP-Bildschirms auf dem Display.
+            // Sichtbar ist die Zeile ausschliesslich hier im AP-Zweig, also nur
+            // fuer jemanden, der ohnehin schon mit dem AP verbunden ist und das
+            // Passwort damit kennt.
+
+            // In AP mode also show the password: it is generated at runtime from
+            // the MAC address (see startAP() in wifi_manager.h) and is otherwise
+            // only readable while the AP screen is on the display. This line only
+            // appears in the AP branch, i.e. only to someone already connected to
+            // the AP who therefore knows the password anyway.
+            html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
+            if (apPassword[0] != '\0') {
+                html += "<br>" + translate("Password") + ": <strong>" + String(apPassword) + "</strong>";
+            }
+        }
 
         html += "<br>" + translate("Storage used") + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
         html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)";
@@ -296,8 +329,15 @@
             nav += "      var elapsedMs = (s + ms / 1000) * 1000;";
             nav += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
             nav += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
-            nav += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;"; // exakt wie easeInOutSine() in display.h
-                                                                                               // exactly like easeInOutSine() in display.h
+            // Beschleunigen und Bremsen innerhalb jeder Sekundenteilung, exakt
+            // wie easeInOutSine() in display.h - so liefen aeltere
+            // Bahnhofsuhren. Muss mit der Firmware uebereinstimmen, sonst laufen
+            // Vorschau und Uhr sichtbar auseinander.
+            // Acceleration and braking within each second division, exactly like
+            // easeInOutSine() in display.h - this is how older station clocks
+            // ran. Has to match the firmware, otherwise the preview and the
+            // clock visibly diverge.
+            nav += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
             nav += "      var smoothSec = Math.min(tickIndex + eased, 60);";
             nav += "      secDeg = smoothSec * 6;";
             nav += "    } else {";
@@ -1003,25 +1043,38 @@
                 // applied immediately once, but renderClockFrame() still reads
                 // the global variable and fell back to the old rotation on the
                 // next tick.
-                uint8_t newRotation = 0;
+                // Als long fuehren, NICHT als uint8_t: toInt() liefert einen long,
+                // und eine Zuweisung an uint8_t haette den Wert vorher auf 8 Bit
+                // abgeschnitten - "rotation=256" wurde so zu 0 und "rotation=257"
+                // zu 1, beides hat die Pruefung unten klaglos passiert und wurde
+                // gespeichert. Die Validierung hat also Unsinn stillschweigend
+                // akzeptiert statt ihn abzulehnen.
+
+                // Keep it as a long, NOT a uint8_t: toInt() returns a long, and
+                // assigning to uint8_t truncated the value to 8 bits beforehand -
+                // "rotation=256" became 0 and "rotation=257" became 1, both of which
+                // silently passed the check below and got saved. So the validation
+                // quietly accepted nonsense instead of rejecting it.
+                long requestedRotation = -1;
 
                 // Prüfe, ob der Wert in Grad angegeben ist
                 // Check whether the value is given in degrees
                 if (rotationArg == "0" || rotationArg == "90" || rotationArg == "180" || rotationArg == "270") {
-                    if (rotationArg == "0") newRotation = 0;
-                    else if (rotationArg == "90") newRotation = 1;
-                    else if (rotationArg == "180") newRotation = 2;
-                    else if (rotationArg == "270") newRotation = 3;
+                    if (rotationArg == "0") requestedRotation = 0;
+                    else if (rotationArg == "90") requestedRotation = 1;
+                    else if (rotationArg == "180") requestedRotation = 2;
+                    else if (rotationArg == "270") requestedRotation = 3;
                 }
                 // Prüfe, ob der Wert als Index (0-3) angegeben ist
                 // Check whether the value is given as an index (0-3)
                 else {
-                    newRotation = rotationArg.toInt();
+                    requestedRotation = rotationArg.toInt();
                 }
 
                 // Validierung des Wertes
                 // Validate the value
-                if (newRotation >= 0 && newRotation <= 3) {
+                if (requestedRotation >= 0 && requestedRotation <= 3) {
+                    uint8_t newRotation = (uint8_t)requestedRotation;
                     uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
                     preferences.putUChar(PK_TFT_ROTATION1, newRotation);
                     tftRotation1 = newRotation; // globale Variable aktualisieren (siehe Bugfix-Kommentar oben)
@@ -1039,13 +1092,13 @@
                     }
                     if (!gc9d01SwRotation) {
                         // Wie bei /applydisplaysettings: explizit auf Display 1 umschalten,
-                        // bevor die Rotation gesetzt wird - mit deaktiviertem CS2 ist
-                        // setCS1() ein No-Op.
+                        // bevor die Rotation gesetzt wird - tft.setRotation() wirkt nur auf
+                        // den aktuell selektierten Chip.
 
                         // Same as in /applydisplaysettings: explicitly switch to Display 1
-                        // before applying the rotation - with CS2 disabled, setCS1()
-                        // is a no-op.
-                        if (cs2Enabled) setCS1(LOW);
+                        // before applying the rotation - tft.setRotation() only affects the
+                        // currently selected chip.
+                        setCS1(LOW);
                         tft.setRotation(tftRotation1); // sofort anwenden
                                                       // apply immediately
                     }
@@ -1183,8 +1236,22 @@
                         }
                     }
                     displayUrl += "&source=preset";
-                    presets[i].name.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
-                                                       // replace spaces with underscores
+                    // Bugfix: hier stand vorher presets[i].name.replace(" ", "_") -
+                    // ein reiner GET-Request hat damit den GLOBALEN Preset-Zustand im RAM
+                    // veraendert. Folgen: switchToNextPreset() verglich den (aus NVS
+                    // gelesenen) Namen mit Leerzeichen gegen den mutierten Namen und fand
+                    // nie einen Treffer, und das naechste beliebige savePresets() (z.B.
+                    // ueber /deletepreset) hat die Mutation dauerhaft ins NVS geschrieben.
+                    // Der Aufruf war ohnehin ueberfluessig - der Block unten legt sich
+                    // fuer die URL bereits eine eigene lokale Kopie an (presetName).
+
+                    // Bugfix: this used to be presets[i].name.replace(" ", "_") - a plain
+                    // GET request thus mutated the GLOBAL preset state in RAM.
+                    // Consequences: switchToNextPreset() compared the name read from NVS
+                    // (with spaces) against the mutated name and never found a match, and
+                    // the next arbitrary savePresets() (e.g. via /deletepreset) persisted
+                    // the mutation into NVS. It was redundant anyway - the block below
+                    // already makes its own local copy (presetName) for the URL.
 
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
                     chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
@@ -1811,19 +1878,30 @@
             preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
             preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
 
-            // Display 2 (CS2): Pin ist immer eingebunden (config.h), die
-            // pinMode()/Ansteuerung passiert aber nur einmalig in setup() - eine
-            // Aenderung hier wird daher erst nach einem Neustart wirksam.
-
-            // Display 2 (CS2): the pin is always compiled in (config.h), but
-            // its pinMode()/driving only happens once in setup() - a change here
-            // therefore only takes effect after a restart.
-            cs2Enabled = webserver.hasArg("useCS2");
-            preferences.putBool(PK_USE_CS2, cs2Enabled);
-
             if (webserver.hasArg("rotation")) {
-                tftRotation1 = webserver.arg("rotation").toInt();
-                if (tftRotation1 >= 0 && tftRotation1 <= 3) {
+
+                // Erst validieren, DANN die globale Variable setzen: vorher wurde
+                // tftRotation1 unbedingt zugewiesen und blieb bei einem ungueltigen
+                // Wert (z.B. rotation=9) zur Laufzeit stehen, obwohl nichts
+                // gespeichert wurde. renderClockFrame() gibt sie jeden Tick weiter -
+                // bei aktiver Software-Rotation landete sie in rotatedAngle()
+                // (+9*90 Grad) und im switch von loadClockFace() (default = 270
+                // Grad), Zifferblatt und Zeiger standen dann bis zum Reboot 180 Grad
+                // gegeneinander verdreht. Zusaetzlich war ">= 0" bei einer uint8_t-
+                // Variablen immer wahr, die Pruefung also halb wirkungslos.
+
+                // Validate FIRST, then set the global variable: previously
+                // tftRotation1 was assigned unconditionally and kept an invalid value
+                // (e.g. rotation=9) at runtime even though nothing was saved.
+                // renderClockFrame() passes it on every tick - with software rotation
+                // active it ended up in rotatedAngle() (+9*90 degrees) and in
+                // loadClockFace()'s switch (default = 270 degrees), leaving clock face
+                // and hands 180 degrees apart until the next reboot. On top of that,
+                // ">= 0" on a uint8_t variable was always true, making the check
+                // half-useless.
+                long requestedRotation = webserver.arg("rotation").toInt();
+                if (requestedRotation >= 0 && requestedRotation <= 3) {
+                    tftRotation1 = (uint8_t)requestedRotation;
                     uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
                     preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
                     // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
@@ -1842,14 +1920,13 @@
                         // tft.setRotation() wirkt nur auf den aktuell gewaehlten Chip.
                         // updateClock() laesst nach jedem Tick zwar bereits Display 1 selektiert
                         // zurueck, aber das hier nochmal sicherzustellen macht diesen Code
-                        // unabhaengig davon. Bei deaktiviertem CS2 ist setCS1() ein No-Op.
+                        // unabhaengig davon.
 
                         // Explicitly switch to Display 1 before applying the rotation -
                         // tft.setRotation() only affects the currently selected chip.
                         // updateClock() already leaves Display 1 selected after every tick, but
                         // making sure of it here too keeps this code independent of that.
-                        // With CS2 disabled, setCS1() is a no-op.
-                        if (cs2Enabled) setCS1(LOW);
+                        setCS1(LOW);
                         tft.setRotation(tftRotation1); // sofort anwenden
                                                       // apply immediately
                     }
@@ -1864,8 +1941,14 @@
             // Rotation von Display 2 (CS2) - eigener, unabhaengiger Wert.
             // Rotation of Display 2 (CS2) - own, independent value.
             if (webserver.hasArg("rotation2")) {
-                tftRotation2 = webserver.arg("rotation2").toInt();
-                if (tftRotation2 >= 0 && tftRotation2 <= 3) {
+
+                // Erst validieren, dann zuweisen - siehe ausfuehrlichen Kommentar
+                // beim Rotationsblock von Display 1 weiter oben.
+                // Validate first, then assign - see the detailed comment on the
+                // Display 1 rotation block further above.
+                long requestedRotation2 = webserver.arg("rotation2").toInt();
+                if (requestedRotation2 >= 0 && requestedRotation2 <= 3) {
+                    tftRotation2 = (uint8_t)requestedRotation2;
                     uint8_t previousRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
                     preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
 
@@ -1880,24 +1963,16 @@
                         firstRun2 = true;
                     }
 
-                    if (cs2Enabled && !gc9d01SwRotation) {
+                    if (!gc9d01SwRotation) {
                         // Hardware-Rotation: das MADCTL-Register muss explizit auf dem
                         // Display-2-Chip gesetzt werden. Bei GC9D01-Software-Rotation
                         // (gc9d01SwRotation) ist hier NICHTS zu tun - renderClockFrame()
                         // liest tftRotation2 direkt und wendet es beim naechsten Tick an.
 
-                        // Nur wirksam, wenn CS2 in einem frueheren Boot bereits aktiviert
-                        // (und der Pin dadurch schon als Output konfiguriert) wurde - siehe
-                        // Hinweis "requires a restart" bei der CS2-Checkbox weiter oben.
-
                         // Hardware rotation: the MADCTL register has to be explicitly set
                         // on the Display 2 chip. With GC9D01 software rotation
                         // (gc9d01SwRotation) there is NOTHING to do here - renderClockFrame()
                         // reads tftRotation2 directly and applies it on the next tick.
-
-                        // Only takes effect if CS2 was already enabled in an earlier boot
-                        // (and the pin is therefore already configured as an output) - see
-                        // the "requires a restart" note on the CS2 checkbox above.
                         setCS2(LOW);
                         tft.setRotation(tftRotation2); // sofort auf Display 2 anwenden
                                                        // apply immediately to Display 2
@@ -2376,6 +2451,18 @@
             webserver.sendContent(chunk);
             chunk = "";
 
+            // Explizite Erkennung zusaetzlich zu Groesse/Frei: ohne PSRAM stehen
+            // beide Werte auf 0, was sich nicht von "PSRAM da, aber voll"
+            // unterscheiden laesst. Der Wert entscheidet beim GC9D01 ausserdem
+            // darueber, ob die Software-Rotation aktiv ist (siehe "rotation mode"
+            // weiter unten und gc9d01SwRotation in uhr3.ino).
+
+            // Explicit detection in addition to size/free: without PSRAM both
+            // values read 0, which is indistinguishable from "PSRAM present but
+            // full". On the GC9D01 this value also decides whether software
+            // rotation is active (see "rotation mode" further below and
+            // gc9d01SwRotation in uhr3.ino).
+            chunk += "<li>PSRam detected: " + String(psramFound() ? "yes" : "no") + "</li>";
             chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
             chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
 
@@ -2405,10 +2492,10 @@
             chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
             //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
             chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + "</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
+            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
                                                                      // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
 #if defined CS_2
-            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (" + (cs2Enabled ? "enabled" : "disabled") + ")</li>";
+            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
 #endif
 
 
@@ -2519,31 +2606,57 @@
             chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
             chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-            chunk += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
+            // Bugfix: getUInt() auf einen Key, der ueberall mit putLong() geschrieben wird -
+            // NVS meldet dabei ESP_ERR_NVS_TYPE_MISMATCH und Preferences liefert
+            // kommentarlos den Default zurueck. Die Statusseite zeigte deshalb nie die
+            // echte Nabenfarbe. Ausserdem stimmte das Label nicht: gespeichert wird
+            // 24-Bit RGB888, nicht RGB565.
+            // Bugfix: getUInt() on a key that is written with putLong() everywhere -
+            // NVS reports ESP_ERR_NVS_TYPE_MISMATCH and Preferences silently returns
+            // the default. So the status page never showed the real hub color. The
+            // label was wrong too: what is stored is 24-bit RGB888, not RGB565.
+            chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
-
-            // useCS2 steht bewusst VOR tftRotation1/tftRotation2, damit sofort klar
-            // ist, ob (und dass) die Rotation direkt darunter zu zwei Displays gehoert.
-
-            // useCS2 is placed BEFORE tftRotation1/tftRotation2 on purpose, so it's
-            // immediately clear whether (and that) the rotation right below belongs
-            // to two displays.
-            if (preferences.getBool(PK_USE_CS2, false)) {
-                chunk += "<li><b>useCS2</b>: " + String(preferences.getBool(PK_USE_CS2, false) ? "true" : "false") + "</li>";
-            }
 
             uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             chunk += "<li><b>tftRotation1</b>: " + String(rotationLabels[rotation]) + "</li>";
-            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen
-            // (nur sichtbar, wenn Display 2/CS2 aktiv ist, siehe useCS2 direkt darueber).
+            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen -
+            // Display 2 ist fest aktiviert, daher immer sichtbar.
 
             // Directly under tftRotation1, so both rotation values are listed one below
-            // the other (only shown when Display 2/CS2 is active, see useCS2 directly above).
-            if (preferences.getBool(PK_USE_CS2, false)) {
+            // the other - Display 2 is permanently enabled, so this is always shown.
+            {
                 uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
                 chunk += "<li><b>tftRotation2</b>: " + String(rotationLabels[rotation2]) + "</li>";
             }
+
+            // Rotationsmodus: macht sichtbar, WIE die beiden Rotationswerte oben
+            // ueberhaupt angewendet werden - das war von aussen bisher nicht
+            // erkennbar. Beim GC9D01 wird der GC9A01-Treiber wiederverwendet,
+            // dessen Hardware-Rotation dort wirkungslos bleibt; nur mit genuegend
+            // PSRAM wird deshalb auf Software-Rotation umgeschaltet (siehe
+            // gc9d01SwRotation in uhr3.ino sowie rotatedAngle()/loadClockFace()
+            // und beginStatusDraw()/endStatusDraw() in display.h).
+
+            // Rotation mode: makes visible HOW the two rotation values above are
+            // actually applied - which could not be told from the outside before.
+            // On the GC9D01 the GC9A01 driver is reused, whose hardware rotation
+            // has no effect there; only with enough PSRAM does it switch to
+            // software rotation (see gc9d01SwRotation in uhr3.ino as well as
+            // rotatedAngle()/loadClockFace() and beginStatusDraw()/
+            // endStatusDraw() in display.h).
+            chunk += "<li><b>rotation mode</b>: ";
+            if (gc9d01SwRotation) {
+                chunk += "software (pixel remap, GC9D01 with PSRAM)";
+            }
+            else {
+                chunk += "hardware (display MADCTL register)";
+#ifdef GC9D01
+                chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
+#endif
+            }
+            chunk += "</li>";
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -2774,6 +2887,10 @@
             chunk += "      var elapsedMs = (s + ms / 1000) * 1000;";
             chunk += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
             chunk += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
+            // Wie in der Navigations-Vorschau weiter oben und in
+            // renderClockFrame() (display.h).
+            // As in the navigation preview above and in renderClockFrame()
+            // (display.h).
             chunk += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
             chunk += "      var smoothSec = Math.min(tickIndex + eased, 60);";
             chunk += "      secDeg = smoothSec * 6;";
@@ -2889,7 +3006,22 @@
             const int dataSize = rowSize * outH;
             const int fileSize = headerSize + dataSize;
 
-            uint8_t* bmpData = new uint8_t[fileSize];
+            // Null-Check ergaenzt: ~19 KB Allokation, direkt gefolgt von memset und
+            // den Header-Schreibzugriffen. Ohne Pruefung endete eine fehlgeschlagene
+            // Allokation (der ESP32-S2-Heap ist knapp, und /listfilesFaces laedt
+            // mehrere Vorschauen parallel) in einem Panic-Reset statt in einer
+            // sauberen Fehlerantwort - die Nachbar-Handler machen das bereits richtig.
+            // Null check added: ~19 KB allocation, immediately followed by memset and
+            // the header writes. Without the check, a failed allocation (the ESP32-S2
+            // heap is tight, and /listfilesFaces loads several previews in parallel)
+            // ended in a panic reset instead of a clean error response - the
+            // neighbouring handlers already do this correctly.
+            uint8_t* bmpData = new (std::nothrow) uint8_t[fileSize];
+            if (!bmpData) {
+                DEBUG_PRINTLN("[Preview] Error: couldnt allocate preview buffer for /preview_defaultface");
+                webserver.send(500, "text/plain", "Out of memory");
+                return;
+            }
             memset(bmpData, 0, fileSize);
 
             // BMP-Header
@@ -3293,6 +3425,18 @@
             webserver.sendContent(chunk);
             chunk = "";
 
+            // Explizite Erkennung zusaetzlich zu Groesse/Frei: ohne PSRAM stehen
+            // beide Werte auf 0, was sich nicht von "PSRAM da, aber voll"
+            // unterscheiden laesst. Der Wert entscheidet beim GC9D01 ausserdem
+            // darueber, ob die Software-Rotation aktiv ist (siehe "rotation mode"
+            // weiter unten und gc9d01SwRotation in uhr3.ino).
+
+            // Explicit detection in addition to size/free: without PSRAM both
+            // values read 0, which is indistinguishable from "PSRAM present but
+            // full". On the GC9D01 this value also decides whether software
+            // rotation is active (see "rotation mode" further below and
+            // gc9d01SwRotation in uhr3.ino).
+            chunk += "<li>PSRam detected: " + String(psramFound() ? "yes" : "no") + "</li>";
             chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
             chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
             chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
@@ -3314,10 +3458,10 @@
 
             chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
             chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + "</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
+            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
                                                                      // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
 #if defined CS_2
-            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (" + (cs2Enabled ? "enabled" : "disabled") + ")</li>";
+            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
 #endif
 
             chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
@@ -3425,31 +3569,57 @@
             chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
             chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-            chunk += "<li><b>centerColor (RGB565)</b>: " + String(preferences.getUInt(PK_CENTER_COLOR, TFT_RED), HEX) + "</li>";
+            // Bugfix: getUInt() auf einen Key, der ueberall mit putLong() geschrieben wird -
+            // NVS meldet dabei ESP_ERR_NVS_TYPE_MISMATCH und Preferences liefert
+            // kommentarlos den Default zurueck. Die Statusseite zeigte deshalb nie die
+            // echte Nabenfarbe. Ausserdem stimmte das Label nicht: gespeichert wird
+            // 24-Bit RGB888, nicht RGB565.
+            // Bugfix: getUInt() on a key that is written with putLong() everywhere -
+            // NVS reports ESP_ERR_NVS_TYPE_MISMATCH and Preferences silently returns
+            // the default. So the status page never showed the real hub color. The
+            // label was wrong too: what is stored is 24-bit RGB888, not RGB565.
+            chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
-
-            // useCS2 steht bewusst VOR tftRotation1/tftRotation2, damit sofort klar
-            // ist, ob (und dass) die Rotation direkt darunter zu zwei Displays gehoert.
-
-            // useCS2 is placed BEFORE tftRotation1/tftRotation2 on purpose, so it's
-            // immediately clear whether (and that) the rotation right below belongs
-            // to two displays.
-            if (preferences.getBool(PK_USE_CS2, false)) {
-                chunk += "<li><b>useCS2</b>: " + String(preferences.getBool(PK_USE_CS2, false) ? "true" : "false") + "</li>";
-            }
 
             uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
             const char* statusRotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             chunk += "<li><b>tftRotation1</b>: " + String(statusRotationLabels[rotation]) + "</li>";
-            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen
-            // (nur sichtbar, wenn Display 2/CS2 aktiv ist, siehe useCS2 direkt darueber).
+            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen -
+            // Display 2 ist fest aktiviert, daher immer sichtbar.
 
             // Directly under tftRotation1, so both rotation values are listed one below
-            // the other (only shown when Display 2/CS2 is active, see useCS2 directly above).
-            if (preferences.getBool(PK_USE_CS2, false)) {
+            // the other - Display 2 is permanently enabled, so this is always shown.
+            {
                 uint8_t rotation2Panel = preferences.getUChar(PK_TFT_ROTATION2, 0);
                 chunk += "<li><b>tftRotation2</b>: " + String(statusRotationLabels[rotation2Panel]) + "</li>";
             }
+
+            // Rotationsmodus: macht sichtbar, WIE die beiden Rotationswerte oben
+            // ueberhaupt angewendet werden - das war von aussen bisher nicht
+            // erkennbar. Beim GC9D01 wird der GC9A01-Treiber wiederverwendet,
+            // dessen Hardware-Rotation dort wirkungslos bleibt; nur mit genuegend
+            // PSRAM wird deshalb auf Software-Rotation umgeschaltet (siehe
+            // gc9d01SwRotation in uhr3.ino sowie rotatedAngle()/loadClockFace()
+            // und beginStatusDraw()/endStatusDraw() in display.h).
+
+            // Rotation mode: makes visible HOW the two rotation values above are
+            // actually applied - which could not be told from the outside before.
+            // On the GC9D01 the GC9A01 driver is reused, whose hardware rotation
+            // has no effect there; only with enough PSRAM does it switch to
+            // software rotation (see gc9d01SwRotation in uhr3.ino as well as
+            // rotatedAngle()/loadClockFace() and beginStatusDraw()/
+            // endStatusDraw() in display.h).
+            chunk += "<li><b>rotation mode</b>: ";
+            if (gc9d01SwRotation) {
+                chunk += "software (pixel remap, GC9D01 with PSRAM)";
+            }
+            else {
+                chunk += "hardware (display MADCTL register)";
+#ifdef GC9D01
+                chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
+#endif
+            }
+            chunk += "</li>";
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -3758,11 +3928,6 @@
             chunk += " <span title='" + translate("Server used to periodically check the internet connection") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "<input type='text' name='pingServer' value='" + pingServer + "' style='width:100px;'></div><br>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='useCS2' value='1' ";
-            chunk += preferences.getBool(PK_USE_CS2, false) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Enable Display 2");
-            chunk += " <span title='" + translate("Enables chip-select control for Display 2, a second identical display wired to CS2 (GPIO 18) - requires a restart to take effect") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             for (int i = 0; i <= 3; i++) {
@@ -3772,7 +3937,7 @@
             }
             chunk += "</select></div>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1 - only relevant when Display 2 is enabled above") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:100px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:100px;'>";
             for (int i = 0; i <= 3; i++) {
                 chunk += "<option value='" + String(i) + "'";
                 if (i == tftRotation2) chunk += " selected";
@@ -4338,6 +4503,22 @@
                 else {
                     webserver.send(404, "text/plain", "File not found");
                 }
+            }
+            else {
+                // Ohne diesen Zweig blieb ein "GET /delete" ganz ohne Parameter
+                // unbeantwortet: der ESP32-WebServer erzeugt fuer eine bereits
+                // gematchte Route kein automatisches 404, die Verbindung lief also
+                // bis zum Client-Timeout und hat den single-threaded Handler-Loop
+                // solange blockiert. Alle vergleichbaren Routen (/download, /file,
+                // /rename, /deletewifi) haben diesen Zweig bereits.
+
+                // Without this branch a "GET /delete" with no parameter at all went
+                // unanswered: the ESP32 WebServer does not generate an automatic 404
+                // for an already-matched route, so the connection stayed open until
+                // the client timed out and blocked the single-threaded handler loop
+                // for that long. All comparable routes (/download, /file, /rename,
+                // /deletewifi) already have this branch.
+                webserver.send(400, "text/plain", "Missing parameter: file");
             }
             });
 

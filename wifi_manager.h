@@ -64,14 +64,133 @@
     }
 
 
+    // Uebernimmt die Ergebnisse eines abgeschlossenen WLAN-Scans in
+    // availableNetworks[] und behaelt dabei die STAERKSTEN MAX_WLAN Netze,
+    // anschliessend absteigend nach Signalstaerke sortiert.
+    //
+    // Vorher schnitten alle drei Scan-Auswertungen die Liste einfach nach
+    // MAX_WLAN Eintraegen ab und uebernahmen sie in der Reihenfolge, in der der
+    // Treiber sie liefert - die ist NICHT nach Signalstaerke sortiert, trotz
+    // gegenteiliger Logzeile. In einer Wohngegend sind schnell 20 bis 40 Netze
+    // in der Luft; lag das eigene Netz nicht unter den ersten 15, fehlte es in
+    // availableNetworks[] komplett. Der Boot-Code schloss daraus, es sei nicht
+    // erreichbar, und ging in den Access-Point-/WPS-Modus, obwohl der Router die
+    // ganze Zeit da war. Da es davon abhing, wie viele Nachbarnetze gerade
+    // senden, trat das unregelmaessig auf.
+    //
+    // 'totalFound' ist die vollstaendige Trefferzahl des Scans, NICHT bereits
+    // auf MAX_WLAN begrenzt - sonst waere der Sinn der Auswahl dahin.
+
+    // Takes the results of a completed WiFi scan into availableNetworks[],
+    // keeping the STRONGEST MAX_WLAN networks, then sorted by signal strength in
+    // descending order.
+    //
+    // Previously all three scan evaluations simply truncated the list after
+    // MAX_WLAN entries and took them in the order the driver returns them -
+    // which is NOT sorted by signal strength, despite a log line claiming
+    // otherwise. In a residential area 20 to 40 networks are quickly on air; if
+    // the clock's own network was not among the first 15, it was missing from
+    // availableNetworks[] entirely. The boot code concluded it was unreachable
+    // and went into access point/WPS mode even though the router had been there
+    // the whole time. Since it depended on how many neighbouring networks
+    // happened to be transmitting, this occurred irregularly.
+    //
+    // 'totalFound' is the scan's complete hit count, NOT already capped to
+    // MAX_WLAN - otherwise the selection would be pointless.
+
+    void collectStrongestNetworks(int totalFound) {
+        for (int i = 0; i < MAX_WLAN; i++) {
+            availableNetworks[i].ssid = "";
+            availableNetworks[i].rssi = 0;
+            availableNetworks[i].enc = 0;
+        }
+        foundNetworkCount = 0; // WICHTIG: zuruecksetzen, sonst summiert sich der Zaehler ueber mehrere Scans auf und /api/scanwifi liest ueber das availableNetworks[MAX_WLAN]-Array hinaus (Absturz/leere Anzeige)
+                               // IMPORTANT: reset here, otherwise the counter accumulates across scans and /api/scanwifi reads past the availableNetworks[MAX_WLAN] array (crash/empty display)
+
+        if (totalFound < 0) totalFound = 0;
+
+        for (int i = 0; i < totalFound; i++) {
+            String scanSsid = WiFi.SSID(i);
+            int scanRssi = WiFi.RSSI(i);
+            int scanEnc = WiFi.encryptionType(i);
+
+            int slot = -1;
+            if (foundNetworkCount < MAX_WLAN) {
+                slot = foundNetworkCount++;
+            }
+            else {
+                // Schwaechsten bisher behaltenen Eintrag suchen und nur
+                // ersetzen, wenn der neue staerker ist.
+                // Find the weakest entry kept so far and only replace it if the
+                // new one is stronger.
+                int weakest = 0;
+                for (int k = 1; k < MAX_WLAN; k++) {
+                    if (availableNetworks[k].rssi < availableNetworks[weakest].rssi) weakest = k;
+                }
+                if (scanRssi > availableNetworks[weakest].rssi) slot = weakest;
+            }
+
+            if (slot < 0) continue;
+
+            availableNetworks[slot].ssid = scanSsid;
+            availableNetworks[slot].rssi = scanRssi;
+            availableNetworks[slot].enc = scanEnc;
+        }
+
+        // Absteigend nach Signalstaerke sortieren - Einfuegesortierung wie an
+        // anderen Stellen im Projekt, bei hoechstens MAX_WLAN Eintraegen
+        // ausreichend. Damit steht das staerkste Netz auch in der Netzwerkliste
+        // der Weboberflaeche oben.
+        // Sort by signal strength, descending - insertion sort as elsewhere in
+        // this project, sufficient for at most MAX_WLAN entries. This also puts
+        // the strongest network at the top of the network list in the web
+        // interface.
+        for (int i = 1; i < foundNetworkCount; i++) {
+            WifiNetwork key = availableNetworks[i];
+            int j = i - 1;
+            while (j >= 0 && availableNetworks[j].rssi < key.rssi) {
+                availableNetworks[j + 1] = availableNetworks[j];
+                j--;
+            }
+            availableNetworks[j + 1] = key;
+        }
+
+        if (loggingEnabled) {
+            for (int i = 0; i < foundNetworkCount; i++) {
+                DEBUG_PRINTLN("  [WiFi] " +
+                    availableNetworks[i].ssid + " (" +
+                    String(availableNetworks[i].rssi) + " dBm) " +
+                    (availableNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+            }
+        }
+    }
+
+
     // überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
     // Checks the WiFi connection and tries to restore it every x minutes if disconnected.
 
     bool checkWiFiReconnect() {
         static unsigned long lastAttempt = 0;
+        static bool firstAttempt = true; // siehe Kommentar unten
+                                         // see comment below
 
+        // Ohne firstAttempt war "millis() - 0 < WAIT_1h" in der ersten Stunde
+        // nach dem Boot immer wahr - die Funktion kehrte sofort mit true
+        // ("Verbindung OK") zurueck, ohne ueberhaupt einen Verbindungsversuch
+        // zu unternehmen, obwohl loop() sie ausschliesslich im getrennten
+        // Zustand aufruft. Ein Router-Neustart kurz nach dem Einschalten (z.B.
+        // nach einem Stromausfall, wo beide Geraete gleichzeitig hochfahren)
+        // hat die Uhr so bis zu 60 Minuten offline gelassen.
+
+        // Without firstAttempt, "millis() - 0 < WAIT_1h" was always true during
+        // the first hour after boot - the function returned true ("connection
+        // OK") immediately without even attempting to connect, even though
+        // loop() only calls it while disconnected. A router restart shortly
+        // after power-on (e.g. after a power cut, where both devices boot at
+        // the same time) thus left the clock offline for up to 60 minutes.
         unsigned long now = millis();
-        if (now - lastAttempt < WAIT_1h) return true;
+        if (!firstAttempt && (now - lastAttempt < WAIT_1h)) return true;
+        firstAttempt = false;
         lastAttempt = now;
 
         String pingServer = preferences.getString(PK_PING_SERVER, "");
@@ -98,7 +217,9 @@
     }
 
 
-    // Startet einen WLAN-Access-Point mit dem Namen und Passwort 'clock123' und zeigt Verbindungsinformationen auf dem Display an.
+    // Startet einen WLAN-Access-Point mit der festen SSID aus AP_SSID und einem
+    // aus der MAC-Adresse abgeleiteten, geraetespezifischen Passwort und zeigt
+    // beides zusammen mit der IP auf dem Display an.
     // Speichert die aktuell per WPS verbundenen Zugangsdaten (SSID/Passwort) in
     // einem freien oder passenden Slot. Wird von der asynchronen Web-Button-WPS-
     // Anfrage genutzt (siehe /api/startWPS und loop() in uhr3.ino) - eigenstaendig,
@@ -108,7 +229,9 @@
     // hier NUR einfache Flags/Variablen setzen, keine schwereren Operationen wie
     // Preferences-Zugriffe oder Reconnects (die passieren in loop()).
 
-    // Starts a WiFi access point named/password 'clock123' and shows connection info on the display.
+    // Starts a WiFi access point with the fixed SSID from AP_SSID and a
+    // device-specific password derived from the MAC address, and shows both
+    // together with the IP on the display.
     // Saves the credentials (SSID/password) just connected via WPS into a free
     // or matching slot. Used by the asynchronous web-button WPS request (see
     // /api/startWPS and loop() in uhr3.ino) - standalone, so the existing
@@ -252,13 +375,14 @@
         // by saveWpsCredentials() after a WPS success - no longer needed
         // here beforehand.
 
-        //setCS1(LOW);
-        tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("check for WPS..");
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+            tft.println("check for WPS..");
+        );
 
         startWPS(); // WPS starten
                     // start WPS
@@ -271,11 +395,14 @@
         int countdownY = CLOCK_HEIGHT / 2;
         int lastSecondsShown = -1;
 
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(10, countdownY);
-        tft.print("AP mode in ");
-        int countdownNumX = tft.getCursorX();
+        int countdownNumX = 0;
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(10, countdownY);
+            tft.print("AP mode in ");
+            countdownNumX = tft.getCursorX();
+        );
 
         // 30s waren in der Praxis oft zu knapp fuer eine vollstaendige
         // WPS-Aushandlung - auf 2 Minuten verlaengert, wie beim Web-Button-
@@ -305,10 +432,12 @@
             if (secondsLeft != lastSecondsShown) {
                 lastSecondsShown = secondsLeft;
                 DEBUG_PRINTLN("[WPS] waiting... " + String(secondsLeft) + "s left");
-                tft.fillRect(countdownNumX, countdownY, CLOCK_WIDTH - countdownNumX, CLOCK_HEIGHT / 8, TFT_BLACK);
-                tft.setCursor(countdownNumX, countdownY);
-                tft.print(secondsLeft);
-                tft.println("s");
+                DRAW_ON_BOTH_DISPLAYS(
+                    tft.fillRect(countdownNumX, countdownY, CLOCK_WIDTH - countdownNumX, CLOCK_HEIGHT / 8, TFT_BLACK);
+                    tft.setCursor(countdownNumX, countdownY);
+                    tft.print(secondsLeft);
+                    tft.println("s");
+                );
             }
             delay(100);
         }
@@ -346,11 +475,13 @@
                 int savedSlot = saveWpsCredentials(newSsid, newPass);
                 preferences.putInt(PK_LAST_WLAN, savedSlot);
 
-                tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                tft.println(newSsid);
+                DRAW_ON_BOTH_DISPLAYS(
+                    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+                    tft.println(newSsid);
 
-                tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                tft.println("found WPS... reboot");
+                    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+                    tft.println("found WPS... reboot");
+                );
 
                 delay(WAIT_5s);
                 esp_wifi_wps_disable();
@@ -382,8 +513,51 @@
         // Start the access point first, so the clock becomes reachable via
         // WPS retry or the web interface in any case (even if the scan
         // below hangs/fails).
-        WiFi.softAP("clock123", "clock123");
-        DEBUG_PRINTLN("[WiFi] Started Access Point: clock123");
+        // MAC-Adresse hier selbst holen: startAP() kann erreicht werden, ohne
+        // dass connectWiFi() je gelaufen ist (kein gespeichertes Netz, siehe
+        // connectWiFiAtBoot() in uhr3.ino) - und NUR dort wurde mac[] bisher
+        // befuellt. Ohne diesen Aufruf waere das Array in genau dem Fall, in dem
+        // der AP am haeufigsten gebraucht wird, noch komplett 0 und jede Uhr
+        // bekaeme dasselbe Passwort.
+
+        // Fetch the MAC address here: startAP() can be reached without
+        // connectWiFi() ever having run (no stored network, see
+        // connectWiFiAtBoot() in uhr3.ino) - and that was the ONLY place filling
+        // mac[] so far. Without this call the array would still be all zeros in
+        // exactly the case where the AP is needed most, and every clock would
+        // get the same password.
+        WiFi.macAddress(mac);
+
+        // Passwort aus den letzten VIER MAC-Bytes: pro Geraet verschieden und
+        // ohne Notizzettel reproduzierbar. Vier Bytes, weil WPA2 mindestens acht
+        // Zeichen verlangt - als Hex ergeben vier Bytes genau acht. Die letzten
+        // drei Bytes (wie beim Hostnamen clock_XXXXXX) waeren mit sechs Zeichen
+        // zu kurz, der ESP32 wuerde den AP dann ablehnen bzw. offen starten.
+        //
+        // Die SSID bleibt bewusst fest (AP_SSID in config.h) - danach sucht der
+        // Nutzer. Vorher war das Passwort mit der SSID identisch und damit auf
+        // jeder Uhr gleich und allgemein bekannt.
+
+        // Password from the last FOUR MAC bytes: different per device and
+        // reproducible without a note. Four bytes because WPA2 requires at least
+        // eight characters - four bytes as hex give exactly eight. The last three
+        // bytes (as used for the hostname clock_XXXXXX) would be six characters
+        // and thus too short; the ESP32 would reject the AP or start it open.
+        //
+        // The SSID deliberately stays fixed (AP_SSID in config.h) - that is what
+        // the user looks for. Previously the password was identical to the SSID
+        // and therefore the same on every clock and publicly known.
+        // Kleinbuchstaben (%02x): auf dem Display und beim Abtippen am Handy
+        // eindeutiger zu lesen. Der Hostname weiter unten in connectWiFi()
+        // bleibt bewusst bei Grossbuchstaben, der ist ein anderer Bezeichner.
+        // Lower case (%02x): easier to read on the display and to type on a
+        // phone. The hostname further below in connectWiFi() deliberately stays
+        // upper case, that is a different identifier.
+        snprintf(apPassword, sizeof(apPassword), "%02x%02x%02x%02x",
+            mac[2], mac[3], mac[4], mac[5]);
+
+        WiFi.softAP(AP_SSID, apPassword);
+        DEBUG_PRINTLN("[WiFi] Started Access Point: " + String(AP_SSID) + " / " + String(apPassword));
 
         // Captive portal: leite alle DNS-Anfragen auf die AP-IP um
         // Captive portal: redirect all DNS requests to the AP IP
@@ -396,11 +570,13 @@
         // Perform the WiFi scan (asynchronous, with a time limit instead of
         // blocking - a stuck scan must not hold up the clock permanently,
         // the AP is already running).
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("WLAN-Scan..");
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+            tft.println("WLAN-Scan..");
+        );
         WiFi.scanNetworks(true);
         int networkCount = WIFI_SCAN_RUNNING;
         unsigned long scanStartMillis = millis();
@@ -411,29 +587,27 @@
         if (networkCount < 0) networkCount = 0; // Zeitlimit/Fehler - als "0 gefunden" behandeln
                                                  // timeout/error - treat as "0 found"
 
-        // availableNetworks füllen
-        // Fill availableNetworks
-        foundNetworkCount = 0;
-        for (int i = 0; i < networkCount && i < MAX_WLAN; i++) {
-            availableNetworks[i].ssid = WiFi.SSID(i);
-            availableNetworks[i].rssi = WiFi.RSSI(i);
-            availableNetworks[i].enc = WiFi.encryptionType(i);
-            foundNetworkCount++;
-        }
+        // availableNetworks füllen - staerkste zuerst, siehe
+        // collectStrongestNetworks() weiter oben.
+        // Fill availableNetworks - strongest first, see
+        // collectStrongestNetworks() further above.
+        collectStrongestNetworks(networkCount);
 
         clearTFT();
 
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
-        tft.println("AccessPoint active");
-        tft.setCursor(10, (CLOCK_HEIGHT / 2));
-        tft.println("clock123 clock123");
-        tft.setCursor(10, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
+            tft.println("AccessPoint active");
+            tft.setCursor(10, (CLOCK_HEIGHT / 2));
+            tft.println(String(AP_SSID) + " " + apPassword);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
 
-        tft.print("http://");
-        tft.println(WiFi.softAPIP());
+            tft.print("http://");
+            tft.println(WiFi.softAPIP());
+        );
 
         softAPIP = true;
         softAPIPstart = millis();
@@ -452,6 +626,29 @@
     // connectivity after a successful connection.
 
     int connectWiFi(int number, bool verboseMode) {
+
+        // Bereichspruefung direkt an der Quelle: 'number' wird gleich als Index
+        // in wifiSsid[MAX_WLAN]/wifiPass[MAX_WLAN] benutzt. Mindestens ein
+        // Aufrufer reicht den Wert ungeprueft aus dem NVS durch
+        // (checkWiFiReconnect() weiter oben, preferences.getInt(PK_LAST_WLAN)) -
+        // ein beschaedigter oder aus einer aelteren Version stammender Eintrag
+        // haette hier hinter das Array-Ende gegriffen, und zwar auf
+        // String-Objekte, also mit unbestimmtem Ergebnis statt eines sauberen
+        // Absturzes. Die Pruefung hier deckt alle Aufrufer auf einmal ab.
+
+        // Range check right at the source: 'number' is used as an index into
+        // wifiSsid[MAX_WLAN]/wifiPass[MAX_WLAN] straight away. At least one
+        // caller passes the value through unchecked from NVS
+        // (checkWiFiReconnect() further above, preferences.getInt(PK_LAST_WLAN))
+        // - a corrupted entry, or one left over from an older version, would
+        // have reached past the end of the array here, and on String objects at
+        // that, so with undefined results rather than a clean crash. This check
+        // covers all callers at once.
+        if (number < 0 || number >= MAX_WLAN) {
+            DEBUG_PRINTLN("[WiFi] connectWiFi: index out of range (" + String(number) + ")");
+            return NOT_CONNECTED;
+        }
+
 #ifdef TFT_Backlight
         if (verboseMode) {
             ledcWrite(TFT_Backlight, 255);
@@ -471,27 +668,34 @@
         // If verboseMode is enabled, show connection info on the display
         if (verboseMode) {
             clearTFT();
-            tft.setTextColor(TFT_GREEN, TFT_BLACK);
+            // Preprocessor-Bedingung vorab in eine Variable aufloesen - #if/#else
+            // duerfen nicht innerhalb der Argumentliste von DRAW_ON_BOTH_DISPLAYS() stehen.
 
-            tft.setTextSize(TFT_TEXT_SIZE / 2);
+            // Resolve the preprocessor condition into a variable beforehand - #if/#else
+            // are not allowed inside DRAW_ON_BOTH_DISPLAYS()'s argument list.
 #if defined GC9D01
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+            int versionCursorX = 20;
 #else
-            tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+            int versionCursorX = 60;
 #endif
+            DRAW_ON_BOTH_DISPLAYS(
+                tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
+                tft.setTextSize(TFT_TEXT_SIZE / 2);
+                tft.setCursor(versionCursorX, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
 
-            tft.println(String(version));
+                tft.println(String(version));
 
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("Connect to SSID" + String(number+1));
-            tft.setCursor(20, (CLOCK_HEIGHT / 2));
+                tft.setTextSize(TFT_TEXT_SIZE);
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+                tft.println("Connect to SSID" + String(number+1));
+                tft.setCursor(20, (CLOCK_HEIGHT / 2));
 
-            if (wifiSsid[number].length() > 15) {
-                tft.print(wifiSsid[number].substring(0,15));
-                tft.println("..");
-            } else tft.println(wifiSsid[number]);
+                if (wifiSsid[number].length() > 15) {
+                    tft.print(wifiSsid[number].substring(0,15));
+                    tft.println("..");
+                } else tft.println(wifiSsid[number]);
+            );
         }
 
         DEBUG_PRINTLN("[WiFi] Connect to: " + wifiSsid[number]);
@@ -531,7 +735,7 @@
 
             if (loggingEnabled) Serial.print("");
             if (verboseMode) {
-                animateCursor(tft, 20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
+                animateCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
             }
             else {
                 updateClock();
@@ -634,11 +838,25 @@
     // Animation während Verbindungsversuchen
     // Animation during connection attempts
 
-    void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) {
-        tft.setCursor(x, y);    tft.print("/");    delay(delayMs);
-        tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
-        tft.setCursor(x, y);    tft.print("\\");   delay(delayMs);
-        tft.setCursor(x, y);    tft.print("-");    delay(delayMs);
+    // Parameter 'tft' entfernt: DRAW_ON_BOTH_DISPLAYS() biegt 'tft' innerhalb
+    // seines Blocks ohnehin auf das jeweils richtige Zeichenziel um (siehe
+    // config.h/display.h), der uebergebene Parameter wurde dadurch verschattet
+    // und war faktisch tot - irrefuehrend und eine Compiler-Warnung wert.
+
+    // Parameter 'tft' removed: DRAW_ON_BOTH_DISPLAYS() shadows 'tft' inside its
+    // block with the correct drawing target anyway (see config.h/display.h), so
+    // the passed parameter was shadowed and effectively dead - misleading and
+    // worth a compiler warning.
+
+    void animateCursor(int x, int y, int delayMs) {
+        const char* frames[] = { "/", "-", "\\", "-" };
+        for (int i = 0; i < 4; i++) {
+            DRAW_ON_BOTH_DISPLAYS(
+                tft.setCursor(x, y);
+                tft.print(frames[i]);
+            );
+            delay(delayMs);
+        }
     }
 
 
@@ -646,38 +864,46 @@
     // Display WiFi parameters on the TFT
 
     void showWlanCredentials(String wlan) {
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        // Preprocessor-Bedingung vorab in eine Variable aufloesen - #if/#else
+        // duerfen nicht innerhalb der Argumentliste von DRAW_ON_BOTH_DISPLAYS() stehen.
 
-        tft.setTextSize(TFT_TEXT_SIZE/2);
+        // Resolve the preprocessor condition into a variable beforehand - #if/#else
+        // are not allowed inside DRAW_ON_BOTH_DISPLAYS()'s argument list.
 #if defined(GC9D01)
-        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+        int versionCursorX = 20;
 #else
-        tft.setCursor(60, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+        int versionCursorX = 60;
 #endif
-        tft.println(String(version));
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(14, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-        if (WiFi.status() == WL_CONNECTED) {
-            tft.println("Connected to SSID" + String(preferences.getInt(PK_LAST_WLAN, -1) + 1));
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            if (wlan.length() > 15) {
-                tft.print(wlan.substring(0, 15));
-                tft.println("..");
-            }
-            else tft.println(wlan);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2));
-            tft.println(WiFi.localIP());
+            tft.setTextSize(TFT_TEXT_SIZE/2);
+            tft.setCursor(versionCursorX, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
+            tft.println(String(version));
 
-            if (pingHostname) {
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-                tft.println(String(hostname) + ".local");
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(14, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+            if (WiFi.status() == WL_CONNECTED) {
+                tft.println("Connected to SSID" + String(preferences.getInt(PK_LAST_WLAN, -1) + 1));
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+                if (wlan.length() > 15) {
+                    tft.print(wlan.substring(0, 15));
+                    tft.println("..");
+                }
+                else tft.println(wlan);
+                tft.setCursor(20, (CLOCK_HEIGHT / 2));
+                tft.println(WiFi.localIP());
+
+                if (pingHostname) {
+                    tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
+                    tft.println(String(hostname) + ".local");
+                }
             }
-        }
-        else {
-            tft.println("Not connected");
-        }
+            else {
+                tft.println("Not connected");
+            }
+        );
     }
 
 
@@ -753,36 +979,12 @@
                 // Scan abgeschlossen
                 // Scan complete
 
-                // Vorherige Ergebnisse löschen
-                // Clear previous results
-                for (int i = 0; i < MAX_WLAN; i++) {
-                    availableNetworks[i].ssid = "";
-                    availableNetworks[i].rssi = 0;
-                    availableNetworks[i].enc = 0;
+                DEBUG_PRINTLN("[WiFi] found " + String(scanStatus) + " WiFi networks");
+                if (scanStatus > MAX_WLAN && loggingEnabled) {
+                    DEBUG_PRINTLN("[WiFi] keeping the " + String(MAX_WLAN) + " strongest:");
                 }
-                foundNetworkCount = 0; // WICHTIG: zuruecksetzen, sonst summiert sich der Zaehler ueber mehrere Scans auf und /api/scanwifi liest ueber das availableNetworks[MAX_WLAN]-Array hinaus (Absturz/leere Anzeige)
-                // IMPORTANT: reset here, otherwise the counter accumulates across scans and /api/scanwifi reads past the availableNetworks[MAX_WLAN] array (crash/empty display)
+                collectStrongestNetworks(scanStatus);
 
-                int16_t n = scanStatus;
-                DEBUG_PRINTLN("[WiFi] found " + String(n) + " WiFi networks");
-                if (n > MAX_WLAN) {
-                    if (loggingEnabled) DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
-                    n = MAX_WLAN;
-                }
-
-                for (int i = 0; i < n; i++) {
-                    availableNetworks[i].ssid = WiFi.SSID(i);
-                    availableNetworks[i].rssi = WiFi.RSSI(i);
-                    availableNetworks[i].enc = WiFi.encryptionType(i);
-                    foundNetworkCount++;
-                    if (loggingEnabled) {
-                        DEBUG_PRINTLN("  [WiFi] " +
-                            availableNetworks[i].ssid + " (" +
-                            String(availableNetworks[i].rssi) + " dBm) " +
-                            (availableNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
-                    }
-
-                }
                 WiFi.scanDelete(); // Ergebnisse löschen
                                    // clear results
                 isScanning = false;
@@ -820,11 +1022,13 @@
 
     void scanAndCacheNetworks() {
 
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-        tft.println("WLAN-Scan..");
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_GREEN, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+            tft.println("WLAN-Scan..");
+        );
 
         DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks..");
 #ifdef LED_BOARD
@@ -833,21 +1037,10 @@
         int networkCount = WiFi.scanNetworks();
         DEBUG_PRINTLN("[WiFi] found " + String(networkCount) + " WiFi networks:");
         if (networkCount > MAX_WLAN) {
-            DEBUG_PRINTLN("[WiFi] here the best " + String(MAX_WLAN) + " networks:");
-            networkCount = MAX_WLAN;
+            DEBUG_PRINTLN("[WiFi] keeping the " + String(MAX_WLAN) + " strongest:");
         }
 
-        foundNetworkCount = 0;
-        for (int i = 0; i < networkCount; i++) {
-            availableNetworks[i].ssid = WiFi.SSID(i);
-            availableNetworks[i].rssi = WiFi.RSSI(i);
-            availableNetworks[i].enc = WiFi.encryptionType(i);
-            foundNetworkCount++;
-
-            DEBUG_PRINTLN("  [WiFi] " + availableNetworks[i].ssid +
-                          " (" + String(availableNetworks[i].rssi) + " dBm) " +
-                          (availableNetworks[i].enc == WIFI_AUTH_OPEN ? "Open" : "Secured"));
-        }
+        collectStrongestNetworks(networkCount);
 
         WiFi.scanDelete(); // Ergebnisse löschen
                            // clear results

@@ -29,29 +29,31 @@
             // Blocking loop while button is pressed
             while (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
                 if (millis() - pressStart > WAIT_10s && millis() - pressStart < WAIT_15s) {
-                    //setCS1(LOW);
                     resetStarted = true;
-                    tft.fillScreen(TFT_RED);
-                    tft.setTextColor(TFT_WHITE, TFT_RED);
-                    tft.setTextSize(TFT_TEXT_SIZE);
-                    tft.setCursor(20, CLOCK_HEIGHT / 2);
-                    tft.printf("Factory Reset");
+                    DRAW_ON_BOTH_DISPLAYS(
+                        tft.fillScreen(TFT_RED);
+                        tft.setTextColor(TFT_WHITE, TFT_RED);
+                        tft.setTextSize(TFT_TEXT_SIZE);
+                        tft.setCursor(20, CLOCK_HEIGHT / 2);
+                        tft.printf("Factory Reset");
 
-                    tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
-                    tft.printf("in %d secs", secs);
+                        tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
+                        tft.printf("in %d secs", secs);
+                    );
                     delay(WAIT_1s);
                     if (secs > 0) secs--;
                 }
 
                 if (millis() - pressStart > WAIT_15s) {
-                    //setCS1(LOW);
                     // 15 Sekunden überschritten → Factory Reset
                     // 15 seconds exceeded → factory reset
-                    tft.fillScreen(TFT_RED);
-                    tft.setTextColor(TFT_WHITE, TFT_RED);
-                    tft.setTextSize(TFT_TEXT_SIZE);
-                    tft.setCursor(20, CLOCK_HEIGHT / 2);
-                    tft.println("Factory Reset..");
+                    DRAW_ON_BOTH_DISPLAYS(
+                        tft.fillScreen(TFT_RED);
+                        tft.setTextColor(TFT_WHITE, TFT_RED);
+                        tft.setTextSize(TFT_TEXT_SIZE);
+                        tft.setCursor(20, CLOCK_HEIGHT / 2);
+                        tft.println("Factory Reset..");
+                    );
                     delay(WAIT_1s);
                     factoryReset();
                     return;
@@ -65,14 +67,18 @@
             }
 
             // Diese Funktion malt direkt auf den TFT statt auf das
-            // Sprite-Backbuffer - ohne firstRun=true bleibt der Bildschirm
-            // dauerhaft auf diesem Text stehen (updateClock() zeichnet
-            // danach nur noch die Zeiger, nicht den Zifferblatt-Hintergrund).
+            // Sprite-Backbuffer. Der Text verschwindet zwar von selbst, weil
+            // updateClock() ohnehin ein volles Bild ausgibt - firstRun=true
+            // sorgt aber dafuer, dass die Zeiger danach direkt auf die aktuelle
+            // Zeit springen, statt aus ihrer alten Position dorthin zu
+            // schleichen (siehe Glaettung in renderClockFrame()).
 
             // This function draws directly to the TFT instead of the sprite
-            // backbuffer - without firstRun=true the screen stays stuck on
-            // this text (updateClock() afterwards only redraws the hands,
-            // not the clock face background).
+            // backbuffer. The text disappears by itself, since updateClock()
+            // outputs a full frame anyway - but firstRun=true makes the hands
+            // snap straight to the current time afterwards instead of easing
+            // there from their old position (see the smoothing in
+            // renderClockFrame()).
             firstRun = true;
         }
 #endif
@@ -87,17 +93,32 @@
 
     void checkWeeklyRestart() {
 
-       // struct tm timeinfo;
-        if (!getLocalTime(&timeinfo)) return;
+        // Eigene lokale Zeitstruktur statt der globalen 'timeinfo': diese
+        // Funktion laeuft in JEDEM loop()-Durchlauf, wuerde die globale Struktur
+        // also permanent ueberschreiben, die Zifferblatt, DCF77 und der
+        // NTP-Server ebenfalls benutzen. Ausserdem mit Timeout 0 statt des
+        // Defaults (5000 ms!): ohne gueltige Systemzeit hat getLocalTime()
+        // sonst pro Durchlauf volle 5 Sekunden blockiert - die Uhr stand
+        // praktisch still und Webserver/Button reagierten nur noch traege.
 
-        if (timeinfo.tm_wday == 0 &&
-            timeinfo.tm_hour == 3 && timeinfo.tm_min == 5 && timeinfo.tm_sec == 5) {
+        // Its own local time struct instead of the global 'timeinfo': this
+        // function runs in EVERY loop() pass and would therefore constantly
+        // overwrite the global struct that the clock face, DCF77 and the NTP
+        // server use as well. Also with timeout 0 instead of the default
+        // (5000 ms!): without a valid system time, getLocalTime() previously
+        // blocked for a full 5 seconds per pass - the clock effectively stood
+        // still and the web server/button became sluggish.
+        struct tm restartTime;
+        if (!getLocalTime(&restartTime, 0)) return;
+
+        if (restartTime.tm_wday == 0 &&
+            restartTime.tm_hour == 3 && restartTime.tm_min == 5 && restartTime.tm_sec == 5) {
 
             lastResetWeek = preferences.getInt(PK_LAST_RESET_WEEK, -1);
 
             char weekStr[3];
-            strftime(weekStr, sizeof(weekStr), "%V", &timeinfo); // ISO-Woche (01–53)
-                                                                 // ISO week (01-53)
+            strftime(weekStr, sizeof(weekStr), "%V", &restartTime); // ISO-Woche (01–53)
+                                                                    // ISO week (01-53)
             currentWeek = atoi(weekStr);
 
             if (lastResetWeek == -1) {
@@ -151,7 +172,9 @@
     // --- Function: Performs a factory reset ---
 
     void factoryReset() {
-        tft.fillScreen(TFT_BLACK);
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+        );
         preferences.begin("clock", false);
         preferences.putInt(PK_FIRST_START, 0);
         preferences.end();
@@ -219,13 +242,17 @@
         // further down - purely an extra safety margin.
         delay(100);
 
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.setTextSize(TFT_TEXT_SIZE);
-        tft.setCursor(20, (CLOCK_HEIGHT / 2));
-        tft.println("Rebooting..");
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_GREEN, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(20, (CLOCK_HEIGHT / 2));
+            tft.println("Rebooting..");
+        );
         delay(WAIT_3s);
-        tft.fillScreen(TFT_BLACK);
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+        );
         delay(100);
         ESP.restart();
     }
@@ -376,8 +403,37 @@
         unsigned long currentMillis = millis();
         unsigned long millisInSecond = currentMillis % 1000;
 
-        if (WiFi.status() == WL_CONNECTED && getLocalTime(&timeinfo, 500)) {
-            strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S", &timeinfo);
+        // Eigene lokale Zeitstruktur statt der globalen 'timeinfo': diese
+        // Funktion wird von JEDEM DEBUG_PRINT/PRINTLN/PRINTF aufgerufen (siehe
+        // config.h) und hat vorher bei jeder Logzeile die globale Struktur
+        // ueberschrieben, die Zifferblatt, DCF77 und der NTP-Server benutzen.
+        // Konkret hat das in getDCF77Time() zugeschlagen: setTimeStruct() loggt
+        // intern und hat 'timeinfo' veraendert, BEVOR rtc.adjust(DateTime(
+        // timeinfo...)) sie ausgelesen hat - die RTC konnte also mit einer
+        // anderen Zeit gestellt werden als DCF77 geliefert hat.
+        //
+        // Ausserdem: Timeout 0 statt 500 ms (blockierte sonst jede Logzeile,
+        // solange keine gueltige Zeit gesetzt war) und keine WiFi-Bedingung
+        // mehr - die Systemzeit ist auch ohne WLAN gueltig, wenn sie von RTC
+        // oder DCF77 kommt; vorher stand in diesen Faellen unnoetig nur die
+        // Millisekunden-Ersatzform im Log.
+
+        // Its own local time struct instead of the global 'timeinfo': this
+        // function is called by EVERY DEBUG_PRINT/PRINTLN/PRINTF (see
+        // config.h) and previously overwrote, on every log line, the global
+        // struct used by the clock face, DCF77 and the NTP server. It bit
+        // specifically in getDCF77Time(): setTimeStruct() logs internally and
+        // modified 'timeinfo' BEFORE rtc.adjust(DateTime(timeinfo...)) read it
+        // - so the RTC could be set to a different time than DCF77 delivered.
+        //
+        // Also: timeout 0 instead of 500 ms (previously blocked every log line
+        // while no valid time was set) and no more WiFi condition - the system
+        // time is valid without WiFi too when it comes from the RTC or DCF77;
+        // previously those cases needlessly logged only the millisecond
+        // fallback form.
+        struct tm logTime;
+        if (getLocalTime(&logTime, 0)) {
+            strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S", &logTime);
             snprintf(timestamp + strlen(timestamp), sizeof(timestamp) - strlen(timestamp), ".%03lu] ", millisInSecond);
         }
         else {

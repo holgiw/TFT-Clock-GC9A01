@@ -18,12 +18,19 @@
     void startAP() ;
     int connectWiFi(int number, bool verboseMode) ;
     bool isInternetReachable(String pingServer) ;
-    void animateCursor(TFT_eSPI& tft, int x, int y, int delayMs) ;
+    void animateCursor(int x, int y, int delayMs) ;
     void showWlanCredentials(String wlan) ;
     void eraseWiFiConfig() ;
     void startWiFiScan() ;
+    void collectStrongestNetworks(int totalFound) ;
     void checkWiFiScan() ;
     void scanAndCacheNetworks() ;
+
+    // In uhr3.ino definiert (nicht in wifi_manager.h), da sie den kompletten
+    // Boot-Ablauf des WLAN-Aufbaus kapselt - siehe Kommentar dort.
+    // Defined in uhr3.ino (not in wifi_manager.h), since it encapsulates the
+    // whole boot-time WiFi setup flow - see the comment there.
+    void connectWiFiAtBoot() ;
 
 
     // --- time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone ---
@@ -50,6 +57,8 @@
     void* preferPsramMalloc(size_t size) ;
     void setCS1(bool state) ;
     void setCS2(bool state) ;
+    TFT_eSPI& beginStatusDraw(uint8_t displayNum) ;
+    void endStatusDraw(uint8_t displayNum) ;
     uint16_t setPixelBrightness(uint16_t pixel) ;
     bool isRleFace(const uint8_t* header4) ;
     size_t rleMaxEncodedSize(size_t pixelCount) ;
@@ -62,11 +71,18 @@
     void freeClockFaceBuffer() ;
     void resetFacesToDefault() ;
     void resetHandsToDefault() ;
+    void pushHandRowCentered(TFT_eSprite* sprite, int row, uint16_t* rowPixels, int srcWidth, const uint8_t* transparentColor) ;
     void loadHandSprites() ;
     bool loadHandPixelsForPreview(const char* filename, uint16_t* outBuffer, int width, int height) ;
     bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) ;
     float shortestAngleDiff(float from, float to) ;
-    void renderClockFrame(uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, bool& firstRunRef) ;
+    int prepareClockFaceCache() ;
+    int faceOrientationFor(uint8_t rotation) ;
+    bool blitFaceIntoBuffer(uint16_t* dest, uint8_t rotation) ;
+    void blitHandAntiAliased(uint16_t* canvas, TFT_eSprite* handSprite, float angleDeg) ;
+    bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) ;
+    bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
+    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, bool& firstRunRef) ;
     void updateClock() ;
     void updateBrightness() ;
     uint16_t getAdjustedAdcValue(int rawValue) ;
