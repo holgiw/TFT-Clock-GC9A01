@@ -191,9 +191,9 @@
 
     // TFT auswaehlen
     // select TFT
-#define GC9A01
+//#define GC9A01
     //#define GC9A01_WITH_BACKLIGHT
-    //#define GC9D01
+    #define GC9D01
     //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt / DEPRECATED - no longer maintained, GC9A01 is preferred
 
     // --- Pin-Belegung: ESP32-S2 (Lolin S2 Pico) ---
