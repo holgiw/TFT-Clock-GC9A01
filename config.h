@@ -21,6 +21,67 @@
     // later via /status.
 #define HEAP_WARNING_THRESHOLD 20480 // 20 KB
 
+    // Fuehrt einen Block aus Zeichenbefehlen einmal fuer Display 1 und einmal
+    // fuer Display 2 aus, damit Status-/Boot-Texte (Start, Reboot, SSID, WPS,
+    // Factory Reset, ...), die direkt auf 'tft' zeichnen statt ueber das
+    // Sprite-System zu laufen (siehe renderClockFrame()/updateClock() in
+    // display.h), auf BEIDEN Displays erscheinen - UND dabei jeweils gemaess
+    // tftRotation1/tftRotation2 korrekt gedreht sind.
+    //
+    // Das eigentliche Zeichnen (inkl. Auswahl von CS1/CS2 und - falls noetig -
+    // der Rotation) uebernehmen beginStatusDraw()/endStatusDraw() (display.h):
+    // je nach Board-Rotationsmodus zeichnet der Block entweder direkt auf den
+    // physischen Chip (Hardware-Rotation) oder in ein Sprite mit eigener
+    // Rotation (GC9D01-Software-Rotations-Workaround) - siehe dortige
+    // Kommentare fuer Details. 'tft' wird dazu innerhalb des jeweiligen Blocks
+    // lokal auf das von beginStatusDraw() gelieferte Objekt umgebogen, sodass
+    // bestehender Code (der 'tft.xxx(...)' aufruft) unveraendert weiterlaeuft.
+    // Hinterlaesst CS1 als aktiv (definierter Zustand fuer nachfolgenden Code).
+    //
+    // Als Makro statt Funktion, damit beginStatusDraw()/endStatusDraw() (erst
+    // in display.h definiert) unabhaengig von der #include-Reihenfolge nutzbar
+    // sind - wird bereits in wifi_manager.h verwendet, das vor display.h
+    // eingebunden wird. __VA_ARGS__ statt eines einzelnen Parameters, damit
+    // Kommas innerhalb des Blocks (z.B. in tft.printf(...)) den Aufruf nicht in
+    // mehrere Makro-Argumente aufspalten. Der Block wird in eigene {}-Bloecke
+    // gesetzt, damit die zwei lokalen 'tft'-Referenzen (fuer Display 1 und 2)
+    // sich nicht gegenseitig als Neudefinition im selben Gueltigkeitsbereich
+    // stoeren.
+
+    // Runs a block of drawing commands once for Display 1 and once for
+    // Display 2, so status/boot text (start, reboot, SSID, WPS, factory
+    // reset, ...) that draws directly to 'tft' instead of going through the
+    // sprite system (see renderClockFrame()/updateClock() in display.h)
+    // appears on BOTH displays - AND is correctly rotated per
+    // tftRotation1/tftRotation2 while doing so.
+    //
+    // The actual drawing (including selecting CS1/CS2 and - if needed -
+    // rotation) is handled by beginStatusDraw()/endStatusDraw() (display.h):
+    // depending on the board's rotation mode, the block either draws directly
+    // to the physical chip (hardware rotation) or into a sprite with its own
+    // rotation (GC9D01 software rotation workaround) - see the comments there
+    // for details. 'tft' is locally shadowed within each block to the object
+    // beginStatusDraw() returns, so existing code (which calls
+    // 'tft.xxx(...)') keeps working unchanged. Leaves CS1 selected (defined
+    // state for subsequent code).
+    //
+    // Implemented as a macro instead of a function so beginStatusDraw()/
+    // endStatusDraw() (only defined in display.h) can be used regardless of
+    // #include order - it's already used in wifi_manager.h, which is included
+    // before display.h. __VA_ARGS__ instead of a single parameter so commas
+    // inside the block (e.g. in tft.printf(...)) don't split the call into
+    // multiple macro arguments. The block is wrapped in its own {} scopes so
+    // the two local 'tft' references (for Display 1 and 2) don't clash as a
+    // redefinition within the same scope.
+#define DRAW_ON_BOTH_DISPLAYS(...) \
+    do { \
+        { TFT_eSPI& tft = beginStatusDraw(1); __VA_ARGS__ } \
+        endStatusDraw(1); \
+        { TFT_eSPI& tft = beginStatusDraw(2); __VA_ARGS__ } \
+        endStatusDraw(2); \
+        setCS1(LOW); \
+    } while (0)
+
     // --- GitHub-Repository (Projektseite, Zusatz-Zifferblaetter/Zeigersaetze) ---
     // Zentral an einer Stelle, damit bei einem Fork/Umzug des Repos nur hier
     // geaendert werden muss statt an mehreren Stellen in webserver_routes.h.
@@ -45,6 +106,25 @@
                                                       // Central European Time
 
 #define DEFAULT_PING_SERVER "1.1.1.1:80"
+
+    // --- Access-Point (Einrichtungsmodus) ---
+    // Die SSID ist bewusst auf allen Uhren gleich und fest: sie steht in der
+    // Anleitung und der Nutzer sucht danach. Das PASSWORT wird dagegen zur
+    // Laufzeit aus den letzten vier Bytes der MAC-Adresse gebildet (siehe
+    // startAP() in wifi_manager.h) und ist damit pro Geraet verschieden.
+    // Frueher war das Passwort mit der SSID identisch ("clock123") - also auf
+    // jedem Geraet dasselbe und allgemein bekannt, womit jeder in Funkreichweite
+    // die Weboberflaeche samt gespeicherter WLAN-Zugangsdaten oeffnen konnte.
+
+    // --- Access point (setup mode) ---
+    // The SSID is deliberately the same and fixed on all clocks: it is in the
+    // manual and that is what the user looks for. The PASSWORD, in contrast, is
+    // derived at runtime from the last four bytes of the MAC address (see
+    // startAP() in wifi_manager.h) and therefore differs per device. It used to
+    // be identical to the SSID ("clock123") - the same on every device and
+    // publicly known, which let anyone in radio range open the web interface
+    // including the stored WiFi credentials.
+#define AP_SSID "clock123"
 
 #define WAIT_1s 1000 // 1 Sekunde in Millisekunden
                      // 1 second in milliseconds
@@ -83,7 +163,24 @@
     // Speed of the second hand in train-station mode vs. a real second (in
     // milliseconds) - the hand runs slightly ahead and pauses briefly at 60,
     // like a classic railway station clock.
-#define FAST_SECOND 972.0f
+    // Dauer einer Sekundenteilung im Bahnhofsuhr-Modus. 60 * 975 ms = 58,5 s
+    // fuer einen Umlauf - das ist der Wert der originalen Hilfiker-Uhr, die
+    // restlichen rund 1,5 s der echten Minute steht der Zeiger oben auf der 12
+    // und wartet auf den Minutenimpuls (siehe renderClockFrame() in display.h).
+    // Vorher standen hier 972 ms, also 58,32 s.
+    //
+    // Der Wert wird auch in die Live-Vorschau der Weboberflaeche uebernommen
+    // (webserver_routes.h), damit Vorschau und Uhr identisch laufen.
+
+    // Duration of one second division in station clock mode. 60 * 975 ms =
+    // 58.5 s per sweep - the value of the original Hilfiker clock; for the
+    // remaining ~1.5 s of the real minute the hand rests at the top on the 12
+    // waiting for the minute pulse (see renderClockFrame() in display.h).
+    // This used to be 972 ms, i.e. 58.32 s.
+    //
+    // The value is also passed into the web interface's live preview
+    // (webserver_routes.h) so that preview and clock run identically.
+#define FAST_SECOND 975.0f
 
     // --- Board-Auswahl (Prozessor, TFT-Typ) ---
     // --- Board selection (processor, TFT type) ---
@@ -148,16 +245,12 @@
 #define CS_1    12
 
     // SPI Chipselect für Display 2 (baugleich mit Display 1) - der Pin wird
-    // jetzt immer eingebunden (nicht mehr abhaengig von diesem #define); ob er
-    // tatsaechlich angesteuert wird, entscheidet die Laufzeit-Einstellung
-    // cs2Enabled (Preferences-Key PK_USE_CS2, Default aus), siehe uhr3.ino und
-    // webserver_routes.h ("Zifferblatt"-Tab).
+    // immer eingebunden UND immer angesteuert (Display 2 ist fest aktiviert,
+    // kein Laufzeit-Umschalter mehr), siehe uhr3.ino und display.h.
 
-    // SPI chip-select for Display 2 (identical to Display 1) - the pin is now
-    // always compiled in (no longer gated by this #define); whether it's
-    // actually driven is decided at runtime by cs2Enabled (preferences key
-    // PK_USE_CS2, default off), see uhr3.ino and webserver_routes.h ("Clock
-    // Face" tab).
+    // SPI chip-select for Display 2 (identical to Display 1) - the pin is
+    // always compiled in AND always driven (Display 2 is permanently
+    // enabled, no more runtime toggle), see uhr3.ino and display.h.
 #define CS_2    18
 
     // DCF77

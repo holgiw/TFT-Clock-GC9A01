@@ -40,14 +40,14 @@
 
                                                                    // Old key name (before Display 2 support) - use ONLY for the one-time
                                                                    // migration to PK_TFT_ROTATION1 in uhr3.ino, nowhere else.
-    constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2) - nur relevant, wenn useCS2 aktiv ist
-                                                                 // rotation of Display 2 (CS2) - only relevant when useCS2 is active
+    constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2) - Display 2 ist fest aktiviert
+                                                                 // rotation of Display 2 (CS2) - Display 2 is permanently enabled
     constexpr const char* PK_HOSTNAME          = "hostname"; // leer = automatisch aus MAC-Adresse generiert
                                                              // empty = auto-generated from MAC address
     constexpr const char* PK_HANDSET           = "handset";
     constexpr const char* PK_BACKGROUND        = "background";
-    constexpr const char* PK_USE_CS2           = "useCS2"; // Display 2 (CS2-Pin) aktiv/inaktiv - Default: false (siehe config.h/uhr3.ino)
-                                                            // Display 2 (CS2 pin) active/inactive - default: false (see config.h/uhr3.ino)
+    // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) ist jetzt fest aktiviert, kein Preferences-Schalter mehr (siehe config.h/globals.h/uhr3.ino).
+    // PK_USE_CS2 removed: Display 2 (CS2 pin) is now permanently enabled, no more preferences toggle (see config.h/globals.h/uhr3.ino).
     constexpr const char* PK_STATION_MODE      = "stationMode";
     // WICHTIG: einziger gueltiger Key fuer Sekundenzeiger-Sichtbarkeit (abweichender
     // Key "secondHand" im ILI9341-Codepfad war ein Bug, siehe git-Historie).

@@ -74,6 +74,17 @@
     // MAC address
     uint8_t mac[6];
     char hostname[32];
+
+    // Zur Laufzeit erzeugtes Passwort des Einrichtungs-Access-Points (aus den
+    // letzten vier MAC-Bytes, siehe startAP() in wifi_manager.h). Als Puffer
+    // gehalten, damit es sowohl auf dem Display als auch in der Statuszeile der
+    // Weboberflaeche angezeigt werden kann. Leer, solange der AP nie lief.
+
+    // Password of the setup access point, generated at runtime (from the last
+    // four MAC bytes, see startAP() in wifi_manager.h). Kept as a buffer so it
+    // can be shown both on the display and in the web interface's status line.
+    // Empty as long as the AP has never run.
+    char apPassword[16] = "";
     bool pingHostname = false;
 
     bool softAPIP = false;  // Flag für SoftAP IP
@@ -110,6 +121,23 @@
 
     volatile bool dcfTimeFound = false; // wird in der ISR gelesen/verändert
                                         // read/modified in the ISR
+
+    // Wird in der ISR gesetzt und in loop() abgearbeitet: die ISR darf die LED
+    // NICHT selbst schalten, weil setLedOn()/setLedOff() ueber pinMode()/
+    // digitalWrite() gehen und damit im Flash liegen. Ist der Flash-Cache
+    // gerade deaktiviert (bei JEDEM LittleFS-Schreibvorgang - also auch bei
+    // jeder Logzeile - und bei jedem NVS-Commit), fuehrt ein Zugriff aus der
+    // ISR heraus zu einem "Cache disabled but cached memory region accessed"-
+    // Panic-Reset. Siehe isr() in time_sync.h und die Abarbeitung in loop().
+
+    // Set in the ISR and processed in loop(): the ISR must NOT switch the LED
+    // itself, because setLedOn()/setLedOff() go through pinMode()/
+    // digitalWrite() and therefore live in flash. While the flash cache is
+    // disabled (during EVERY LittleFS write - so also every log line - and
+    // every NVS commit), accessing it from inside the ISR causes a "Cache
+    // disabled but cached memory region accessed" panic reset. See isr() in
+    // time_sync.h and the handling in loop().
+    volatile bool dcfLedTogglePending = false;
     time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
                                 // Unix timestamp of the last successful DCF77 sync (0 = never)
 
@@ -153,6 +181,32 @@
     TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
     TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 
+    // Sprites fuer Status-/Boot-Text (DRAW_ON_BOTH_DISPLAYS(), siehe config.h),
+    // NUR benoetigt beim GC9D01-Software-Rotations-Workaround (gc9d01SwRotation) -
+    // dort wird die Hardware-Rotation der Chips bewusst uebersprungen, daher muss
+    // Text dort stattdessen in ein Sprite mit eigener sprite.setRotation() gemalt
+    // werden, um pro Display korrekt gedreht zu erscheinen (siehe beginStatusDraw()/
+    // endStatusDraw() in display.h). Auf allen anderen Boards ungenutzt (dort malt
+    // DRAW_ON_BOTH_DISPLAYS direkt auf 'tft' - das MADCTL-Register des jeweils
+    // selektierten Chips dreht automatisch mit). Werden erst bei Bedarf angelegt
+    // (siehe statusSprite1Created/statusSprite2Created), um auf Boards ohne
+    // Software-Rotation keinen (P)SRAM zu verschwenden.
+
+    // Sprites for status/boot text (DRAW_ON_BOTH_DISPLAYS(), see config.h), ONLY
+    // needed with the GC9D01 software rotation workaround (gc9d01SwRotation) -
+    // there, the chips' hardware rotation is deliberately skipped, so text must
+    // instead be drawn into a sprite with its own sprite.setRotation() to appear
+    // correctly rotated per display (see beginStatusDraw()/endStatusDraw() in
+    // display.h). Unused on every other board (there DRAW_ON_BOTH_DISPLAYS draws
+    // straight to 'tft' - the MADCTL register of whichever chip is currently
+    // selected rotates it automatically). Created lazily on first use (see
+    // statusSprite1Created/statusSprite2Created) to avoid wasting (P)SRAM on
+    // boards without the software rotation workaround.
+    TFT_eSprite statusSprite1 = TFT_eSprite(&tft);
+    TFT_eSprite statusSprite2 = TFT_eSprite(&tft);
+    bool statusSprite1Created = false;
+    bool statusSprite2Created = false;
+
     String selectedBackground = "/face_default.bmp";
 
     bool stationMode;
@@ -194,6 +248,61 @@
 
     uint16_t* clockFaceBuffer = nullptr;
 
+    // --- Zwischenbild fuer Stunden- und Minutenzeiger -------------------------
+    //
+    // Haelt je Display ein fertiges "gedrehtes Zifferblatt + Stundenzeiger +
+    // Minutenzeiger". Grund: Stunden- und Minutenzeiger bewegen sich extrem
+    // langsam (Stundenzeiger 0,008 Grad/s, Minutenzeiger 0,1 Grad/s bzw. ein
+    // Sprung pro Minute), wurden aber bisher in JEDEM Tick neu rotiert - genau
+    // wie das Zifferblatt selbst, das bei Software-Rotation pro Tick pixelweise
+    // neu gedreht wurde. Jetzt wird dieses Bild nur noch aufgebaut, wenn sich
+    // wirklich etwas geaendert hat, und pro Tick nur noch kopiert. Dadurch
+    // bleibt Rechenzeit fuer den schleichenden Sekundenzeiger uebrig UND es
+    // wird gleichzeitig moeglich, die beiden langsamen Zeiger beim Aufbau in
+    // deutlich hoeherer Qualitaet zu zeichnen (kantengeglaettet, siehe
+    // blitHandAntiAliased() in display.h) statt mit dem harten
+    // Nearest-Neighbour von pushRotated().
+
+    // --- Composite image for the hour and minute hands ------------------------
+    //
+    // Holds, per display, a finished "rotated clock face + hour hand + minute
+    // hand". Reason: the hour and minute hands move extremely slowly (hour hand
+    // 0.008 deg/s, minute hand 0.1 deg/s or one jump per minute), yet they were
+    // rotated anew on EVERY tick - just like the clock face itself, which with
+    // software rotation was re-rotated pixel by pixel every tick. This image is
+    // now only rebuilt when something actually changed, and merely copied per
+    // tick. That leaves compute time for the sweeping second hand AND at the
+    // same time makes it possible to draw the two slow hands at much higher
+    // quality during the rebuild (anti-aliased, see blitHandAntiAliased() in
+    // display.h) instead of pushRotated()'s hard nearest-neighbour sampling.
+    struct HandComposite {
+        uint16_t* buffer = nullptr;
+        bool valid = false;
+        float hourAngle = 0.0f;
+        float minuteAngle = 0.0f;
+        uint8_t rotation = 0xFF;
+        uint8_t brightness = 0xFF;
+        uint32_t assetGeneration = 0xFFFFFFFF;
+        bool allocationFailed = false; // nach einem Fehlschlag nicht bei jedem Tick erneut versuchen
+                                       // don't retry on every tick after a failure
+    };
+    HandComposite handComposite[2]; // [0] = Display 1, [1] = Display 2
+
+    // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
+    // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne
+    // Aenderungsstelle das Zwischenbild selbst kennen muss.
+
+    // Incremented whenever the clock face, hand set or hand widths change -
+    // invalidates every composite image without each individual change site
+    // having to know about the composite itself.
+    uint32_t clockAssetGeneration = 1;
+
+    // Arbeitskopie der Zeigerpixel fuer den kantengeglaetteten Aufbau (die
+    // Sprite-eigenen readPixel()-Aufrufe waeren pro Subsample zu teuer).
+    // Working copy of the hand pixels for the anti-aliased rebuild (the sprite's
+    // own readPixel() calls would be too expensive per subsample).
+    uint16_t* handPixelScratch = nullptr;
+
     // Cache: clockFaceBuffer bereits mit currentBrightness vorberechnet (siehe
     // loadClockFace()) - vermeidet die teure Pixel-Helligkeitsanpassung bei
     // jedem Tick, obwohl sich die Helligkeit dazwischen fast nie aendert.
@@ -203,16 +312,12 @@
     // on every tick, even though brightness rarely changes in between.
     uint16_t* clockFaceBrightBuffer = nullptr;
 
-    // Display 2, baugleich mit Display 1, am CS2-Pin (siehe config.h) -
-    // Hardware-Pin wird immer eingebunden, per Preferences-Schalter (siehe
-    // webserver_routes.h, Tab "Zifferblatt") aber standardmaessig deaktiviert,
-    // damit Geraete ohne Display 2 den Pin nicht unnoetig ansteuern.
+    // Display 2, baugleich mit Display 1, am CS2-Pin (siehe config.h) - fest
+    // aktiviert, kein Preferences-/UI-Schalter mehr (frueher useCS2/PK_USE_CS2).
 
-    // Display 2, identical to Display 1, on the CS2 pin (see config.h) - the
-    // hardware pin is always compiled in, but disabled by default via a
-    // preferences toggle (see webserver_routes.h, "Clock Face" tab) so devices
-    // without Display 2 don't needlessly drive the pin.
-    bool cs2Enabled = false;
+    // Display 2, identical to Display 1, on the CS2 pin (see config.h) -
+    // permanently enabled, no more preferences/UI toggle (formerly
+    // useCS2/PK_USE_CS2).
 
     // --- Helligkeit / Fotowiderstand (ADC) ---
     // --- Brightness / photoresistor (ADC) ---
@@ -223,7 +328,19 @@
     bool photoresistorFound = false;
 
     uint8_t currentBrightness = 255;
-    uint8_t lastAppliedBrightness = 255;
+    uint8_t lastAppliedBrightness = 255; // gehoert zum Zifferblatt-Cache und wird von loadClockFace() gepflegt
+                                         // belongs to the clock face cache and is maintained by loadClockFace()
+
+    // Eigener Vergleichswert fuer die Zeiger-Sprites (siehe updateBrightness() in
+    // display.h): darf NICHT lastAppliedBrightness mitbenutzen, weil
+    // loadClockFace() diesen Wert bereits selbst aktualisiert und die
+    // Zeiger-Neueinfaerbung dadurch nie ausgeloest wurde.
+
+    // Its own comparison value for the hand sprites (see updateBrightness() in
+    // display.h): must NOT share lastAppliedBrightness, because loadClockFace()
+    // already updates that value itself, which meant the hands were never
+    // re-tinted.
+    uint8_t lastHandBrightness = 255;
     uint8_t targetBrightness = 255;
     int lowThreshold = 40;
     int highThreshold = 60;

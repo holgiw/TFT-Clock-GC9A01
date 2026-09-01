@@ -97,10 +97,276 @@
                                // buttons, logging, reset, restart
 
 
+    // Baut beim Booten die WLAN-Verbindung auf: gespeicherte Zugangsdaten laden,
+    // Scan auswerten, zuletzt genutztes Netz bevorzugen, sonst die uebrigen
+    // gespeicherten Netze durchprobieren, und als letzte Rueckfallebene RTC,
+    // DCF77 oder den Access-Point nutzen.
+    //
+    // Bewusst eine EIGENE Funktion statt eines Blocks in setup(): der Code
+    // enthaelt mehrere "return"-Ausstiege (erfolgreiche Verbindung ueber ein
+    // Alternativnetz, RTC-Rueckfall, gefundene DCF77-Zeit, keine SSID
+    // gespeichert). Direkt in setup() haben die nicht nur die WLAN-Logik
+    // beendet, sondern das GESAMTE setup() - dadurch wurden setupNTP(),
+    // enableTouch(), loadPresets() und udp.begin() uebersprungen. Folge:
+    // Presets leer (Weboberflaeche und Preset-Umschaltung tot), Touch nie
+    // freigeschaltet, eigener NTP-Server aus, NTP erst nach rund einer Stunde
+    // Laufzeit. In einer eigenen Funktion bedeutet "return" nur noch "WLAN-
+    // Aufbau abgeschlossen", und setup() laeuft danach vollstaendig weiter.
+
+    // Establishes the WiFi connection at boot: load stored credentials,
+    // evaluate the scan, prefer the last used network, otherwise try the
+    // remaining stored networks, and fall back to the RTC, DCF77 or the access
+    // point as a last resort.
+    //
+    // Deliberately its OWN function instead of a block inside setup(): the code
+    // has several "return" exits (successful connection via an alternative
+    // network, RTC fallback, DCF77 time found, no SSID stored). Inside setup()
+    // those did not just end the WiFi logic but ALL of setup() - which skipped
+    // setupNTP(), enableTouch(), loadPresets() and udp.begin(). The result:
+    // empty presets (web interface and preset switching dead), touch never
+    // enabled, own NTP server off, NTP only configured after about an hour of
+    // runtime. In its own function "return" now only means "WiFi setup done",
+    // and setup() continues completely afterwards.
+
+void connectWiFiAtBoot() {
+        // WLAN-Zugangsdaten laden
+        // Load WiFi credentials
+        for (int i = 0; i < MAX_WLAN; i++) {
+            // Dynamisch berechnete Schlüssel
+            // Dynamically computed keys
+            String ssidKey = pkSsid(i);
+            String passKey = pkPass(i);
+            wifiSsid[i] = preferences.getString(ssidKey.c_str(), "");
+            wifiPass[i] = preferences.getString(passKey.c_str(), "");
+        }
+
+
+        // AP starten, wenn keine SSID gespeichert ist
+        // Start AP if no SSID is stored
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (wifiSsid[i].length() > 0) {
+                DEBUG_PRINTLN("[WiFi] Found stored SSID: " + wifiSsid[i]);
+                break;
+            }
+            if (i == MAX_WLAN - 1) {
+                DEBUG_PRINTLN("[WiFi] No stored SSID found");
+                startAP();
+                return;
+            }
+        }
+
+
+        // WLAN-Netzwerke scannen und cachen
+        // Scan and cache WiFi networks
+        //scanAndCacheNetworks();
+
+        while (isScanning) {
+            checkWiFiScan();
+            delay(10);
+            if (loggingEnabled)  Serial.print("");
+        }
+        if (loggingEnabled) Serial.println("");
+        // DEBUG_PRINTLN("[WiFi] Scan complete");
+
+
+
+        // Bereichspruefung: der Wert kommt aus dem NVS und wird direkt als Index
+        // in wifiSsid[MAX_WLAN] benutzt. Ein beschaedigter oder aus einer
+        // aelteren Version stammender Eintrag ausserhalb 0..MAX_WLAN-1 haette
+        // hier einen Zugriff hinter das Array-Ende ausgeloest - und zwar auf
+        // String-Objekte, also mit unbestimmtem Ergebnis statt eines sauberen
+        // Absturzes.
+
+        // Range check: the value comes from NVS and is used directly as an index
+        // into wifiSsid[MAX_WLAN]. A corrupted entry, or one left over from an
+        // older version, outside 0..MAX_WLAN-1 would have caused an access past
+        // the end of the array here - and on String objects at that, so with
+        // undefined results rather than a clean crash.
+        int storedWlanNumber = preferences.getInt(PK_LAST_WLAN, 0);
+        if (storedWlanNumber < 0 || storedWlanNumber >= MAX_WLAN) {
+            DEBUG_PRINTLN("[WiFi] Stored WLAN number out of range (" + String(storedWlanNumber) + "), falling back to 0");
+            storedWlanNumber = 0;
+            preferences.putInt(PK_LAST_WLAN, storedWlanNumber);
+        }
+        uint32_t number = (uint32_t)storedWlanNumber;
+        DEBUG_PRINTLN("[WiFi] Last successful WLAN number: (" + String(number + 1) + ") " + wifiSsid[number]);
+
+
+        // ist die letzte SSID im Scan vorhanden?
+        // Is the last SSID present in the scan?
+        bool foundLastSSID = false;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (wifiSsid[number] == availableNetworks[i].ssid) {
+                DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + availableNetworks[i].ssid);
+                foundLastSSID = true;
+                break;
+            }
+        }
+        if (foundLastSSID == false) {
+            DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan..");
+            startWiFiScan();
+            delay(100); // Kurze Verzögerung, damit der Scan starten kann
+                        // brief delay to let the scan start
+            while (isScanning) {
+                checkWiFiScan();
+                delay(50);
+                if (loggingEnabled) Serial.print("");
+            }
+            if (loggingEnabled) Serial.println("");
+
+            // Nach dem zweiten Scan NEU auswerten. Vorher blieb foundLastSSID
+            // auf false stehen, egal was der Scan gefunden hatte - der zweite
+            // Scan war damit vollkommen wirkungslos.
+            // Re-evaluate after the second scan. Previously foundLastSSID stayed
+            // false no matter what the scan found - which made the second scan
+            // completely pointless.
+            for (int i = 0; i < MAX_WLAN; i++) {
+                if (wifiSsid[number] == availableNetworks[i].ssid) {
+                    DEBUG_PRINTLN("[WiFi] Last connected SSID found in second scan: " + availableNetworks[i].ssid);
+                    foundLastSSID = true;
+                    break;
+                }
+            }
+        }
+
+        // Das zuletzt genutzte Netz IMMER einmal direkt anwaehlen, sofern
+        // ueberhaupt eine SSID hinterlegt ist - unabhaengig davon, ob der Scan
+        // es gefunden hat.
+        //
+        // Vorher stand hier "if (!foundLastSSID or connectWiFi(number, true) !=
+        // CONNECTED)". Das "or" kurzschliesst: war foundLastSSID false, wurde
+        // connectWiFi() fuer dieses Netz GAR NICHT aufgerufen. Und die
+        // Ersatzschleife darunter uebersprang denselben Eintrag mit der
+        // Begruendung "bereits versucht" - versucht wurde er aber nie. War es
+        // das einzige gespeicherte Netz, landete die Uhr binnen Sekunden im
+        // Access-Point-/WPS-Modus, ohne einen einzigen Verbindungsversuch.
+        //
+        // Betroffen waren vor allem zwei Faelle: eine versteckte SSID (die
+        // taucht in keinem Scan auf, foundLastSSID ist also immer false) und
+        // ein Router, der beim Start der Uhr noch nicht bereit war.
+        // WiFi.begin() braucht keinen Scan-Treffer, der direkte Versuch
+        // funktioniert also auch bei versteckten Netzen.
+
+        // ALWAYS try the last used network directly once, as long as an SSID is
+        // stored at all - regardless of whether the scan found it.
+        //
+        // This used to read "if (!foundLastSSID or connectWiFi(number, true) !=
+        // CONNECTED)". The "or" short-circuits: if foundLastSSID was false,
+        // connectWiFi() was NOT called for that network at all. And the fallback
+        // loop below skipped the same entry with the reasoning "already tried" -
+        // but it never was. If it was the only stored network, the clock ended
+        // up in access point/WPS mode within seconds, without a single
+        // connection attempt.
+        //
+        // Two cases were mainly affected: a hidden SSID (which never shows up in
+        // a scan, so foundLastSSID is always false) and a router that was not
+        // ready yet when the clock started. WiFi.begin() does not need a scan
+        // hit, so the direct attempt works for hidden networks too.
+        bool lastSsidTried = false;
+        int lastSsidResult = NOT_CONNECTED;
+
+        if (trim(wifiSsid[number]) != "") {
+            if (!foundLastSSID) {
+                DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan - trying it anyway (may be hidden or router not up yet)");
+            }
+            lastSsidTried = true;
+            lastSsidResult = connectWiFi(number, true);
+        }
+
+        if (lastSsidResult != CONNECTED) {
+
+            // Wenn Verbindung fehlschlägt, scannen und vergleichen
+            // If connection fails, scan and compare
+            DEBUG_PRINTLN("[WiFi] Connection failed. Looking for available networks..");
+
+            // Durchsuche gefundene Netzwerke nach gespeicherten SSIDs
+            // Search found networks for stored SSIDs
+            for (int i = 0; i < MAX_WLAN; i++) {
+                String availableSSID = availableNetworks[i].ssid;
+                if (availableSSID == "") continue;
+                //  DEBUG_PRINTLN("Found network: " + availableSSID);
+                for (int j = 0; j < MAX_WLAN; j++) {
+
+                    // Nur ueberspringen, wenn dieser Eintrag oben tatsaechlich
+                    // angewaehlt wurde - vorher wurde er auch dann uebersprungen,
+                    // wenn der Versuch gar nicht stattgefunden hatte.
+                    // Only skip if this entry really was attempted above -
+                    // previously it was skipped even when no attempt had taken
+                    // place at all.
+                    if (lastSsidTried && j == (int)number) continue;
+                    if (trim(wifiSsid[j]) == "") continue; // überspringe leere SSID
+                                                           // skip empty SSID
+
+                    // DEBUG_PRINTLN("vergleiche " + wifiSsid[j] + " mit " + availableSSID);
+
+                    if (wifiSsid[j] == availableSSID) {
+                        DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
+                        if (connectWiFi(j, true) == CONNECTED) {
+                            DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials");
+                            preferences.putInt(PK_LAST_WLAN, j);
+                            return;
+                        }
+                    }
+
+                }
+            }
+
+            if (rtcOk == RTC_AVAILABLE) {
+                DRAW_ON_BOTH_DISPLAYS(
+                    tft.fillScreen(TFT_BLACK);
+                    tft.setTextColor(TFT_WHITE);
+                    tft.setTextSize(TFT_TEXT_SIZE);
+                    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+                    tft.println(translate("Check RTC"));
+                );
+                delay(1000);
+                loadTimeFromRTC();
+                return;
+            }
+
+            // delay(3000);
+            if (dcf77Count >= 1) {
+                DEBUG_PRINTLN("[DCF77] DCF77 signal received during setup, waiting for valid time..");
+                DRAW_ON_BOTH_DISPLAYS(
+                    tft.fillScreen(TFT_BLACK);
+                    tft.setTextColor(TFT_WHITE);
+                    tft.setTextSize(TFT_TEXT_SIZE);
+                    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+                    tft.println(translate("DCF77 detected"));
+                );
+
+                unsigned long startWait = millis();
+                while (millis() - startWait < WAIT_1h) { // Warte bis zu 1 Stunde auf gültige DCF77-Zeit
+                                                         // wait up to 1 hour for a valid DCF77 time
+                    if (dcf.getUTCTime() > 0) {
+                        dcfTimeFound = true; // gültige Zeit gefunden
+                                             // valid time found
+                        return;
+                    }
+                    DRAW_ON_BOTH_DISPLAYS(
+                        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
+                        tft.print(translate("Waiting"));
+                        tft.print("...");
+                    );
+                    delay(100);
+                }
+            }
+
+
+            // // Alle Verbindungsversuche fehlgeschlagen, starte AP wenn RTC nicht verfügbar oder ungültig
+            // // All connection attempts failed, start AP if the RTC is unavailable or invalid
+            if (rtcOk != RTC_AVAILABLE) {
+                DEBUG_PRINTLN("[WiFi] Starting Access Point due to failed connections and no valid RTC");
+                startAP();
+            }
+        }
+}
+
+
     // Setup-Funktion
     // Setup function
 
-    void setup() {
+void setup() {
 
         setLedOn();
 
@@ -109,32 +375,22 @@
         // CS_1 (Chip-Select von Display 1, vormals TFT_CS) manuell auf Output/LOW
         // setzen - die TFT_eSPI-Bibliothek steuert ihren eigenen CS-Pin nicht mehr
         // automatisch (TFT_CS = -1 in der Referenzkonfiguration/User_Setup.h,
-        // siehe config.h). Muss hier, VOR tft.init() weiter unten, passieren und
-        // ist UNABHAENGIG von cs2Enabled noetig - ohne das wuerde auch der
-        // Einzeldisplay-Betrieb (kein CS2) nichts mehr anzeigen, weil kein Chip
-        // mehr automatisch selektiert wird.
+        // siehe config.h). Muss hier, VOR tft.init() weiter unten, passieren.
 
         // Manually set CS_1 (display 1's chip select, formerly TFT_CS) to
         // output/LOW - the TFT_eSPI library no longer drives its own CS pin
         // automatically (TFT_CS = -1 in the reference config/User_Setup.h, see
-        // config.h). Has to happen here, BEFORE tft.init() further below, and is
-        // needed REGARDLESS of cs2Enabled - without this, even single-display
-        // operation (no CS2) would show nothing, since no chip is automatically
-        // selected anymore.
+        // config.h). Has to happen here, BEFORE tft.init() further below.
         pinMode(CS_1, OUTPUT);
         digitalWrite(CS_1, LOW);
 
         // HINWEIS: Die eigentliche CS2-Pin-Initialisierung (pinMode + setCS1/setCS2)
-        // steht jetzt weiter unten, NACH preferences.begin()/dem Laden von
-        // cs2Enabled - vorher waere cs2Enabled noch auf seinem Default (false)
-        // und die gespeicherte Einstellung wuerde bei diesem fruehen Aufruf
-        // ignoriert (siehe Ladepunkt bei "cs2Enabled = preferences.getBool(...)").
+        // steht jetzt weiter unten, NACH preferences.begin() - Display 2 ist fest
+        // aktiviert und wird dort unbedingt initialisiert.
 
-        // NOTE: The actual CS2 pin initialization (pinMode + setCS1/setCS2) now
-        // lives further below, AFTER preferences.begin()/loading cs2Enabled -
-        // any earlier, cs2Enabled would still be at its default (false) and the
-        // saved setting would be ignored at this early call (see the load point
-        // at "cs2Enabled = preferences.getBool(...)").
+        // NOTE: The actual CS2 pin initialization (pinMode + setCS1/setCS2) lives
+        // further below, AFTER preferences.begin() - Display 2 is permanently
+        // enabled and gets initialized there unconditionally.
 
         // Asynchronen WLAN-Scan starten, damit Netzwerke schon erkannt sind, wenn
         // der Nutzer die WLAN-Einstellungen zum ersten Mal öffnet
@@ -322,9 +578,23 @@
         else {
             gc9d01SwRotation = false;
             DEBUG_PRINTLN("[INFO] no PSRAM, use Hardware-Rotation");
-#ifdef GC9D01
-            preferences.putUChar(PK_TFT_ROTATION1, 0);
-#endif
+
+            // Hier stand frueher ein "preferences.putUChar(PK_TFT_ROTATION1, 0);"
+            // fuer den GC9D01. Das hat bei JEDEM Boot die gespeicherte Rotation von
+            // Display 1 still verworfen (und dabei nur Display 1, tftRotation2 blieb
+            // erhalten - die beiden liefen also nach jedem Neustart auseinander).
+            // Eine gespeicherte Benutzereinstellung darf beim Start nicht
+            // ueberschrieben werden; dass die Hardware-Rotation beim GC9D01 ohne
+            // PSRAM wirkungslos bleibt, ist eine Eigenschaft des Treibers und wird
+            // jetzt auf der Statusseite als "rotation mode" ausgewiesen.
+
+            // There used to be a "preferences.putUChar(PK_TFT_ROTATION1, 0);" here
+            // for the GC9D01. It silently discarded Display 1's saved rotation on
+            // EVERY boot (and only Display 1's - tftRotation2 was kept, so the two
+            // drifted apart after every restart). A saved user setting must not be
+            // overwritten at startup; the fact that hardware rotation is ineffective
+            // on the GC9D01 without PSRAM is a property of the driver and is now
+            // reported on the status page as "rotation mode".
         }
 #ifndef GC9D01 // wird nur bei Display GC9D01 benoetigt
                 // only needed for the GC9D01 display
@@ -391,7 +661,18 @@
             preferences.putInt(PK_HIGH_THRESHOLD, 60);
 #endif
 
-            preferences.putUInt(PK_CENTER_COLOR, 0xEC0016);
+            // putLong statt putUInt: dieser Key wird an ALLEN anderen Stellen mit
+            // putLong()/getLong() angefasst. Ein abweichender NVS-Typ hier fuehrt
+            // beim spaeteren getLong() zu ESP_ERR_NVS_TYPE_MISMATCH, wodurch
+            // kommentarlos der Default geliefert wird (hier nur zufaellig
+            // unauffaellig, weil Default und geschriebener Wert identisch sind).
+
+            // putLong instead of putUInt: this key is touched with
+            // putLong()/getLong() EVERYWHERE else. A diverging NVS type here makes
+            // the later getLong() hit ESP_ERR_NVS_TYPE_MISMATCH and silently return
+            // the default (only unnoticeable here by coincidence, because the
+            // default and the written value happen to be identical).
+            preferences.putLong(PK_CENTER_COLOR, 0xEC0016);
 
             if (tftType == "GC9A01" || tftType == "ILI9341") {
                 preferences.putUInt(PK_CENTER_SIZE, 6);
@@ -407,12 +688,69 @@
 #endif
             preferences.putBool(PK_ADC_INVERTED, false);
             preferences.putBool(PK_USE_TOUCH, false);
-            preferences.putBool(PK_USE_CS2, false);
 
             preferences.putBool(PK_LOGGING_ENABLED, true);
 
             preferences.end();
             preferences.begin("clock", false);
+        }
+
+        // tftRotation1/tftRotation2 werden bewusst HIER schon geladen (nicht erst
+        // kurz vor dem Rotations-Block weiter unten) - DRAW_ON_BOTH_DISPLAYS()
+        // (siehe config.h/display.h) wird bereits gleich nach tft.init() fuer den
+        // ersten fillScreen() verwendet, und dessen rotationsbewusste Sprite-
+        // Logik (beginStatusDraw()/endStatusDraw() in display.h) braucht dafuer
+        // schon die richtigen, aus den Preferences geladenen Werte statt der
+        // globalen Default-Initialisierung (0) aus globals.h.
+
+        // tftRotation1/tftRotation2 are deliberately loaded HERE already (not
+        // just before the rotation block further below) - DRAW_ON_BOTH_DISPLAYS()
+        // (see config.h/display.h) is already used right after tft.init() for
+        // the first fillScreen(), and its rotation-aware sprite logic
+        // (beginStatusDraw()/endStatusDraw() in display.h) needs the values
+        // actually loaded from preferences for that, not the global default
+        // initialization (0) from globals.h.
+
+        // Migration: alter Preferences-Key "tftRotation" (aus Versionen vor der
+        // Display-2-Unterstuetzung) auf den neuen Key "tftRotation1" uebertragen,
+        // falls unter dem neuen Key noch kein Wert existiert - sonst wuerde eine
+        // bereits gespeicherte Rotationseinstellung nach diesem Update verloren
+        // gehen und auf 0 Grad zurueckfallen. Einmalig: sobald PK_TFT_ROTATION1
+        // existiert, greift dieser Zweig nie wieder (auch auf einem komplett
+        // neuen Geraet nicht, da der Erststart-Block weiter oben PK_TFT_ROTATION1
+        // bereits mit einem Default belegt).
+
+        // Migration: transfer the old Preferences key "tftRotation" (from
+        // versions before Display 2 support) to the new key "tftRotation1" if
+        // no value exists yet under the new key - otherwise an already-saved
+        // rotation setting would be lost after this update and fall back to 0
+        // degrees. One-time: once PK_TFT_ROTATION1 exists, this branch never
+        // runs again (not even on a brand-new device, since the first-start
+        // block further above already gives PK_TFT_ROTATION1 a default).
+        if (!preferences.isKey(PK_TFT_ROTATION1) && preferences.isKey(PK_TFT_ROTATION_LEGACY)) {
+            preferences.putUChar(PK_TFT_ROTATION1, preferences.getUChar(PK_TFT_ROTATION_LEGACY, 0));
+        }
+
+        tftRotation1 = preferences.getUChar(PK_TFT_ROTATION1, 0);
+        if (tftRotation1 > 3) {
+            if (tftRotation1 == 90) tftRotation1 = 1;
+            else if (tftRotation1 == 180) tftRotation1 = 2;
+            else if (tftRotation1 == 270) tftRotation1 = 3;
+            else tftRotation1 = 0;
+            preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
+        }
+
+        // Rotation von Display 2 (CS2) - unabhaengig von tftRotation1, damit
+        // beide Displays unterschiedlich ausgerichtet montiert sein koennen.
+        // rotation of Display 2 (CS2) - independent of tftRotation1, so
+        // both displays can be mounted with a different orientation.
+        tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
+        if (tftRotation2 > 3) {
+            if (tftRotation2 == 90) tftRotation2 = 1;
+            else if (tftRotation2 == 180) tftRotation2 = 2;
+            else if (tftRotation2 == 270) tftRotation2 = 3;
+            else tftRotation2 = 0;
+            preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
         }
 
 
@@ -433,31 +771,28 @@
         stationMode = preferences.getBool(PK_STATION_MODE, true);
         smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
         showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
-        cs2Enabled = preferences.getBool(PK_USE_CS2, false);
 
-        // CS2-Pin ist immer eingebunden (siehe config.h), wird aber nur bei
-        // aktivierter Einstellung (Zifferblatt-Tab, Default aus) tatsaechlich
-        // als Output konfiguriert und angesteuert (CS_1 = Pin 12 = Display 1,
-        // siehe Kommentar weiter oben in setup()).
+        // CS2-Pin ist immer eingebunden (siehe config.h) und wird immer als
+        // Output konfiguriert und angesteuert - Display 2 ist fest aktiviert,
+        // kein Preferences-/UI-Schalter mehr (CS_1 = Pin 12 = Display 1, siehe
+        // Kommentar weiter oben in setup()).
 
-        // The CS2 pin is always compiled in (see config.h), but is only
-        // actually configured as an output and driven when the setting is
-        // enabled (Clock Face tab, default off) (CS_1 = pin 12 = display 1, see
-        // comment further up in setup()).
-        if (cs2Enabled) {
-            pinMode(CS_2, OUTPUT);
+        // The CS2 pin is always compiled in (see config.h) and is always
+        // configured as an output and driven - Display 2 is permanently
+        // enabled, no more preferences/UI toggle (CS_1 = pin 12 = display 1,
+        // see comment further up in setup()).
+        pinMode(CS_2, OUTPUT);
 
-            // Definierter Ausgangszustand: Display 1 (CS_1) ausgewaehlt, Display 2
-            // (CS_2) abgewaehlt. setCS2(HIGH) waere hier ein No-Op (setCS2()
-            // reagiert nur auf LOW) - setCS1(LOW) erledigt beides bereits (siehe
-            // display.h), deshalb reicht dieser eine Aufruf.
+        // Definierter Ausgangszustand: Display 1 (CS_1) ausgewaehlt, Display 2
+        // (CS_2) abgewaehlt. setCS2(HIGH) waere hier ein No-Op (setCS2()
+        // reagiert nur auf LOW) - setCS1(LOW) erledigt beides bereits (siehe
+        // display.h), deshalb reicht dieser eine Aufruf.
 
-            // Defined starting state: display 1 (CS_1) selected, display 2 (CS_2)
-            // deselected. setCS2(HIGH) here would be a no-op (setCS2() only reacts
-            // to LOW) - setCS1(LOW) already handles both (see display.h), so this
-            // one call is enough.
-            setCS1(LOW);
-        }
+        // Defined starting state: display 1 (CS_1) selected, display 2 (CS_2)
+        // deselected. setCS2(HIGH) here would be a no-op (setCS2() only reacts
+        // to LOW) - setCS1(LOW) already handles both (see display.h), so this
+        // one call is enough.
+        setCS1(LOW);
 
         // Nabe
         // Hub
@@ -549,57 +884,22 @@
 
         if (loggingEnabled)  Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
 
-        if (cs2Enabled) {
-            digitalWrite(CS_2, LOW);
-        }
+        digitalWrite(CS_2, LOW);
 
         tft.init();
 
         delay(75);
-        tft.fillScreen(TFT_BLACK);
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+        );
 
 
-        // Migration: alter Preferences-Key "tftRotation" (aus Versionen vor der
-        // Display-2-Unterstuetzung) auf den neuen Key "tftRotation1" uebertragen,
-        // falls unter dem neuen Key noch kein Wert existiert - sonst wuerde eine
-        // bereits gespeicherte Rotationseinstellung nach diesem Update verloren
-        // gehen und auf 0 Grad zurueckfallen. Einmalig: sobald PK_TFT_ROTATION1
-        // existiert, greift dieser Zweig nie wieder (auch auf einem komplett
-        // neuen Geraet nicht, da der Erststart-Block weiter oben PK_TFT_ROTATION1
-        // bereits mit einem Default belegt).
-
-        // Migration: transfer the old Preferences key "tftRotation" (from
-        // versions before Display 2 support) to the new key "tftRotation1" if
-        // no value exists yet under the new key - otherwise an already-saved
-        // rotation setting would be lost after this update and fall back to 0
-        // degrees. One-time: once PK_TFT_ROTATION1 exists, this branch never
-        // runs again (not even on a brand-new device, since the first-start
-        // block further above already gives PK_TFT_ROTATION1 a default).
-        if (!preferences.isKey(PK_TFT_ROTATION1) && preferences.isKey(PK_TFT_ROTATION_LEGACY)) {
-            preferences.putUChar(PK_TFT_ROTATION1, preferences.getUChar(PK_TFT_ROTATION_LEGACY, 0));
-        }
-
-        tftRotation1 = preferences.getUChar(PK_TFT_ROTATION1, 0);
-        if (tftRotation1 > 3) {
-            if (tftRotation1 == 90) tftRotation1 = 1;
-            else if (tftRotation1 == 180) tftRotation1 = 2;
-            else if (tftRotation1 == 270) tftRotation1 = 3;
-            else tftRotation1 = 0;
-            preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
-        }
-
-        // Rotation von Display 2 (CS2) - unabhaengig von tftRotation1, damit
-        // beide Displays unterschiedlich ausgerichtet montiert sein koennen.
-        // rotation of Display 2 (CS2) - independent of tftRotation1, so
-        // both displays can be mounted with a different orientation.
-        tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
-        if (tftRotation2 > 3) {
-            if (tftRotation2 == 90) tftRotation2 = 1;
-            else if (tftRotation2 == 180) tftRotation2 = 2;
-            else if (tftRotation2 == 270) tftRotation2 = 3;
-            else tftRotation2 = 0;
-            preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
-        }
+        // tftRotation1/tftRotation2 sind an dieser Stelle bereits geladen (siehe
+        // weiter oben, VOR tft.init()/dem ersten DRAW_ON_BOTH_DISPLAYS-Aufruf -
+        // Begruendung dort).
+        // tftRotation1/tftRotation2 are already loaded at this point (see
+        // further above, BEFORE tft.init()/the first DRAW_ON_BOTH_DISPLAYS call
+        // - reasoning there).
 
         selectedBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
 
@@ -635,17 +935,15 @@
         // each display then keeps that orientation permanently in its own
         // register, so it doesn't need to be re-applied every tick (see loop() -
         // it only toggles the chip select from here on).
-        if (cs2Enabled) {
-            setCS2(LOW);
+        setCS2(LOW);
 #ifndef GC9D01
-            tft.setRotation(tftRotation2);
+        tft.setRotation(tftRotation2);
 #else
-            if (!gc9d01SwRotation) {
-                tft.setRotation(tftRotation2);
-            }
-#endif
-            setCS1(LOW);
+        if (!gc9d01SwRotation) {
+            tft.setRotation(tftRotation2);
         }
+#endif
+        setCS1(LOW);
 #ifndef GC9D01
         tft.setRotation(tftRotation1);
 #else
@@ -658,11 +956,36 @@
 #ifdef TFT_Backlight
         pinMode(TFT_Backlight, OUTPUT);
         ledcAttach(TFT_Backlight, BACKLIGHT_FREQ, BACKLIGHT_RESOLUTION);
-        ledcWrite(TFT_Backlight, 255);
+
+        // currentBrightness statt fest 255: updateBrightness() weiter oben hat
+        // die Helligkeit bereits aus Fotowiderstand/Preferences ermittelt, ihr
+        // abschliessendes ledcWrite() lief aber ins Leere, weil ledcAttach()
+        // erst hier passiert (arduino-esp32 v3 liefert dann false). Der
+        // anschliessende feste Wert 255 hat das Messergebnis dann endgueltig
+        // verworfen - die Uhr startete unabhaengig von der Umgebungshelligkeit
+        // immer auf voller Helligkeit.
+
+        // currentBrightness instead of a fixed 255: updateBrightness() further
+        // above already determined the brightness from the photoresistor/
+        // preferences, but its closing ledcWrite() had no effect because
+        // ledcAttach() only happens here (arduino-esp32 v3 returns false then).
+        // The fixed value 255 afterwards then discarded the measurement for
+        // good - the clock always started at full brightness regardless of
+        // ambient light.
+        ledcWrite(TFT_Backlight, currentBrightness);
 #endif
 
 
-        backgroundSprite.createSprite(CLOCK_WIDTH, CLOCK_HEIGHT);
+        // Rueckgabewert pruefen: schlaegt diese Allokation fehl (bei 240x240 sind
+        // das 115 KB), sind alle spaeteren pushImage()/pushSprite()-Aufrufe
+        // stillschweigend No-Ops - beide Displays blieben schwarz, ohne Absturz
+        // und ohne jeden Hinweis im Log.
+        // Check the return value: if this allocation fails (115 KB at 240x240),
+        // every later pushImage()/pushSprite() call is silently a no-op - both
+        // displays stayed black, without a crash and without any hint in the log.
+        if (backgroundSprite.createSprite(CLOCK_WIDTH, CLOCK_HEIGHT) == nullptr) {
+            DEBUG_PRINTLN("[Display] FATAL: couldnt allocate backgroundSprite - clock face cannot be drawn");
+        }
         backgroundSprite.setSwapBytes(true);
         backgroundSprite.setColorDepth(16);
 
@@ -708,11 +1031,13 @@
         // If Button1 or BOOT_BUTTON is pressed, clear all credentials
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
-            tft.fillScreen(TFT_RED);
-            tft.setTextColor(TFT_WHITE);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-            tft.println(translate("Reset WLan..."));
+            DRAW_ON_BOTH_DISPLAYS(
+                tft.fillScreen(TFT_RED);
+                tft.setTextColor(TFT_WHITE);
+                tft.setTextSize(TFT_TEXT_SIZE);
+                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
+                tft.println(translate("Reset WLan..."));
+            );
             delay(1000);
             for (int i = 0; i < MAX_WLAN; i++) {
                 wifiSsid[i] = "";
@@ -726,152 +1051,7 @@
             }
         }
 
-        // WLAN-Zugangsdaten laden
-        // Load WiFi credentials
-        for (int i = 0; i < MAX_WLAN; i++) {
-            // Dynamisch berechnete Schlüssel
-            // Dynamically computed keys
-            String ssidKey = pkSsid(i);
-            String passKey = pkPass(i);
-            wifiSsid[i] = preferences.getString(ssidKey.c_str(), "");
-            wifiPass[i] = preferences.getString(passKey.c_str(), "");
-        }
-
-
-        // AP starten, wenn keine SSID gespeichert ist
-        // Start AP if no SSID is stored
-        for (int i = 0; i < MAX_WLAN; i++) {
-            if (wifiSsid[i].length() > 0) {
-                DEBUG_PRINTLN("[WiFi] Found stored SSID: " + wifiSsid[i]);
-                break;
-            }
-            if (i == MAX_WLAN - 1) {
-                DEBUG_PRINTLN("[WiFi] No stored SSID found");
-                startAP();
-                return;
-            }
-        }
-
-
-        // WLAN-Netzwerke scannen und cachen
-        // Scan and cache WiFi networks
-        //scanAndCacheNetworks();
-
-        while (isScanning) {
-            checkWiFiScan();
-            delay(10);
-            if (loggingEnabled)  Serial.print("");
-        }
-        if (loggingEnabled) Serial.println("");
-        // DEBUG_PRINTLN("[WiFi] Scan complete");
-
-
-
-        uint32_t number = preferences.getInt(PK_LAST_WLAN, 0);
-        DEBUG_PRINTLN("[WiFi] Last successful WLAN number: (" + String(number + 1) + ") " + wifiSsid[number]);
-
-
-        // ist die letzte SSID im Scan vorhanden?
-        // Is the last SSID present in the scan?
-        bool foundLastSSID = false;
-        for (int i = 0; i < MAX_WLAN; i++) {
-            if (wifiSsid[number] == availableNetworks[i].ssid) {
-                DEBUG_PRINTLN("[WiFi] Last connected SSID found in scan: " + availableNetworks[i].ssid);
-                foundLastSSID = true;
-                break;
-            }
-        }
-        if (foundLastSSID == false) {
-            DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan..");
-            startWiFiScan();
-            delay(100); // Kurze Verzögerung, damit der Scan starten kann
-                        // brief delay to let the scan start
-            while (isScanning) {
-                checkWiFiScan();
-                delay(50);
-                if (loggingEnabled) Serial.print("");
-            }
-            if (loggingEnabled) Serial.println("");
-        }
-
-        // versuche Verbindung mit der letzten SSID
-        // Try connecting with the last SSID
-        if (!foundLastSSID or connectWiFi(number, true) != CONNECTED) {
-
-            // Wenn Verbindung fehlschlägt, scannen und vergleichen
-            // If connection fails, scan and compare
-            DEBUG_PRINTLN("[WiFi] Connection failed. Looking for available networks..");
-
-            // Durchsuche gefundene Netzwerke nach gespeicherten SSIDs
-            // Search found networks for stored SSIDs
-            for (int i = 0; i < MAX_WLAN; i++) {
-                String availableSSID = availableNetworks[i].ssid;
-                if (availableSSID == "") continue;
-                //  DEBUG_PRINTLN("Found network: " + availableSSID);
-                for (int j = 0; j < MAX_WLAN; j++) {
-
-                    if (j == number) continue; // überspringe bereits versuchte SSID
-                                               // skip already-tried SSID
-                    if (trim(wifiSsid[j]) == "") continue; // überspringe leere SSID
-                                                           // skip empty SSID
-
-                    // DEBUG_PRINTLN("vergleiche " + wifiSsid[j] + " mit " + availableSSID);
-
-                    if (wifiSsid[j] == availableSSID) {
-                        DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
-                        if (connectWiFi(j, true) == CONNECTED) {
-                            DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials");
-                            preferences.putInt(PK_LAST_WLAN, j);
-                            return;
-                        }
-                    }
-
-                }
-            }
-
-            if (rtcOk == RTC_AVAILABLE) {
-                tft.fillScreen(TFT_BLACK);
-                tft.setTextColor(TFT_WHITE);
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                tft.println(translate("Check RTC"));
-                delay(1000);
-                loadTimeFromRTC();
-                return;
-            }
-
-            // delay(3000);
-            if (dcf77Count >= 1) {
-                DEBUG_PRINTLN("[DCF77] DCF77 signal received during setup, waiting for valid time..");
-                tft.fillScreen(TFT_BLACK);
-                tft.setTextColor(TFT_WHITE);
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                tft.println(translate("DCF77 detected"));
-
-                unsigned long startWait = millis();
-                while (millis() - startWait < WAIT_1h) { // Warte bis zu 1 Stunde auf gültige DCF77-Zeit
-                                                         // wait up to 1 hour for a valid DCF77 time
-                    if (dcf.getUTCTime() > 0) {
-                        dcfTimeFound = true; // gültige Zeit gefunden
-                                             // valid time found
-                        return;
-                    }
-                    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                    tft.print(translate("Waiting"));
-                    tft.print("...");
-                    delay(100);
-                }
-            }
-
-
-            // // Alle Verbindungsversuche fehlgeschlagen, starte AP wenn RTC nicht verfügbar oder ungültig
-            // // All connection attempts failed, start AP if the RTC is unavailable or invalid
-            if (rtcOk != RTC_AVAILABLE) {
-                DEBUG_PRINTLN("[WiFi] Starting Access Point due to failed connections and no valid RTC");
-                startAP();
-            }
-        }
+        connectWiFiAtBoot();
 
 
         setupNTP();
@@ -1025,7 +1205,21 @@
         // Check whether time has passed since the last call
         if (millis() - lastNTPUpdate > WAIT_1h) {
             if (timeinfo.tm_sec < 10 || timeinfo.tm_sec > 55) {
-                lastNTPUpdate = millis() + 15 * 1000;
+
+                // Um 15 Sekunden verschieben, OHNE den Zeitstempel in die
+                // Zukunft zu setzen: "millis() + 15000" ergab beim naechsten
+                // Durchlauf einen Unterlauf in "millis() - lastNTPUpdate",
+                // wodurch die Bedingung sofort wieder wahr war statt fuer 15
+                // Sekunden unterdrueckt zu sein. Diese Form rechnet sauber in
+                // Modulo-Arithmetik und ist damit auch ueberlaufsicher.
+
+                // Postpone by 15 seconds WITHOUT setting the timestamp into
+                // the future: "millis() + 15000" caused an underflow in
+                // "millis() - lastNTPUpdate" on the next pass, so the
+                // condition was immediately true again instead of being
+                // suppressed for 15 seconds. This form works cleanly in
+                // modulo arithmetic and is therefore also overflow-safe.
+                lastNTPUpdate = millis() - WAIT_1h + 15 * 1000;
             }
             else {
                 setupNTP();
@@ -1046,6 +1240,21 @@
 
         webserver.handleClient();
 
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        // LED-Blinken fuer empfangene DCF77-Impulse: wird bewusst HIER
+        // abgearbeitet und nicht in der ISR selbst, da pinMode()/digitalWrite()
+        // im Flash liegen und ein Aufruf aus der ISR heraus bei deaktiviertem
+        // Flash-Cache einen Panic-Reset ausloest (siehe isr() in time_sync.h).
+
+        // LED blink for received DCF77 pulses: deliberately handled HERE and
+        // not in the ISR itself, since pinMode()/digitalWrite() live in flash
+        // and calling them from the ISR causes a panic reset while the flash
+        // cache is disabled (see isr() in time_sync.h).
+        if (dcfLedTogglePending) {
+            dcfLedTogglePending = false;
+            if (!dcfTimeFound) toggleLED();
+        }
+#endif
 
         if (WiFi.getMode() == WIFI_STA || rtcOk == RTC_AVAILABLE || dcfTimeFound) {
 
@@ -1079,8 +1288,18 @@
                 IPAddress clientIP = udp.remoteIP();
                 DEBUG_PRINTLN("[NTPD] Request from: " + clientIP.toString());
 
-                // NTP-Paket lesen
-                // Read NTP packet
+                // NTP-Paket lesen. Puffer vorher leeren: udp.read() fuellt nur
+                // so viele Bytes, wie tatsaechlich angekommen sind - bei einer
+                // zu kurzen Anfrage stuenden in Byte 40-47 sonst noch Reste der
+                // VORIGEN Anfrage, und createNtpResponse() spiegelt genau diese
+                // Bytes als Originate-Timestamp zurueck (siehe dort).
+
+                // Read NTP packet. Clear the buffer first: udp.read() only
+                // fills as many bytes as actually arrived - with a too-short
+                // request, bytes 40-47 would still hold leftovers of the
+                // PREVIOUS request, and createNtpResponse() mirrors exactly
+                // those bytes back as the originate timestamp (see there).
+                memset(ntpPacket, 0, NTP_PACKET_SIZE);
                 udp.read(ntpPacket, NTP_PACKET_SIZE);
 
                 // Aktuelle Zeit holen
