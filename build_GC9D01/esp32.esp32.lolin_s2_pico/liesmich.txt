@@ -26,7 +26,8 @@ Pinbelegung ESP32
 
 TFT_SCLK: 7
 TFT_MOSI: 11
-TFT_CS: 12
+TFT_CS1: 12   Display 1
+TFT_CS1: 18   Display 2
 TFT_DC: 33
 TFT_RST: 5
 
