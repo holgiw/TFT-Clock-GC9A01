@@ -50,6 +50,36 @@
         { "Manage", "Verwalten", "G&eacute;rer" },
         { "full details", "alle Details", "tous les d&eacute;tails" },
         { "No WiFi network configured yet, or the last known network is unavailable - the clock created its own WiFi network. Enter your home WiFi details below, save, and the clock will restart and try to connect", "Es ist noch kein WLAN eingerichtet, oder das zuletzt bekannte WLAN ist gerade nicht erreichbar - die Uhr hat ein eigenes WLAN erstellt. Trage unten dein Heim-WLAN ein, speichere, und die Uhr startet neu und versucht sich zu verbinden", "Aucun r&eacute;seau WiFi n&#39;est configur&eacute; pour le moment, ou le dernier r&eacute;seau connu est indisponible - l&#39;horloge a cr&eacute;&eacute; son propre r&eacute;seau WiFi. Indiquez ci-dessous les d&eacute;tails de votre WiFi domestique, enregistrez, et l&#39;horloge red&eacute;marrera pour tenter de s&#39;y connecter" },
+        { "OK", "OK", "OK" },
+        { "Syncing", "Synchronisiere", "Synchronisation en cours" },
+        { "Error", "Fehler", "Erreur" },
+        // Bewusst OHNE Umlaut-Entity (&uuml;) geschrieben: dieser Text wird
+        // nicht nur beim Erstladen als HTML-Attribut gerendert (dort wuerde
+        // der Browser die Entity korrekt dekodieren), sondern auch vom
+        // Live-Status-Skript per JavaScript direkt in "title"/"aria-label"
+        // geschrieben (siehe setStatusDot() in generateTopBar()) - JS
+        // dekodiert HTML-Entities beim Setzen eines String-Properties NICHT,
+        // sodass "&uuml;" dort woertlich im Tooltip erschien statt als "ü".
+        // Deliberately written WITHOUT the umlaut entity (&uuml;): this text
+        // is not only rendered as an HTML attribute on the initial page load
+        // (where the browser decodes the entity correctly), but also written
+        // into "title"/"aria-label" directly via JavaScript by the live-status
+        // script (see setStatusDot() in generateTopBar()) - JS does NOT
+        // decode HTML entities when setting a string property, so "&uuml;"
+        // showed up literally in the tooltip instead of "ü".
+        { "Not available", "Nicht verfuegbar", "Non disponible" },
+        { "Connection lost", "Verbindung unterbrochen", "Connexion perdue" },
+        // Kurzes Label fuer den Live-Helligkeitswert in der Topbar (siehe
+        // "value-light" in generateTopBar()) - bewusst kurz gehalten wie die
+        // uebrigen Topbar-Labels ("Zeit", "RTC", "DCF77"), anders als das
+        // ausfuehrlichere "Light (for Threshold)" weiter unten in den
+        // Helligkeits-Einstellungen.
+        // Short label for the live brightness value in the topbar (see
+        // "value-light" in generateTopBar()) - deliberately kept short like
+        // the other topbar labels ("Time", "RTC", "DCF77"), unlike the more
+        // verbose "Light (for Threshold)" further below in the brightness
+        // settings.
+        { "Light", "Licht", "Lumi&egrave;re" },
         { "Storage used", "Speicher belegt", "Stockage utilis&eacute;" },
         { "Presets used", "Presets belegt", "Pr&eacute;r&eacute;glages utilis&eacute;s" },
         { "Free", "Frei", "Libre" },
@@ -207,7 +237,7 @@
         { "Full brightness until (hour, 0-23)", "volle Helligkeit bis Stunde (0-23)", "Luminosit&eacute; maximale jusqu&#39;&agrave; (heure, 0-23)" },
         { "Current ADC Value", "aktueller ADC Wert", "Valeur ADC actuelle" },
         { "Current Brightness", "aktuelle Helligkeit", "Luminosit&eacute; actuelle" },
-        { "Light (for Threshold)", "Licht (f&uuml;r Helligkeitsschwelle", "Luminosit&eacute; (pour le seuil)" },
+        { "Light (for Threshold)", "Licht (f&uuml;r Helligkeitsschwelle)", "Luminosit&eacute; (pour le seuil)" },
         { "Brightness Settings", "Helligkeit Einstellungen", "Param&egrave;tres de luminosit&eacute;" },
         { "Enable Auto Brightness", "automatische Einstellung", "Activer la luminosit&eacute; automatique" },
         { "Invert ADC Reading", "invertiere ADC Werte", "Inverser la lecture ADC" },
@@ -286,6 +316,15 @@
         { "Try again", "Erneut versuchen", "R&eacute;essayer" },
         { "Return to the main page in 10 seconds or refresh the website when the ESP is online again", "Kehren Sie in 10 Sekunden zur Hauptseite zur&uuml;ck oder aktualisieren Sie die Website, wenn der ESP wieder online ist", "Retour &agrave; la page principale dans 10 secondes, ou actualisez le site lorsque l&#39;ESP est &agrave; nouveau en ligne" },
         { "Enable Logging", "Logging aktivieren", "Activer la journalisation" },
+        { "Log", "Log", "Journal" },
+        { "Log file", "Log-Datei", "Fichier journal" },
+        { "Auto-refresh (10s)", "Automatisch aktualisieren (10s)", "Actualisation automatique (10s)" },
+        { "Logging is disabled.", "Logging ist deaktiviert.", "La journalisation est d&eacute;sactiv&eacute;e." },
+        { "No log entries yet.", "Noch keine Log-Eintr&auml;ge vorhanden.", "Aucune entr&eacute;e de journal pour le moment." },
+        { "Log file could not be opened.", "Log-Datei konnte nicht ge&ouml;ffnet werden.", "Le fichier journal n&#39;a pas pu &ecirc;tre ouvert." },
+        { "Loading&hellip;", "L&auml;dt&hellip;", "Chargement&hellip;" },
+        { "Refresh now", "Jetzt aktualisieren", "Actualiser maintenant" },
+        { "Refresh failed - showing last known content", "Aktualisierung fehlgeschlagen - zeige zuletzt bekannten Inhalt", "&Eacute;chec de l&#39;actualisation - affichage du dernier contenu connu" },
         { "Reconnect WiFi", "Wifi neu verbinden", "Reconnecter le WiFi" },
         { "JavaScript is disabled.This page requires JavaScript to work properly!", "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!", "JavaScript est d&eacute;sactiv&eacute;. Cette page n&eacute;cessite JavaScript pour fonctionner correctement&nbsp;!" },
         { "Are you sure you want to reset all saved WiFi networks?", "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zur&uuml;cksetzen m&ouml;chten?", "&Ecirc;tes-vous s&ucirc;r de vouloir r&eacute;initialiser tous les r&eacute;seaux WiFi enregistr&eacute;s&nbsp;?" },
@@ -311,6 +350,9 @@
         { "View", "Anzeigen", "Voir" },
         { "Warning: Not enough free space to upload new clock faces! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zifferbl&auml;tter! Bitte zuerst Speicherplatz freigeben", "Attention&nbsp;: espace insuffisant pour t&eacute;l&eacute;charger de nouveaux cadrans&nbsp;! Lib&eacute;rez d&#39;abord de l&#39;espace" },
         { "Use the host name", "Benutze den Hostnamen", "Utilisez le nom d&#39;h&ocirc;te" },
+        // Neu fuer die Statuszeile (Topbar, siehe generateTopBar() in webserver_routes.h)
+        // New for the status bar (topbar, see generateTopBar() in webserver_routes.h)
+        { "Time", "Zeit", "Heure" },
     };
     static const size_t translationTableSize = sizeof(translationTable) / sizeof(translationTable[0]);
 

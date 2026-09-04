@@ -21,8 +21,8 @@
 
     String generateHtmlHeader(String extraHead) {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-        html.reserve(2600);  // Header: jetzt mit Dark-Theme + Tab-CSS, einmal pro Seite aufgerufen
-                             // Header: now includes dark theme + tab CSS, called once per page
+        html.reserve(5000);  // Header: Dark-Theme + Tab-CSS + Topbar-CSS, einmal pro Seite aufgerufen (angehoben: zusaetzliche CSS-Regeln fuer reduzierte Bewegung/Offline-Hinweis)
+                             // Header: dark theme + tab CSS + topbar CSS, called once per page
         // Dunkles Theme (angelehnt an eine externe Referenzvorlage) + CSS-only
         // Tab-Mechanik (verstecktes radio-Input + Label + allgemeiner
         // Geschwister-Selektor "~") fuer die neue Tab-Hub-Startseite ("/").
@@ -35,8 +35,24 @@
         // for the new tab-hub home page ("/"). Applies site-wide (every page
         // includes generateHtmlHeader()) so standalone pages stay visually consistent.
         html += "<style>";
-        html += ":root{--bg:#10151a;--panel:#1a2129;--panel-border:#2a333c;--text:#e8edf2;--muted:#8f9ba7;--accent:#f5a623;--accent-dim:#7a530f;--ok:#3ddc84;--bad:#ff5c5c;}";
-        html += "body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding-top:110px;background:var(--bg);color:var(--text);}";
+        html += ":root{--bg:#10151a;--panel:#1a2129;--panel-border:#2a333c;--text:#e8edf2;--muted:#8f9ba7;--accent:#f5a623;--accent-dim:#7a530f;--ok:#3ddc84;--bad:#ff5c5c;--mono:ui-monospace,\"SFMono-Regular\",Menlo,Consolas,monospace;}";
+        // Bewusst KEIN padding-top auf body: die Topbar ist das erste Kind
+        // von body, ein padding-top wuerde (da position:sticky den
+        // Textfluss nicht verlaesst) auch sie selbst nach unten schieben
+        // statt nur den Inhalt darunter - dann waere sie beim ersten Laden
+        // nicht mehr ganz oben. Die frueher hier noetige Zusatz-Reservierung
+        // fuer zwei fest positionierte Ecken-Boxen (Live-Vorschau/Status)
+        // ist entfallen, seit diese Boxen komplett entfernt wurden (siehe
+        // generateTopBar()).
+
+        // Deliberately NO padding-top on body: the topbar is body's first
+        // child, and a padding-top would (since position:sticky never
+        // leaves the flow) push it down too, not just the content below it
+        // - it would then no longer be at the very top on first load. The
+        // extra reservation this used to need for two fixed-position
+        // corner boxes (live preview/status) is gone now that those boxes
+        // were removed entirely (see generateTopBar()).
+        html += "body{font-family:Arial,Helvetica,sans-serif;text-align:center;background:var(--bg);color:var(--text);}";
         html += "input,select,button{margin:10px;padding:10px;width:80%;box-sizing:border-box;background:#0d1216;color:var(--text);border:1px solid var(--panel-border);border-radius:6px;}";
         html += "input[type=checkbox],input[type=radio]{width:auto;}";
         html += "button,button[type=submit],input[type=submit]{background:var(--accent);color:#1a1200;font-weight:bold;border:none;cursor:pointer;}";
@@ -51,6 +67,144 @@
                                                           // left-align <li>
         html += "a{color:var(--accent);}";
         html += "small{color:var(--muted);}";
+        // --- Statuszeile (Topbar), sitenweit ganz oben auf jeder Seite -
+        // siehe generateTopBar() weiter unten fuer die Markup-Erzeugung.
+        // Die frueheren zwei fest positionierten Ecken-Boxen (Live-Vorschau
+        // links/Status rechts) sind komplett entfernt - die Topbar ist die
+        // einzige feste Statusanzeige der Seite, daher kein Extra-Abstand
+        // (margin/padding) mehr noetig, nur der normale Textfluss.
+        // --- Status bar (topbar), site-wide at the very top of every page -
+        // see generateTopBar() further below for the markup generation.
+        // The former two fixed-position corner boxes (live preview left/
+        // status right) have been removed entirely - the topbar is now the
+        // page's only fixed status display, so no extra spacing (margin/
+        // padding) is needed beyond normal text flow.
+        html += ".topbar{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1.2rem;padding:.9rem 1rem;border-bottom:1px solid var(--panel-border);position:sticky;top:0;background:var(--bg);z-index:5;}";
+        html += ".brand{display:flex;align-items:baseline;gap:.5rem;margin-right:auto;}";
+        html += ".brand-mark{font-family:var(--mono);color:var(--accent);font-size:.8rem;letter-spacing:.05em;}";
+        html += ".topbar h1{font-size:1.15rem;margin:0;letter-spacing:.02em;}";
+        html += ".topbar h1 a.host-link{color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);}";
+        html += ".topbar h1 a.host-link:hover{color:var(--accent);border-bottom-color:var(--accent);}";
+        html += ".ip-hint{font-family:var(--mono);font-size:.7rem;color:var(--muted);}";
+        // font-size hier bewusst "inherit" (statt weggelassen) - sonst wuerde
+        // die allgemeine Regel "a{color:var(--accent);}" weiter unten zwar
+        // nicht die Schriftgroesse aendern (Browser erben die ohnehin von
+        // .ip-hint), aber explizit ist hier sicherer als sich auf die
+        // Vererbung zu verlassen, falls spaeter eine andere Regel dazwischenfunkt.
+        // font-size here deliberately "inherit" (rather than omitted) -
+        // without it, the general "a{color:var(--accent);}" rule further
+        // below would not actually change the font size (browsers inherit
+        // it from .ip-hint anyway), but being explicit here is safer than
+        // relying on inheritance in case another rule interferes later.
+        html += ".ip-hint a{color:inherit;font-size:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);}";
+        html += ".ip-hint a:hover{color:var(--accent);border-bottom-color:var(--accent);}";
+        html += ".status-strip{display:flex;gap:.9rem;flex-wrap:wrap;}";
+        html += ".status{display:flex;align-items:center;gap:.4rem;font-size:.8rem;color:var(--muted);}";
+        // .status setzt selbst "display:flex" - das UEBERSCHREIBT das native
+        // 'hidden'-Attribut auf demselben Element (siehe #status-rtc/
+        // #status-dcf77 in generateTopBar()): das Browser-Standard-CSS setzt
+        // "hidden" nur ueber eine sehr niedrig priorisierte User-Agent-Regel
+        // ([hidden]{display:none}) um, die von JEDER eigenen "display"-Angabe
+        // auf demselben Element ausgehebelt wird - unabhaengig von
+        // Selektor-Spezifitaet, da Autoren-CSS grundsaetzlich vor
+        // User-Agent-CSS gewinnt. Ohne diese Regel blieb ein per 'hidden'
+        // eigentlich verstecktes RTC/DCF77-Element also trotzdem sichtbar
+        // (als roter Punkt, da .dot ohne Zusatzklasse rot ist) - genau der
+        // gemeldete Bug ("RTC/DCF77 werden trotz 'nicht vorhanden' weiter
+        // angezeigt"), obwohl rtcOk/dcf77Confirmed serverseitig korrekt
+        // "nicht vorhanden" waren (siehe getRtcStatus()/getDcf77Status()).
+        // Explizite Regel stellt das 'hidden'-Verhalten wieder her.
+        // .status itself sets "display:flex" - that OVERRIDES the native
+        // 'hidden' attribute on the same element (see #status-rtc/
+        // #status-dcf77 in generateTopBar()): the browser's default CSS only
+        // implements "hidden" via a very low-priority user-agent rule
+        // ([hidden]{display:none}), which gets overridden by ANY "display"
+        // declaration on that same element from author CSS - regardless of
+        // selector specificity, since author CSS always wins over user-agent
+        // CSS. Without this rule, an RTC/DCF77 element that was actually
+        // meant to be hidden stayed visible anyway (as a red dot, since
+        // .dot with no extra class is red) - exactly the reported bug ("RTC/
+        // DCF77 still shown despite being 'not available'"), even though
+        // rtcOk/dcf77Confirmed were correctly "not available" server-side
+        // (see getRtcStatus()/getDcf77Status()). This rule explicitly
+        // restores the 'hidden' behavior.
+        html += ".status[hidden]{display:none;}";
+        html += ".dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,92,92,.15);}";
+        html += ".dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,132,.18);}";
+        // "na" (nicht verfuegbar): nur noch fuer den "Zeit"-Punkt relevant
+        // (Systemzeit seit Boot noch nie gesetzt, siehe getTimeStatus()
+        // unten) - ein voruebergehender Startzustand, kein optionales
+        // Bauteil. Bewusst GRAU statt rot: rot (die Standardfarbe von .dot
+        // ohne Zusatzklasse) ist reserviert fuer einen echten Fehler
+        // (Hardware war/ist ansprechbar, liefert aber ungueltige Werte bzw.
+        // ist waehrend des Betriebs ausgefallen) - "gar nicht vorhanden" und
+        // "kaputt" sind unterschiedliche Zustaende und verdienen
+        // unterschiedliche Farben. RTC und DCF77 nutzen "na" NICHT (mehr) fuer
+        // einen grauen Punkt: bei beiden ist "Hardware fehlt" der Normalfall
+        // auf einem Board ohne dieses optionale Bauteil - dafuer bleibt der
+        // ganze Eintrag komplett unsichtbar (hidden), statt dauerhaft grau
+        // angezeigt zu werden, siehe getRtcStatus()/getDcf77Status()/
+        // generateTopBar() unten.
+        // "na" (not available): now only relevant for the "Time" dot (system
+        // time never set since boot, see getTimeStatus() below) - a
+        // temporary startup state, not optional hardware. Deliberately GRAY
+        // instead of red: red (the default color of a plain .dot with no
+        // extra class) is reserved for a genuine error (hardware was/is
+        // reachable but returns invalid values, or failed during operation)
+        // - "not present at all" and "broken" are different states and
+        // deserve different colors. RTC and DCF77 no longer use "na" for a
+        // gray dot: for both, "hardware missing" is the normal case on a
+        // board without that optional add-on - so the whole entry stays
+        // fully hidden instead of permanently gray, see
+        // getRtcStatus()/getDcf77Status()/generateTopBar() below.
+        html += ".dot.na{background:var(--muted);box-shadow:0 0 0 3px rgba(143,155,167,.18);}";
+        // Live-Wertanzeige (z.B. Fotowiderstand-Helligkeit) statt farbigem
+        // Punkt - heller Monospace-Text, analog zum Kontrast von .datetime
+        // gegenueber seinem Muted-Label.
+        // Live value reading (e.g. photoresistor brightness) instead of a
+        // colored dot - bright monospace text, mirroring the contrast of
+        // .datetime against its muted label.
+        html += ".statval{font-family:var(--mono);color:var(--text);}";
+        // "syncing" (bisher nur DCF77): Empfaenger bekommt Impulse, hat aber
+        // noch kein vollstaendiges, gueltiges Zeittelegramm dekodiert (dauert
+        // durch das DCF77-Protokoll bis zu einer Minute) - gelb blinkend statt
+        // rot, damit man den Unterschied zu "gar kein Empfang" sieht.
+        // "syncing" (currently only DCF77): the receiver is getting pulses
+        // but has not yet decoded a complete, valid time telegram (the
+        // DCF77 protocol can take up to a minute) - blinking yellow instead
+        // of red, so it's visibly different from "no reception at all".
+        html += ".dot.syncing{background:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,.18);animation:dotBlink 1s ease-in-out infinite;}";
+        html += "@keyframes dotBlink{0%,100%{opacity:1;}50%{opacity:.25;}}";
+        // Wer in den Systemeinstellungen reduzierte Bewegung wuenscht (prefers-
+        // reduced-motion), bekommt statt des Blinkens eine feste, gedimmte
+        // Opazitaet - der Zustand ("syncing") bleibt ueber Punktfarbe/Tooltip
+        // weiterhin erkennbar, nur ohne die Animation.
+        // Anyone with reduced motion enabled in their system settings
+        // (prefers-reduced-motion) gets a fixed, dimmed opacity instead of the
+        // blink - the "syncing" state stays recognizable via dot color/tooltip,
+        // just without the animation.
+        html += "@media (prefers-reduced-motion:reduce){.dot.syncing{animation:none;opacity:.6;}}";
+        html += ".datetime{font-family:var(--mono);font-size:.8rem;color:var(--muted);}";
+        // Wird per JS eingeblendet, wenn /api/topbarStatus mehrfach in Folge
+        // nicht erreichbar war (siehe Live-Status-Skript in generateTopBar())
+        // - macht sichtbar, dass die angezeigten Werte (Punkte, Uhrzeit)
+        // moeglicherweise nicht mehr aktuell sind, statt das stillschweigend
+        // beim letzten bekannten Stand einzufrieren.
+        // Shown via JS once /api/topbarStatus has failed repeatedly in a row
+        // (see the live-status script in generateTopBar()) - makes it visible
+        // that the displayed values (dots, time) may be stale, instead of
+        // silently freezing at the last known state.
+        html += ".offline-hint{display:none;color:var(--bad);font-size:.75rem;margin-left:.3rem;}";
+        html += ".offline-hint.show{display:inline;}";
+        // Checkbox/Buttons hier explizit margin/padding auf 0 setzen - sonst
+        // greift die allgemeine Regel "input,select,button{margin:10px;padding:10px;...}"
+        // weiter oben und sprengt die kompakte Topbar.
+        // Explicitly zero out margin/padding here - otherwise the general
+        // "input,select,button{margin:10px;padding:10px;...}" rule further
+        // above applies and blows up the compact topbar.
+        html += ".reset-btn{background:transparent;border:1px solid var(--panel-border);color:var(--bad);border-radius:.4rem;width:2rem;height:2rem;padding:0;margin:0;font-size:1rem;line-height:1;cursor:pointer;}";
+        html += ".reset-btn:hover{border-color:var(--bad);background:rgba(255,92,92,.12);}";
+        html += ".reset-btn:focus-visible{outline:2px solid var(--bad);outline-offset:1px;}";
         // --- CSS-only Tabs: Radios ausblenden, Panels standardmaessig
         // verstecken, per :checked ~ .panel-X wieder einblenden. Radios,
         // .tabnav und alle .panel-* muessen dafuer direkte Geschwister
@@ -64,16 +218,706 @@
         html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
         html += ".tabpanel{display:none;}";
         html += ".card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:500px;margin:15px auto;padding:12px 16px;text-align:left;}";
-        for (const char* t : { "status", "wlan", "zifferblatt", "helligkeit", "zeit" }) {
+        for (const char* t : { "status", "log", "wlan", "zifferblatt", "helligkeit", "zeit" }) {
             html += String("#tab-") + t + ":checked ~ .tabnav label[for='tab-" + t + "']{background:var(--accent);color:#1a1200;}";
             html += String("#tab-") + t + ":checked ~ .panel-" + t + "{display:block;}";
         }
         html += "</style>" + extraHead + "</head><body>";
+
+        // Statuszeile ganz oben, noch vor der JavaScript-Warnung - sitenweit,
+        // da generateHtmlHeader() von JEDER Seite eingebunden wird (siehe
+        // generateTopBar() weiter unten).
+        // Status bar at the very top, even before the JavaScript warning -
+        // site-wide, since generateHtmlHeader() is included by EVERY page
+        // (see generateTopBar() further below).
+        html += generateTopBar();
+
         // Seite benötigt JavaScript
         // Page requires JavaScript
-        html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" + 
+        html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" +
                 translate("JavaScript is disabled.This page requires JavaScript to work properly!") + "</div></noscript>";
-        
+
+        return html;
+    }
+
+
+    // Vier moegliche Status-Werte fuer jeden Punkt in der Topbar - gemeinsames
+    // Vokabular fuer generateTopBar() (Erstladen) und /api/topbarStatus (5s-
+    // Live-Poll), damit Text und Punktfarbe nie auseinanderlaufen:
+    //
+    // "ok"      - gruen  - funktioniert.
+    // "syncing" - gelb, blinkend - versucht gerade aktiv zu synchronisieren.
+    // "bad"     - rot (Standardfarbe von .dot ohne Zusatzklasse) - echter
+    //             Fehler: die Hardware/Verbindung WAR bzw. IST grundsaetzlich
+    //             ansprechbar, liefert aber ungueltige Werte oder ist waehrend
+    //             des Betriebs ausgefallen.
+    // "na"      - grau (nur bei "Zeit"/getTimeStatus()) bzw. der ganze
+    //             Eintrag komplett unsichtbar (RTC, DCF77) - nicht
+    //             verfuegbar: bei "Zeit" bedeutet "na" "seit Boot noch nie
+    //             gesetzt" (ein voruebergehender Startzustand, kein
+    //             optionales Bauteil, daher weiterhin ein grauer Punkt). Bei
+    //             RTC/DCF77 dagegen ist das Fehlen der Hardware der
+    //             Normalfall auf einem Board ohne diese optionale
+    //             Zusatzhardware - dafuer erscheint dort gar kein Eintrag,
+    //             statt eines dauerhaft grauen Punktes (siehe getRtcStatus()/
+    //             getDcf77Status() weiter unten sowie die 'hidden'-Logik in
+    //             generateTopBar()). Kein echter Fehler in beiden Faellen,
+    //             sondern schlicht "nichts da".
+    //
+    // Vier possible status values for every dot in the topbar - shared
+    // vocabulary for generateTopBar() (initial render) and /api/topbarStatus
+    // (5s live poll), so the text and the dot color never drift apart:
+    //
+    // "ok"      - green  - working.
+    // "syncing" - yellow, blinking - actively trying to synchronize right now.
+    // "bad"     - red (the default color of a plain .dot with no extra class)
+    //             - a genuine error: the hardware/connection WAS or IS
+    //             fundamentally reachable, but returns invalid values or
+    //             failed during operation.
+    // "na"      - gray (only for "Time"/getTimeStatus()) resp. the whole
+    //             entry fully hidden (RTC, DCF77) - not available: for
+    //             "Time", "na" means "never set since boot" (a temporary
+    //             startup state, not optional hardware, so it still gets a
+    //             gray dot). For RTC/DCF77, however, missing hardware is the
+    //             normal case on a board without that optional add-on - so
+    //             no entry appears at all there, instead of a permanently
+    //             gray dot (see getRtcStatus()/getDcf77Status() below and
+    //             the 'hidden' logic in generateTopBar()). Not a genuine
+    //             error in either case, just "nothing there".
+
+    // Ermittelt den Zeit-Status ("ok"/"na") - kein eigener Fehlerzustand
+    // definiert, da es fuer die reine Systemzeit kein Konzept von "gefunden,
+    // aber ungueltig" gibt (anders als bei RTC/DCF77).
+    // Determines the time status ("ok"/"na") - no separate error state
+    // defined, since there's no "found but invalid" concept for plain system
+    // time (unlike RTC/DCF77).
+
+    String getTimeStatus() {
+        return (timeinfo.tm_year > 0) ? "ok" : "na";
+    }
+
+
+    // Ermittelt den RTC-Status ("ok"/"bad"/"na") aus rtcOk (siehe globals.h,
+    // wird von checkRtcHealth() in time_sync.h laufend aktualisiert):
+    // RTC_AVAILABLE -> "ok", RTC_AVAILABLE_BUT_INVALID (Chip gefunden, aber
+    // Zeit ungueltig/Stromausfall) -> "bad" (echter Fehler), RTC_NOT_AVAILABLE
+    // (nie gefunden, oder von checkRtcHealth() als nicht mehr ansprechbar
+    // erkannt) -> "na". generateTopBar() zeigt bei "na" KEINEN grauen Punkt
+    // (mehr) an, sondern blendet den kompletten RTC-Eintrag aus (hidden) -
+    // ein Board ohne RTC-Chip soll in der Topbar gar nicht erst auftauchen,
+    // nicht als "grau/nicht verfuegbar" markiert sein.
+
+    // Determines the RTC status ("ok"/"bad"/"na") from rtcOk (see globals.h,
+    // kept current by checkRtcHealth() in time_sync.h): RTC_AVAILABLE -> "ok",
+    // RTC_AVAILABLE_BUT_INVALID (chip found, but time invalid/lost power) ->
+    // "bad" (genuine error), RTC_NOT_AVAILABLE (never found, or detected as no
+    // longer reachable by checkRtcHealth()) -> "na". generateTopBar() no
+    // longer shows a gray dot for "na" - instead it hides the whole RTC entry
+    // (hidden): a board with no RTC chip should not appear in the topbar at
+    // all, rather than being marked "gray/not available".
+
+    String getRtcStatus() {
+#if defined SDA_PIN && defined SCL_PIN
+        if (rtcOk == RTC_AVAILABLE) return "ok";
+        if (rtcOk == RTC_AVAILABLE_BUT_INVALID) return "bad";
+        return "na";
+#else
+        return "na";
+#endif
+    }
+
+
+    // Ermittelt den DCF77-Status ("ok"/"syncing"/"bad"/"na") - gemeinsame
+    // Logik fuer generateTopBar() (Erstladen) und /api/topbarStatus (5s-Live-
+    // Poll), vorher an beiden Stellen dupliziert. Beruecksichtigt zusaetzlich,
+    // ob die letzte erfolgreiche Dekodierung (lastDcfSyncTime) bzw. der letzte
+    // tatsaechlich empfangene Impuls (lastDcf77PulseChangeMillis, siehe
+    // checkDcf77Health() in time_sync.h) noch aktuell genug sind (siehe
+    // DCF77_SYNC_STALE_AFTER/DCF77_PULSE_STALE_AFTER in config.h) - vorher
+    // blieb der Punkt nach dem ersten erfolgreichen Sync fuer immer gruen
+    // (dcfTimeFound wird nie zurueckgesetzt) bzw. nach dem ersten jemals
+    // empfangenen Impuls fuer immer mindestens gelb (dcf77Count wird nie auf 0
+    // zurueckgesetzt), selbst wenn der Empfang spaeter waehrend des Betriebs
+    // komplett abbricht.
+    //
+    // "ok": zuletzt erfolgreich dekodiert, nicht laenger als
+    //   DCF77_SYNC_STALE_AFTER her.
+    // "syncing": entweder noch nie erfolgreich dekodiert, oder der letzte
+    //   erfolgreiche Sync ist zu alt - aber es kommen noch Impulse an
+    //   (innerhalb von DCF77_PULSE_STALE_AFTER), der Empfaenger versucht also
+    //   noch.
+    // "na": dcf77Confirmed (siehe globals.h/checkDcf77Health() in
+    //   time_sync.h) ist noch false - es wurde noch KEINE Kette aus
+    //   mehreren, aufeinanderfolgenden Impulsen mit plausiblem Abstand
+    //   beobachtet. Ein Funkempfaenger laesst sich nicht aktiv anpingen, es
+    //   gibt also keine Moeglichkeit zu pruefen, ob ueberhaupt eine Antenne
+    //   angeschlossen ist, ausser auf echte Aktivitaet zu warten - und ein
+    //   EINZELNER dcf77Count-Wechsel reicht dafuer nicht: ein floatender,
+    //   nicht angeschlossener Datenpin kann durch Rauschen einzelne
+    //   Interrupts ausloesen (siehe DCF77_PRESENCE_MIN_STREAK/
+    //   DCF77_PRESENCE_MAX_GAP_MS in config.h fuer die Begruendung). generateTopBar()
+    //   zeigt bei "na" DESHALB keinen grauen Punkt mehr, sondern blendet den
+    //   kompletten DCF77-Eintrag aus (hidden), bis dcf77Confirmed true wird -
+    //   siehe dort.
+    // "bad": es GAB bereits Empfang bzw. einen erfolgreichen Sync, aber seit
+    //   DCF77_PULSE_STALE_AFTER ist kein einziger Impuls mehr angekommen -
+    //   echter Ausfall waehrend des Betriebs (z.B. Antenne abgerissen,
+    //   Stoerquelle).
+
+    // Determines the DCF77 status ("ok"/"syncing"/"bad"/"na") - shared logic
+    // for generateTopBar() (initial render) and /api/topbarStatus (5s live
+    // poll), previously duplicated in both places. Additionally takes into
+    // account whether the last successful decode (lastDcfSyncTime) resp. the
+    // last actually received pulse (lastDcf77PulseChangeMillis, see
+    // checkDcf77Health() in time_sync.h) are still recent enough (see
+    // DCF77_SYNC_STALE_AFTER/DCF77_PULSE_STALE_AFTER in config.h) - previously
+    // the dot stayed green forever after the first successful sync
+    // (dcfTimeFound is never reset) resp. at least yellow forever after the
+    // first pulse ever received (dcf77Count is never reset to 0), even if
+    // reception later failed completely during operation.
+    //
+    // "ok": last successfully decoded, no longer than DCF77_SYNC_STALE_AFTER
+    //   ago.
+    // "syncing": either never successfully decoded yet, or the last successful
+    //   sync is too old - but pulses are still arriving (within
+    //   DCF77_PULSE_STALE_AFTER), so the receiver is still trying.
+    // "na": dcf77Confirmed (see globals.h / checkDcf77Health() in
+    //   time_sync.h) is still false - no chain of several consecutive,
+    //   plausibly-spaced pulses has been observed yet. A radio receiver
+    //   can't be actively pinged, so there's no way to check whether an
+    //   antenna is even connected other than waiting for real activity - and
+    //   a SINGLE dcf77Count change isn't enough for that: a floating,
+    //   unconnected data pin can trigger isolated interrupts from noise (see
+    //   DCF77_PRESENCE_MIN_STREAK/DCF77_PRESENCE_MAX_GAP_MS in config.h for
+    //   the reasoning). That's why generateTopBar() no longer shows a gray
+    //   dot for "na" here - instead it hides the whole DCF77 entry until
+    //   dcf77Confirmed becomes true, see there.
+    // "bad": reception or a successful sync DID happen before, but not a
+    //   single pulse has arrived for DCF77_PULSE_STALE_AFTER since - a
+    //   genuine failure during operation (e.g. antenna disconnected,
+    //   interference).
+
+    String getDcf77Status() {
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        // dcf77Confirmed statt "lastDcf77PulseChangeMillis == 0": ein
+        // EINZELNER Impuls (auch ein durch Rauschen auf einem floatenden Pin
+        // ausgeloester) reicht nicht als Nachweis fuer echten Empfang - siehe
+        // DCF77_PRESENCE_MIN_STREAK/DCF77_PRESENCE_MAX_GAP_MS in config.h.
+        if (!dcf77Confirmed) return "na"; // noch keine plausible Impulskette beobachtet / no plausible pulse chain observed yet
+        bool syncFresh = dcfTimeFound && lastDcfSyncTime != 0 &&
+                          (time(nullptr) - lastDcfSyncTime) < (time_t)(DCF77_SYNC_STALE_AFTER / 1000);
+        if (syncFresh) return "ok";
+        bool pulsesFresh = (lastDcf77PulseChangeMillis != 0) &&
+                            (millis() - lastDcf77PulseChangeMillis) < DCF77_PULSE_STALE_AFTER;
+        if (pulsesFresh) return "syncing";
+        return "bad";
+#else
+        return "na";
+#endif
+    }
+
+
+    // Baut den Tooltip-/aria-label-Text fuer einen Status-Punkt ("Zeit: OK",
+    // "DCF77: Synchronisiere", "RTC: Nicht verfuegbar", ...) - gemeinsam fuer
+    // generateTopBar() und /api/topbarStatus, damit Text und Punktfarbe nie
+    // auseinanderlaufen. state: "ok" | "syncing" | "bad" | "na" (siehe oben).
+
+    // Builds the tooltip/aria-label text for a status dot ("Time: OK",
+    // "DCF77: Syncing", "RTC: Not available", ...) - shared by
+    // generateTopBar() and /api/topbarStatus, so the text and the dot color
+    // never drift apart. state: "ok" | "syncing" | "bad" | "na" (see above).
+
+    String dotStatusText(const String& label, const String& state) {
+        String stateText = (state == "ok") ? translate("OK") :
+                            (state == "syncing") ? translate("Syncing") :
+                            (state == "na") ? translate("Not available") :
+                            translate("Error");
+        return label + ": " + stateText;
+    }
+
+
+    // Escaped Text fuer die sichere Einbettung in HTML (z.B. Logdatei-Inhalt
+    // im <pre id='logContent'> des Log-Tabs, siehe unten) - Logzeilen koennen
+    // beliebige Zeichen enthalten (z.B. "<" aus geloggten Werten), ohne
+    // Escaping wuerde das das umgebende Markup brechen.
+
+    // Escapes text for safe embedding in HTML (e.g. log file content inside
+    // the Log tab's <pre id='logContent'>, see below) - log lines can contain
+    // arbitrary characters (e.g. "<" from logged values), without escaping
+    // that would break the surrounding markup.
+
+    String escapeHtmlText(const String& text) {
+        String out;
+        out.reserve(text.length());
+        for (size_t i = 0; i < text.length(); i++) {
+            char c = text[i];
+            switch (c) {
+                case '&':  out += "&amp;";  break;
+                case '<':  out += "&lt;";   break;
+                case '>':  out += "&gt;";   break;
+                default:   out += c;        break;
+            }
+        }
+        return out;
+    }
+
+
+    // Erzeugt die Statuszeile (Topbar) - sitenweit oben auf jeder Seite (wird
+    // aus generateHtmlHeader() direkt nach dem <body>-Tag eingebunden, siehe
+    // dort). Zeigt: Projekt-/Geraetename, Hostname/IP (bzw. Access-Point im
+    // Setup-Modus), je einen Status-Punkt pro unabhaengiger Zeitquelle (Zeit/
+    // NTP, RTC, DCF77 - RTC/DCF77 nur fuer tatsaechlich verbaute Hardware,
+    // siehe die #if-Bloecke unten; DCF77 zusaetzlich erst, sobald der erste
+    // Impuls seit Boot beobachtet wurde, siehe dcfPresent unten), den
+    // Live-Helligkeitswert des Fotowiderstands (falls vorhanden, siehe
+    // photoresistorFound unten), die aktuelle Uhrzeit sowie manuelles
+    // Neu-Laden und Neustart. KEIN WLAN-Punkt: laedt die Seite ueberhaupt,
+    // ist WLAN per Definition aktiv - ein eigener Punkt waere redundant.
+    //
+    // Ersetzt die vormalige, ausfuehrlichere Statusbox oben rechts
+    // (Speicherplatz, AP-Passwort, volle Hostname-/IP-Links) sowie das
+    // Live-Zeiger-Vorschau-Widget oben links - beide wurden auf Wunsch
+    // vollstaendig entfernt (generateHtmlStatus() geloescht, der
+    // entsprechende Codeblock aus generateNavigation() entfernt); diese
+    // Topbar ist seitdem die einzige feste Statusanzeige der Seite.
+
+    // Generates the status bar (topbar) - site-wide at the top of every page
+    // (included from generateHtmlHeader() right after the <body> tag, see
+    // there). Shows: project/device name, hostname/IP (or the access point
+    // in setup mode), one status dot per independent time source (time/NTP,
+    // RTC, DCF77 - RTC/DCF77 only for hardware actually present, see the #if
+    // blocks below; DCF77 additionally only once the first pulse since boot
+    // has been observed, see dcfPresent below), the photoresistor's live
+    // brightness value (if present, see photoresistorFound below), the
+    // current time, plus manual reload and restart. NO WiFi dot: if the page
+    // loaded at all, WiFi is by definition up - a dot for it would be
+    // redundant.
+    //
+    // Replaces the former, more detailed status box top-right (storage
+    // usage, AP password, full hostname/IP links) as well as the live
+    // hand-preview widget top-left - both were removed entirely on request
+    // (generateHtmlStatus() deleted, the corresponding block removed from
+    // generateNavigation()); this topbar is now the page's only fixed
+    // status display.
+
+    String generateTopBar() {
+        String html;
+        html.reserve(3600); // angehoben: Tooltip-/aria-label-Texte auf den Punkten sowie das erweiterte Live-Status-Skript (Offline-Erkennung, Sichtbarkeits-Pause)
+
+        html += "<header class='topbar'>";
+        html += "<div class='brand'>";
+        html += "<span class='brand-mark'>UHR&middot;3</span>";
+
+        bool staConnected = (WiFi.getMode() == WIFI_STA && WiFi.status() == WL_CONNECTED);
+
+        if (staConnected && pingHostname) {
+            html += "<h1><a class='host-link' href='http://" + String(hostname) + ".local/'>" + String(hostname) + "</a></h1>";
+            html += "<span class='ip-hint'><a href='http://" + WiFi.localIP().toString() + "/'>" + WiFi.localIP().toString() + "</a></span>";
+        }
+        else if (staConnected) {
+            // Hostname noch nicht bestaetigt (z.B. sehr kurz nach dem Verbinden) -
+            // SSID als Platzhalter zeigen, damit die Zeile nicht leer bleibt.
+            // Hostname not confirmed yet (e.g. very shortly after connecting) -
+            // show the SSID as a placeholder so the line doesn't stay empty.
+            html += "<h1>" + WiFi.SSID() + "</h1>";
+            html += "<span class='ip-hint'><a href='http://" + WiFi.localIP().toString() + "/'>" + WiFi.localIP().toString() + "</a></span>";
+        }
+        else {
+            // Access-Point-/Einrichtungsmodus: kein mDNS-Hostname verfuegbar,
+            // daher unverlinkt. Das AP-Passwort steht bewusst NICHT hier -
+            // frueher wurde es in der (inzwischen entfernten) Statusbox aus
+            // generateHtmlStatus() angezeigt; seit deren Entfernung steht es
+            // ueberhaupt nicht mehr im Webinterface (nur noch auf dem
+            // Display waehrend des AP-Bildschirms, siehe startAP() in
+            // wifi_manager.h).
+            // Access point/setup mode: no mDNS hostname available, so plain
+            // text. The AP password deliberately does NOT appear here -
+            // it used to be shown in the (now removed) status box from
+            // generateHtmlStatus(); since that box was removed it no longer
+            // appears anywhere in the web UI (only on the display during
+            // the AP screen, see startAP() in wifi_manager.h).
+            html += "<h1>Access Point</h1>";
+            html += "<span class='ip-hint'><a href='http://" + WiFi.softAPIP().toString() + "/'>" + WiFi.softAPIP().toString() + "</a></span>";
+        }
+        html += "</div>";
+
+        html += "<div class='status-strip'>";
+
+        // Systemzeit gilt als plausibel gesetzt, sobald tm_year > 0 ist (0 =
+        // seit Boot nie gesetzt, siehe struct tm-Default in globals.h) -
+        // unabhaengig davon, ob die Zeit zuletzt von NTP, RTC oder DCF77 kam.
+        // System time counts as plausibly set once tm_year > 0 (0 = never set
+        // since boot, see the struct tm default in globals.h) - regardless of
+        // whether it last came from NTP, RTC or DCF77.
+        // IDs auf den drei Status-Punkten ("dot-time"/"dot-rtc"/"dot-dcf77") -
+        // werden vom Live-Status-Skript weiter unten gebraucht, um bei einem
+        // Ausfall waehrend des Betriebs (WLAN weg, RTC/DCF77 verliert Sync)
+        // die Farbe periodisch zu aktualisieren, ohne die ganze Seite neu zu
+        // laden (Auto-Refresh gibt es hier bewusst nicht mehr, siehe
+        // generateTopBar()-Kommentar oben).
+        // IDs on the three status dots ("dot-time"/"dot-rtc"/"dot-dcf77") -
+        // needed by the live-status script further below to periodically
+        // update the color if something fails during operation (WiFi drops,
+        // RTC/DCF77 loses sync), without reloading the whole page (there is
+        // deliberately no more auto-refresh here, see the generateTopBar()
+        // comment above).
+        // title (Hover-Tooltip) + role='img'/aria-label auf jedem Punkt: die
+        // Bedeutung der Punktfarbe war vorher NUR ueber die Farbe selbst
+        // erkennbar - fuer Farbfehlsichtige oder Screenreader-Nutzer nicht
+        // zugaenglich. dotStatusText()/getDcf77Status() siehe oben; das
+        // Live-Status-Skript weiter unten aktualisiert title/aria-label bei
+        // jedem Poll mit, damit sie nie von der tatsaechlichen Punktfarbe
+        // abweichen.
+        // title (hover tooltip) + role='img'/aria-label on every dot: the
+        // meaning of the dot color was previously only conveyed by the color
+        // itself - not accessible to colorblind users or screen readers.
+        // dotStatusText()/getDcf77Status() see above; the live-status script
+        // further below keeps title/aria-label up to date on every poll so
+        // they never drift from the dot's actual color.
+        // Status kommt aus getTimeStatus()/getRtcStatus()/getDcf77Status()
+        // (siehe oben) - vier moegliche Werte ("ok"/"syncing"/"bad"/"na"), CSS-
+        // Klasse und Punktfarbe siehe ".dot"/".dot.ok"/".dot.syncing"/".dot.na"
+        // weiter oben in generateHtmlHeader(). "bad" bekommt bewusst KEINE
+        // Zusatzklasse - das ist die Standardfarbe (rot) von ".dot" selbst.
+        // Status comes from getTimeStatus()/getRtcStatus()/getDcf77Status()
+        // (see above) - four possible values ("ok"/"syncing"/"bad"/"na"), CSS
+        // class and dot color see ".dot"/".dot.ok"/".dot.syncing"/".dot.na"
+        // further above in generateHtmlHeader(). "bad" deliberately gets NO
+        // extra class - that's plain ".dot"'s own default color (red).
+        // "Zeit" wird bewusst als LETZTER Eintrag im Status-Strip gerendert
+        // (direkt vor #topbar-datetime), nicht als erster - so steht der
+        // Zeit-Punkt optisch unmittelbar neben der Datumsanzeige, die er
+        // betrifft, statt links vor den Hardware-Eintraegen (RTC/DCF77/
+        // Licht) zu stehen. timeState/timeOk werden aber weiterhin HIER
+        // berechnet (nicht erst spaeter), da timeOk unten bei der
+        // #topbar-datetime-Befuellung gebraucht wird - nur die HTML-Ausgabe
+        // des Punkts selbst wandert ans Ende des Status-Strips.
+        // "Zeit" is deliberately rendered as the LAST entry in the status
+        // strip (right before #topbar-datetime), not the first - so the
+        // time dot sits visually right next to the date display it relates
+        // to, instead of standing to the left of the hardware entries (RTC/
+        // DCF77/Light). timeState/timeOk are still computed HERE (not
+        // later), since timeOk is needed below when filling in
+        // #topbar-datetime - only the dot's own HTML output moves to the
+        // end of the status strip.
+        String timeState = getTimeStatus();
+        bool timeOk = (timeState == "ok"); // fuer die Datumsanzeige weiter unten wiederverwendet / reused for the date display further below
+        String timeTitle = dotStatusText(translate("Time"), timeState);
+
+#ifdef ADC_PIN
+        // Live-Helligkeitswert des Fotowiderstands statt eines Status-Punkts
+        // (siehe .statval-CSS oben) - photoresistorFound wird einmalig beim
+        // Boot per Spannungsteiler-Test ermittelt (siehe uhr3.ino) und
+        // aendert sich danach nicht mehr; anders als bei DCF77 ist das ein
+        // echter, aktiver Hardware-Test (kein reines "noch keine Aktivitaet
+        // beobachtet"), ein grauer "na"-Punkt waere hier also unnoetig -
+        // ohne Fotowiderstand entfaellt der Eintrag einfach komplett.
+        // Zusaetzlich an useAdc gekoppelt: ist Auto-Brightness deaktiviert,
+        // legt der Boot-Code ADC_GND/ADC_3V auf INPUT (siehe uhr3.ino) - der
+        // Spannungsteiler ist dann unbestromt und currentLightPercent wird
+        // von updateBrightness() (display.h) nicht mehr aktualisiert, bliebe
+        // also eingefroren stehen. Ohne useAdc daher lieber den Eintrag ganz
+        // weglassen statt einen veralteten Wert zu zeigen.
+        // "Licht" wird bewusst als ERSTER Eintrag im Status-Strip gerendert
+        // (ganz links, direkt nach der Brand-Marke) - siehe Kommentar bei
+        // timeState/timeTitle weiter oben zur Reihenfolge der uebrigen
+        // Eintraege (RTC/DCF77/Zeit).
+        // Live brightness value from the photoresistor instead of a status
+        // dot (see the .statval CSS above) - photoresistorFound is
+        // determined once at boot via a voltage-divider test (see
+        // uhr3.ino) and never changes afterwards; unlike DCF77 this is a
+        // genuine, active hardware test (not just "no activity observed
+        // yet"), so a gray "na" dot would be pointless here - without a
+        // photoresistor the entry is simply omitted entirely.
+        // Also gated on useAdc: with auto-brightness disabled, the boot code
+        // sets ADC_GND/ADC_3V to INPUT (see uhr3.ino) - the voltage divider
+        // is then unpowered and currentLightPercent is no longer updated by
+        // updateBrightness() (display.h), so it would stay frozen. Without
+        // useAdc, omit the entry entirely rather than show a stale value.
+        // "Light" is deliberately rendered as the FIRST entry in the status
+        // strip (all the way to the left, right after the brand mark) - see
+        // the comment at timeState/timeTitle further above for the ordering
+        // of the remaining entries (RTC/DCF77/Time).
+        if (photoresistorFound && useAdc) {
+            html += "<span class='status'>" + translate("Light") + ": <span id='value-light' class='statval'>" + String(currentLightPercent) + " %</span></span>";
+        }
+#endif
+
+#if defined SDA_PIN && defined SCL_PIN
+        String rtcState = getRtcStatus();
+        // rtcPresent: false nur solange rtcOk == RTC_NOT_AVAILABLE ist (siehe
+        // getRtcStatus()) - der ganze Eintrag bleibt dann per 'hidden'
+        // unsichtbar statt eines grauen "na"-Punkts (Board ohne RTC-Chip soll
+        // in der Topbar gar nicht erst auftauchen). checkRtcHealth() prueft
+        // NUR bei bereits gefundener RTC periodisch auf Ausfall (siehe dort)
+        // und probiert eine beim Boot nicht gefundene RTC nicht erneut - der
+        // Eintrag bleibt in dem Fall also dauerhaft ausgeblendet, bis zum
+        // naechsten Neustart mit angeschlossener RTC.
+        // rtcPresent: false only for as long as rtcOk == RTC_NOT_AVAILABLE
+        // (see getRtcStatus()) - the whole entry then stays invisible via
+        // 'hidden' instead of a gray "na" dot (a board with no RTC chip
+        // should not appear in the topbar at all). checkRtcHealth() only
+        // periodically re-checks for failure once an RTC was already found
+        // (see there) and does not re-probe an RTC that was never found at
+        // boot - so in that case the entry stays hidden permanently until
+        // the next restart with an RTC actually connected.
+        bool rtcPresent = (rtcState != "na");
+        String rtcTitle = dotStatusText("RTC", rtcState);
+        html += "<span class='status' id='status-rtc'" + String(rtcPresent ? "" : " hidden") + "><i id='dot-rtc' role='img' aria-label='" + rtcTitle + "' title='" + rtcTitle + "' class='dot";
+        if (rtcState == "ok") html += " ok";
+        html += "'></i>RTC</span>";
+#endif
+
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        // beruecksichtigt neben den rohen dcfTimeFound/dcf77Count-Werten auch
+        // deren zeitliche Aktualitaet (DCF77_SYNC_STALE_AFTER/
+        // DCF77_PULSE_STALE_AFTER in config.h), damit der Punkt einen
+        // Empfangsausfall waehrend des Betriebs auch tatsaechlich anzeigt.
+        // besides the raw dcfTimeFound/dcf77Count values, also takes their
+        // recency into account (DCF77_SYNC_STALE_AFTER/DCF77_PULSE_STALE_AFTER
+        // in config.h), so the dot actually reflects a reception failure
+        // occurring during operation.
+        String dcfState = getDcf77Status();
+        // dcfPresent: false nur solange noch nie (seit Boot) ein Impuls
+        // angekommen ist (dcfState=="na", siehe getDcf77Status()). Ein
+        // Funkempfaenger laesst sich nicht aktiv anpingen - es gibt also
+        // keinen Weg zu wissen, ob ueberhaupt eine Antenne angeschlossen
+        // ist, ausser auf echte Aktivitaet zu warten. Der ganze Eintrag
+        // bleibt deshalb per natives 'hidden'-Attribut unsichtbar (statt
+        // eines grauen "na"-Punkts, wie es RTC bekommt), bis der erste
+        // Impuls beobachtet wurde - das Live-Status-Skript weiter unten
+        // blendet ihn dann per setPresent() live ein, ohne Seiten-Reload.
+        // Einmal sichtbar geworden bleibt er es dauerhaft (siehe
+        // getDcf77Status()): ein spaeterer Empfangsausfall zeigt sich dann
+        // als roter "bad"-Punkt, nicht durch erneutes Verstecken.
+        // dcfPresent: false only for as long as not a single pulse has
+        // arrived since boot (dcfState=="na", see getDcf77Status()). A radio
+        // receiver can't be actively pinged - there's no way to know whether
+        // an antenna is even connected other than waiting for real activity.
+        // The whole entry therefore stays invisible via the native 'hidden'
+        // attribute (instead of a gray "na" dot like RTC gets) until the
+        // first pulse is observed - the live-status script further below
+        // then reveals it live via setPresent(), no page reload needed. Once
+        // revealed it stays revealed (see getDcf77Status()): a later
+        // reception failure then shows as a red "bad" dot, not by hiding it
+        // again.
+        bool dcfPresent = (dcfState != "na");
+        String dcfTitle = dotStatusText("DCF77", dcfState);
+        html += "<span class='status' id='status-dcf77'" + String(dcfPresent ? "" : " hidden") + "><i id='dot-dcf77' role='img' aria-label='" + dcfTitle + "' title='" + dcfTitle + "' class='dot";
+        if (dcfState == "ok") html += " ok";
+        else if (dcfState == "syncing") html += " syncing";
+        html += "'></i>DCF77</span>";
+#endif
+
+        // "Zeit"-Punkt ganz nach rechts verschoben - letzter Eintrag im
+        // Status-Strip, direkt gefolgt von #topbar-datetime (siehe Kommentar
+        // bei timeState/timeTitle weiter oben).
+        // "Time" dot moved all the way to the right - last entry in the
+        // status strip, immediately followed by #topbar-datetime (see the
+        // comment at timeState/timeTitle further above).
+        html += "<span class='status'><i id='dot-time' role='img' aria-label='" + timeTitle + "' title='" + timeTitle + "' class='dot";
+        if (timeState == "ok") html += " ok";
+        else if (timeState == "na") html += " na";
+        html += "'></i>" + translate("Time") + "</span>";
+
+        html += "</div>";
+
+        // id='topbar-datetime' - immer rendern (auch leer, wenn die Zeit noch
+        // nicht gesetzt ist), damit das Element im DOM existiert und das
+        // Live-Status-Skript weiter unten den Text jede Runde aktualisieren
+        // kann, ohne die Seite neu zu laden.
+        // id='topbar-datetime' - always rendered (empty if the time isn't
+        // set yet), so the element exists in the DOM and the live-status
+        // script further below can update its text every round without
+        // reloading the page.
+        html += "<div id='topbar-datetime' class='datetime'>";
+        if (timeOk) {
+            char nowStr[20];
+            strftime(nowStr, sizeof(nowStr), "%d.%m.%Y %H:%M", &timeinfo);
+            html += String(nowStr);
+        }
+        html += "</div>";
+
+        // Versteckter Hinweis, den das Live-Status-Skript weiter unten
+        // einblendet, wenn /api/topbarStatus mehrfach in Folge fehlschlaegt -
+        // siehe Kommentar bei ".offline-hint" oben in generateHtmlHeader().
+        // Hidden hint, shown by the live-status script further below once
+        // /api/topbarStatus has failed repeatedly in a row - see the
+        // ".offline-hint" comment above in generateHtmlHeader().
+        html += "<span id='topbar-offline-hint' class='offline-hint'>&#9888; " + translate("Connection lost") + "</span>";
+
+        // Weder manueller Refresh-Knopf noch Auto-Refresh: ergeben in diesem
+        // Projekt keinen Sinn, da alle live angezeigten Werte (Uhrzeit oben,
+        // die rotierenden Zeiger auf /preview) ohnehin rein im Browser per
+        // JavaScript weiterlaufen, ohne dass die Seite neu geladen werden
+        // muesste - ein Refresh wuerde nichts zeigen, was nicht schon aktuell ist.
+        // Neustart bleibt (siehe reset-btn) - das ist keine reine Anzeige-
+        // Aktualisierung, sondern ein echter Geraete-Neustart.
+
+        // Neither a manual refresh button nor auto-refresh: pointless in this
+        // project, since every live value shown (the time above, the
+        // rotating hands on /preview) already keeps itself current purely in
+        // the browser via JavaScript, with no need to reload the page - a
+        // refresh wouldn't show anything that isn't already current.
+        // Restart stays (see reset-btn) - that's not a display refresh, it's
+        // an actual device restart.
+        html += "<button type='button' class='reset-btn' onclick='if(confirm(\"" + translate("Are you sure you want to reboot?") + "\")){location.href=\"/reboot\";}' title='" + translate("Reboot") + "'>&#9211;</button>";
+
+        html += "</header>";
+
+        // Live-Status fuer die drei Punkte (Zeit/RTC/DCF77) UND die
+        // Uhrzeit-Anzeige: fragt periodisch /api/topbarStatus ab und
+        // aktualisiert die "ok"/"syncing"-Klassen der Punkte sowie den Text
+        // von #topbar-datetime - kein Neuladen der Seite noetig (Auto-Refresh
+        // gibt es hier bewusst nicht mehr, siehe Kommentar weiter oben). So
+        // wechselt die Punktfarbe auch, wenn waehrend des Betriebs etwas
+        // ausfaellt oder nicht mehr erreichbar ist (WLAN weg -> die
+        // Verbindung selbst bricht dann ohnehin ab, aber RTC/DCF77 koennen
+        // unabhaengig davon ihre Synchronisation verlieren), und die
+        // angezeigte Uhrzeit bleibt aktuell, ohne staendig die ganze Seite
+        // neu zu laden. 5s-Intervall: haeufig genug, um einen Ausfall
+        // zeitnah zu zeigen bzw. die Minutenanzeige aktuell zu halten, aber
+        // unauffaellig fuer den ESP32.
+        // getElementById liefert null fuer Punkte, deren Hardware auf diesem
+        // Board nicht verbaut ist (kein #if im DOM) - werden dann einfach
+        // uebersprungen.
+
+        // Live status for the three dots (time/RTC/DCF77) AND the displayed
+        // time: periodically polls /api/topbarStatus and updates the dots'
+        // "ok"/"syncing" classes as well as #topbar-datetime's text - no page
+        // reload needed (there is deliberately no more auto-refresh here, see
+        // the comment further above). This way the dot color also changes if
+        // something fails or becomes unreachable during operation (WiFi
+        // dropping breaks the connection itself anyway, but RTC/DCF77 can
+        // independently lose their sync), and the displayed time stays
+        // current without reloading the whole page over and over. 5s
+        // interval: frequent enough to show a failure promptly and keep the
+        // minute display current, without being excessive for the ESP32.
+        // getElementById returns null for dots whose hardware isn't present
+        // on this board (no #if in the DOM) - those are simply skipped.
+        // setStatusDot(): gemeinsame Funktion fuer alle drei Punkte (Zeit,
+        // RTC, DCF77) - state ist einer von "ok"/"syncing"/"bad"/"na" (siehe
+        // dotStatusText()-Kommentar oben), "bad" bekommt bewusst KEINE
+        // Zusatzklasse (Standardfarbe rot von ".dot" selbst). Aktualisiert
+        // zusaetzlich title/aria-label mit dem vom Server mitgeschickten,
+        // uebersetzten Text (siehe dotStatusText() oben), damit Tooltip/
+        // Screenreader-Text nie von der Punktfarbe abweichen.
+        // setOnline(): blendet den Offline-Hinweis ein/aus (siehe
+        // "#topbar-offline-hint" oben) - nach zwei aufeinanderfolgenden
+        // fehlgeschlagenen Polls (~10s bei 5s-Intervall), damit ein einzelner
+        // kurzer Netzwerk-Hakler nicht sofort einen Alarm ausloest.
+        // visibilitychange: pausiert das Polling, waehrend der Tab im
+        // Hintergrund ist (unnoetige Anfragen an den ESP32 sparen) und holt
+        // beim Zurueckkehren sofort den aktuellen Stand nach, statt bis zu 5s
+        // auf den naechsten Intervall-Tick zu warten.
+        // setStatusDot(): shared function for all three dots (time, RTC,
+        // DCF77) - state is one of "ok"/"syncing"/"bad"/"na" (see the
+        // dotStatusText() comment above), "bad" deliberately gets NO extra
+        // class (plain ".dot"'s own default color, red). Also updates
+        // title/aria-label with the translated text the server sends along
+        // (see dotStatusText() above), so the tooltip/screen-reader text never
+        // drifts from the dot's color.
+        // setOnline(): shows/hides the offline hint (see
+        // "#topbar-offline-hint" above) - after two consecutive failed polls
+        // (~10s at the 5s interval), so a single brief network hiccup doesn't
+        // immediately trigger an alarm.
+        // visibilitychange: pauses polling while the tab is in the background
+        // (saves pointless requests to the ESP32) and immediately catches up
+        // on return instead of waiting up to 5s for the next interval tick.
+        html += "<script>(function(){";
+        html += "function setStatusDot(id,state,title){var el=document.getElementById(id);if(!el)return;el.classList.toggle('ok',state==='ok');el.classList.toggle('syncing',state==='syncing');el.classList.toggle('na',state==='na');if(title){el.title=title;el.setAttribute('aria-label',title);}}";
+        // setPresent(): blendet einen Eintrag ohne aktiven Pruefweg (aktuell
+        // nur DCF77 - siehe dcfPresent-Kommentar in generateTopBar()) per
+        // natives 'hidden'-Attribut live ein, sobald der Server erstmals
+        // echte Aktivitaet bestaetigt - kein Seiten-Reload noetig.
+        // setPresent(): reveals an entry with no active probe path
+        // (currently only DCF77 - see the dcfPresent comment in
+        // generateTopBar()) live via the native 'hidden' attribute, the
+        // moment the server first confirms real activity - no page reload.
+        html += "function setPresent(id,present){var el=document.getElementById(id);if(!el)return;el.hidden=!present;}";
+        // setValue(): aktualisiert eine Live-Wertanzeige (z.B. den
+        // Fotowiderstand-Helligkeitswert, siehe .statval oben) statt einer
+        // Punktfarbe - der Text kommt bereits fertig formatiert vom Server.
+        // setValue(): updates a live value reading (e.g. the photoresistor
+        // brightness value, see .statval above) instead of a dot color -
+        // the text arrives already formatted from the server.
+        html += "function setValue(id,text){var el=document.getElementById(id);if(!el)return;el.textContent=text;}";
+        html += "function setOnline(ok){var h=document.getElementById('topbar-offline-hint');if(h)h.classList.toggle('show',!ok);}";
+        html += "var failCount=0;";
+        html += "function poll(){fetch('/api/topbarStatus').then(function(r){return r.json();}).then(function(s){";
+        html += "failCount=0;setOnline(true);";
+        html += "setStatusDot('dot-time',s.time,s.timeTitle);";
+        html += "setPresent('status-rtc',s.rtcPresent);setStatusDot('dot-rtc',s.rtc,s.rtcTitle);";
+        html += "setPresent('status-dcf77',s.dcf77Present);setStatusDot('dot-dcf77',s.dcf77,s.dcf77Title);";
+        html += "setValue('value-light',s.lightValue);";
+        html += "var dt=document.getElementById('topbar-datetime');if(dt)dt.textContent=s.datetime;";
+        html += "}).catch(function(){failCount++;if(failCount>=2)setOnline(false);});}";
+        html += "var pollTimer=null;";
+        html += "function startPolling(){if(pollTimer)return;poll();pollTimer=setInterval(poll,5000);}";
+        html += "function stopPolling(){if(!pollTimer)return;clearInterval(pollTimer);pollTimer=null;}";
+        html += "document.addEventListener('visibilitychange',function(){if(document.hidden){stopPolling();}else{startPolling();}});";
+        html += "if(!document.hidden)startPolling();";
+        html += "})();</script>";
+
+        return html;
+    }
+
+
+    // Kurze, uebersetzte Zeile mit dem LittleFS-Speicherplatzverbrauch -
+    // "used"/"total" werden vom Aufrufer uebergeben (viele Seiten haben sie
+    // ohnehin schon fuer eine eigene Pruefung berechnet, z.B. den
+    // Platzbedarf vor einem Upload) statt sie hier nochmal abzufragen.
+    // Liefert reinen Inline-Text OHNE umschliessendes Element - der Aufrufer
+    // entscheidet je nach Seitenlayout, ob er ihn in <p>...</p> (Dateiverwaltungs-
+    // seiten) oder <li>...</li> (Status-Listen) einbettet. Eingefuehrt, nachdem
+    // die alte Statusbox mit dieser Info (siehe generateTopBar()) komplett
+    // entfernt wurde und die Info seither auf mehreren Seiten fehlte.
+
+    // Short LittleFS-Speichernutzungszeile - "used"/"total" werden vom
+    // Aufrufer uebergeben (viele Seiten berechnen sie ohnehin schon fuer
+    // eine eigene Pruefung, z.B. den Platzbedarf vor einem Upload) statt sie
+    // hier nochmal abzufragen. Liefert reinen Inline-Text OHNE umschliessendes
+    // Element - der Aufrufer entscheidet je nach Seitenlayout, ob er ihn in
+    // <p>...</p> (Dateiverwaltungsseiten) oder <li>...</li> (Status-Listen)
+    // einbettet. Eingefuehrt, nachdem die alte Statusbox mit dieser Info
+    // (siehe generateTopBar()) komplett entfernt wurde und die Info seither
+    // auf mehreren Seiten fehlte.
+    //
+    // forceEnglish: die Status-Seite/der Status-Tab (siehe panel-status) ist
+    // - wie das Logging (siehe globaler esp32-arduino-web-ui-statusbar Skill,
+    // Abschnitt "Log output language") - grundsaetzlich IMMER auf Englisch,
+    // unabhaengig von der UI-Sprache: eine technische Diagnoseansicht, keine
+    // lokalisierte Nutzeroberflaeche. Alle anderen Aufrufer dieser Funktion
+    // (Dateiverwaltungsseiten wie /listfilesFaces, /handsets) bleiben normal
+    // uebersetzt - deshalb ein Parameter statt die Funktion komplett
+    // umzustellen, der Default (false = uebersetzt) aendert das Verhalten
+    // fuer alle bestehenden Aufrufer nicht.
+
+    // Short, translated line with LittleFS storage usage - "used"/"total" are
+    // passed in by the caller (many pages already compute them anyway for
+    // their own check, e.g. how much room an upload needs) instead of
+    // querying them again here. Returns plain inline text with NO wrapping
+    // element - the caller decides, depending on that page's layout, whether
+    // to embed it in <p>...</p> (file-management pages) or <li>...</li>
+    // (status lists). Introduced after the old status box with this info
+    // (see generateTopBar()) was removed entirely and the info was then
+    // missing from several pages.
+    //
+    // forceEnglish: the status page/tab (see panel-status) is - like logging
+    // (see the global esp32-arduino-web-ui-statusbar skill, "Log output
+    // language" section) - always in English, regardless of the UI
+    // language: a technical diagnostic view, not a localized user interface.
+    // Every other caller of this function (file-management pages like
+    // /listfilesFaces, /handsets) stays normally translated - hence a
+    // parameter instead of converting the whole function, with a default
+    // (false = translated) that doesn't change behavior for any existing
+    // caller.
+
+    String generateStorageInfo(size_t used, size_t total, bool forceEnglish) {
+        String usedLabel = forceEnglish ? "Storage used" : translate("Storage used");
+        String freeLabel = forceEnglish ? "Free" : translate("Free");
+        String html = usedLabel + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
+        html += " (" + freeLabel + ": " + String((total - used) / 1024) + " KB)";
         return html;
     }
 
@@ -96,67 +940,6 @@
     }
 
 
-    /// Generiert den HTML-Statusabschnitt für die Weboberfläche
-    // Generates the HTML status section for the web interface
-
-    String generateHtmlStatus() {
-        setLedOn();
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
-        String html;
-        html.reserve(512);  // Statusleiste: klein
-                            // status bar: small
-        if (WiFi.getMode() == WIFI_STA) {
-            html = translate("Connected to") + ": <strong>" + WiFi.SSID() + "</strong>";
-            // Bugfix: hier fehlte der Operand zwischen den beiden "+" ("http://" +  + "'>").
-            // Das war gueltiges C++ (unaeres Plus auf einen const char*), lieferte aber
-            // href='http://' ohne IP - der Link auf JEDER Seite fuehrte ins Leere.
-            // Bugfix: the operand between the two "+" was missing ("http://" +  + "'>").
-            // That was valid C++ (unary plus on a const char*) but produced
-            // href='http://' without the IP - the link on EVERY page went nowhere.
-            html += "<br>" + translate("IP Address") + ": <strong>" + "<a href='http://" + ipAddress + "'>http://" + ipAddress +"</a></strong> ";
-            if (pingHostname)  html += "<br>" + translate("Hostname") + ": <strong>" + "<a href='http://" + hostname + ".local'>http://" + hostname + ".local</a>" + "</strong>";
-        }
-        else {
-            // Im AP-Modus auch das Passwort mit anzeigen: es wird zur Laufzeit
-            // aus der MAC-Adresse gebildet (siehe startAP() in wifi_manager.h)
-            // und steht sonst nur waehrend des AP-Bildschirms auf dem Display.
-            // Sichtbar ist die Zeile ausschliesslich hier im AP-Zweig, also nur
-            // fuer jemanden, der ohnehin schon mit dem AP verbunden ist und das
-            // Passwort damit kennt.
-
-            // In AP mode also show the password: it is generated at runtime from
-            // the MAC address (see startAP() in wifi_manager.h) and is otherwise
-            // only readable while the AP screen is on the display. This line only
-            // appears in the AP branch, i.e. only to someone already connected to
-            // the AP who therefore knows the password anyway.
-            html = "<br>Access Point: <strong>" + String(WiFi.softAPSSID()) + "</strong> (" + WiFi.softAPIP().toString() + ")";
-            if (apPassword[0] != '\0') {
-                html += "<br>" + translate("Password") + ": <strong>" + String(apPassword) + "</strong>";
-            }
-        }
-
-        html += "<br>" + translate("Storage used") + ": " + String(used / 1024) + " KB / " + String(total / 1024) + " KB";
-        html += " (" + translate("Free") + ": " + String((total - used) / 1024) + " KB)";
-        html += "<br>" + translate("Version") + ": " + String(version);
-
-        // Oben rechts fest positioniert, neben der Live-Vorschau (oben links) -
-        // kompaktere Schrift, damit die paar Zeilen nicht mehr Hoehe brauchen
-        // als das 90px hohe Vorschaubild gegenueber.
-
-        // Fixed top-right, next to the live preview (top-left) - smaller font so
-        // these few lines do not take up more height than the 90px-tall preview
-        // image next to them.
-        String boxed = "<div style='position:fixed;top:0;left:110px;max-width:calc(55% + 70px);height:100px;box-sizing:border-box;background:#1a2129;color:#e8edf2;border:2px solid #2a333c;border-radius:8px;padding:4px 8px;font-size:0.78em;line-height:1.25;text-align:left;white-space:nowrap;overflow-x:auto;overflow-y:auto;z-index:1000;'>";
-        boxed += html;
-        boxed += "</div><hr>";
-
-        setLedOff();
-
-        return boxed;
-    }
-
-
     // Navigationsleiste generieren
     // Generate the navigation bar
 
@@ -168,191 +951,6 @@
         */
         String nav;
         nav.reserve(2048);
-        nav = "<form id='previewSaveForm' method='POST' action='/api/createPreset' style='display:none;'><input type='hidden' id='previewSaveName' name='name'></form>";
-
-        // Live rotierendes Zeiger-Widget oben links (ersetzt die vorherige
-        // statische Rasterbild-Vorschau), auf jeder Seite (da hier in
-        // generateNavigation()) - nutzt die tatsaechlich konfigurierten Zeiger-
-        // Bitmaps, rotiert rein im Browser per Systemzeit, kein zusaetzlicher
-        // Netzwerkverkehr zum ESP32 noetig ausser dem einmaligen Laden der Bilder.
-
-        // Live rotating hand widget top-left (replaces the previous static raster
-        // preview image), on every page (defined here in generateNavigation()) -
-        // uses the actually configured hand bitmaps, rotates purely in the browser
-        // via system time, no extra network traffic to the ESP32 besides the initial image load.
-        {
-            // WICHTIG: handHour/handMinute/handSecond enthalten nur den
-            // eingebauten Standard-Zeigersatz. Ein benutzerdefinierter Satz
-            // wird von loadHandSprites() direkt in TFT-Sprite-Objekte geladen,
-            // NICHT in diese Arrays - daher hier bei aktivem Custom-Set die
-            // Datei selbst einlesen, damit die Vorschau 1:1 dem tatsaechlich
-            // aktiven Zeigersatz aus den Preferences entspricht.
-
-            // IMPORTANT: handHour/handMinute/handSecond only contain the built-in
-            // default hand set. A custom set is loaded by loadHandSprites() directly
-            // into TFT sprite objects, NOT into these arrays - so with an active
-            // custom set, read the file itself here so the preview matches the
-            // actually active hand set from preferences exactly.
-            String activeHandSet = preferences.getString(PK_HANDSET, "");
-            uint16_t* previewHour = nullptr;
-            uint16_t* previewMinute = nullptr;
-            uint16_t* previewSecond = nullptr;
-            const uint16_t* hourSrc = handHour;
-            const uint16_t* minuteSrc = handMinute;
-            const uint16_t* secondSrc = handSecond;
-            const size_t handPixelCount = (size_t)HAND_WIDTH * HAND_HEIGHT;
-
-            if (activeHandSet != "" && activeHandSet != "default") {
-                String hourPath = "/hand_set" + activeHandSet + "_hour.bmp";
-                String minutePath = "/hand_set" + activeHandSet + "_minute.bmp";
-                String secondPath = "/hand_set" + activeHandSet + "_second.bmp";
-
-                if (LittleFS.exists(hourPath)) {
-                    previewHour = (uint16_t*)malloc(handPixelCount * 2);
-                    if (previewHour && loadHandPixelsForPreview(hourPath.c_str(), previewHour, HAND_WIDTH, HAND_HEIGHT)) {
-                        hourSrc = previewHour;
-                    }
-                }
-                if (LittleFS.exists(minutePath)) {
-                    previewMinute = (uint16_t*)malloc(handPixelCount * 2);
-                    if (previewMinute && loadHandPixelsForPreview(minutePath.c_str(), previewMinute, HAND_WIDTH, HAND_HEIGHT)) {
-                        minuteSrc = previewMinute;
-                    }
-                }
-                if (LittleFS.exists(secondPath)) {
-                    previewSecond = (uint16_t*)malloc(handPixelCount * 2);
-                    if (previewSecond && loadHandPixelsForPreview(secondPath.c_str(), previewSecond, HAND_WIDTH, HAND_HEIGHT)) {
-                        secondSrc = previewSecond;
-                    }
-                }
-            }
-
-            String hourB64 = encodePngToBase64(hourSrc, HAND_WIDTH, HAND_HEIGHT);
-            String minuteB64 = encodePngToBase64(minuteSrc, HAND_WIDTH, HAND_HEIGHT);
-            String secondB64 = encodePngToBase64(secondSrc, HAND_WIDTH, HAND_HEIGHT);
-
-            // Temporaere Puffer sofort wieder freigeben - werden nur fuer die
-            // obige Kodierung benoetigt, nicht dauerhaft.
-
-            // Free temporary buffers right away - only needed for the encoding
-            // above, not permanently.
-            if (previewHour) free(previewHour);
-            if (previewMinute) free(previewMinute);
-            if (previewSecond) free(previewSecond);
-
-            // hubColor liegt als RGB565 vor (Displayformat) - fuer CSS in RGB888 umrechnen
-            // hubColor is in RGB565 (display format) - convert to RGB888 for CSS
-            uint8_t hubR = ((hubColor >> 11) & 0x1F) * 255 / 31;
-            uint8_t hubG = ((hubColor >> 5) & 0x3F) * 255 / 63;
-            uint8_t hubB = (hubColor & 0x1F) * 255 / 31;
-            char hubHex[8];
-            snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x", hubR, hubG, hubB);
-
-            bool showSecond = preferences.getBool(PK_SHOW_SECOND_HAND, true);
-            bool stationModeActive = preferences.getBool(PK_STATION_MODE, true);
-            bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, true);
-
-            // Alle Groessen/Positionen direkt VORSKALIERT berechnen (kein
-            // transform:scale() mehr auf einem Eltern-Container - das
-            // Zusammenspiel aus verschachteltem scale() (Eltern) + rotate()
-            // (Kind) fuehrte dazu, dass die Rotation zwar im DOM korrekt
-            // gesetzt wurde, aber optisch keinerlei sichtbare Wirkung zeigte.
-            // Jetzt hat jedes Zeiger-Bild nur noch EINE Transform-Eigenschaft
-            // (rotate), angewendet auf bereits korrekt skalierte Masse.
-
-            // Compute all sizes/positions directly PRE-SCALED (no more
-            // transform:scale() on a parent container - nesting scale() (parent)
-            // with rotate() (child) meant the rotation was set correctly in the
-            // DOM but had no visible effect). Now each hand image has only ONE
-            // transform property (rotate), applied to already correctly scaled sizes.
-            float scaleFactor = 90.0 / CLOCK_WIDTH;
-            int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
-            int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
-            int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
-            int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
-            // hubSize ist ein RADIUS (wie bei fillCircle() auf dem echten Display,
-            // siehe display.h, und bei generatePresetPreviewBmp()) - fuer den CSS-
-            // Kreis unten wird aber der DURCHMESSER (width/height) gebraucht, daher
-            // hier verdoppeln. Vorher fehlte die Verdopplung, wodurch der Punkt in
-            // dieser Live-Vorschau nur halb so gross wie auf dem echten Display war.
-
-            // hubSize is a RADIUS (like fillCircle() on the real display, see
-            // display.h, and generatePresetPreviewBmp()) - but the CSS circle
-            // below needs the DIAMETER (width/height), hence doubled here.
-            // Previously missing this doubling made the hub in this live
-            // preview only half as large as on the real display.
-            int scaledHubSize = (int)(hubSize * 2 * scaleFactor + 0.5);
-            if (scaledHubSize < 4) scaledHubSize = 4;
-
-            nav += "<div onclick=\"var n=prompt('" + translate("Enter a name for the new preset (leave empty for automatic naming)") + "'); if(n !== null) { document.getElementById('previewSaveName').value = n; document.getElementById('previewSaveForm').submit(); }\" title='" + translate("Save the current clock settings as a new preset?") + "' style='position:fixed;top:0;left:0;width:100px;height:100px;box-sizing:border-box;border:2px solid #2a333c;border-radius:8px;background:#1a2129 url(/currentfacebg) center/cover no-repeat;z-index:1000;overflow:hidden;cursor:pointer;'>";
-            nav += "<div id='liveHandsPivot' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
-            nav += "<img id='liveHourHand' src='data:image/png;base64," + hourB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
-            nav += "<img id='liveMinuteHand' src='data:image/png;base64," + minuteB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
-            if (showSecond) {
-                nav += "<img id='liveSecondHand' src='data:image/png;base64," + secondB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
-            }
-            nav += "<div style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
-            nav += "</div></div>";
-
-            nav += "<script>";
-            nav += "(function() {";
-            nav += "  var hourEls = document.querySelectorAll('#liveHourHand');";
-            nav += "  var minuteEls = document.querySelectorAll('#liveMinuteHand');";
-            nav += "  var secondEls = document.querySelectorAll('#liveSecondHand');";
-            nav += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
-            nav += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
-            nav += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";"; // aus der Firmware-Konstante FAST_SECOND uebernommen
-                                                                             // taken from the firmware constant FAST_SECOND
-            nav += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
-            nav += "  fetch('/api/currentTime').then(function(r) { return r.json(); }).then(function(t) {";
-            nav += "    baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
-            nav += "  }).catch(function() {});";
-            nav += "  function tick() {";
-            nav += "    var h, m, s, ms;";
-            nav += "    if (haveBase) {";
-            nav += "      var elapsed = (performance.now() - baseAt) / 1000;"; // Sekunden seit dem einmaligen Abruf der ESP32-Zeit
-                                                                               // seconds since the one-time fetch of the ESP32 time
-            nav += "      var totalSec = baseH * 3600 + baseM * 60 + baseS + elapsed;";
-            nav += "      h = Math.floor(totalSec / 3600) % 12;";
-            nav += "      m = Math.floor(totalSec / 60) % 60;";
-            nav += "      s = Math.floor(totalSec) % 60;";
-            nav += "      ms = (totalSec - Math.floor(totalSec)) * 1000;";
-            nav += "    } else {";
-            nav += "      var now = new Date();"; // Fallback, solange die ESP32-Zeit noch nicht eingetroffen ist
-                                                  // fallback until the ESP32 time has arrived
-            nav += "      h = now.getHours() % 12; m = now.getMinutes(); s = now.getSeconds(); ms = now.getMilliseconds();";
-            nav += "    }";
-            nav += "    var minuteDeg = smoothMinute ? (m + s / 60) * 6 : m * 6;";
-            nav += "    var hourDeg = (h + minuteDeg / 360) * 30;";
-            nav += "    var secDeg;";
-            nav += "    if (stationMode) {";
-            nav += "      var elapsedMs = (s + ms / 1000) * 1000;";
-            nav += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
-            nav += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
-            // Beschleunigen und Bremsen innerhalb jeder Sekundenteilung, exakt
-            // wie easeInOutSine() in display.h - so liefen aeltere
-            // Bahnhofsuhren. Muss mit der Firmware uebereinstimmen, sonst laufen
-            // Vorschau und Uhr sichtbar auseinander.
-            // Acceleration and braking within each second division, exactly like
-            // easeInOutSine() in display.h - this is how older station clocks
-            // ran. Has to match the firmware, otherwise the preview and the
-            // clock visibly diverge.
-            nav += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
-            nav += "      var smoothSec = Math.min(tickIndex + eased, 60);";
-            nav += "      secDeg = smoothSec * 6;";
-            nav += "    } else {";
-            nav += "      secDeg = s * 6;"; // springt zur vollen Sekunde, keine Millisekunden-Glaettung - entspricht der echten Firmware
-                                            // jumps to the full second, no millisecond smoothing - matches the real firmware
-            nav += "    }";
-            nav += "    hourEls.forEach(function(el) { el.style.transform = 'rotate(' + hourDeg + 'deg)'; });";
-            nav += "    minuteEls.forEach(function(el) { el.style.transform = 'rotate(' + minuteDeg + 'deg)'; });";
-            nav += "    secondEls.forEach(function(el) { el.style.transform = 'rotate(' + secDeg + 'deg)'; });";
-            nav += "    requestAnimationFrame(tick);";
-            nav += "  }";
-            nav += "  requestAnimationFrame(tick);";
-            nav += "})();";
-            nav += "</script>";
-        }
 
         nav += "<style>";
         nav += "a { text-decoration: underline; font-weight: bold; }";
@@ -391,7 +989,15 @@
             {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
             {"/handsets", translate("Hand&nbsp;Set"), ""},
             {"/files", translate("File&nbsp;Manager"), ""},
-            {"/reboot", translate("Reboot"), translate("Are you sure you want to reboot?")},
+            // "/reboot" bewusst NICHT mehr gelistet - der Neustart-Knopf in
+            // der Topbar (siehe generateTopBar(), reset-btn) deckt das jetzt
+            // ab; die Route "/reboot" selbst bleibt bestehen (wird von
+            // diesem Knopf sowie fuer Lesezeichen/direkte Aufrufe weiter
+            // benoetigt).
+            // "/reboot" deliberately no longer listed - the restart button
+            // in the topbar (see generateTopBar(), reset-btn) covers this
+            // now; the "/reboot" route itself stays (still needed by that
+            // button, and for bookmarks/direct calls).
             {"/factoryReset", translate("Factory&nbsp;Reset"), ""}
         };
 
@@ -571,15 +1177,18 @@
     }
 
 
-    // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header + Statusleiste
-    // + Navigation) - Reihenfolge entspricht der bisherigen, wiederholten Aufrufkette.
+    // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header inkl.
+    // Topbar + Navigation) - Reihenfolge entspricht der bisherigen,
+    // wiederholten Aufrufkette. generateHtmlStatus() (Statusbox oben rechts)
+    // entfaellt seit deren vollstaendiger Entfernung, siehe generateTopBar().
 
-    // Generates the page start common to almost every page (header + status bar
-    // + navigation) - order matches the previous, repeated call chain.
+    // Generates the page start common to almost every page (header incl.
+    // topbar + navigation) - order matches the previous, repeated call
+    // chain. generateHtmlStatus() (status box top-right) is gone since it
+    // was removed entirely, see generateTopBar().
 
     String beginPage() {
         String html = generateHtmlHeader();
-        html += generateHtmlStatus();
         html += generateNavigation();
         return html;
     }
@@ -2367,6 +2976,7 @@
             chunk = "";
 
             chunk += "<h2>" + translate("System Status") + "</h2><ul>";
+            chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
 
             String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
             String tzDesc;
@@ -2414,9 +3024,9 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            chunk += "<li>ChipModel: " + String(ESP.getChipModel()) + "</li>";
-            chunk += "<li>ChipRevision: " + String(ESP.getChipRevision()) + "</li>";
-            chunk += "<li>ChipCores: " + String(ESP.getChipCores()) + "</li>";
+            chunk += "<li>Chip Model: " + String(ESP.getChipModel()) + "</li>";
+            chunk += "<li>Chip Revision: " + String(ESP.getChipRevision()) + "</li>";
+            chunk += "<li>Chip Cores: " + String(ESP.getChipCores()) + "</li>";
             chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
             chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
 
@@ -2462,9 +3072,9 @@
             // full". On the GC9D01 this value also decides whether software
             // rotation is active (see "rotation mode" further below and
             // gc9d01SwRotation in uhr3.ino).
-            chunk += "<li>PSRam detected: " + String(psramFound() ? "yes" : "no") + "</li>";
-            chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
-            chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
+            chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
+            chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
+            chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
 
 
             chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
@@ -2506,7 +3116,7 @@
             if (!i2cAddr.isEmpty()) {
                 chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
                 chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
-                chunk += "<li>I2C SDL GPIO: " + String(SCL_PIN) + "</li><br>";
+                chunk += "<li>I2C SCL GPIO: " + String(SCL_PIN) + "</li><br>";
             }
             else {
                 chunk += "<li>I2C: no device found</li><br>";
@@ -2518,10 +3128,10 @@
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
             if (dcf77Count == 0) {
-                chunk += "<li>DCF77: No signal received so far</li>";
+                chunk += "<li>DCF77 Status: No signal received so far</li>";
             }
             else {
-                chunk += "<li>DCF77: Pulses received</li>";
+                chunk += "<li>DCF77 Status: Pulses received</li>";
             }
             if (lastDcfSyncTime == 0) {
                 chunk += "<li>DCF77 last sync: never</li>";
@@ -2552,14 +3162,14 @@
 #endif
 #ifdef TOUCH_PIN
             chunk += "<li>TOUCH_PIN GPIO: " + String(TOUCH_PIN) + "</li>";
-            chunk += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
+            chunk += "<li>Use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
 #endif
 #ifdef ADC_PIN
             chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
             chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
             chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
             if (photoresistorFound) {
-                chunk += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
+                chunk += "<li>ADC Value: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
             }
 #endif
 
@@ -2749,12 +3359,194 @@
         // differences), so no constant polling is needed. This way the web preview
         // shows exactly what the real clock is currently displaying, even if the
         // PC and ESP32 clocks should drift apart.
+        // Liefert ein winziges, inline erzeugtes SVG-Uhr-Icon (im Marken-Akzent-
+        // farbton, siehe --accent in generateHtmlHeader()) als Favicon - vorher
+        // gab es hier keine Route, jeder Browser fragte also bei jedem Seiten-
+        // aufruf zusaetzlich "/favicon.ico" an, was unbeantwortet in einer
+        // eigenen 404-Seite landete (siehe webserver.onNotFound()). Moderne
+        // Browser akzeptieren SVG unter diesem Pfad direkt, ein eingebettetes
+        // Asset auf LittleFS ist dafuer nicht noetig. Lange Cache-Zeit, da sich
+        // das Icon zur Laufzeit nie aendert.
+        // Returns a tiny, inline-generated SVG clock icon (in the brand accent
+        // color, see --accent in generateHtmlHeader()) as the favicon -
+        // previously there was no route here, so every browser additionally
+        // requested "/favicon.ico" on every page load, which went unanswered
+        // into its own 404 page (see webserver.onNotFound()). Modern browsers
+        // accept SVG directly at this path, no embedded asset on LittleFS is
+        // needed for it. Long cache lifetime, since the icon never changes at
+        // runtime.
+        webserver.on("/favicon.ico", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "public, max-age=86400");
+            String svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>"
+                         "<circle cx='16' cy='16' r='14' fill='#10151a' stroke='#f5a623' stroke-width='2.5'/>"
+                         "<line x1='16' y1='16' x2='16' y2='7' stroke='#f5a623' stroke-width='2.5' stroke-linecap='round'/>"
+                         "<line x1='16' y1='16' x2='21' y2='16' stroke='#f5a623' stroke-width='2.5' stroke-linecap='round'/>"
+                         "</svg>";
+            webserver.send(200, "image/svg+xml", svg);
+            });
+
         webserver.on("/api/currentTime", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
             String json = "{\"hour\":" + String(timeinfo.tm_hour) +
                           ",\"minute\":" + String(timeinfo.tm_min) +
                           ",\"second\":" + String(timeinfo.tm_sec) + "}";
             webserver.send(200, "application/json", json);
+            });
+
+        // Liefert den aktuellen Zustand der drei Topbar-Status-Punkte (Zeit/
+        // RTC/DCF77) als JSON - wird vom Live-Status-Skript in
+        // generateTopBar() periodisch abgefragt, damit die Punktfarbe auch
+        // waehrend des Betriebs wechselt, wenn etwas ausfaellt oder nicht
+        // mehr erreichbar ist (z.B. RTC/DCF77 verliert Sync), OHNE die ganze
+        // Seite neu zu laden. Dieselben Bedingungen wie in generateTopBar() -
+        // bei einer Aenderung dort auch hier anpassen. rtc/dcf77 werden immer
+        // mitgeschickt (auch ohne die jeweilige Hardware) - das Skript
+        // ignoriert sie einfach, wenn der zugehoerige Punkt gar nicht im DOM
+        // existiert (kein #if noetig, vereinfacht den Handler).
+
+        // Returns the current state of the topbar (the three status dots
+        // time/RTC/DCF77, plus the current date/time text) as JSON - polled
+        // periodically by the live-status script in generateTopBar() so both
+        // the dot colors AND the displayed time keep updating during
+        // operation, WITHOUT reloading the whole page. Same conditions/
+        // formatting as in generateTopBar() - keep both in sync if one
+        // changes. rtc/dcf77 are always included (even without that
+        // hardware) - the script simply ignores them if the corresponding
+        // dot doesn't exist in the DOM at all (no #if needed, keeps this
+        // handler simple).
+        // time/rtc/dcf77 sind jetzt ALLE drei ein STRING
+        // ("ok"/"syncing"/"bad"/"na", siehe dotStatusText()-Kommentar bei
+        // getTimeStatus()/getRtcStatus()/getDcf77Status() oben) statt einem
+        // Bool - "na" (grau) zeigt "Feature grundsaetzlich nicht verfuegbar"
+        // (z.B. RTC nie gefunden), getrennt von "bad" (rot, echter Fehler).
+        // Nutzt dieselben Helper wie generateTopBar()'s Erstladen, damit
+        // beide nie auseinanderlaufen - siehe dortigen Kommentar. *Title-
+        // Felder: uebersetzter Tooltip-/aria-label-Text (siehe dotStatusText()
+        // oben), vom Live-Status-Skript in generateTopBar() bei jedem Poll
+        // auf die Punkte uebertragen, damit Text und Punktfarbe nie
+        // auseinanderlaufen.
+        // time/rtc/dcf77 are now ALL THREE a STRING
+        // ("ok"/"syncing"/"bad"/"na", see the dotStatusText() comment at
+        // getTimeStatus()/getRtcStatus()/getDcf77Status() above) rather than
+        // a bool - "na" (gray) means "feature fundamentally unavailable"
+        // (e.g. RTC never found), distinct from "bad" (red, genuine error).
+        // Uses the exact same helpers as generateTopBar()'s initial render,
+        // so the two can never drift apart - see the comment there. *Title
+        // fields: translated tooltip/aria-label text (see dotStatusText()
+        // above), applied to the dots by the live-status script in
+        // generateTopBar() on every poll, so the text and the dot color never
+        // drift apart.
+        // rtcPresent: siehe rtcPresent-Kommentar in generateTopBar() - false
+        // nur solange rtcOk == RTC_NOT_AVAILABLE ist. Toggelt live das
+        // 'hidden'-Attribut auf dem #status-rtc-Wrapper via setPresent() im
+        // Live-Status-Skript.
+        // dcf77Present: siehe dcf77Confirmed-Kommentar in generateTopBar() -
+        // true erst, sobald eine PLAUSIBLE KETTE aus mehreren aufeinander-
+        // folgenden Impulsen beobachtet wurde (siehe DCF77_PRESENCE_MIN_STREAK
+        // in config.h - ein einzelner, z.B. durch Rauschen ausgeloester
+        // Impuls reicht NICHT), danach dauerhaft true. Toggelt live das
+        // 'hidden'-Attribut auf dem #status-dcf77-Wrapper via setPresent() im
+        // Live-Status-Skript.
+        // lightValue: fertig formatierter Helligkeitswert des Fotowiderstands
+        // (Prozent, siehe currentLightPercent in display.h) - analog zu
+        // datetimeStr bereits serverseitig fertig formatiert, damit das
+        // Frontend nichts selbst formatieren muss. Wird immer mitgeschickt
+        // (auch ohne Fotowiderstand) - #value-light existiert dann einfach
+        // nicht im DOM, siehe setValue() im Live-Status-Skript.
+        // rtcPresent: see the rtcPresent comment in generateTopBar() - false
+        // only for as long as rtcOk == RTC_NOT_AVAILABLE. Live-toggles the
+        // 'hidden' attribute on the #status-rtc wrapper via setPresent() in
+        // the live-status script.
+        // dcf77Present: see the dcf77Confirmed comment in generateTopBar() -
+        // true only once a PLAUSIBLE CHAIN of several consecutive pulses has
+        // been observed (see DCF77_PRESENCE_MIN_STREAK in config.h - a
+        // single pulse, e.g. triggered by noise, is NOT enough), permanently
+        // true afterwards. Live-toggles the 'hidden' attribute on the
+        // #status-dcf77 wrapper via setPresent() in the live-status script.
+        // lightValue: the photoresistor's brightness reading, already
+        // formatted (percent, see currentLightPercent in display.h) - like
+        // datetimeStr, formatted server-side so the frontend never has to
+        // format anything itself. Always included (even without a
+        // photoresistor) - #value-light simply doesn't exist in the DOM
+        // then, see setValue() in the live-status script.
+        webserver.on("/api/topbarStatus", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "no-store");
+            String timeState = getTimeStatus();
+            String rtcState = "na";
+            String dcfState = "na";
+#if defined SDA_PIN && defined SCL_PIN
+            rtcState = getRtcStatus();
+#endif
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+            dcfState = getDcf77Status();
+#endif
+            bool rtcPresent = (rtcState != "na");
+            bool dcf77Present = (dcfState != "na");
+            String lightValue = String(currentLightPercent) + " %";
+            String datetimeStr = "";
+            if (timeState == "ok") {
+                char nowStr[20];
+                strftime(nowStr, sizeof(nowStr), "%d.%m.%Y %H:%M", &timeinfo);
+                datetimeStr = String(nowStr);
+            }
+            String timeTitle = dotStatusText(translate("Time"), timeState);
+            String rtcTitle = dotStatusText("RTC", rtcState);
+            String dcf77Title = dotStatusText("DCF77", dcfState);
+            String json = "{\"time\":\"" + timeState + "\"" +
+                          ",\"rtc\":\"" + rtcState + "\"" +
+                          ",\"rtcPresent\":" + String(rtcPresent ? "true" : "false") +
+                          ",\"dcf77\":\"" + dcfState + "\"" +
+                          ",\"dcf77Present\":" + String(dcf77Present ? "true" : "false") +
+                          ",\"lightValue\":\"" + lightValue + "\"" +
+                          ",\"datetime\":\"" + datetimeStr + "\"" +
+                          ",\"timeTitle\":\"" + timeTitle + "\"" +
+                          ",\"rtcTitle\":\"" + rtcTitle + "\"" +
+                          ",\"dcf77Title\":\"" + dcf77Title + "\"}";
+            webserver.send(200, "application/json", json);
+            });
+
+        // Liefert den Inhalt der AKTUELL aktiven Logdatei (siehe
+        // getCurrentLogFileName() in system_utils.h) als Klartext - fuer das
+        // Auto-Refresh-Polling im Log-Tab (siehe panel-log oben). Loest die
+        // Dateinummer bei JEDEM Aufruf frisch auf, damit nach einer Rotation
+        // (Datei > 10 KB, siehe logToFile()) automatisch die neue, aktuelle
+        // Datei geliefert wird - nicht die beim Seitenaufruf zufaellig aktive.
+
+        // Returns the content of the CURRENTLY active log file (see
+        // getCurrentLogFileName() in system_utils.h) as plain text - for the
+        // auto-refresh polling in the Log tab (see panel-log above). Resolves
+        // the file number freshly on EVERY call, so that after a rotation
+        // (file > 10 KB, see logToFile()) the new, current file is served
+        // automatically - not whichever one happened to be active when the
+        // page was first loaded.
+        webserver.on("/api/currentLog", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "no-store");
+            if (!loggingEnabled) {
+                webserver.sendHeader("X-Log-File", "-");
+                webserver.send(200, "text/plain; charset=utf-8", translate("Logging is disabled."));
+                return;
+            }
+            String logFileName = getCurrentLogFileName();
+            // X-Log-File: Custom-Header, damit das JS im Log-Tab die Anzeige
+            // #logFileName bei jedem Poll aktualisieren kann - auch wenn sich
+            // die aktive Datei durch Rotation seit dem letzten Aufruf
+            // geaendert hat (siehe panel-log im "/" Handler).
+            // Custom header so the JS in the Log tab can update the
+            // #logFileName display on every poll - even if the active file
+            // has changed due to rotation since the last call (see panel-log
+            // in the "/" handler).
+            webserver.sendHeader("X-Log-File", logFileName);
+            if (!LittleFS.exists(logFileName)) {
+                webserver.send(200, "text/plain; charset=utf-8", translate("No log entries yet."));
+                return;
+            }
+            File logFile = LittleFS.open(logFileName, "r");
+            if (!logFile) {
+                webserver.send(200, "text/plain; charset=utf-8", translate("Log file could not be opened."));
+                return;
+            }
+            webserver.streamFile(logFile, "text/plain; charset=utf-8");
+            logFile.close();
             });
 
         // Zeigt die Live-Zeiger-Uhr in voller Aufloesung (400x400) als eigene
@@ -3095,6 +3887,7 @@
             chunk.reserve(1024);
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
+            chunk += "<p>" + generateStorageInfo(used, total) + "</p>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
 
             String activeBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
@@ -3282,6 +4075,28 @@
         // Main page - WiFi settings
         webserver.on("/", HTTP_GET, []() {
 
+            // Status-LED kurz aufblitzen lassen, waehrend die Hauptseite
+            // aufgebaut/gestreamt wird (setLedOff() ganz am Ende dieses
+            // Handlers, siehe dort) - sichtbares Lebenszeichen bei jedem
+            // Aufruf von "/", analog zum bestehenden Muster bei Uploads
+            // (setLedOn()/setLedOff() rahmen dort den gesamten Vorgang ein,
+            // siehe z.B. weiter unten bei "/file"). Kein zusaetzliches
+            // delay() noetig - der Seitenaufbau selbst (mehrere
+            // sendContent()-Chunks) dauert lang genug, um sichtbar zu sein.
+            // War schon einmal vorhanden, ist bei einer frueheren
+            // Ueberarbeitung verlorengegangen.
+
+            // Briefly flash the status LED while the main page is being
+            // built/streamed (setLedOff() right at the end of this handler,
+            // see there) - a visible sign of life on every "/" request,
+            // mirroring the existing pattern used for uploads (setLedOn()/
+            // setLedOff() bracket the whole operation there, see e.g.
+            // "/file" further below). No extra delay() needed - building the
+            // page itself (several sendContent() chunks) already takes long
+            // enough to be visible. This used to be in place, but got lost
+            // in an earlier rework.
+            setLedOn();
+
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
@@ -3294,30 +4109,33 @@
 
             bool apMode = (WiFi.getMode() != WIFI_STA);
 
-            // --- CSS-only Tabs: die 5 radio-Inputs (siehe Tab-CSS in
+            // --- CSS-only Tabs: die 6 radio-Inputs (siehe Tab-CSS in
             // generateHtmlHeader()) - muessen direkte Geschwister von .tabnav
             // und allen .panel-* Divs weiter unten sein. Reihenfolge der
             // Labels weiter unten bestimmt die sichtbare Tab-Reihenfolge -
-            // Status bewusst ganz nach rechts (ans Ende), die anderen zuerst.
-            // Beim Aufruf wird immer der erste Tab (WLAN) vorausgewaehlt,
-            // unabhaengig vom Verbindungsstatus - das deckt automatisch auch
-            // das Captive-Portal-Popup ab (das auf "/" verweist, siehe
-            // captivePortalRedirect oben).
+            // Status bewusst ganz nach rechts (ans Ende), direkt gefolgt von
+            // Log (Log-Tab soll immer direkt NACH Status stehen), die
+            // anderen zuerst. Beim Aufruf wird immer der erste Tab (WLAN)
+            // vorausgewaehlt, unabhaengig vom Verbindungsstatus - das deckt
+            // automatisch auch das Captive-Portal-Popup ab (das auf "/"
+            // verweist, siehe captivePortalRedirect oben).
 
-            // --- CSS-only tabs: the 5 radio inputs (see tab CSS in
+            // --- CSS-only tabs: the 6 radio inputs (see tab CSS in
             // generateHtmlHeader()) - must be direct siblings of .tabnav and
             // all .panel-* divs further below. Order of the labels below
             // determines the visible tab order - Status is deliberately
-            // moved to the far right (last), the others come first. The
-            // first tab (WiFi) is always preselected on load, regardless of
-            // connection status - this also automatically covers the
-            // captive portal popup (which points to "/", see
+            // moved to the far right, immediately followed by Log (the Log
+            // tab must always sit right after Status), the others come
+            // first. The first tab (WiFi) is always preselected on load,
+            // regardless of connection status - this also automatically
+            // covers the captive portal popup (which points to "/", see
             // captivePortalRedirect above).
             chunk += "<input type='radio' name='tabs' id='tab-wlan' class='tabctrl' checked>";
             chunk += "<input type='radio' name='tabs' id='tab-zifferblatt' class='tabctrl'>";
             chunk += "<input type='radio' name='tabs' id='tab-helligkeit' class='tabctrl'>";
             chunk += "<input type='radio' name='tabs' id='tab-zeit' class='tabctrl'>";
             chunk += "<input type='radio' name='tabs' id='tab-status' class='tabctrl'>";
+            chunk += "<input type='radio' name='tabs' id='tab-log' class='tabctrl'>";
 
             chunk += "<div class='tabnav'>";
             chunk += "<label for='tab-wlan'>" + translate("WiFi Settings") + "</label>";
@@ -3325,6 +4143,7 @@
             chunk += "<label for='tab-helligkeit'>" + translate("Brightness") + "</label>";
             chunk += "<label for='tab-zeit'>" + translate("NTP&nbsp;Timezone") + "</label>";
             chunk += "<label for='tab-status'>" + translate("Status") + "</label>";
+            chunk += "<label for='tab-log'>" + translate("Log") + "</label>";
             chunk += "</div>";
 
             webserver.sendContent(chunk);
@@ -3346,8 +4165,20 @@
             // deliberately only ONE full-detail status view now, not a
             // shortened tab version plus a separate full page)
             // #####################################################################
+            // In eine .card gepackt (mittelbreite, zentrierte Box - wie die
+            // anderen Tabs), statt die Liste ueber die volle Seitenbreite
+            // laufen zu lassen - .card setzt bereits text-align:left, der
+            // Inhalt bleibt also linksbuendig, nur der umgebende Rahmen wird
+            // schmaler und zentriert.
+            // Wrapped in a .card (medium-width, centered box - like the
+            // other tabs), instead of letting the list run the full page
+            // width - .card already sets text-align:left, so the content
+            // stays left-aligned, only the surrounding box becomes narrower
+            // and centered.
             chunk += "<div class='tabpanel panel-status'>";
+            chunk += "<div class='card'>";
             chunk += "<ul>";
+            chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
 
             String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
             String tzDesc = tzLabel;
@@ -3388,9 +4219,9 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            chunk += "<li>ChipModel: " + String(ESP.getChipModel()) + "</li>";
-            chunk += "<li>ChipRevision: " + String(ESP.getChipRevision()) + "</li>";
-            chunk += "<li>ChipCores: " + String(ESP.getChipCores()) + "</li>";
+            chunk += "<li>Chip Model: " + String(ESP.getChipModel()) + "</li>";
+            chunk += "<li>Chip Revision: " + String(ESP.getChipRevision()) + "</li>";
+            chunk += "<li>Chip Cores: " + String(ESP.getChipCores()) + "</li>";
             chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
             chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
 
@@ -3436,9 +4267,9 @@
             // full". On the GC9D01 this value also decides whether software
             // rotation is active (see "rotation mode" further below and
             // gc9d01SwRotation in uhr3.ino).
-            chunk += "<li>PSRam detected: " + String(psramFound() ? "yes" : "no") + "</li>";
-            chunk += "<li>PSRam size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
-            chunk += "<li>PSRam free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
+            chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
+            chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
+            chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
             chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
             chunk += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
             chunk += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
@@ -3471,7 +4302,7 @@
             if (!i2cAddr.isEmpty()) {
                 chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
                 chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
-                chunk += "<li>I2C SDL GPIO: " + String(SCL_PIN) + "</li><br>";
+                chunk += "<li>I2C SCL GPIO: " + String(SCL_PIN) + "</li><br>";
             }
             else {
                 chunk += "<li>I2C: no device found</li><br>";
@@ -3483,10 +4314,10 @@
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
             if (dcf77Count == 0) {
-                chunk += "<li>DCF77: No signal received so far</li>";
+                chunk += "<li>DCF77 Status: No signal received so far</li>";
             }
             else {
-                chunk += "<li>DCF77: Pulses received</li>";
+                chunk += "<li>DCF77 Status: Pulses received</li>";
             }
             if (lastDcfSyncTime == 0) {
                 chunk += "<li>DCF77 last sync: never</li>";
@@ -3517,14 +4348,14 @@
 #endif
 #ifdef TOUCH_PIN
             chunk += "<li>TOUCH_PIN GPIO: " + String(TOUCH_PIN) + "</li>";
-            chunk += "<li>use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
+            chunk += "<li>Use Touch: " + String(useTouch ? "true" : "false") + "</li><br>";
 #endif
 #ifdef ADC_PIN
             chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
             chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
             chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
             if (photoresistorFound) {
-                chunk += "<li>ADC val: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
+                chunk += "<li>ADC Value: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
             }
 #endif
 
@@ -3654,8 +4485,236 @@
             chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
             chunk += "</ul>";
+            chunk += "</div>"; // Ende .card
+                               // end .card
             chunk += "</div>"; // Ende panel-status
                                // end panel-status
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // #####################################################################
+            // Panel: Log - zeigt immer den Inhalt der aktuell aktiven Logdatei
+            // (siehe getCurrentLogFileName() in system_utils.h - loest die
+            // Datei bei JEDEM Aufruf/Refresh frisch auf, damit eine Rotation
+            // waehrend des Betrachtens automatisch beruecksichtigt wird).
+            // Enthaelt eine per Checkbox abschaltbare 10-Sekunden-Auto-Refresh
+            // (Zustand in localStorage gemerkt, Default: aus) sowie einen
+            // manuellen "Jetzt aktualisieren"-Button, ueber den /api/currentLog
+            // Endpunkt weiter unten. Der eigentliche Loginhalt wird bewusst
+            // NICHT serverseitig mitgerendert (nur ein Platzhalter), sondern
+            // per JS gleich beim Laden aus /api/currentLog nachgeladen - siehe
+            // Kommentar bei "Lazy-Load" weiter unten fuer die Begruendung.
+            // Bewusst NACH Status platziert (siehe Tab-Reihenfolge weiter
+            // oben).
+            // #####################################################################
+
+            // #####################################################################
+            // Panel: Log - always shows the content of the currently active
+            // log file (see getCurrentLogFileName() in system_utils.h -
+            // resolved fresh on EVERY call/refresh, so a rotation while the
+            // tab is open is picked up automatically). Includes a togglable
+            // 10-second auto-refresh (state remembered in localStorage,
+            // default: off) as well as a manual "Refresh now" button, via the
+            // /api/currentLog endpoint further below. The actual log content
+            // is deliberately NOT rendered server-side (just a placeholder) -
+            // instead it's lazy-loaded via JS right on page load from
+            // /api/currentLog, see the "lazy load" comment further below for
+            // the reasoning. Deliberately placed AFTER Status (see tab order
+            // further above).
+            // #####################################################################
+            chunk += "<div class='tabpanel panel-log'>";
+
+            // Aktueller Log-Dateiname wird fuer die Anzeige aufgeloest - das
+            // ist NUR ein Preferences-Zugriff (siehe getCurrentLogFileName()
+            // in system_utils.h), kein Datei-Lesevorgang, also unproblematisch
+            // bei jedem Seitenaufruf. Der JS-Refresh unten aktualisiert
+            // #logFileName danach eigenstaendig ueber den X-Log-File Header
+            // von /api/currentLog, damit eine Rotation waehrend des
+            // Betrachtens sichtbar wird.
+
+            // The current log filename is resolved for display - this is
+            // ONLY a Preferences lookup (see getCurrentLogFileName() in
+            // system_utils.h), not a file read, so it's unproblematic on
+            // every page load. The JS refresh below then keeps #logFileName
+            // up to date independently via the X-Log-File header of
+            // /api/currentLog, so a rotation while the tab is open becomes
+            // visible.
+            String currentLogFileName = loggingEnabled ? getCurrentLogFileName() : "-";
+
+            // Breite bewusst auf 900px angehoben (Standard-.card waere nur
+            // 500px) - sonst stuende diese schmalere Karte optisch versetzt
+            // ueber dem breiteren <pre>-Logfenster darunter, das ebenfalls
+            // 900px breit ist (siehe dort).
+            // Width deliberately widened to 900px (the default .card would
+            // be only 500px) - otherwise this narrower card would sit
+            // visually offset above the wider <pre> log window below, which
+            // is also 900px wide (see there).
+            // disabledAttr: ist Logging deaktiviert, liefert /api/currentLog
+            // ohnehin dauerhaft nur "Logging ist deaktiviert" - Checkbox und
+            // Button werden dann deaktiviert (statt einen Klick zu erlauben,
+            // der sichtbar nichts bewirkt).
+            // disabledAttr: if logging is disabled, /api/currentLog would
+            // permanently just return "Logging is disabled" anyway - the
+            // checkbox and button are then disabled (instead of allowing a
+            // click that visibly does nothing).
+            String disabledAttr = loggingEnabled ? "" : " disabled";
+
+            chunk += "<div class='card' style='max-width:900px;'>";
+            chunk += "<div style='margin-bottom:8px;'>" + translate("Log file") + ": <code id='logFileName'>" + escapeHtmlText(currentLogFileName) + "</code></div>";
+            chunk += "<div style='display:flex;align-items:center;gap:14px;flex-wrap:wrap;'>";
+            chunk += "<label style='display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;'>";
+            chunk += "<input type='checkbox' id='logAutoRefresh' style='width:auto;margin:0;'" + disabledAttr + ">";
+            chunk += translate("Auto-refresh (10s)");
+            chunk += "</label>";
+            // Bewusst NICHT die vorhandene .reset-btn Klasse (Neustart-Button
+            // oben in der Topbar) wiederverwendet: deren Hover-/Focus-Zustand
+            // ist fest auf var(--bad) (rot) eingefaerbt, um vor der
+            // Gefahren-Aktion "Neustart" zu warnen - fuer ein harmloses
+            // "Jetzt aktualisieren" waere das irrefuehrend. Eigene, neutrale
+            // Farbgebung analog zu .tabnav label.
+            // Deliberately NOT reusing the existing .reset-btn class (the
+            // reboot button up in the topbar): its hover/focus state is
+            // hard-coded to var(--bad) (red) to warn about the dangerous
+            // "reboot" action - misleading for a harmless "refresh now".
+            // Own, neutral styling mirroring .tabnav label instead.
+            chunk += "<button type='button' id='logRefreshNow' style='background:var(--panel);border:1px solid var(--panel-border);color:var(--text);border-radius:.4rem;padding:4px 12px;font-size:.8rem;cursor:pointer;'" + disabledAttr + ">" + translate("Refresh now") + "</button>";
+            chunk += "<span id='logErrorHint' class='offline-hint'>&#9888; " + translate("Refresh failed - showing last known content") + "</span>";
+            chunk += "</div>";
+            chunk += "</div>";
+
+            // Kein serverseitiges Vorab-Lesen der Logdatei mehr (frueher hier
+            // per LittleFS.open()/readString() bis zu 10 KB pro Seitenaufruf,
+            // siehe "Lazy-Load"-Kommentar unten) - nur ein Platzhalter, der
+            // Inhalt kommt gleich beim Laden per JS von /api/currentLog.
+
+            // No more server-side pre-reading of the log file (previously up
+            // to 10 KB per page load via LittleFS.open()/readString(), see
+            // the "lazy load" comment below) - just a placeholder, the actual
+            // content arrives right on load via JS from /api/currentLog.
+            chunk += "<pre id='logContent' style='background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:900px;height:400px;overflow-y:auto;margin:15px auto;padding:12px 16px;text-align:left;white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:.85rem;'>";
+            chunk += loggingEnabled ? translate("Loading&hellip;") : translate("Logging is disabled.");
+            chunk += "</pre>";
+
+            // Auto-Refresh: Checkbox-Zustand in localStorage gemerkt (Default
+            // aus, falls noch nichts gespeichert ist). Bei aktivem Refresh
+            // wird alle 10s /api/currentLog gepollt und der <pre>-Inhalt
+            // ersetzt; bei deaktiviertem Refresh passiert kein Polling mehr,
+            // nur der "Jetzt aktualisieren"-Button oder das Einschalten der
+            // Checkbox loesen dann noch einen Abruf aus. Pausiert zusaetzlich
+            // per visibilitychange, waehrend der Browser-Tab im Hintergrund
+            // ist - analog zum Live-Status-Skript der Topbar weiter oben
+            // (siehe Kommentar dort: "unnoetige Anfragen an den ESP32
+            // sparen") - und holt beim Zurueckkehren sofort den aktuellen
+            // Stand nach, statt bis zu 10s auf den naechsten Intervall-Tick
+            // zu warten.
+            //
+            // Lazy-Load: der initiale Loginhalt wird NICHT mehr serverseitig
+            // mitgerendert (siehe Platzhalter oben), sondern hier per fetch()
+            // direkt beim Laden nachgeladen - die CSS-only-Tabs rendern ALLE
+            // Panels bei JEDEM Aufruf von "/" mit, auch wenn der Log-Tab nie
+            // geoeffnet wird; ein serverseitiges Lesen von bis zu 10 KB aus
+            // LittleFS bei jedem Seitenaufruf (WLAN, Helligkeit, ...) waere
+            // unnoetiger Heap-/CPU-Verbrauch auf dem speicherknappen ESP32.
+            // Ist Logging deaktiviert wird der Platzhalter-Text stehen
+            // gelassen und gar nicht erst gepollt - da /api/currentLog dann
+            // ohnehin nur "Logging ist deaktiviert" liefern wuerde.
+            //
+            // Fehleranzeige: schlaegt ein Abruf fehl (z.B. WLAN kurz weg),
+            // bleibt der zuletzt bekannte Inhalt sichtbar, statt ihn
+            // stillschweigend zu verwerfen - #logErrorHint (analog zu
+            // "#topbar-offline-hint" oben) macht das sichtbar; verschwindet
+            // automatisch beim naechsten erfolgreichen Abruf.
+            //
+            // Scroll-Verhalten: JEDER Log-Refresh (Timer-Tick, Checkbox
+            // einschalten, "Jetzt aktualisieren"-Button, Rueckkehr aus dem
+            // Hintergrund) scrollt IMMER ans Ende - klassisches "tail -f"-
+            // Verhalten. Eine fruehere Fassung scrollte bei automatischen
+            // Hintergrund-Refreshs nur, wenn man schon (nahe) am Ende war,
+            // um die Ansicht beim Lesen aelterer Zeilen nicht wegzureissen -
+            // das wurde auf ausdruecklichen Wunsch durch dieses einfachere
+            // "immer ans Ende" ersetzt: wer Auto-Refresh aktiviert hat, will
+            // dem Live-Log folgen.
+
+            // Also pauses via visibilitychange while the browser tab is in
+            // the background - mirroring the topbar's live-status script
+            // further above (see the comment there: "saves pointless
+            // requests to the ESP32") - and immediately catches up on
+            // return instead of waiting up to 10s for the next interval tick.
+            //
+            // Lazy load: the initial log content is no longer rendered
+            // server-side (see the placeholder above) - instead it's fetched
+            // here right on load. The CSS-only tabs render ALL panels on
+            // EVERY "/" request, even if the Log tab is never opened; a
+            // server-side read of up to 10 KB from LittleFS on every page
+            // load (WiFi, brightness, ...) would be pointless heap/CPU usage
+            // on the memory-constrained ESP32. If logging is disabled, the
+            // placeholder text is left as-is and never polled at all - since
+            // /api/currentLog would just return "Logging is disabled." anyway.
+            //
+            // Error display: if a fetch fails (e.g. WiFi briefly drops), the
+            // last known content stays visible instead of being silently
+            // discarded - #logErrorHint (mirroring "#topbar-offline-hint"
+            // above) makes that visible; disappears automatically on the
+            // next successful fetch.
+            //
+            // Scroll behavior: EVERY log refresh (timer tick, enabling the
+            // checkbox, the "Refresh now" button, returning from the
+            // background) ALWAYS scrolls to the bottom - classic "tail -f"
+            // behavior. An earlier version only auto-scrolled a background
+            // refresh if the view was already (near) the bottom, to avoid
+            // yanking the view away while reading older lines - replaced, on
+            // explicit request, by this simpler "always scroll to the
+            // bottom": enabling Auto-Refresh means you want to follow the
+            // live log.
+            chunk += "<script>";
+            chunk += "(function() {";
+            chunk += "  var cb = document.getElementById('logAutoRefresh');";
+            chunk += "  var pre = document.getElementById('logContent');";
+            chunk += "  var fnEl = document.getElementById('logFileName');";
+            chunk += "  var errEl = document.getElementById('logErrorHint');";
+            chunk += "  var refreshBtn = document.getElementById('logRefreshNow');";
+            chunk += "  var timer = null;";
+            chunk += "  var loggingEnabled = " + String(loggingEnabled ? "true" : "false") + ";";
+            chunk += "  var stored = localStorage.getItem('uhr3LogAutoRefresh');";
+            chunk += "  cb.checked = (stored === null) ? false : (stored === '1');";
+            chunk += "  function scrollToBottom() { pre.scrollTop = pre.scrollHeight; }";
+            chunk += "  function refreshLog() {";
+            chunk += "    if (!loggingEnabled) return;";
+            chunk += "    fetch('/api/currentLog', {cache:'no-store'}).then(function(r){";
+            chunk += "      var fname = r.headers.get('X-Log-File');";
+            chunk += "      if (fname !== null) fnEl.textContent = fname;";
+            chunk += "      return r.text();";
+            chunk += "    }).then(function(text){";
+            chunk += "      errEl.classList.remove('show');";
+            chunk += "      pre.textContent = text;";
+            chunk += "      scrollToBottom();";
+            chunk += "    }).catch(function(){ errEl.classList.add('show'); });";
+            chunk += "  }";
+            chunk += "  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }";
+            chunk += "  function applyState() {";
+            chunk += "    stopTimer();";
+            chunk += "    if (cb.checked && !document.hidden) {";
+            chunk += "      timer = setInterval(refreshLog, 10000);";
+            chunk += "    }";
+            chunk += "  }";
+            chunk += "  refreshBtn.addEventListener('click', refreshLog);";
+            chunk += "  cb.addEventListener('change', function() {";
+            chunk += "    localStorage.setItem('uhr3LogAutoRefresh', cb.checked ? '1' : '0');";
+            chunk += "    if (cb.checked) refreshLog();";
+            chunk += "    applyState();";
+            chunk += "  });";
+            chunk += "  document.addEventListener('visibilitychange', function() {";
+            chunk += "    if (document.hidden) { stopTimer(); }";
+            chunk += "    else { if (cb.checked) refreshLog(); applyState(); }";
+            chunk += "  });";
+            chunk += "  refreshLog();";
+            chunk += "  applyState();";
+            chunk += "})();";
+            chunk += "</script>";
+
+            chunk += "</div>"; // Ende panel-log
+                               // end panel-log
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -4200,6 +5259,9 @@
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
                                        // signal the end of the chunked transfer
+
+            setLedOff(); // Gegenstueck zu setLedOn() ganz oben in diesem Handler
+                         // counterpart to setLedOn() at the very top of this handler
             });
 
         webserver.on("/deletewifi", HTTP_GET, []() {
@@ -4683,6 +5745,7 @@
             String chunk = beginPage();
             chunk += generateFlashMessage();
             chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
+            chunk += "<p>" + generateStorageInfo(used, total) + "</p>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
             webserver.sendContent(chunk);
 

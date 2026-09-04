@@ -141,6 +141,30 @@
     time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
                                 // Unix timestamp of the last successful DCF77 sync (0 = never)
 
+    unsigned long lastDcf77PulseChangeMillis = 0; // millis()-Zeitpunkt der letzten beobachteten Aenderung von dcf77Count (siehe checkDcf77Health() in time_sync.h) -
+                                                   // erkennt einen kompletten Empfangsausfall waehrend des Betriebs, da dcf77Count selbst nie auf 0 zurueckgesetzt wird
+                                                   // millis() timestamp of the last observed change in dcf77Count (see checkDcf77Health() in time_sync.h) -
+                                                   // detects a complete reception failure during operation, since dcf77Count itself is never reset to 0
+
+    uint8_t dcf77PlausiblePulseStreak = 0; // Anzahl aufeinanderfolgender dcf77Count-Aenderungen mit plausiblem
+                                            // Abstand zueinander (siehe DCF77_PRESENCE_MAX_GAP_MS in config.h,
+                                            // gepflegt von checkDcf77Health() in time_sync.h) - filtert einzelne,
+                                            // durch Rauschen auf einem floatenden Empfaengerpin ausgeloeste
+                                            // Interrupts heraus, siehe dcf77Confirmed unten
+                                            // number of consecutive dcf77Count changes with a plausible gap between
+                                            // them (see DCF77_PRESENCE_MAX_GAP_MS in config.h, maintained by
+                                            // checkDcf77Health() in time_sync.h) - filters out isolated interrupts
+                                            // triggered by noise on a floating receiver pin, see dcf77Confirmed below
+
+    bool dcf77Confirmed = false; // wird EINMALIG true, sobald dcf77PlausiblePulseStreak DCF77_PRESENCE_MIN_STREAK
+                                 // erreicht (siehe config.h) - bestimmt, ob der DCF77-Eintrag in der Topbar
+                                 // ueberhaupt angezeigt wird (siehe getDcf77Status() in webserver_routes.h);
+                                 // wird danach NIE zurueckgesetzt, genau wie dcfTimeFound/dcf77Count
+                                 // becomes true EXACTLY ONCE, when dcf77PlausiblePulseStreak reaches
+                                 // DCF77_PRESENCE_MIN_STREAK (see config.h) - decides whether the DCF77 entry
+                                 // in the topbar is shown at all (see getDcf77Status() in webserver_routes.h);
+                                 // never reset afterwards, just like dcfTimeFound/dcf77Count
+
 #endif
 
     unsigned long lastNTPUpdate = 0; // Zeitpunkt des letzten RTC-Updates

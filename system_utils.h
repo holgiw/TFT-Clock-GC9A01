@@ -262,6 +262,26 @@
     // ### LOG-FUNKTIONEN #################################################
 
     // ### LOG FUNCTIONS ###################################################
+
+    // Ermittelt den Dateinamen der AKTUELL aktiven Logdatei - dieselbe Logik
+    // wie in logToFile() (siehe dort), aber ohne Seiteneffekte (kein
+    // Schreiben/Rotieren). Wird sowohl beim ersten Rendern des Log-Tabs als
+    // auch vom /api/currentLog Endpunkt genutzt (siehe webserver_routes.h),
+    // damit beide Stellen immer dieselbe, aktuelle Datei sehen - auch nach
+    // einer zwischenzeitlichen Rotation.
+
+    // Determines the filename of the CURRENTLY active log file - same logic
+    // as in logToFile() (see there), but without side effects (no
+    // writing/rotating). Used both when the Log tab is first rendered and by
+    // the /api/currentLog endpoint (see webserver_routes.h), so both places
+    // always see the same, current file - even after a rotation in between.
+
+    String getCurrentLogFileName() {
+        uint16_t logfileNumber = preferences.getInt(PK_LOG_FILE_NUMBER, 1);
+        return "/log_" + String(logfileNumber) + ".log";
+    }
+
+
     // Löscht alle Logdateien aus dem LittleFS
     // Deletes all log files from LittleFS
 
