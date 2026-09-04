@@ -156,6 +156,82 @@
     // outage from immediately being "overwritten" by DCF77.
 #define DCF77_NTP_GRACE_PERIOD (2 * WAIT_1h)
 
+    // Fuer den DCF77-Status-Punkt in der Topbar (siehe getDcf77Status() in
+    // webserver_routes.h): unabhaengig von DCF77_NTP_GRACE_PERIOD oben, das nur
+    // steuert, ob DCF77 die Systemzeit uebernehmen darf. dcfTimeFound und
+    // dcf77Count werden im Code selbst NIE zurueckgesetzt (dcfTimeFound bleibt
+    // fuer immer true, dcf77Count fuer immer >0, sobald sie einmal gesetzt
+    // wurden) - ohne diese beiden Schwellwerte wuerde der Punkt nach einem
+    // erfolgreichen Erstsync fuer immer gruen (bzw. nach dem ersten jemals
+    // empfangenen Impuls fuer immer mindestens gelb) bleiben, selbst wenn der
+    // Empfang spaeter waehrend des Betriebs komplett ausfaellt.
+    // DCF77_SYNC_STALE_AFTER: wie lange eine erfolgreiche Dekodierung
+    // (lastDcfSyncTime) als "aktuell" gilt, bevor der Punkt von gruen auf
+    // gelb/rot zurueckfaellt - grosszuegig ueber der ueblichen ca. 1-Minuten-
+    // Telegrammdauer, um bei nur zeitweise schlechtem Empfang nicht zu flackern.
+    // DCF77_PULSE_STALE_AFTER: wie lange seit dem letzten tatsaechlich
+    // beobachteten Impuls (dcf77Count-Aenderung, siehe checkDcf77Health() in
+    // time_sync.h) vergehen darf, bevor der Empfang als komplett tot gilt -
+    // waehrend des Empfangs aendert sich dcf77Count etwa einmal pro Sekunde.
+
+    // For the DCF77 status dot in the topbar (see getDcf77Status() in
+    // webserver_routes.h): independent of DCF77_NTP_GRACE_PERIOD above, which
+    // only controls whether DCF77 may take over the system time. dcfTimeFound
+    // and dcf77Count are NEVER reset anywhere in the code (dcfTimeFound stays
+    // true forever, dcf77Count stays >0 forever, once either was ever set) -
+    // without these two thresholds the dot would stay green forever after a
+    // successful first sync (resp. at least yellow forever after the first
+    // pulse ever received), even if reception later fails completely during
+    // operation.
+    // DCF77_SYNC_STALE_AFTER: how long a successful decode (lastDcfSyncTime)
+    // still counts as "current" before the dot falls back from green to
+    // yellow/red - generously above the usual ~1 minute telegram duration, so
+    // it doesn't flicker during merely temporary poor reception.
+    // DCF77_PULSE_STALE_AFTER: how long since the last actually observed pulse
+    // (a dcf77Count change, see checkDcf77Health() in time_sync.h) may pass
+    // before reception counts as completely dead - during reception dcf77Count
+    // changes roughly once per second.
+#define DCF77_SYNC_STALE_AFTER (15 * WAIT_1m)
+#define DCF77_PULSE_STALE_AFTER WAIT_1m
+
+    // Fuer die Anwesenheitserkennung des DCF77-Eintrags in der Topbar (siehe
+    // dcf77Confirmed in globals.h, gepflegt von checkDcf77Health() in
+    // time_sync.h): ein einzelner dcf77Count-Wechsel reicht NICHT, um
+    // "Empfaenger ist wirklich angeschlossen" zu bedeuten - der Datenpin
+    // haengt per CHANGE-Interrupt (siehe attachInterrupt() in uhr3.ino) am
+    // GPIO, und ein nicht angeschlossener/floatender Pin kann durch
+    // elektrisches Rauschen einzelne oder wenige zufaellige Interrupts
+    // ausloesen, die sonst faelschlich als "erster Impuls" gezaehlt wuerden
+    // (siehe Bugreport: DCF77-Punkt wurde rot, obwohl nie ein echter Impuls
+    // ankam). Echter DCF77-Empfang aendert dcf77Count dagegen sehr regelmaessig
+    // (CHANGE = 2 Flanken pro Sekunde) - DCF77_PRESENCE_MIN_STREAK verlangt
+    // deshalb mehrere HINTEREINANDER plausible Aenderungen, bevor der Empfaenger
+    // als wirklich vorhanden gilt; DCF77_PRESENCE_MAX_GAP_MS legt fest, wie
+    // gross die Luecke zwischen zwei Aenderungen hoechstens sein darf, damit sie
+    // noch als "aufeinanderfolgend" zaehlt (grosszuegig ueber dem ueblichen
+    // ca. 1-Sekunden-Abstand, damit einzelne kurze Jitter nicht die Kette
+    // abreissen lassen). Reines Rauschen erzeugt i.d.R. vereinzelte, unregel-
+    // maessige Impulse und erreicht diese Kettenlaenge kaum.
+
+    // For the DCF77 topbar entry's presence detection (see dcf77Confirmed in
+    // globals.h, maintained by checkDcf77Health() in time_sync.h): a single
+    // dcf77Count change is NOT enough to mean "a receiver is really
+    // connected" - the data pin sits on a CHANGE interrupt (see
+    // attachInterrupt() in uhr3.ino), and an unconnected/floating pin can
+    // trigger one or a few random interrupts from electrical noise, which
+    // would otherwise be falsely counted as the "first pulse" (see bug
+    // report: the DCF77 dot turned red even though no real pulse ever
+    // arrived). Genuine DCF77 reception, by contrast, changes dcf77Count very
+    // regularly (CHANGE = 2 edges per second) - DCF77_PRESENCE_MIN_STREAK
+    // therefore requires several CONSECUTIVE plausible changes before the
+    // receiver counts as genuinely present; DCF77_PRESENCE_MAX_GAP_MS sets
+    // the maximum gap between two changes for them to still count as
+    // "consecutive" (generously above the usual ~1 second spacing, so a
+    // single brief jitter doesn't break the chain). Plain noise typically
+    // produces sparse, irregular pulses and rarely reaches this chain length.
+#define DCF77_PRESENCE_MIN_STREAK 6
+#define DCF77_PRESENCE_MAX_GAP_MS 1500
+
     // Geschwindigkeit des Sekundenzeigers im Train-Station-Mode gegenueber der
     // realen Sekunde (in Millisekunden) - der Zeiger "eilt" etwas voraus und
     // verweilt dann kurz auf der 60, wie bei einer klassischen Bahnhofsuhr.
@@ -191,9 +267,9 @@
 
     // TFT auswaehlen
     // select TFT
-//#define GC9A01
+#define GC9A01
     //#define GC9A01_WITH_BACKLIGHT
-    #define GC9D01
+    //#define GC9D01
     //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt / DEPRECATED - no longer maintained, GC9A01 is preferred
 
     // --- Pin-Belegung: ESP32-S2 (Lolin S2 Pico) ---

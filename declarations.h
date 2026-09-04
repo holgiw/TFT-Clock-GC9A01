@@ -40,6 +40,8 @@
     void loadTimeFromRTC() ;
     void initializeNtpServers() ;
     bool getDCF77Time() ;
+    void checkDcf77Health() ;
+    void checkRtcHealth() ;
     void checkNightlyTimeSync() ;
     String testNtpServer(const String& server) ;
     boolean setupNTP() ;
@@ -148,7 +150,13 @@
 
     String generateHtmlHeader(String extraHead = "") ;
     String simpleMessagePage(String heading, String bodyHtml, String extraHead = "") ;
-    String generateHtmlStatus() ;
+    String generateTopBar() ;
+    String getTimeStatus() ;
+    String getRtcStatus() ;
+    String getDcf77Status() ;
+    String dotStatusText(const String& label, const String& state) ;
+    String escapeHtmlText(const String& text) ;
+    String generateStorageInfo(size_t used, size_t total, bool forceEnglish = false) ;
     String generateFlashMessage() ;
     String generateNavigation() ;
     String generateLanguageSelector() ;
@@ -176,6 +184,7 @@
     void eraseAllNVS() ;
     void factoryReset() ;
     void espReboot() ;
+    String getCurrentLogFileName() ;
     void deleteAllLogFiles() ;
     void checkHeapWarning(const String& context) ;
     void logToFile(const String& message) ;

@@ -1201,6 +1201,15 @@ void setup() {
         // Fetch DCF77 time
         getDCF77Time();
 
+        // Empfangsausfall bzw. RTC-Ausfall waehrend des Betriebs erkennen -
+        // unabhaengig vom WLAN-Status, damit der Topbar-Live-Status
+        // (/api/topbarStatus in webserver_routes.h) auch dann aktuell bleibt.
+        // Check for a reception failure resp. RTC failure during operation -
+        // independent of WiFi state, so the topbar live status
+        // (/api/topbarStatus in webserver_routes.h) stays current either way.
+        checkDcf77Health();
+        checkRtcHealth();
+
         // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
         // Check whether time has passed since the last call
         if (millis() - lastNTPUpdate > WAIT_1h) {

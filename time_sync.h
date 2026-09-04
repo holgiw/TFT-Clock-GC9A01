@@ -183,6 +183,70 @@
     }
 
 
+    // Beobachtet dcf77Count auf tatsaechliche Aenderungen (echte Impulse) und
+    // merkt sich den Zeitpunkt der letzten - dcf77Count selbst wird nirgends
+    // auf 0 zurueckgesetzt (siehe Kommentar bei dcf77Count in globals.h), ist
+    // also allein kein verlaessliches "empfaengt gerade noch"-Signal. Wird von
+    // getDcf77Status() in webserver_routes.h benutzt, um einen kompletten
+    // Empfangsausfall waehrend des Betriebs zu erkennen (DCF77_PULSE_STALE_AFTER
+    // in config.h). Bewusst per Vergleich im Hauptthread statt in der ISR
+    // (isr() in dieser Datei) erfasst - dort duerfen aus Flash-Cache-Gruenden
+    // keine weiteren Operationen ergaenzt werden (siehe Kommentar dort).
+    //
+    // Pflegt zusaetzlich dcf77PlausiblePulseStreak/dcf77Confirmed (siehe
+    // globals.h): eine EINZELNE dcf77Count-Aenderung reicht nicht als Beweis
+    // fuer "Empfaenger wirklich angeschlossen" - der Datenpin haengt per
+    // CHANGE-Interrupt am GPIO (siehe attachInterrupt() in uhr3.ino), und ein
+    // floatender/nicht angeschlossener Pin kann durch Rauschen einzelne
+    // Interrupts ausloesen, die sonst faelschlich als "erster Impuls" gezaehlt
+    // wuerden. Erst eine Kette aus DCF77_PRESENCE_MIN_STREAK aufeinander-
+    // folgenden Aenderungen mit jeweils plausiblem Abstand (siehe
+    // DCF77_PRESENCE_MAX_GAP_MS in config.h) gilt als echter Empfang - siehe
+    // dortigen Kommentar fuer die genaue Begruendung.
+
+    // Watches dcf77Count for actual changes (real pulses) and remembers the
+    // timestamp of the last one - dcf77Count itself is never reset to 0
+    // anywhere (see the comment on dcf77Count in globals.h), so on its own
+    // it's not a reliable "still receiving right now" signal. Used by
+    // getDcf77Status() in webserver_routes.h to detect a complete reception
+    // failure during operation (DCF77_PULSE_STALE_AFTER in config.h).
+    // Deliberately observed via comparison on the main thread rather than in
+    // the ISR (isr() in this file) - no further operations may be added there
+    // for flash-cache reasons (see the comment there).
+    //
+    // Additionally maintains dcf77PlausiblePulseStreak/dcf77Confirmed (see
+    // globals.h): a SINGLE dcf77Count change isn't proof that a receiver is
+    // actually connected - the data pin sits on a CHANGE interrupt (see
+    // attachInterrupt() in uhr3.ino), and a floating/unconnected pin can
+    // trigger isolated interrupts from noise, which would otherwise be
+    // falsely counted as the "first pulse". Only a chain of
+    // DCF77_PRESENCE_MIN_STREAK consecutive changes, each with a plausible
+    // gap (see DCF77_PRESENCE_MAX_GAP_MS in config.h), counts as genuine
+    // reception - see the comment there for the full reasoning.
+
+    void checkDcf77Health() {
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        static uint16_t lastSeenCount = 0;
+        static unsigned long lastPlausibleChangeMillis = 0;
+        uint16_t current = dcf77Count;
+        if (current != lastSeenCount) {
+            unsigned long now = millis();
+            if (!dcf77Confirmed) {
+                bool plausibleGap = (lastPlausibleChangeMillis != 0) &&
+                                     (now - lastPlausibleChangeMillis) <= DCF77_PRESENCE_MAX_GAP_MS;
+                dcf77PlausiblePulseStreak = plausibleGap ? (dcf77PlausiblePulseStreak + 1) : 1;
+                if (dcf77PlausiblePulseStreak >= DCF77_PRESENCE_MIN_STREAK) {
+                    dcf77Confirmed = true;
+                }
+            }
+            lastPlausibleChangeMillis = now;
+            lastDcf77PulseChangeMillis = now;
+            lastSeenCount = current;
+        }
+#endif
+    }
+
+
     //
     // NTP-Zeitsynchronisation um 02:00:05 und 03:00:05
 
@@ -576,6 +640,48 @@
         }
 
         return nDevices;
+    }
+
+
+    // Prueft periodisch (alle WAIT_1m), ob die beim Boot erkannte RTC noch auf
+    // dem I2C-Bus antwortet, und setzt rtcOk bei einem Ausfall auf
+    // RTC_NOT_AVAILABLE - vorher wurde rtcOk nur EINMAL beim Boot in setup()
+    // ermittelt und danach nie wieder geprueft, sodass ein Ausfall der RTC
+    // waehrend des Betriebs (Chip getauscht/abgeklemmt, I2C-Fehler) vom
+    // RTC-Punkt in der Topbar nie angezeigt wurde. Nutzt denselben minimalen
+    // I2C-Ping wie i2cScan() (nur Adresse 0x68) statt eines vollen Bus-Scans.
+    // Erkennt bewusst NUR den Ausfall, keine Wiederkehr: eine (wieder)
+    // angeschlossene RTC wird erst nach einem Neustart erneut vollstaendig
+    // initialisiert (rtc.begin(), lostPower()-Pruefung etc., siehe setup()) -
+    // das hier nachzubilden waere fehleranfaellig und wuerde die Zeitquelle
+    // nach einem Wackelkontakt unbeaufsichtigt umschalten.
+
+    // Periodically checks (every WAIT_1m) whether the RTC detected at boot
+    // still responds on the I2C bus, and sets rtcOk to RTC_NOT_AVAILABLE on a
+    // failure - previously rtcOk was only ever determined ONCE at boot in
+    // setup() and never rechecked, so an RTC failure during operation (chip
+    // swapped/disconnected, I2C error) was never reflected by the RTC dot in
+    // the topbar. Uses the same minimal I2C ping as i2cScan() (address 0x68
+    // only) instead of a full bus scan. Deliberately detects only failure, not
+    // recovery: an RTC that comes back (or is reconnected) is only fully
+    // reinitialized after a restart (rtc.begin(), lostPower() check etc., see
+    // setup()) - replicating that here would be error-prone and would switch
+    // the time source unattended after a loose connection.
+
+    void checkRtcHealth() {
+#if defined SDA_PIN && defined SCL_PIN
+        if (rtcOk == RTC_NOT_AVAILABLE) return; // beim Boot nie gefunden - nichts zu ueberwachen
+                                                // never found at boot - nothing to monitor
+        static unsigned long lastRtcHealthCheck = 0;
+        if (millis() - lastRtcHealthCheck < WAIT_1m) return;
+        lastRtcHealthCheck = millis();
+
+        Wire.beginTransmission(0x68);
+        if (Wire.endTransmission() != 0) {
+            DEBUG_PRINTLN("[RTC] Health check failed - RTC no longer responding on I2C bus");
+            rtcOk = RTC_NOT_AVAILABLE;
+        }
+#endif
     }
 
 

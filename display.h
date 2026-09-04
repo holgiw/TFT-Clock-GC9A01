@@ -2039,7 +2039,7 @@
         // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
         // Check whether we're currently within the configured full-brightness time window
         bool withinDayWindow = false;
-    
+
         // struct tm timeinfo;
         if (getLocalTime(&timeinfo, 500)) {
             int h = timeinfo.tm_hour;
@@ -2054,7 +2054,56 @@
                 withinDayWindow = (h >= brightStartHour || h < brightEndHour);
             }
         }
-    
+
+        // Fotowiderstand-Rohwert IMMER aktualisieren, unabhaengig vom Tages-
+        // Helligkeitsfenster - dieser Block lief vorher nur im "else"-Zweig
+        // weiter unten (also nur AUSSERHALB des Fensters), wodurch
+        // currentAdcAvg/currentLightPercent waehrend des GESAMTEN
+        // Voll-Helligkeits-Fensters (Standard 8-22 Uhr) eingefroren blieben
+        // (Bugreport: "Licht steht auf 0 und aendert sich nicht" - tagsueber
+        // wird der else-Zweig nie erreicht). currentLightPercent wird
+        // ausserhalb dieser Funktion inzwischen auch rein zur ANZEIGE
+        // genutzt (Live-Wert in der Topbar, siehe webserver_routes.h),
+        // unabhaengig davon, ob der Wert gerade die Helligkeits-ENTSCHEIDUNG
+        // beeinflusst - die Entscheidung selbst (targetBrightness) haengt
+        // weiter unten weiterhin vom Zeitfenster ab, nur das MESSEN nicht
+        // mehr.
+        // Always update the raw photoresistor reading, independent of the
+        // daytime brightness window - this block used to live only in the
+        // "else" branch further below (i.e. only OUTSIDE the window), which
+        // meant currentAdcAvg/currentLightPercent stayed frozen for the
+        // ENTIRE full-brightness window (default 8am-10pm) (bug report:
+        // "light stuck at 0, not updating" - during the day the else branch
+        // is never reached). currentLightPercent is now also used purely for
+        // DISPLAY outside this function (the topbar's live value, see
+        // webserver_routes.h), independent of whether the value currently
+        // influences the brightness DECISION - that decision
+        // (targetBrightness) still depends on the time window further below,
+        // only the MEASURING no longer does.
+#ifdef ADC_PIN
+        if (useAdc) {
+
+            int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
+
+            // DEBUG_PRINTF("[ADC] Raw value: %d\n", adcRaw);
+
+            if (initial) {
+                for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
+            }
+
+            adcHistory[adcIndex] = adcRaw;
+            adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
+
+            uint32_t avg = 0;
+            for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
+            avg /= ADC_SMOOTHING;
+
+            currentAdcAvg = avg;  // speichern
+                                  // save
+
+            currentLightPercent = map(avg, 0, 4095, 5, 100);
+        }
+#endif
 
         // Wenn Zeitfenster aktiv und wir innerhalb davon sind: volle Helligkeit erzwingen
         // If the time window is active and we're inside it: force full brightness
@@ -2075,39 +2124,22 @@
             // Normal auto-brightness or static brightness
             if (useAdc) {
 
-
-                int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
-
-                // DEBUG_PRINTF("[ADC] Raw value: %d\n", adcRaw);
-
-                if (initial) {
-                    for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
-                }
-
-                adcHistory[adcIndex] = adcRaw;
-                adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
-
-                uint32_t avg = 0;
-                for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
-                avg /= ADC_SMOOTHING;
-
-                currentAdcAvg = avg;  // speichern
-                                      // save
-
-                int lightPercent = map(avg, 0, 4095, 5, 100);
-
-                if (lightPercent < lowThreshold) targetBrightness = minBrightness;
-                else if (lightPercent > highThreshold) targetBrightness = maxBrightness;
+                // currentAdcAvg/currentLightPercent wurden oben bereits fuer
+                // diesen Durchlauf aktualisiert - hier nur noch die
+                // Helligkeits-ENTSCHEIDUNG anhand der frischen Werte.
+                // currentAdcAvg/currentLightPercent were already updated
+                // above for this pass - only the brightness DECISION based
+                // on those fresh values happens here.
+                if (currentLightPercent < lowThreshold) targetBrightness = minBrightness;
+                else if (currentLightPercent > highThreshold) targetBrightness = maxBrightness;
 #ifdef TFT_Backlight
                 else {
-                    float norm = constrain((float)avg / 4095.0f, 0.0f, 1.0f);
+                    float norm = constrain((float)currentAdcAvg / 4095.0f, 0.0f, 1.0f);
                     float gamma = gammaBrightness;
                     float gammaNorm = powf(norm, gamma);
                     targetBrightness = minBrightness + (uint8_t)((maxBrightness - minBrightness) * gammaNorm + 0.5f);
                 }
 #endif
-
-                currentLightPercent = lightPercent;
 
                 if (initial) currentBrightness = targetBrightness;
 
