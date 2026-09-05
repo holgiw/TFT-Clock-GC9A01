@@ -523,7 +523,25 @@
             for (int y = 0; y < height; y++) {
                 int row = flip ? height - 1 - y : y;
                 f.seek(offset + (uint32_t)rowSize * y);
-                f.read((uint8_t*)&dest[row * width], width * 2);
+                // Rueckgabewert pruefen - stand vorher unbedingt "return true"
+                // am Ende, auch wenn eine Zeile (z.B. bei einer beschaedigten/
+                // abgeschnittenen Datei) nicht vollstaendig gelesen werden
+                // konnte. dest enthielt dann teils alten/nicht initialisierten
+                // Speicherinhalt, wurde vom Aufrufer aber als vollstaendig
+                // geladen behandelt - der dokumentierte Vertrag dieser
+                // Funktion ("False bei Lesefehler, dest bleibt unveraendert")
+                // war damit gebrochen.
+                // Check the return value - this used to unconditionally
+                // "return true" at the end, even if a row (e.g. with a
+                // corrupted/truncated file) couldn't be fully read. dest then
+                // partly held old/uninitialized memory content, but the
+                // caller still treated it as fully loaded - breaking this
+                // function's documented contract ("False on read error, dest
+                // stays unchanged").
+                if (f.read((uint8_t*)&dest[row * width], width * 2) != width * 2) {
+                    f.close();
+                    return false;
+                }
             }
             f.close();
             return true;
@@ -1213,7 +1231,24 @@
                 memcpy(rowBuffer, &fullImage[row * width], width * 2);
             }
             else {
-                if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) break;
+                // Bei einem Lesefehler (z.B. abgeschnittene Datei) hier NICHT
+                // nur die Schleife per "break" verlassen: die Funktion gab am
+                // Ende trotzdem unbedingt "true" zurueck, obwohl die
+                // restlichen Zeilen nie geschrieben wurden. loadHandSprites()
+                // haette den Fehler dadurch nie bemerkt und NICHT auf den
+                // eingebauten Standard-Zeiger zurueckgefallen (siehe dortiger
+                // "if (!loadHandBmp(...))"-Zweig).
+                // On a read error (e.g. a truncated file) don't just "break"
+                // out of the loop here: the function still unconditionally
+                // returned "true" at the end, even though the remaining rows
+                // were never written. loadHandSprites() would never have
+                // noticed the failure and would NOT have fallen back to the
+                // built-in default hand (see its "if (!loadHandBmp(...))"
+                // branch there).
+                if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) {
+                    bmp.close();
+                    return false;
+                }
             }
 
             uint16_t* pixelData = (uint16_t*)rowBuffer;
@@ -1878,6 +1913,18 @@
         if (fabs(hourAngleDiff) > 0.05f) {
             lastHourAngleRef += hourAngleDiff * 0.1f;  // Glättungsfaktor
                                                        // smoothing factor
+            // Wie bei lastMinuteAngleRef weiter oben in [0,360) zurueckholen -
+            // fehlte hier bisher. Bei sehr langer durchgehender Laufzeit ohne
+            // Neustart waechst der Wert sonst unbegrenzt weiter (der
+            // Stundenzeiger bewegt sich kontinuierlich), was auf Dauer
+            // Float-Praezision kostet.
+            // Fold back into [0,360) like lastMinuteAngleRef above - this was
+            // missing here. Over very long continuous runtime without a
+            // restart the value would otherwise keep growing unbounded (the
+            // hour hand moves continuously), eventually costing float
+            // precision.
+            if (lastHourAngleRef < 0.0f) lastHourAngleRef += 360.0f;
+            if (lastHourAngleRef >= 360.0f) lastHourAngleRef -= 360.0f;
         }
         else {
             lastHourAngleRef = targetHourAngle;
@@ -1955,8 +2002,8 @@
         }
 
 
-        static unsigned long lastRtcReloadMillis = 0; // Zeitpunkt des letzten RTC-Lesevorgangs (eigenstaendig, NICHT dieselbe Variable wie das globale lastRTCUpdate in time_sync.h/getDCF77Time)
-                                                      // timestamp of the last RTC read (independent, NOT the same variable as the global lastRTCUpdate in time_sync.h/getDCF77Time)
+        static unsigned long lastRtcReloadMillis = 0; // Zeitpunkt des letzten RTC-Lesevorgangs (eigenstaendig, NICHT dieselbe Variable wie das globale lastRTCUpdate in time_sync.h/applyDcf77DecodedTime)
+                                                      // timestamp of the last RTC read (independent, NOT the same variable as the global lastRTCUpdate in time_sync.h/applyDcf77DecodedTime)
         if (rtcOk == RTC_AVAILABLE) {
             // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
             // Check whether time has passed since the last call
@@ -2726,7 +2773,22 @@
             }
             else {
                 bmp.seek(offset + inRowSize * srcY);
-                bmp.read(rowBuf, inRowSize);
+                // Rueckgabewert pruefen: bei einer beschaedigten Quelldatei
+                // enthielte rowBuf sonst unbemerkt den Inhalt der vorherigen
+                // Zeile (oder bei der allerersten Zeile nicht initialisierten
+                // Speicher) und wuerde trotzdem stillschweigend mit skaliert
+                // und als vermeintlich gueltiges Ergebnis gespeichert.
+                // Check the return value: with a corrupted source file,
+                // rowBuf would otherwise silently keep the previous row's
+                // content (or uninitialized memory on the very first row)
+                // and still get scaled and saved as an apparently valid result.
+                if (bmp.read(rowBuf, inRowSize) != inRowSize) {
+                    bmp.close();
+                    free(rowBuf);
+                    delete[] outImage;
+                    DEBUG_PRINTLN("[BMP Scale] Read error while scaling");
+                    return false;
+                }
                 rowSource = rowBuf;
             }
 

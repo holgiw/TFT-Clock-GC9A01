@@ -235,7 +235,7 @@
         // Seite benötigt JavaScript
         // Page requires JavaScript
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" +
-                translate("JavaScript is disabled.This page requires JavaScript to work properly!") + "</div></noscript>";
+                translate("JavaScript is disabled. This page requires JavaScript to work properly!") + "</div></noscript>";
 
         return html;
     }
@@ -446,6 +446,112 @@
     // arbitrary characters (e.g. "<" from logged values), without escaping
     // that would break the surrounding markup.
 
+    // Escapt zusaetzlich Anfuehrungszeichen (' und ") - urspruenglich nur fuer
+    // reinen Textinhalt gedacht (z.B. Logzeilen in <pre>), inzwischen aber auch
+    // an mehreren Stellen fuer Werte benutzt, die in einfach gequotete HTML-
+    // Attribute eingebettet werden (value='...', onclick='...'). Ohne
+    // Escaping von "'" haette ein einzelnes Anfuehrungszeichen im Wert (z.B.
+    // in einem Dateinamen, Preset-Namen, Hostnamen oder einer WLAN-SSID) das
+    // Attribut vorzeitig beendet und zusaetzliche, vom Angreifer kontrollierte
+    // Attribute wie onerror='...'/onfocus='...' injizieren koennen - reines
+    // "<"/">"-Escaping verhindert zwar das Einschleusen eines neuen <script>-
+    // Tags, aber NICHT diese Art von Attribut-Injection.
+
+    // Also escapes quote characters (' and ") - originally meant only for
+    // plain text content (e.g. log lines inside <pre>), but by now also used
+    // in several places for values embedded into single-quoted HTML
+    // attributes (value='...', onclick='...'). Without escaping "'", a single
+    // quote character in the value (e.g. in a filename, preset name, hostname,
+    // or WiFi SSID) could terminate the attribute early and inject additional,
+    // attacker-controlled attributes like onerror='...'/onfocus='...' -
+    // escaping only "<"/">" prevents injecting a new <script> tag, but NOT
+    // this kind of attribute injection.
+    // Fuer Werte, die in ein onclick='...'-HTML-Attribut eingebettet werden,
+    // das INTERN wiederum einen JS-String-Literal enthaelt (z.B.
+    // onclick=\"fn('TEXT')\" oder onclick='fn(\"TEXT\")') - ein einfaches
+    // escapeHtmlText() reicht hier NICHT: der Browser dekodiert HTML-
+    // Entities in einem Attributwert, BEVOR der Inhalt als JS geparst wird -
+    // ein per &#39; entity-escapetes Anfuehrungszeichen wird also vor der
+    // JS-Auswertung wieder zu einem rohen "'" und wuerde den inneren
+    // JS-String trotzdem vorzeitig beenden. Deshalb: das AEUSSERE HTML-
+    // Anfuehrungszeichen per Entity escapen (verhindert ein vorzeitiges Ende
+    // des Attributs schon beim HTML-Parsing, unabhaengig von Entity-
+    // Dekodierung), das INNERE JS-Anfuehrungszeichen per Backslash escapen
+    // (verhindert ein vorzeitiges Ende des JS-Strings NACH der Dekodierung).
+    // jsStringQuote gibt an, welches Zeichen den inneren JS-String begrenzt
+    // ('...' oder "...") - das jeweils andere gilt automatisch als aeusseres
+    // HTML-Attribut-Anfuehrungszeichen.
+
+    // For values embedded into an onclick='...' HTML attribute that itself
+    // contains a JS string literal (e.g. onclick=\"fn('TEXT')\" or
+    // onclick='fn(\"TEXT\")') - plain escapeHtmlText() is NOT enough: the
+    // browser decodes HTML entities within an attribute value BEFORE the
+    // content is parsed as JS - a quote character entity-escaped as &#39;
+    // turns back into a raw "'" before JS evaluation and would still
+    // terminate the inner JS string early. So: escape the OUTER HTML quote
+    // via HTML entity (prevents the attribute from ending early during HTML
+    // parsing, regardless of entity decoding), and escape the INNER JS quote
+    // via backslash (prevents the JS string from ending early after
+    // decoding). jsStringQuote says which character delimits the inner JS
+    // string ('...' or "...") - the other one is automatically treated as
+    // the outer HTML attribute quote.
+    String escapeForJsStringInAttr(const String& text, char jsStringQuote) {
+        String out;
+        out.reserve(text.length());
+        char htmlAttrQuote = (jsStringQuote == '\'') ? '"' : '\'';
+        for (size_t i = 0; i < text.length(); i++) {
+            char c = text[i];
+            if (c == '\\') { out += "\\\\"; }
+            else if (c == jsStringQuote) { out += '\\'; out += c; }
+            else if (c == htmlAttrQuote) { out += (htmlAttrQuote == '"') ? "&quot;" : "&#39;"; }
+            else if (c == '<') { out += "&lt;"; }
+            else if (c == '>') { out += "&gt;"; }
+            else if (c == '&') { out += "&amp;"; }
+            else { out += c; }
+        }
+        return out;
+    }
+
+
+    // Escaped einen String zur sicheren Einbettung als JS-String-Literal DIREKT
+    // innerhalb eines <script>-Blocks (also NICHT in einem HTML-Attribut wie
+    // onclick='...' - dafuer escapeForJsStringInAttr() oben verwenden). Wichtig:
+    // <script>-Inhalte sind fuer den HTML-Parser ein "raw text element" - HTML-
+    // Entities werden dort NICHT dekodiert, escapeHtmlText() waere hier also
+    // wirkungslos (ein "&#39;" bliebe woertlich "&#39;" statt zu "'" zu werden).
+    // Stattdessen: Backslash und das umschliessende Anfuehrungszeichen per
+    // Backslash escapen (verhindert vorzeitiges Ende des JS-Strings), und "<"
+    // zusaetzlich als "\x3C" escapen, damit eine Zeichenfolge wie "</script>"
+    // im eingebetteten Text nicht das gesamte <script>-Element vorzeitig
+    // beendet (das wuerde sonst beliebiges nachfolgendes HTML/JS ermoeglichen).
+    //
+    // Escapes a string for safe embedding as a JS string literal DIRECTLY
+    // inside a <script> block (i.e. NOT inside an HTML attribute like
+    // onclick='...' - use escapeForJsStringInAttr() above for that). Important:
+    // <script> content is a "raw text element" for the HTML parser - HTML
+    // entities are NOT decoded there, so escapeHtmlText() would be ineffective
+    // here (an "&#39;" would stay literally "&#39;" instead of becoming "'").
+    // Instead: backslash-escape the backslash and the enclosing quote character
+    // (prevents the JS string from ending early), and additionally escape "<"
+    // as "\x3C" so a sequence like "</script>" in the embedded text cannot
+    // prematurely end the whole <script> element (which would otherwise allow
+    // arbitrary following HTML/JS to be injected).
+    String escapeForJsStringLiteral(const String& text, char jsStringQuote = '"') {
+        String out;
+        out.reserve(text.length());
+        for (size_t i = 0; i < text.length(); i++) {
+            char c = text[i];
+            if (c == '\\') { out += "\\\\"; }
+            else if (c == jsStringQuote) { out += '\\'; out += c; }
+            else if (c == '<') { out += "\\x3C"; }
+            else if (c == '\n') { out += "\\n"; }
+            else if (c == '\r') { out += "\\r"; }
+            else { out += c; }
+        }
+        return out;
+    }
+
+
     String escapeHtmlText(const String& text) {
         String out;
         out.reserve(text.length());
@@ -455,6 +561,8 @@
                 case '&':  out += "&amp;";  break;
                 case '<':  out += "&lt;";   break;
                 case '>':  out += "&gt;";   break;
+                case '\'': out += "&#39;";  break;
+                case '"':  out += "&quot;"; break;
                 default:   out += c;        break;
             }
         }
@@ -998,6 +1106,13 @@
             // in the topbar (see generateTopBar(), reset-btn) covers this
             // now; the "/reboot" route itself stays (still needed by that
             // button, and for bookmarks/direct calls).
+            // "DCF77" bewusst unuebersetzt (Protokollname, siehe DCF77-Label
+            // in generateTopBar()/dotStatusText() weiter unten - dort ebenfalls
+            // unuebersetzt). Bewusst vor "Factory Reset".
+            // "DCF77" deliberately left untranslated (a protocol name, see the
+            // DCF77 label in generateTopBar()/dotStatusText() further below -
+            // also untranslated there). Deliberately placed before "Factory Reset".
+            {"/dcf77", "DCF77", ""},
             {"/factoryReset", translate("Factory&nbsp;Reset"), ""}
         };
 
@@ -1005,6 +1120,39 @@
                                               // current path of the page
 
         for (const auto& item : navItems) {
+            // "/dcf77" nur anzeigen, wenn ueberhaupt ein DCF77-Empfaenger
+            // konfiguriert ist UND dieser bereits eine plausible Impulskette
+            // geliefert hat (dcf77Confirmed, siehe globals.h) - also
+            // dieselbe "gefunden"-Bedingung wie beim DCF77-Statuspunkt in
+            // der Topbar (siehe getDcf77Status()/dcfPresent in
+            // generateTopBar() oben). Anders als dort gibt es hier kein
+            // nachtraegliches Live-Einblenden per JS, da generateNavigation()
+            // nur einmal pro Seitenaufruf gerendert wird - der Link
+            // erscheint also je nach Zeitpunkt des Aufrufs erst ab dem
+            // naechsten Seitenwechsel/-neuladen nach dem ersten Impuls.
+            // Direktaufrufe von /dcf77 per Lesezeichen/URL funktionieren
+            // unabhaengig davon weiterhin (die Route selbst prueft das
+            // nicht), zeigen dann aber noch keine Daten an.
+
+            // Only show "/dcf77" when a DCF77 receiver is configured at all
+            // AND it has already delivered a plausible pulse chain
+            // (dcf77Confirmed, see globals.h) - i.e. the same "found"
+            // condition as the DCF77 status dot in the topbar (see
+            // getDcf77Status()/dcfPresent in generateTopBar() above). Unlike
+            // there, there's no later live reveal via JS here, since
+            // generateNavigation() is only rendered once per page load - so
+            // depending on timing the link only appears from the next
+            // page change/reload after the first pulse. Direct calls to
+            // /dcf77 via bookmark/URL keep working regardless (the route
+            // itself doesn't check this), just without any data yet.
+            if (item.path == "/dcf77") {
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+                if (!dcf77Confirmed) continue;
+#else
+                continue;
+#endif
+            }
+
             if (item.path == currentPath) {
                 // Wenn der aktuelle Pfad mit dem Navigationseintrag übereinstimmt, nur Text anzeigen
                 // If the current path matches the nav entry, show plain text only
@@ -1050,7 +1198,17 @@
 
     String generateFlashMessage() {
         if (!webserver.hasArg("msg")) return "";
-        String message = translate(webserver.arg("msg"));
+        // escapeHtmlText(): der "msg"-Parameter kommt aus der URL (z.B. per
+        // Redirect-Link) und wird nach translate() (gibt bei unbekanntem
+        // Schluessel den Text unveraendert zurueck) direkt als HTML
+        // eingebettet - ohne Escaping ein reflektiertes-XSS-Einfallstor auf
+        // praktisch jeder Seite, die generateFlashMessage() einbindet.
+        // escapeHtmlText(): the "msg" parameter comes from the URL (e.g. via
+        // a redirect link) and, after translate() (returns the text unchanged
+        // on an unknown key), is embedded directly as HTML - without escaping
+        // a reflected-XSS entry point on practically every page that includes
+        // generateFlashMessage().
+        String message = escapeHtmlText(translate(webserver.arg("msg")));
         String html = "<div id='flashMsg' style='background:rgba(61,220,132,0.12);color:var(--ok);border:1px solid var(--ok);border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
         html += "&#9989; " + message;
         html += "</div>";
@@ -1862,20 +2020,45 @@
                     // the mutation into NVS. It was redundant anyway - the block below
                     // already makes its own local copy (presetName) for the URL.
 
+                    // presets[i].name kommt vom Nutzer (freier Name beim Anlegen
+                    // eines Presets, siehe /api/createPreset) und wurde hier an
+                    // mehreren Stellen ungeescaped in HTML-Text bzw. in
+                    // JS-String-Literale innerhalb von onclick-Attributen
+                    // eingebettet - potentiell gespeichertes XSS. Fuer reinen
+                    // Textinhalt escapeHtmlText(), fuer die onclick-JS-Strings
+                    // escapeForJsStringInAttr() (siehe Kommentar dort).
+                    // presets[i].name comes from the user (a free-form name
+                    // chosen when creating a preset, see /api/createPreset) and
+                    // was embedded here unescaped in several places, both as
+                    // HTML text and inside JS string literals within onclick
+                    // attributes - potentially stored XSS. escapeHtmlText() for
+                    // plain text content, escapeForJsStringInAttr() for the
+                    // onclick JS strings (see comment there).
+                    String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
                     chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
-                    chunk += "<br><a href='" + displayUrl + "'>" + presets[i].name + "</a>";
+                    chunk += "<br><a href='" + displayUrl + "'>" + safePresetNameText + "</a>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
                                                   // replace spaces with underscores
                     String ipLink = "http://" + ipAddress + "/api/setPreset?name=" + presetName;
-                    chunk += "<br><span onclick=\"copyPresetLink('" + ipLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
+                    // onclick=\"...\" -> aeusseres Attribut ist doppelt gequotet,
+                    // der JS-String innen einfach ('...') - jsStringQuote='\''.
+                    // onclick=\"...\" -> the outer attribute is double-quoted,
+                    // the inner JS string is single-quoted ('...') - jsStringQuote='\''.
+                    chunk += "<br><span onclick=\"copyPresetLink('" + escapeForJsStringInAttr(ipLink, '\'') + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
                     if (pingHostname) {
                         String hostLink = espHost + "/api/setPreset?name=" + presetName;
-                        chunk += " <span onclick=\"copyPresetLink('" + hostLink + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + " (" + espHost + ")'>&#128203;</span>";
+                        chunk += " <span onclick=\"copyPresetLink('" + escapeForJsStringInAttr(hostLink, '\'') + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + " (" + espHost + ")'>&#128203;</span>";
                     }
                     chunk += "<br><a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
-                    chunk += "<button type='button' onclick='if(confirm(\"" + translate("Delete") + " " + presets[i].name + "?\")){window.location.href=\"/deletepreset?index=" + String(i) + "\";}'>" + translate("Delete") + "</button>";
+                    // onclick='...' -> aeusseres Attribut ist einfach gequotet,
+                    // der confirm()-String innen doppelt (\"...\") -
+                    // jsStringQuote='"'.
+                    // onclick='...' -> the outer attribute is single-quoted,
+                    // the confirm() string inside is double-quoted (\"...\") -
+                    // jsStringQuote='"'.
+                    chunk += "<button type='button' onclick='if(confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(presets[i].name, '"') + "?\")){window.location.href=\"/deletepreset?index=" + String(i) + "\";}'>" + translate("Delete") + "</button>";
                     chunk += "</div>";
 
                     rowCount++;
@@ -1921,22 +2104,35 @@
             }
 
             chunk += "<script>";
+            // escapeForJsStringLiteral(): Preset-Namen (Nutzereingabe) und Datei-
+            // namen (aus Uploads, s. handleFileUpload() - dort nicht auf harmlose
+            // Zeichen eingeschraenkt) landen hier als JS-String-Literal direkt in
+            // einem <script>-Block. Ohne Escaping koennte ein "-Zeichen den String
+            // vorzeitig beenden bzw. eine "</script>"-Sequenz das ganze Element
+            // abschliessen und beliebiges HTML/JS einschleusen (gespeicherte XSS).
+            //
+            // escapeForJsStringLiteral(): preset names (user input) and filenames
+            // (from uploads, see handleFileUpload() - not restricted to harmless
+            // characters there) end up here as a JS string literal directly inside
+            // a <script> block. Without escaping, a '"' character could end the
+            // string early, or a "</script>" sequence could close the whole
+            // element and inject arbitrary HTML/JS (stored XSS).
             chunk += "var existingPresetNames = [";
             for (size_t gi = 0; gi < existingPresetNamesForJs.size(); gi++) {
                 if (gi > 0) chunk += ",";
-                chunk += "\"" + existingPresetNamesForJs[gi] + "\"";
+                chunk += "\"" + escapeForJsStringLiteral(existingPresetNamesForJs[gi]) + "\"";
             }
             chunk += "];";
             chunk += "var existingFacesForPresets = [";
             for (size_t gi = 0; gi < existingFacesForJs.size(); gi++) {
                 if (gi > 0) chunk += ",";
-                chunk += "\"" + existingFacesForJs[gi] + "\"";
+                chunk += "\"" + escapeForJsStringLiteral(existingFacesForJs[gi]) + "\"";
             }
             chunk += "];";
             chunk += "var existingHandsForPresets = [";
             for (size_t gi = 0; gi < existingHandsForJs.size(); gi++) {
                 if (gi > 0) chunk += ",";
-                chunk += "\"" + existingHandsForJs[gi] + "\"";
+                chunk += "\"" + escapeForJsStringLiteral(existingHandsForJs[gi]) + "\"";
             }
             chunk += "];";
             chunk += "async function loadPresetsFromGithub() {";
@@ -2352,7 +2548,15 @@
                 return;
             }
 
-            String oldName = webserver.arg("file");
+            // escapeHtmlText(): "file" kommt aus der URL (GET-Parameter) und
+            // wurde vorher ungeescaped in zwei value='...'-Attribute
+            // eingebettet - ein praeparierter Link (z.B. .../rename_form?file=x'%3E%3Cscript%3E...)
+            // haette so reflektiertes XSS ausgeloest.
+            // escapeHtmlText(): "file" comes from the URL (GET parameter) and
+            // was previously embedded unescaped into two value='...'
+            // attributes - a crafted link (e.g. .../rename_form?file=x'%3E%3Cscript%3E...)
+            // would have triggered reflected XSS this way.
+            String oldName = escapeHtmlText(webserver.arg("file"));
             String html = beginPage();
             html.reserve(1024);  // Umbenennen-Formular: klein
                                  // rename form: small
@@ -2377,8 +2581,57 @@
                 if (!oldName.startsWith("/")) oldName = "/" + oldName;
                 if (!newName.startsWith("/")) newName = "/" + newName;
 
+                // Neuer Dateiname wurde bisher ungeprueft direkt uebernommen.
+                // Dateinamen werden spaeter an mehreren Stellen (/files,
+                // /listfilesFaces, /handsets) ungeescaped in HTML-Attribute/
+                // onclick-Strings eingebettet - ein Name mit "'" oder "<"
+                // haette dort gespeichertes XSS ermoeglicht. Auf ein sicheres
+                // Zeichen-Set beschraenken (Buchstaben/Ziffern/_/-/./sowie den
+                // einen fuehrenden "/").
+                // The new filename was previously accepted unchecked. Filenames
+                // later get embedded unescaped into HTML attributes/onclick
+                // strings in several places (/files, /listfilesFaces,
+                // /handsets) - a name containing "'" or "<" would have enabled
+                // stored XSS there. Restrict to a safe character set (letters/
+                // digits/_/-/. plus the one leading "/").
+                bool newNameValid = (newName.length() > 1 && newName.length() < 96);
+                for (size_t i = 1; newNameValid && i < newName.length(); i++) {
+                    char c = newName[i];
+                    if (!(isalnum((unsigned char)c) || c == '_' || c == '-' || c == '.')) {
+                        newNameValid = false;
+                    }
+                }
+                if (!newNameValid) {
+                    webserver.send(400, "text/plain", "Invalid new file name");
+                    return;
+                }
+
                 if (LittleFS.exists(oldName)) {
+                    // Kollision mit einer bestehenden Datei ablehnen, statt sie
+                    // stillschweigend zu ueberschreiben (LittleFS.rename() tut
+                    // das sonst kommentarlos).
+                    // Reject a collision with an existing file instead of
+                    // silently overwriting it (LittleFS.rename() otherwise
+                    // does so without any warning).
+                    if (newName != oldName && LittleFS.exists(newName)) {
+                        webserver.send(409, "text/plain", "A file with the new name already exists");
+                        return;
+                    }
                     if (LittleFS.rename(oldName, newName)) {
+                        // Ist die umbenannte Datei gerade das aktive
+                        // Zifferblatt, die Preference mitziehen - sonst zeigt
+                        // sie danach auf eine nicht mehr existierende Datei.
+                        // If the renamed file is the currently active clock
+                        // face, update the preference along with it -
+                        // otherwise it would point at a file that no longer
+                        // exists.
+                        if (preferences.getString(PK_BACKGROUND, "") == oldName) {
+                            preferences.putString(PK_BACKGROUND, newName);
+                            selectedBackground = newName;
+                            freeClockFaceBuffer();
+                            loadClockFace();
+                        }
+
                         String baseName = newName.startsWith("/") ? newName.substring(1) : newName;
                         String redirectTarget = "/files";
                         if (baseName.startsWith("face_") && baseName.endsWith(".bmp")) {
@@ -2410,7 +2663,11 @@
                 webserver.send(400, "text/plain", "Missing file name");
                 return;
             }
-            String src = webserver.arg("file");
+            // escapeHtmlText(): "file" kommt aus der URL - siehe identischer
+            // Kommentar bei /rename_form weiter oben.
+            // escapeHtmlText(): "file" comes from the URL - see the identical
+            // comment at /rename_form further above.
+            String src = escapeHtmlText(webserver.arg("file"));
             String html = beginPage();
             html.reserve(1536);  // BMP-Skalieren-Formular: klein
                                  // scale-BMP form: small
@@ -2479,6 +2736,23 @@
             // Save logging setting
             loggingEnabled = webserver.hasArg("loggingEnabled");
             preferences.putBool(PK_LOGGING_ENABLED, loggingEnabled);
+
+            // DCF77-Sync-LED-Blinken speichern (siehe dcfSyncLedEnabled in
+            // globals.h, ausgewertet in uhr3.ino loop()) - nur auf Builds mit
+            // DCF77-Empfaenger, sonst wuerde jedes Speichern dieses Formulars
+            // die Einstellung auf Builds ohne DCF77-Hardware unbemerkt auf
+            // "aus" ueberschreiben (die Checkbox wird dort ja gar nicht
+            // gerendert, haette also nie im POST gestanden).
+            // Save DCF77 sync LED blink setting (see dcfSyncLedEnabled in
+            // globals.h, evaluated in uhr3.ino loop()) - only on builds with
+            // a DCF77 receiver, otherwise every save of this form would
+            // silently overwrite the setting to "off" on builds without
+            // DCF77 hardware (the checkbox isn't rendered there at all, so
+            // it would never have been present in the POST).
+#if defined(DCF77_DATAPIN) && defined(DCF77_INTERRUPT)
+            dcfSyncLedEnabled = webserver.hasArg("dcfSyncLed");
+            preferences.putBool(PK_DCF_SYNC_LED, dcfSyncLedEnabled);
+#endif
 
             wifiActive = webserver.hasArg("wifiActive");
             preferences.putBool(PK_WIFI_ACTIVE, wifiActive);
@@ -2830,7 +3104,26 @@
             // page's form sends a hidden "returnTo" field for this; the tab
             // panel doesn't send one and therefore still falls back to the
             // tab hub.
+            // "returnTo" wird normalerweise nur ueber ein verstecktes
+            // Formularfeld mit festem Wert mitgeschickt, kommt aber technisch
+            // trotzdem als gewoehnlicher POST-Parameter an - ohne Pruefung
+            // haette ein praeparierter POST (z.B. per CSRF-artigem externen
+            // Formular) mit z.B. returnTo=http://evil.example.com einen
+            // offenen Redirect auf eine beliebige externe Seite ausgeloest.
+            // Nur einen lokalen, mit "/" beginnenden Pfad ohne "://"
+            // akzeptieren, sonst auf den Default zurueckfallen.
+            // "returnTo" is normally only ever submitted via a hidden form
+            // field with a fixed value, but technically still arrives as an
+            // ordinary POST parameter - without validation, a crafted POST
+            // (e.g. via a CSRF-like external form) with e.g.
+            // returnTo=http://evil.example.com would have triggered an open
+            // redirect to an arbitrary external site. Only accept a local
+            // path starting with "/" and containing no "://", otherwise fall
+            // back to the default.
             String returnTo = webserver.hasArg("returnTo") ? webserver.arg("returnTo") : "/?tab=helligkeit";
+            if (!returnTo.startsWith("/") || returnTo.indexOf("://") >= 0) {
+                returnTo = "/?tab=helligkeit";
+            }
             String sep = (returnTo.indexOf('?') >= 0) ? "&" : "?";
             redirectTo(returnTo + sep + "msg=Settings%20saved");
             });
@@ -2950,6 +3243,35 @@
                     }
 
                     File file = LittleFS.open(path, "r");
+
+                    // Beide Pruefungen fehlten hier bisher: (1) open() kann
+                    // trotz vorherigem exists()-Check fehlschlagen, wenn die
+                    // Datei zwischen beiden Aufrufen von einem parallelen
+                    // Request (z.B. /delete, /rename) geloescht/umbenannt
+                    // wurde - file.name() auf einem ungueltigen File-Objekt
+                    // waere dann undefiniert. (2) LittleFS.exists() liefert
+                    // fuer Verzeichnisse ebenfalls true; ohne isDirectory()-
+                    // Check haette ein Verzeichnisname als "file" eine
+                    // sinnlose "Download"-Antwort erzeugt statt eines
+                    // sauberen Fehlercodes (an anderer Stelle in dieser Datei,
+                    // z.B. /listfilesFaces, wird isDirectory() bereits korrekt
+                    // geprueft).
+                    // Both checks were previously missing here: (1) open()
+                    // can fail despite the earlier exists() check if the file
+                    // was deleted/renamed by a concurrent request (e.g.
+                    // /delete, /rename) between the two calls - file.name() on
+                    // an invalid File object would then be undefined. (2)
+                    // LittleFS.exists() also returns true for directories;
+                    // without an isDirectory() check, a directory name passed
+                    // as "file" would have produced a meaningless "download"
+                    // response instead of a clean error code (isDirectory()
+                    // is already correctly checked elsewhere in this file,
+                    // e.g. /listfilesFaces).
+                    if (!file || file.isDirectory()) {
+                        if (file) file.close();
+                        webserver.send(404, "text/plain", "File not found");
+                        return;
+                    }
 
                     // Setze den Content-Disposition-Header, um den Dateinamen festzulegen
                     // Set the Content-Disposition header to define the file name
@@ -3505,6 +3827,64 @@
             webserver.send(200, "application/json", json);
             });
 
+        // Liefert den Live-Fortschritt des gerade empfangenen DCF77-Telegramms
+        // (Bit fuer Bit, siehe processDcf77Bits() in time_sync.h) sowie das
+        // zuletzt vollstaendig dekodierte Telegramm (siehe
+        // decodeDcf77Telegram()) als JSON - fuer das sekuendliche Polling der
+        // /dcf77-Seite. "bits" ist ein String der Laenge DCF77_TELEGRAM_BITS
+        // mit '0'/'1' fuer bereits empfangene Bits und '?' fuer noch nicht
+        // empfangene Bits der laufenden Minute.
+
+        // Returns the live progress of the DCF77 telegram currently being
+        // received (bit by bit, see processDcf77Bits() in time_sync.h) as
+        // well as the last fully decoded telegram (see
+        // decodeDcf77Telegram()) as JSON - for the /dcf77 page's
+        // once-per-second polling. "bits" is a string of length
+        // DCF77_TELEGRAM_BITS with '0'/'1' for bits already received and '?'
+        // for bits of the running minute not yet received.
+        webserver.on("/api/dcf77status", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "no-store");
+#if !defined(DCF77_DATAPIN) || !defined(DCF77_INTERRUPT)
+            webserver.send(200, "application/json", "{\"present\":false}");
+#else
+            String bits;
+            bits.reserve(DCF77_TELEGRAM_BITS);
+            for (uint8_t i = 0; i < DCF77_TELEGRAM_BITS; i++) {
+                bits += (dcf77Bits[i] < 0) ? '?' : (char)('0' + dcf77Bits[i]);
+            }
+
+            String json = "{\"present\":true";
+            json += ",\"state\":\"" + getDcf77Status() + "\"";
+            json += ",\"bitIndex\":" + String(dcf77BitIndex);
+            json += ",\"bits\":\"" + bits + "\"";
+            json += ",\"edgeDropped\":" + String(dcf77EdgeDropped); // Diagnose: Flanken, die wegen vollem Ringpuffer verworfen wurden (siehe isr() in time_sync.h)
+                                                                     // diagnostic: edges dropped due to a full ring buffer (see isr() in time_sync.h)
+            json += ",\"decoded\":{";
+            if (dcf77LastDecoded.decodedAtMillis == 0) {
+                json += "\"hasData\":false";
+            } else {
+                unsigned long ageMs = millis() - dcf77LastDecoded.decodedAtMillis; // Ueberlauf nach ~49 Tagen absichtlich nicht behandelt, da hier nur zur Anzeige verwendet und nach spaetestens 60s durch ein neues Telegramm ersetzt
+                                                                                    // overflow after ~49 days deliberately not handled, since this is only used for display here and gets replaced by a new telegram after 60s at the latest
+                json += "\"hasData\":true";
+                json += ",\"valid\":" + String(dcf77LastDecoded.valid ? "true" : "false");
+                json += ",\"minute\":" + String(dcf77LastDecoded.minute);
+                json += ",\"hour\":" + String(dcf77LastDecoded.hour);
+                json += ",\"day\":" + String(dcf77LastDecoded.day);
+                json += ",\"month\":" + String(dcf77LastDecoded.month);
+                json += ",\"year\":" + String(dcf77LastDecoded.year);
+                json += ",\"weekday\":" + String(dcf77LastDecoded.weekday);
+                json += ",\"dst\":" + String(dcf77LastDecoded.dst ? "true" : "false");
+                json += ",\"callBit\":" + String(dcf77LastDecoded.callBit ? "true" : "false");
+                json += ",\"parityMin\":" + String(dcf77LastDecoded.parityMinOk ? "true" : "false");
+                json += ",\"parityHour\":" + String(dcf77LastDecoded.parityHourOk ? "true" : "false");
+                json += ",\"parityDate\":" + String(dcf77LastDecoded.parityDateOk ? "true" : "false");
+                json += ",\"ageSeconds\":" + String(ageMs / 1000);
+            }
+            json += "}}";
+            webserver.send(200, "application/json", json);
+#endif
+            });
+
         // Liefert den Inhalt der AKTUELL aktiven Logdatei (siehe
         // getCurrentLogFileName() in system_utils.h) als Klartext - fuer das
         // Auto-Refresh-Polling im Log-Tab (siehe panel-log oben). Loest die
@@ -3616,7 +3996,17 @@
 
             bool showSecond = preferences.getBool(PK_SHOW_SECOND_HAND, true);
             bool stationModeActive = preferences.getBool(PK_STATION_MODE, true);
-            bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, true);
+            // Default false, wie ueberall sonst im Projekt (uhr3.ino,
+            // display.h, presets_manager.h, sonstige Stellen in dieser Datei)
+            // - hier stand abweichend "true", wodurch diese Anzeige direkt
+            // nach einem Werkreset einen anderen Zustand behauptete als der
+            // tatsaechlich angewendete.
+            // Default false, matching everywhere else in the project
+            // (uhr3.ino, display.h, presets_manager.h, other spots in this
+            // file) - this used to say "true" here, so right after a factory
+            // reset this display claimed a different state than what was
+            // actually applied.
+            bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
             float scaleFactor = (float)previewSize / CLOCK_WIDTH;
             int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
@@ -3697,6 +4087,181 @@
             chunk += "  requestAnimationFrame(tick);";
             chunk += "})();";
             chunk += "</script>";
+
+            chunk += "</body></html>";
+            webserver.sendContent(chunk);
+            webserver.sendContent("");
+            });
+
+        // --- DCF77-Live-Seite: Bit-Fortschritt der laufenden Minute
+        // (Sekunde 0-58) plus das zuletzt vollstaendig dekodierte Telegramm,
+        // sekuendlich per Poll aktualisiert (siehe /api/dcf77status weiter
+        // unten). Zeigt live genau die Dekodierung, die inzwischen auch die
+        // tatsaechliche Zeituebernahme speist (siehe
+        // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - die
+        // Original-Bibliothek (dcf.getUTCTime()) wird dafuer nicht mehr
+        // benutzt (siehe dortiger Kommentar zur Umstellung).
+        //
+        // Die Bit-Tooltips sowie die Legende sind bewusst Englisch
+        // (Diagnose-/Debuginhalt, wie beim Status-Tab - siehe
+        // generateStorageInfo()/forceEnglish weiter unten und die dortige
+        // Konvention), waehrend die Feldbezeichnungen der Tabelle (Minute,
+        // Stunde, ...) wie der Rest der Seite uebersetzt sind.
+        //
+        // Ueber das Untermenue verlinkt (navItems in generateNavigation()
+        // weiter oben, dort nur sichtbar wenn dcf77Confirmed) - kein Tab auf
+        // "/", eine eigenstaendige Seite.
+
+        // --- DCF77 live page: bit progress of the running minute (second
+        // 0-58) plus the last fully decoded telegram, polled every second
+        // (see /api/dcf77status further below). Shows live exactly the
+        // decode that, by now, also feeds the actual time takeover (see
+        // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - the
+        // original library (dcf.getUTCTime()) is no longer used for that
+        // (see the comment there about the switch).
+        //
+        // The per-bit tooltips and the legend are deliberately English
+        // (diagnostic/debug content, like the Status tab - see
+        // generateStorageInfo()/forceEnglish further below and the
+        // convention there), while the table's field labels (Minute, Hour,
+        // ...) are translated like the rest of the page.
+        //
+        // Linked from the submenu (navItems in generateNavigation() further
+        // above, shown there only when dcf77Confirmed) - not a tab on "/", a
+        // standalone page.
+        webserver.on("/dcf77", HTTP_GET, []() {
+            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+            webserver.send(200, "text/html", "");
+
+            String chunk = beginPage();
+            chunk.reserve(6000);
+            chunk += "<h2>DCF77</h2>";
+
+#if !defined(DCF77_DATAPIN) || !defined(DCF77_INTERRUPT)
+            chunk += "<div class='card'>" + translate("Not available") + "</div>";
+#else
+            chunk += "<div class='card' style='max-width:900px;'>"; // 900px: breit genug fuer alle 59 Bit-Kaestchen in einer kompakten Rastergrid ohne unnoetige Zeilenumbrueche auf einem Desktop-Bildschirm
+                                                                     // 900px: wide enough to fit all 59 bit boxes in a compact grid without unnecessary line wraps on a desktop screen
+            chunk += "<h3>" + translate("Bit progress") + "</h3>";
+            chunk += "<div id='dcfBitGrid' style='display:flex;flex-wrap:wrap;gap:3px;justify-content:center;font-family:var(--mono);font-size:.7rem;'>";
+
+            for (int i = 0; i < DCF77_TELEGRAM_BITS; i++) {
+                String desc;
+                if (i == 0) desc = "Start of minute (always 0)";
+                else if (i >= 1 && i <= 14) desc = "Weather broadcast / special function (unused)";
+                else if (i == 15) desc = "Call bit";
+                else if (i == 16) desc = "DST change announcement";
+                else if (i == 17) desc = "Summer time (CEST) in effect";
+                else if (i == 18) desc = "Winter time (CET) in effect";
+                else if (i == 19) desc = "Leap second announcement";
+                else if (i == 20) desc = "Start of time (always 1)";
+                else if (i >= 21 && i <= 27) desc = "Minute BCD bit " + String(i - 20);
+                else if (i == 28) desc = "Minute parity";
+                else if (i >= 29 && i <= 34) desc = "Hour BCD bit " + String(i - 28);
+                else if (i == 35) desc = "Hour parity";
+                else if (i >= 36 && i <= 41) desc = "Day of month BCD bit " + String(i - 35);
+                else if (i >= 42 && i <= 44) desc = "Day of week BCD bit " + String(i - 41);
+                else if (i >= 45 && i <= 49) desc = "Month BCD bit " + String(i - 44);
+                else if (i >= 50 && i <= 57) desc = "Year BCD bit " + String(i - 49);
+                else desc = "Date parity (day+weekday+month+year)";
+                chunk += "<div id='bit-" + String(i) + "' title='Bit " + String(i) + ": " + desc +
+                         "' style='width:1.7rem;height:1.7rem;line-height:1.7rem;display:inline-block;text-align:center;border-radius:.25rem;border:1px solid var(--panel-border);color:var(--muted);'>" +
+                         String(i) + "</div>";
+            }
+            chunk += "</div>";
+            chunk += "<p style='color:var(--muted);font-size:.75rem;'>"
+                     "<span style='display:inline-block;width:.8rem;height:.8rem;background:var(--accent);border-radius:.2rem;vertical-align:middle;'></span> = 1 &nbsp; "
+                     "<span style='display:inline-block;width:.8rem;height:.8rem;border:1px solid var(--panel-border);border-radius:.2rem;vertical-align:middle;'></span> = 0 &nbsp; "
+                     "<i class='dot syncing' style='display:inline-block;position:static;'></i> = next</p>";
+            // Diagnosewert: Anzahl der wegen vollem Ringpuffer verworfenen
+            // Flanken seit dem letzten Neustart (siehe dcf77EdgeDropped in
+            // globals.h, isr() in time_sync.h) - hilft zu unterscheiden, ob
+            // Aussetzer/uebersprungene Bits an einem ueberlaufenden Puffer
+            // liegen (dieser Wert steigt) oder an tatsaechlich schwachem
+            // Empfang bzw. Stoerungen (Wert bleibt bei 0). Bewusst englisch,
+            // wie die Bit-Tooltips oben (Diagnoseinhalt).
+            // Diagnostic value: number of edges dropped due to a full ring
+            // buffer since the last restart (see dcf77EdgeDropped in
+            // globals.h, isr() in time_sync.h) - helps tell whether
+            // dropouts/skipped bits are caused by a buffer overflow (this
+            // value rises) or by genuinely weak reception/interference
+            // (value stays at 0). Deliberately English, like the bit
+            // tooltips above (diagnostic content).
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Dropped edges (buffer overflow): <span id='dcfEdgeDropped'>-</span></p>";
+            chunk += "</div>";
+
+            // Dekodiertes Telegramm: Server rendert die uebersetzten
+            // Feldbezeichnungen sowie leere Platzhalter-<span>s mit stabilen
+            // IDs; das Poll-Skript unten befuellt NUR die reinen Datenwerte
+            // (Zahlen, ein Umschalten von "hidden" zwischen zwei bereits
+            // uebersetzten <span>s fuer Sommer-/Winterzeit) - so muss kein
+            // uebersetzter Text aus translate() in einen JS-String-Literal
+            // eingebettet werden (Gefahr durch Anfuehrungszeichen in einer
+            // Uebersetzung, siehe z.B. franzoesische Apostrophe im Rest
+            // dieser Datei).
+
+            // Decoded telegram: the server renders the translated field
+            // labels plus empty placeholder <span>s with stable IDs; the
+            // poll script below only fills in the raw data values (numbers,
+            // toggling "hidden" between two already-translated <span>s for
+            // summer/winter time) - this way no translate() text ever has
+            // to be embedded inside a JS string literal (risk from quote
+            // characters inside a translation, see e.g. the French
+            // apostrophes elsewhere in this file).
+            chunk += "<div class='card' id='dcfDecodedCard'>";
+            chunk += "<h3>" + translate("Decoded telegram") + "</h3>";
+            chunk += "<div id='dcfWaitingMsg'>" + translate("Waiting for first complete telegram") + "</div>";
+            chunk += "<table id='dcfDecodedTable' hidden>";
+            chunk += "<tr><td>" + translate("Day") + "/" + translate("Month") + "/" + translate("Year") + "</td><td><span id='dcfDate'>-</span></td></tr>";
+            chunk += "<tr><td>" + translate("Hour") + "/" + translate("Minute") + "</td><td><span id='dcfTime'>-</span></td></tr>";
+            chunk += "<tr><td>" + translate("Weekday") + "</td><td><span id='dcfWeekday'>-</span> <small>(DCF77: 1=Mon..7=Sun)</small></td></tr>";
+            chunk += "<tr><td>" + translate("Summer time") + " / " + translate("Winter time") + "</td><td><span id='dcfDstOn' hidden>" + translate("Summer time") + "</span><span id='dcfDstOff' hidden>" + translate("Winter time") + "</span></td></tr>";
+            chunk += "<tr><td>" + translate("Call bit") + "</td><td><span id='dcfCall'>-</span></td></tr>";
+            chunk += "<tr><td>" + translate("Parity") + " (" + translate("Minute") + "/" + translate("Hour") + "/" + translate("Day") + ")</td><td><span id='dcfParityMin'>-</span> / <span id='dcfParityHour'>-</span> / <span id='dcfParityDate'>-</span></td></tr>";
+            chunk += "<tr><td>" + translate("Last decoded") + "</td><td><span id='dcfAge'>-</span> s</td></tr>";
+            chunk += "</table>";
+            chunk += "</div>";
+
+            chunk += "<script>";
+            chunk += "(function(){";
+            chunk += "var TOTAL=" + String(DCF77_TELEGRAM_BITS) + ";";
+            chunk += "function pad(n){return (n<10?'0':'')+n;}";
+            chunk += "function paintBits(bitIndex,bits){";
+            chunk += "for(var i=0;i<TOTAL;i++){";
+            chunk += "var el=document.getElementById('bit-'+i); if(!el) continue;";
+            chunk += "el.classList.remove('syncing');";
+            chunk += "if(i<bitIndex){";
+            chunk += "if(bits.charAt(i)==='1'){el.style.background='var(--accent)';el.style.borderColor='var(--accent)';el.style.color='#1a1200';}";
+            chunk += "else{el.style.background='';el.style.borderColor='var(--panel-border)';el.style.color='var(--muted)';}";
+            chunk += "}else if(i===bitIndex){";
+            chunk += "el.style.background='';el.style.borderColor='var(--accent)';el.style.color='var(--accent)';el.classList.add('syncing');";
+            chunk += "}else{";
+            chunk += "el.style.background='';el.style.borderColor='var(--panel-border)';el.style.color='var(--muted)';";
+            chunk += "}}}";
+            chunk += "function renderDecoded(d){";
+            chunk += "var waiting=document.getElementById('dcfWaitingMsg'), table=document.getElementById('dcfDecodedTable');";
+            chunk += "if(!d||!d.hasData){waiting.hidden=false;table.hidden=true;return;}";
+            chunk += "waiting.hidden=true;table.hidden=false;";
+            chunk += "document.getElementById('dcfDate').textContent=pad(d.day)+'.'+pad(d.month)+'.'+d.year;";
+            chunk += "document.getElementById('dcfTime').textContent=pad(d.hour)+':'+pad(d.minute);";
+            chunk += "document.getElementById('dcfWeekday').textContent=d.weekday;";
+            chunk += "document.getElementById('dcfDstOn').hidden=!d.dst;";
+            chunk += "document.getElementById('dcfDstOff').hidden=d.dst;";
+            chunk += "document.getElementById('dcfCall').textContent=d.callBit?'1':'0';";
+            chunk += "document.getElementById('dcfParityMin').textContent=d.parityMin?'\\u2714':'\\u2716';";
+            chunk += "document.getElementById('dcfParityHour').textContent=d.parityHour?'\\u2714':'\\u2716';";
+            chunk += "document.getElementById('dcfParityDate').textContent=d.parityDate?'\\u2714':'\\u2716';";
+            chunk += "document.getElementById('dcfAge').textContent=d.ageSeconds;";
+            chunk += "}";
+            chunk += "var timer=null;";
+            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;}).catch(function(){});}";
+            chunk += "function start(){if(timer)return;poll();timer=setInterval(poll,1000);}";
+            chunk += "function stop(){if(!timer)return;clearInterval(timer);timer=null;}";
+            chunk += "document.addEventListener('visibilitychange',function(){if(document.hidden)stop();else start();});";
+            chunk += "if(!document.hidden)start();";
+            chunk += "})();";
+            chunk += "</script>";
+#endif
 
             chunk += "</body></html>";
             webserver.sendContent(chunk);
@@ -3932,12 +4497,29 @@
                 if (displayName.endsWith(".bmp")) displayName = displayName.substring(0, displayName.length() - 4);
                 String normalizedName = name.startsWith("/") ? name : "/" + name;
                 bool isActive = (normalizedName == activeBackground);
+                // escapeHtmlText() ergaenzt: "name"/"shortName" stammen aus
+                // dem tatsaechlichen Dateinamen auf LittleFS - handleFileUpload()
+                // prueft beim Hochladen nur Praefix ("face_") und Suffix
+                // (".bmp"), der mittlere Teil ist frei waehlbar. Ausserdem
+                // fehlten hier bisher die Anfuehrungszeichen um das href-
+                // Attribut komplett (href=http://... statt href='http://...'),
+                // wodurch ein Leerzeichen/Sonderzeichen im Dateinamen den Link
+                // kaputt gemacht haette.
+                // escapeHtmlText() added: "name"/"shortName" come from the
+                // actual filename on LittleFS - handleFileUpload() only
+                // checks the prefix ("face_") and suffix (".bmp") on upload,
+                // the middle part is freely chosen. Also, the href attribute
+                // was previously missing its quotes entirely (href=http://...
+                // instead of href='http://...'), so a space/special character
+                // in the filename would have broken the link.
+                String safeName = escapeHtmlText(name);
+                String safeShortName = escapeHtmlText(shortName);
                 chunk += "<div style='text-align:center;width:100px;'>";
-                chunk += "<a href=http://" + ipAddress + "/setbackground?file=" + shortName + ">";
-                chunk += "<img src='/facepreview?file=" + name + "' style='width:80px;height:80px;border:1px solid #ccc'>";
-                chunk += "</a><br>" + displayName + String(isActive ? " (" + translate("active") + ")" : "");
-                chunk += "<br><a href='/rename_form?file=" + name + "'>" + translate("Rename") + "</a> ";
-                chunk += "<a href='/delete?file=" + name + "' onclick='return confirm(\"" + translate("Delete") + " " + displayName + "?\")'>" + translate("Delete") + "</a>";
+                chunk += "<a href='http://" + ipAddress + "/setbackground?file=" + safeShortName + "'>";
+                chunk += "<img src='/facepreview?file=" + safeName + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+                chunk += "</a><br>" + escapeHtmlText(displayName) + String(isActive ? " (" + translate("active") + ")" : "");
+                chunk += "<br><a href='/rename_form?file=" + safeName + "'>" + translate("Rename") + "</a> ";
+                chunk += "<a href='/delete?file=" + safeName + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
 
                 // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
@@ -4788,8 +5370,24 @@
             chunk += "<form method='POST' action='/sethostname'>";
             chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
             chunk += "<label>" + translate("Hostname") + ":</label>";
-            chunk += "<span title='" + translate("The clock can also be reached at http://\"hostname\".local instead of its IP address, e.g.") + " http://" + String(hostname) + ".local. " + translate("A restart is required for a changed hostname to take effect. Not all routers support hostname resolution") + ".' style='cursor:help;'>&#9432;</span>";
-            chunk += "<input name='hostname' maxlength='30' value='" + String(hostname) + "' style='width:170px;'>";
+            // HINWEIS: hostname wird hier bewusst NICHT escapeHtmlText()-behandelt -
+            // title ist mit "'" begrenzt, ein "'" im Hostnamen wuerde also
+            // trotzdem ausbrechen koennen (Hostname stammt aus /sethostname,
+            // s. Kommentar oben beim value-Attribut). Deshalb hier zusaetzlich escapen.
+            // NOTE: hostname is deliberately NOT left unescaped here either -
+            // title is delimited with "'", so a "'" in the hostname could still
+            // break out (hostname comes from /sethostname, see the comment
+            // above at the value attribute). So escape it here too.
+            chunk += "<span title='" + translate("The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.") + " http://" + escapeHtmlText(String(hostname)) + ".local. " + translate("A restart is required for a changed hostname to take effect. Not all routers support hostname resolution") + ".' style='cursor:help;'>&#9432;</span>";
+            // escapeHtmlText(): hostname wird vom Nutzer selbst gesetzt
+            // (/sethostname) und ohne Zeichenfilterung gespeichert - ohne
+            // Escaping haette ein "'" darin dieses value-Attribut aufbrechen
+            // und beliebiges HTML/Attribute einschleusen koennen.
+            // escapeHtmlText(): hostname is set by the user themselves
+            // (/sethostname) and stored without character filtering -
+            // without escaping, a "'" in it could have broken this value
+            // attribute and injected arbitrary HTML/attributes.
+            chunk += "<input name='hostname' maxlength='30' value='" + escapeHtmlText(String(hostname)) + "' style='width:170px;'>";
             chunk += "<button type='submit' style='width:140px;'>" + translate("Save") + "</button>";
             chunk += "</div>";
             chunk += "</form><br><br>";
@@ -4839,7 +5437,15 @@
                 chunk += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
                 chunk += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\" style='max-width:180px;'>";
                 chunk += "</select>";
-                chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + wifiSsid[i] + "' style='width:110px;'>";
+                // escapeHtmlText(): wifiSsid[i] stammt aus gespeicherten Preferences,
+                // die urspruenglich aus einem WLAN-Scan oder einer Nutzereingabe (/savewifi)
+                // stammen - ein SSID-Name mit "'" darin wuerde sonst dieses value-Attribut
+                // aufbrechen koennen (gespeicherte/stored XSS ueber SSID-Namen).
+                // escapeHtmlText(): wifiSsid[i] comes from stored preferences, originally
+                // populated from a WiFi scan or user input (/savewifi) - an SSID name
+                // containing "'" could otherwise break out of this value attribute
+                // (stored XSS via SSID name).
+                chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + escapeHtmlText(wifiSsid[i]) + "' style='width:110px;'>";
                 chunk += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value='' style='width:110px;'>";
                 if (wifiSsid[i] != "") {
                     // "Verbinden"-Button nur anzeigen, wenn mehr als ein Netzwerk
@@ -4849,16 +5455,24 @@
                     // Only show the "Connect" button when more than one network
                     // is saved - with just one entry it's already (or will
                     // become, once saved) the active connection anyway.
+                    // escapeForJsStringInAttr(..., '"'): outer HTML-Attribut nutzt "'" (per
+                    // HTML-Entity zu escapen), das innere JS-String-Literal in confirm(...)
+                    // nutzt '"' (per Backslash zu escapen) - siehe Erklaerung bei der Definition
+                    // von escapeForJsStringInAttr() weiter oben in dieser Datei.
+                    // escapeForJsStringInAttr(..., '"'): the outer HTML attribute uses "'"
+                    // (escape via HTML entity), the inner JS string literal in confirm(...)
+                    // uses '"' (escape via backslash) - see the explanation at
+                    // escapeForJsStringInAttr()'s definition earlier in this file.
                     if (savedWifiCount > 1) {
-                        chunk += " <a href='/api/connectWifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Connect") + " " + wifiSsid[i] + "?\")'>" + translate("Connect") + "</a>";
+                        chunk += " <a href='/api/connectWifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Connect") + " " + escapeForJsStringInAttr(wifiSsid[i], '"') + "?\")'>" + translate("Connect") + "</a>";
                     }
-                    chunk += " <a href='/deletewifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + wifiSsid[i] + "?\")'>" + translate("Delete") + "</a>";
+                    chunk += " <a href='/deletewifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(wifiSsid[i], '"') + "?\")'>" + translate("Delete") + "</a>";
                 }
                 chunk += "</div>";
 
                 chunk += "<small>" + translate("You can also enter an SSID manually") + ".";
                 if (WiFi.getMode() == WIFI_STA && wifiSsid[i] != "") {
-                    chunk += " " + translate("Password is hidden.Leave empty to keep current") + ".";
+                    chunk += " " + translate("Password is hidden. Leave empty to keep current") + ".";
                 }
                 chunk += "</small>";
 
@@ -4968,7 +5582,22 @@
             chunk += " <span title='" + translate("Shows or hides the second hand on the clock face") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothMinute' value='1' ";
-            chunk += preferences.getBool(PK_SMOOTH_MINUTE, true) ? "checked" : "";
+            // Default false, wie ueberall sonst (siehe Kommentar bei
+            // smoothMinuteActive weiter oben in dieser Datei) - hier stand
+            // abweichend "true": direkt nach einem Werkreset zeigte diese
+            // Checkbox faelschlich "aktiviert", obwohl der Minutenzeiger
+            // tatsaechlich in 1-Minuten-Schritten sprang. Speicherte man das
+            // Formular unveraendert (z.B. weil nur eine andere Einstellung
+            // geaendert werden sollte), wurde "Smooth Minute Hand" dadurch
+            // ungewollt aktiviert.
+            // Default false, matching everywhere else (see the comment at
+            // smoothMinuteActive further above in this file) - this used to
+            // say "true": right after a factory reset this checkbox falsely
+            // showed as "enabled", even though the minute hand actually
+            // jumped in 1-minute steps. Saving the form unchanged (e.g.
+            // because only some other setting was meant to change) would
+            // then unintentionally enable "Smooth Minute Hand".
+            chunk += preferences.getBool(PK_SMOOTH_MINUTE, false) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
             chunk += " <span title='" + translate("The minute hand moves smoothly instead of jumping in 1-minute steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
@@ -4981,6 +5610,30 @@
             chunk += loggingEnabled ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Enable Logging");
             chunk += " <span title='" + translate("Writes up to 9 log files to LittleFS for troubleshooting") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            // Nur auf Builds mit angeschlossenem DCF77-Empfaenger sichtbar
+            // (dieselbe Bedingung wie auf der /dcf77-Seite selbst) - NICHT an
+            // dcf77Confirmed gekoppelt (das Flag, das den Nav-Link/den
+            // Topbar-Punkt erst nach der ersten plausiblen Impulskette
+            // einblendet): genau in der Phase VOR dcf77Confirmed blinkt die
+            // LED am haeufigsten, waere die Checkbox erst danach sichtbar,
+            // liesse sie sich nicht abschalten, wenn man sie am noetigsten
+            // braucht (schwacher/noch fehlender Empfang).
+            //
+            // Only visible on builds with a DCF77 receiver wired up (same
+            // condition as on the /dcf77 page itself) - deliberately NOT
+            // tied to dcf77Confirmed (the flag that only reveals the nav
+            // link/topbar dot after the first plausible pulse chain): the
+            // LED blinks most often in exactly the phase BEFORE
+            // dcf77Confirmed, so gating the checkbox on it would make it
+            // impossible to turn off right when it's needed most (weak or
+            // not-yet-established reception).
+#if defined(DCF77_DATAPIN) && defined(DCF77_INTERRUPT)
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='dcfSyncLed' value='1' ";
+            chunk += dcfSyncLedEnabled ? "checked" : "";
+            chunk += " style='width:auto;margin:0;'>" + translate("DCF77 Sync LED Blink");
+            chunk += " <span title='" + translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+#endif
 
             String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Ping Server");
@@ -5808,16 +6461,33 @@
             // Send each found hand set IMMEDIATELY instead of collecting them - so
             // never more than one hand set is in memory at a time.
             auto renderSetRow = [&](const String& setId) {
+                // setId wird aus hochgeladenen Dateinamen extrahiert (siehe handleFileUpload()) -
+                // dort wird nur ein "/hand_set"-Praefix und ".bmp"-Suffix erzwungen, der Teil
+                // dazwischen (also setId) ist NICHT auf harmlose Zeichen eingeschraenkt. Ein
+                // praeparierter Upload-Dateiname koennte daher HTML/JS-Metazeichen enthalten
+                // (gespeicherte/stored XSS) - deshalb hier ueberall escapen, bevor setId in HTML
+                // bzw. in den confirm()-JS-String eingebettet wird. Fuer die Dateisystem-Pfade
+                // (LittleFS.exists()/-Zugriff) wird weiterhin die unescapte Rohvariante benutzt,
+                // da diese exakt dem echten Dateinamen entsprechen muss.
+                //
+                // setId is extracted from uploaded filenames (see handleFileUpload()) - there,
+                // only a "/hand_set" prefix and ".bmp" suffix are enforced, the part in between
+                // (i.e. setId) is NOT restricted to harmless characters. A crafted upload
+                // filename could therefore contain HTML/JS metacharacters (stored XSS) - so
+                // escape it everywhere before embedding it into HTML or into the confirm() JS
+                // string. The filesystem paths (LittleFS.exists()/access) still use the raw,
+                // unescaped variant, since that must exactly match the real filename.
+                String safeSetId = escapeHtmlText(setId);
                 chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
                 String hourPath = "/hand_set" + setId + "_hour.bmp";
                 String minutePath = "/hand_set" + setId + "_minute.bmp";
                 String secondPath = "/hand_set" + setId + "_second.bmp";
-                chunk += "<a href='/sethandset?set=" + setId + "'>";
-                chunk += LittleFS.exists(hourPath) ? "<img src='/file?name=" + hourPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
-                chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + minutePath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
-                chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + secondPath + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
-                chunk += "</a><br>" + setId + (setId == activeSet ? " (" + translate("active") + ")" : "");
-                chunk += "<br><a href='/deletehandset?set=" + setId + "' onclick='return confirm(\"" + translate("Delete") + " " + setId + "?\")'>" + translate("Delete") + "</a>";
+                chunk += "<a href='/sethandset?set=" + safeSetId + "'>";
+                chunk += LittleFS.exists(hourPath) ? "<img src='/file?name=" + escapeHtmlText(hourPath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
+                chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + escapeHtmlText(minutePath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
+                chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + escapeHtmlText(secondPath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
+                chunk += "</a><br>" + safeSetId + (setId == activeSet ? " (" + translate("active") + ")" : "");
+                chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
                 webserver.sendContent(chunk);
                 checkHeapWarning("/handsets Zeigersatz " + setId);
@@ -5851,7 +6521,7 @@
             chunk += "<button type='submit'>" + translate("Apply") + "</button></form><hr>";
 
             if (used + 5818 > total) {
-                chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new hand sets!Free up some space first") + ".</div><br><br>";
+                chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new hand sets! Free up some space first") + ".</div><br><br>";
             }
             else {
                 // Vorhandene Zeigersatz-Dateinamen fuer den Vergleich mit GitHub einsammeln
@@ -6135,6 +6805,43 @@
                 DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp' : " + uploadFilePath);
                 uploadSuccess = false;
                 return;
+            }
+
+            // Zusaetzlich auf ein sicheres Zeichen-Set beschraenken (analog zur
+            // gleichartigen Pruefung bei /rename oben): bisher wurde der Teil
+            // zwischen Praefix und ".bmp" ungeprueft uebernommen. Aus diesem
+            // Dateinamen wird spaeter u.a. der "setId"-Teil extrahiert und in
+            // /handsets sowie im GitHub-Merge-Skript ungeescaped in HTML-
+            // Attribute, onclick-Strings bzw. JS-String-Literale in <script>-
+            // Bloecken eingebettet (siehe escapeHtmlText()/escapeForJsStringInAttr()/
+            // escapeForJsStringLiteral()-Aufrufe dort) - ohne diese Einschraenkung
+            // waere ein praeparierter Upload-Dateiname (z.B. mit "</script>" oder
+            // "..") ein Weg zu gespeichertem XSS bzw. potenziell zu Pfad-Traversal.
+            //
+            // Additionally restrict to a safe character set (mirroring the same
+            // kind of check at /rename above): until now, the part between the
+            // prefix and ".bmp" was accepted unchecked. This filename is later
+            // used to extract the "setId" part among other things and gets
+            // embedded, unescaped without this restriction, into HTML attributes,
+            // onclick strings and JS string literals inside <script> blocks in
+            // /handsets and the GitHub merge script (see the escapeHtmlText()/
+            // escapeForJsStringInAttr()/escapeForJsStringLiteral() calls there) -
+            // without this restriction, a crafted upload filename (e.g.
+            // containing "</script>" or "..") would be a path to stored XSS or
+            // potentially path traversal.
+            {
+                bool uploadNameValid = true;
+                for (size_t ni = 1; uploadNameValid && ni < uploadFilePath.length(); ni++) {
+                    char c = uploadFilePath[ni];
+                    if (!(isalnum((unsigned char)c) || c == '_' || c == '-' || c == '.')) {
+                        uploadNameValid = false;
+                    }
+                }
+                if (!uploadNameValid || uploadFilePath.indexOf("..") >= 0) {
+                    DEBUG_PRINTLN("[UPLOAD] Invalid filename: contains disallowed characters : " + uploadFilePath);
+                    uploadSuccess = false;
+                    return;
+                }
             }
 
             DEBUG_PRINTLN("[UPLOAD] Start: " + uploadFilePath);

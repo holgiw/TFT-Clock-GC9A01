@@ -187,6 +187,41 @@
         else {
             presetName = String(presetIndex + 1) + "_Preset";
         }
+
+        // Eindeutigkeit sicherstellen: switchToNextPreset() identifiziert das
+        // aktuelle Preset ueber PK_CURRENT_PRESET anhand des NAMENS (nicht des
+        // Index), ebenso wird der Name persistent gespeichert. Zwei Presets mit
+        // identischem Namen (z.B. bei eigenem Namen ueber /api/createPreset)
+        // waeren dort nicht mehr unterscheidbar - es wuerde immer das erste
+        // Preset mit passendem Namen gefunden, ein Weiterschalten zum zweiten
+        // waere nie moeglich. Deshalb hier bei Kollision einen numerischen
+        // Suffix anhaengen, bis der Name eindeutig ist.
+        //
+        // Ensure uniqueness: switchToNextPreset() identifies the current preset
+        // via PK_CURRENT_PRESET by NAME (not by index), and the name is also
+        // what gets persisted. Two presets with an identical name (e.g. from a
+        // custom name via /api/createPreset) would no longer be distinguishable
+        // there - the first preset with a matching name would always be found,
+        // so switching to the second one would never be possible. So append a
+        // numeric suffix on collision until the name is unique.
+        if (!customName.isEmpty()) {
+            String baseName = presetName;
+            int suffix = 2;
+            bool collision = true;
+            while (collision) {
+                collision = false;
+                for (int i = 0; i < MAX_PRESETS; i++) {
+                    if (i != presetIndex && presets[i].name == presetName) {
+                        collision = true;
+                        break;
+                    }
+                }
+                if (collision) {
+                    presetName = baseName + "_" + String(suffix);
+                    suffix++;
+                }
+            }
+        }
         presets[presetIndex].name = presetName;
         presets[presetIndex].url = url;
 
@@ -359,9 +394,25 @@
 
         DEBUG_PRINTLN("[PRESET] Switching to preset: " + presets[nextPresetIndex].name + " -> " + nextPresetUrl);
 
-        // Speichere den aktuellen Preset-Namen
-        // Save the current preset name
-        preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);
+        // HINWEIS: PK_CURRENT_PRESET wird bewusst NICHT schon hier gespeichert
+        // (frueher gab es diesen putString()-Aufruf zusaetzlich an dieser Stelle,
+        // redundant zum Aufruf weiter unten). Das war nicht nur redundant,
+        // sondern auch ein Bug: bricht die Funktion weiter unten vorzeitig ab
+        // (z.B. weil die URL keine Query-Parameter enthaelt, siehe "return"
+        // unten), wuerde PK_CURRENT_PRESET bereits auf den neuen Preset-Namen
+        // zeigen, obwohl dessen Einstellungen (Zifferblatt, Zeigersatz, etc.)
+        // nie tatsaechlich angewendet wurden. Deshalb wird der Name erst ganz
+        // am Ende, NACH erfolgreicher Anwendung aller Einstellungen, gespeichert.
+        //
+        // NOTE: PK_CURRENT_PRESET is deliberately NOT saved here already
+        // (previously there was an additional putString() call at this exact
+        // spot, redundant with the call further below). That was not just
+        // redundant but also a bug: if the function returns early further down
+        // (e.g. because the URL has no query parameters, see the "return"
+        // below), PK_CURRENT_PRESET would already point at the new preset's
+        // name even though its settings (clock face, hand set, etc.) were
+        // never actually applied. So the name is only saved at the very end,
+        // AFTER all settings have been successfully applied.
 
         // Entferne die Basis-URL, falls vorhanden
         // Remove the base URL, if present

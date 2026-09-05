@@ -94,13 +94,15 @@
         { "Server used to periodically check the internet connection", "Server, der regelm&auml;&szlig;ig zur Pr&uuml;fung der Internetverbindung angefragt wird", "Serveur utilis&eacute; pour v&eacute;rifier p&eacute;riodiquement la connexion internet" },
         { "Automatically tries to reconnect if the WiFi connection is lost", "Versucht automatisch, die WLAN-Verbindung bei Verbindungsverlust wiederherzustellen", "Tente automatiquement de se reconnecter en cas de perte de la connexion WiFi" },
         { "Writes up to 9 log files to LittleFS for troubleshooting", "Schreibt bis zu 9 Logdateien zur Fehlersuche in LittleFS", "&Eacute;crit jusqu&#39;&agrave; 9 fichiers journaux sur LittleFS pour le d&eacute;pannage" },
+        { "DCF77 Sync LED Blink", "DCF77-Sync-LED-Blinken", "Clignotement LED synchro DCF77" },
+        { "Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal", "L&auml;sst die LED bei jedem empfangenen DCF77-Impuls aufblitzen, solange die Uhr das Zeitsignal noch sucht", "Fait clignoter la LED &agrave; chaque impulsion DCF77 re&ccedil;ue tant que l&#39;horloge recherche encore le signal horaire" },
         { "Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing", "Dreht das Zifferblatt um den gew&auml;hlten Winkel - n&uuml;tzlich, falls das Display gedreht im Geh&auml;use verbaut ist", "Fait pivoter le cadran selon l&#39;angle choisi - utile si l&#39;&eacute;cran est mont&eacute; en rotation dans son bo&icirc;tier" },
         { "Rotation Display 1", "Rotation Display 1", "Rotation &eacute;cran 1" },
         { "Rotation Display 2", "Rotation Display 2", "Rotation &eacute;cran 2" },
         { "Rotates Display 2's (CS2) clock face independently of Display 1", "Dreht das Zifferblatt von Display 2 (CS2) unabh&auml;ngig von Display 1", "Fait pivoter le cadran de l&#39;&eacute;cran 2 (CS2) ind&eacute;pendamment de l&#39;&eacute;cran 1" },
         { "Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 3 minutes while this happens", "F&uuml;gt ein neues Netzwerk per WPS hinzu - dr&uuml;cken Sie bei Aufforderung die WPS-Taste an Ihrem Router. Die Verbindung zur Uhr kann dabei f&uuml;r ca. 3 Minuten verloren gehen", "Ajoute un nouveau r&eacute;seau via WPS - appuyez sur le bouton WPS de votre routeur lorsque vous y &ecirc;tes invit&eacute;. La connexion &agrave; l&#39;horloge peut &ecirc;tre interrompue pendant environ 3 minutes" },
         { "Scans for available WiFi networks again and refreshes the dropdown lists below", "Sucht erneut nach verf&uuml;gbaren WLAN-Netzwerken und aktualisiert die Auswahllisten darunter", "Recherche &agrave; nouveau les r&eacute;seaux WiFi disponibles et actualise les listes d&eacute;roulantes ci-dessous" },
-        { "The clock can also be reached at http://\"hostname\".local instead of its IP address, e.g.", "Die Uhr ist statt &uuml;ber die IP-Adresse auch &uuml;ber http://\"hostname\".local erreichbar, z.B.", "L&#39;horloge est &eacute;galement accessible via http://\"hostname\".local au lieu de son adresse IP, par ex." },
+        { "The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.", "Die Uhr ist statt &uuml;ber die IP-Adresse auch &uuml;ber http://&quot;hostname&quot;.local erreichbar, z.B.", "L&#39;horloge est &eacute;galement accessible via http://&quot;hostname&quot;.local au lieu de son adresse IP, par ex." },
         { "Up to", "Bis zu", "Jusqu&#39;&agrave;" },
         { "WiFi networks can be stored", "WLAN-Netzwerke k&ouml;nnen hinterlegt werden", "r&eacute;seaux WiFi peuvent &ecirc;tre enregistr&eacute;s" },
         { "A restart is required for a changed hostname to take effect. Not all routers support hostname resolution", "Ein Neustart ist erforderlich, damit ein ge&auml;nderter Hostname wirksam wird. Nicht alle Router unterst&uuml;tzen die Aufl&ouml;sung von Hostnamen", "Un red&eacute;marrage est n&eacute;cessaire pour qu&#39;un nom d&#39;h&ocirc;te modifi&eacute; prenne effet. Tous les routeurs ne prennent pas en charge la r&eacute;solution des noms d&#39;h&ocirc;te" },
@@ -187,7 +189,7 @@
         { "Connect", "Verbinden", "Connecter" },
         { "Primary WiFi", "Prim&auml;res WLAN Netzwerk", "WiFi principal" },
         { "Alternative Network", "Alternatives WLAN Netzwerk", "R&eacute;seau alternatif" },
-        { "Password is hidden.Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten", "Le mot de passe est masqu&eacute;. Laissez le champ vide pour conserver le mot de passe actuel" },
+        { "Password is hidden. Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten", "Le mot de passe est masqu&eacute;. Laissez le champ vide pour conserver le mot de passe actuel" },
         { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben", "Vous pouvez aussi saisir un SSID manuellement" },
         { "No WiFi networks found", "Keine WLAN Netzwerke gefunden", "Aucun r&eacute;seau WiFi trouv&eacute;" },
         { "Save WiFi settings", "WLAN Einstellungen speichern", "Enregistrer les param&egrave;tres WiFi" },
@@ -222,7 +224,7 @@
         { "Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)", "Farbe (RGB hex, z.B. FF0000 = Rot, 000000 = Schwarz, EC0016 = DB rot)", "Couleur (hex RGB, ex. FF0000 = Rouge, 000000 = Noir, EC0016 = rouge DB)" },
         { "Centre point", "Mittelpunkt", "Point central" },
         { "Size", "Gr&ouml;&szlig;e", "Taille" },
-        { "Warning: Not enough free space to upload new hand sets!Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben", "Attention&nbsp;: espace insuffisant pour t&eacute;l&eacute;charger de nouveaux jeux d&#39;aiguilles&nbsp;! Lib&eacute;rez d&#39;abord de l&#39;espace" },
+        { "Warning: Not enough free space to upload new hand sets! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zeiger! Bitte zuerst Speicherplatz freigeben", "Attention&nbsp;: espace insuffisant pour t&eacute;l&eacute;charger de nouveaux jeux d&#39;aiguilles&nbsp;! Lib&eacute;rez d&#39;abord de l&#39;espace" },
         { "Pivot point", "Drehpunkt bei", "Point de pivot" },
         { "Manage Presets", "Manage Uhren Sets", "G&eacute;rer les pr&eacute;r&eacute;glages" },
         { "Preset Name", "Set Name", "Nom du pr&eacute;r&eacute;glage" },
@@ -326,7 +328,7 @@
         { "Refresh now", "Jetzt aktualisieren", "Actualiser maintenant" },
         { "Refresh failed - showing last known content", "Aktualisierung fehlgeschlagen - zeige zuletzt bekannten Inhalt", "&Eacute;chec de l&#39;actualisation - affichage du dernier contenu connu" },
         { "Reconnect WiFi", "Wifi neu verbinden", "Reconnecter le WiFi" },
-        { "JavaScript is disabled.This page requires JavaScript to work properly!", "JavaScript ist deaktiviert.Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!", "JavaScript est d&eacute;sactiv&eacute;. Cette page n&eacute;cessite JavaScript pour fonctionner correctement&nbsp;!" },
+        { "JavaScript is disabled. This page requires JavaScript to work properly!", "JavaScript ist deaktiviert. Diese Seite ben&ouml;tigt JavaScript, um richtig zu funktionieren!", "JavaScript est d&eacute;sactiv&eacute;. Cette page n&eacute;cessite JavaScript pour fonctionner correctement&nbsp;!" },
         { "Are you sure you want to reset all saved WiFi networks?", "Sind Sie sicher, dass Sie alle gespeicherten WLAN Netzwerke zur&uuml;cksetzen m&ouml;chten?", "&Ecirc;tes-vous s&ucirc;r de vouloir r&eacute;initialiser tous les r&eacute;seaux WiFi enregistr&eacute;s&nbsp;?" },
         { "Reset WiFi Networks", "WLAN Netzwerke zur&uuml;cksetzen", "R&eacute;initialiser les r&eacute;seaux WiFi" },
         { "WiFi networks reset. Rebooting...", "WLAN Netzwerke zur&uuml;ckgesetzt. Starte neu...", "R&eacute;seaux WiFi r&eacute;initialis&eacute;s. Red&eacute;marrage..." },
@@ -353,6 +355,25 @@
         // Neu fuer die Statuszeile (Topbar, siehe generateTopBar() in webserver_routes.h)
         // New for the status bar (topbar, see generateTopBar() in webserver_routes.h)
         { "Time", "Zeit", "Heure" },
+
+        // Neu fuer die /dcf77-Live-Seite (Bit-Fortschritt + dekodiertes
+        // Telegramm, siehe webserver_routes.h)
+        // New for the /dcf77 live page (bit progress + decoded telegram,
+        // see webserver_routes.h)
+        { "Bit progress", "Bit-Fortschritt", "Progression des bits" },
+        { "Decoded telegram", "Dekodiertes Telegramm", "T&eacute;l&eacute;gramme d&eacute;cod&eacute;" },
+        { "Waiting for first complete telegram", "Warte auf erstes vollst&auml;ndiges Telegramm", "En attente du premier t&eacute;l&eacute;gramme complet" },
+        { "Minute", "Minute", "Minute" },
+        { "Hour", "Stunde", "Heure" },
+        { "Day", "Tag", "Jour" },
+        { "Month", "Monat", "Mois" },
+        { "Year", "Jahr", "Ann&eacute;e" },
+        { "Weekday", "Wochentag", "Jour de la semaine" },
+        { "Summer time", "Sommerzeit", "Heure d&#39;&eacute;t&eacute;" },
+        { "Winter time", "Winterzeit", "Heure d&#39;hiver" },
+        { "Call bit", "Anrufbit", "Bit d&#39;appel" },
+        { "Parity", "Parit&auml;t", "Parit&eacute;" },
+        { "Last decoded", "Zuletzt dekodiert", "Dernier d&eacute;codage" },
     };
     static const size_t translationTableSize = sizeof(translationTable) / sizeof(translationTable[0]);
 

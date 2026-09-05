@@ -27,6 +27,8 @@
     // --- Zeit / NTP ---
     // --- Time / NTP ---
     constexpr const char* PK_TIMEZONE          = "timezone";
+    constexpr const char* PK_DCF_SYNC_LED      = "dcfSyncLed"; // Aufblitzen der LED pro empfangenem DCF77-Impuls waehrend der Sync-Phase (!dcfTimeFound) - Default true, siehe toggleLED()-Aufruf in uhr3.ino loop()
+                                                               // LED flash per received DCF77 pulse during the sync phase (!dcfTimeFound) - default true, see the toggleLED() call in uhr3.ino loop()
 
     // --- Zifferblatt / Darstellung ---
     // --- Clock Face / Display ---
@@ -86,6 +88,17 @@
     // PK_STATION_MODE: default is `true` everywhere except one webserver handler using `false` (unify to `true` when centralizing).
     // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt bei fehlendem Wert 8/20 - rein kosmetisch, sollte vereinheitlicht werden.
     // PK_BRIGHT_START_HOUR/END_HOUR: load function uses 7/21, status page shows 8/20 when missing - cosmetic only, should be unified.
+    // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: der Erststart-Init-Block in uhr3.ino schreibt board-abhaengige Werte
+    // (GC9D01/GC9A01_WITH_BACKLIGHT bekommen andere Zahlen als sonstige Displays), aber ALLE spaeteren preferences.getX(...)-Aufrufe (uhr3.ino setup(),
+    // display.h, webserver_routes.h) verwenden ausnahmslos die "Nicht-Backlight"-Defaultwerte als Fallback-Parameter. Betrifft nur den Fall, dass einer
+    // dieser Keys auf einem Backlight-/GC9D01-Geraet nach dem Erststart verlorengeht (z.B. NVS-Fehler, oder ein Key wird erst mit einem spaeteren
+    // Firmware-Update eingefuehrt, nachdem PK_FIRST_START bereits gesetzt ist) - die Uhr faellt dann auf den falschen (fuer Nicht-Backlight-Displays
+    // gedachten) Wert zurueck, statt auf den fuer dieses Display eigentlich vorgesehenen.
+    // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: the first-run init block in uhr3.ino writes board-dependent values
+    // (GC9D01/GC9A01_WITH_BACKLIGHT get different numbers than other displays), but ALL later preferences.getX(...) calls (uhr3.ino setup(),
+    // display.h, webserver_routes.h) uniformly use the "non-backlight" values as their fallback parameter. Only matters if one of these keys is lost
+    // on a backlight/GC9D01 device after the first run (e.g. an NVS error, or a key introduced by a later firmware update after PK_FIRST_START is
+    // already set) - the clock then falls back to the wrong (non-backlight) value instead of the one actually intended for that display.
 
 
     // ### Indizierte Keys (WLAN-Slots, NTP-Server, Presets) ##############
