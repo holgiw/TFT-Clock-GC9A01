@@ -134,17 +134,23 @@
                 DEBUG_PRINTLN("reboot now..");
                 delay(WAIT_1s);
 
-                // preferences.end() erst NACH dem letzten Log-Eintrag - logToFile()
-                // liest selbst PK_LOG_FILE_NUMBER aus preferences, ein bereits
-                // geschlossener Handle wuerde den Eintrag in die falsche Logdatei
-                // schreiben lassen (siehe Kommentar in espReboot()).
-
-                // preferences.end() only AFTER the last log entry - logToFile()
-                // itself reads PK_LOG_FILE_NUMBER from preferences, an already
-                // closed handle would cause the entry to be written to the
-                // wrong log file (see comment in espReboot()).
-                preferences.end();
-                ESP.restart();
+                // espReboot() statt direktem preferences.end()+ESP.restart(): die
+                // zentrale Reboot-Funktion uebernimmt bereits das korrekt
+                // zeitlich sortierte preferences.end() (siehe Kommentar dort),
+                // schreibt den generischen "Software-triggered reboot"-Log-
+                // Eintrag und zeigt den "Rebooting.."-Bildschirm - vorher wurde
+                // das hier per Kopie direkt nachgebaut, wodurch der woechentliche
+                // Reboot als einziger Aufrufer weder den generischen Log-Eintrag
+                // noch den Reboot-Bildschirm erhielt.
+                //
+                // espReboot() instead of a direct preferences.end()+ESP.restart():
+                // the central reboot function already handles the correctly
+                // ordered preferences.end() (see comment there), writes the
+                // generic "Software-triggered reboot" log entry, and shows the
+                // "Rebooting.." screen - previously this was hand-duplicated
+                // here, so the weekly reboot was the one caller missing both the
+                // generic log entry and the reboot screen.
+                espReboot();
             }
         }
     }
@@ -303,7 +309,22 @@
             file = root.openNextFile(); // Nächste Datei öffnen
                                         // Open next file
         }
-        preferences.putInt(PK_LOG_FILE_NUMBER, 0); // Log-Dateinummer zurücksetzen
+        // Auf 1 statt 0 zuruecksetzen: getCurrentLogFileName() und jede andere
+        // Stelle im Projekt, die PK_LOG_FILE_NUMBER liest, verwenden ausnahmslos
+        // 1 als Fallback-/Rollover-Wert (siehe z.B. getCurrentLogFileName() oben
+        // sowie logToFile()) - ein hier gespeicherter 0-Wert waere gegenueber
+        // dem Rest des Projekts inkonsistent und wuerde z.B. kurzzeitig zu einer
+        // nicht existierenden "/log_0.log"-Referenz fuehren, bis logToFile()
+        // beim naechsten Schreibvorgang den Wert selbst korrigiert.
+        //
+        // Reset to 1 instead of 0: getCurrentLogFileName() and every other spot
+        // in the project that reads PK_LOG_FILE_NUMBER uniformly use 1 as the
+        // fallback/rollover value (see e.g. getCurrentLogFileName() above and
+        // logToFile()) - a 0 stored here would be inconsistent with the rest of
+        // the project and would e.g. briefly result in a reference to a
+        // non-existent "/log_0.log" until logToFile() corrects the value itself
+        // on the next write.
+        preferences.putInt(PK_LOG_FILE_NUMBER, 1); // Log-Dateinummer zurücksetzen
                                                    // Reset log file number
     }
 
@@ -427,7 +448,9 @@
         // Funktion wird von JEDEM DEBUG_PRINT/PRINTLN/PRINTF aufgerufen (siehe
         // config.h) und hat vorher bei jeder Logzeile die globale Struktur
         // ueberschrieben, die Zifferblatt, DCF77 und der NTP-Server benutzen.
-        // Konkret hat das in getDCF77Time() zugeschlagen: setTimeStruct() loggt
+        // Konkret hat das in der DCF77-Zeituebernahme (heute
+        // applyDcf77DecodedTime() in time_sync.h, damals noch getDCF77Time()
+        // genannt) zugeschlagen: setTimeStruct() loggt
         // intern und hat 'timeinfo' veraendert, BEVOR rtc.adjust(DateTime(
         // timeinfo...)) sie ausgelesen hat - die RTC konnte also mit einer
         // anderen Zeit gestellt werden als DCF77 geliefert hat.
@@ -442,7 +465,9 @@
         // function is called by EVERY DEBUG_PRINT/PRINTLN/PRINTF (see
         // config.h) and previously overwrote, on every log line, the global
         // struct used by the clock face, DCF77 and the NTP server. It bit
-        // specifically in getDCF77Time(): setTimeStruct() logs internally and
+        // specifically in the DCF77 time takeover (today
+        // applyDcf77DecodedTime() in time_sync.h, back then still called
+        // getDCF77Time()): setTimeStruct() logs internally and
         // modified 'timeinfo' BEFORE rtc.adjust(DateTime(timeinfo...)) read it
         // - so the RTC could be set to a different time than DCF77 delivered.
         //

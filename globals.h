@@ -113,6 +113,26 @@
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
+    // Historie: bei anhaltendem "DCF77 last sync: never" trotz nachweislich
+    // sauberem Empfang wurde u.a. diese Flanken-Polaritaet als Ursache
+    // vermutet und testweise auf true umgestellt - hat NICHT geholfen (blieb
+    // "never"), also zurueck auf den urspruenglichen Wert false. Die
+    // tatsaechliche Ursache lag nicht in der Flanken-Polaritaet, sondern
+    // tiefer in der Original-Bibliothek (dcf.getUTCTime()) - siehe dazu und
+    // zur seitdem erfolgten Umstellung auf den eigenen Dekoder die
+    // Kommentare bei applyDcf77DecodedTime()/updateDcf77Status() in
+    // time_sync.h. dcf.getUTCTime() wird fuer die Zeituebernahme nicht mehr
+    // benutzt, daher spielt dieser Wert inzwischen praktisch keine Rolle mehr.
+
+    // History: with a persistent "DCF77 last sync: never" despite
+    // demonstrably clean reception, this edge polarity was suspected as one
+    // possible cause and switched to true as a test - did NOT help (stayed
+    // "never"), so reverted to the original value false. The actual cause
+    // was not the edge polarity but sat deeper inside the original library
+    // (dcf.getUTCTime()) - see the comments at applyDcf77DecodedTime()/
+    // updateDcf77Status() in time_sync.h for that and the subsequent switch
+    // to the own decoder. dcf.getUTCTime() is no longer used for the actual
+    // time takeover, so this value is now practically irrelevant.
     bool dcf77Flank = false; // false = fallende Flanke, true = steigende Flanke
                              // false = falling edge, true = rising edge
     DCF77 dcf = DCF77(DCF77_DATAPIN, DCF77_DATAPIN, dcf77Flank);
@@ -138,6 +158,15 @@
     // disabled but cached memory region accessed" panic reset. See isr() in
     // time_sync.h and the handling in loop().
     volatile bool dcfLedTogglePending = false;
+
+    bool dcfSyncLedEnabled = true; // per Auswahlbox abschaltbar (Default: an) - steuert nur, ob loop() das per dcfLedTogglePending
+                                    // angeforderte Blinken tatsaechlich ausfuehrt (siehe PK_DCF_SYNC_LED in prefs_keys.h); die ISR selbst
+                                    // setzt dcfLedTogglePending unabhaengig davon immer, das Flag hier wird erst in loop() ausgewertet
+
+                                    // switchable off via a checkbox (default: on) - only controls whether loop() actually carries out the
+                                    // blink requested via dcfLedTogglePending (see PK_DCF_SYNC_LED in prefs_keys.h); the ISR itself always
+                                    // sets dcfLedTogglePending regardless, this flag is only evaluated in loop()
+
     time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
                                 // Unix timestamp of the last successful DCF77 sync (0 = never)
 
@@ -165,6 +194,78 @@
                                  // in the topbar is shown at all (see getDcf77Status() in webserver_routes.h);
                                  // never reset afterwards, just like dcfTimeFound/dcf77Count
 
+    // --- Eigener, von der DCF77-Bibliothek unabhaengiger Bit-Fortschritt ---
+    // Liefert sowohl die Live-Anzeige auf /dcf77 (siehe webserver_routes.h)
+    // ALS AUCH die tatsaechliche Zeituebernahme (dcf77LastDecoded weiter
+    // unten, ausgewertet von applyDcf77DecodedTime()/updateDcf77Status() in
+    // time_sync.h) - dcf.getUTCTime() der Original-Bibliothek wird dafuer
+    // NICHT mehr benutzt (siehe dortige Kommentare zur Vorgeschichte).
+    // DCF77::int0handler() wird in isr() zwar weiterhin aufgerufen, ihr
+    // Ergebnis aber nirgends mehr gelesen. Die ISR (isr() in time_sync.h)
+    // schreibt bei jeder Flanke NUR Zeitstempel + Pegel in das kleine
+    // Ringpuffer-Array unten (reines RAM, keine Flash-residenten Aufrufe -
+    // sicher fuer die ISR, siehe deren Flash-Cache-Warnung). Die eigentliche
+    // Bitklassifizierung und Dekodierung passiert ausschliesslich in
+    // processDcf77Bits()/decodeDcf77Telegram() (time_sync.h), aufgerufen aus
+    // loop(), NIEMALS in der ISR selbst.
+
+    // --- Own DCF77 bit progress, independent of the DCF77 library ---
+    // Drives both the live display on /dcf77 (see webserver_routes.h) AND
+    // the actual time takeover (dcf77LastDecoded further below, consumed by
+    // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - the
+    // original library's dcf.getUTCTime() is NO LONGER used for that (see
+    // the comments there for the backstory). DCF77::int0handler() is still
+    // called in isr(), but its result is no longer read anywhere. The ISR
+    // (isr() in time_sync.h) ONLY writes timestamp + level into the small
+    // ring buffer array below on every edge (plain RAM, no flash-resident
+    // calls - safe for the ISR, see its flash-cache warning). The actual bit
+    // classification and decoding happen exclusively in
+    // processDcf77Bits()/decodeDcf77Telegram() (time_sync.h), called from
+    // loop(), NEVER in the ISR itself.
+#define DCF77_EDGE_BUFFER_SIZE 16
+    volatile unsigned long dcf77EdgeMillis[DCF77_EDGE_BUFFER_SIZE];
+    volatile uint8_t dcf77EdgeLevel[DCF77_EDGE_BUFFER_SIZE]; // aktuell nur zu Diagnosezwecken mitgefuehrt, siehe processDcf77Bits()
+                                                             // currently only carried along for diagnostic purposes, see processDcf77Bits()
+    volatile uint8_t dcf77EdgeHead = 0; // naechster freier Schreibindex - NUR von der ISR veraendert
+                                        // next free write index - ONLY changed by the ISR
+    volatile uint8_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer (Diagnose) - z.B. waehrend eines
+                                           // blockierenden NTP-Sync-Versuchs (WAIT_3s), der loop() kurz anhaelt
+                                           // number of edges dropped when the buffer was full (diagnostic) - e.g. during
+                                           // a blocking NTP sync attempt (WAIT_3s) that briefly pauses loop()
+    uint8_t dcf77EdgeTail = 0; // naechster zu lesende Index - NUR im Hauptthread (loop()) veraendert
+                               // next index to read - ONLY changed on the main thread (loop())
+
+#define DCF77_TELEGRAM_BITS 59
+    int8_t dcf77Bits[DCF77_TELEGRAM_BITS]; // 0/1 pro Sekunde des laufenden Telegramms, -1 = (noch) unbekannt - NUR Hauptthread
+                                           // 0/1 per second of the running telegram, -1 = unknown (yet) - main thread only
+    uint8_t dcf77BitIndex = 0; // wie viele Bits des laufenden Telegramms bereits erkannt sind (0..DCF77_TELEGRAM_BITS)
+                               // how many bits of the running telegram have been recognized so far (0..DCF77_TELEGRAM_BITS)
+
+    // Ergebnis der letzten VOLLSTAENDIG dekodierten Minute (siehe
+    // decodeDcf77Telegram() in time_sync.h) - bleibt bei einem
+    // Paritaetsfehler zu Diagnosezwecken erhalten (valid=false statt das
+    // Ergebnis komplett zu verwerfen), damit die Live-Seite auch einen
+    // fehlerhaften Empfang sichtbar machen kann.
+
+    // Result of the last FULLY decoded minute (see decodeDcf77Telegram() in
+    // time_sync.h) - kept even on a parity error for diagnostic purposes
+    // (valid=false instead of discarding the result entirely), so the live
+    // page can also make a faulty reception visible.
+    struct Dcf77Decoded {
+        bool valid = false;       // alle drei Paritaeten (Minute/Stunde/Datum) korrekt
+                                  // all three parities (minute/hour/date) correct
+        uint8_t minute = 0, hour = 0, day = 0, month = 0, weekday = 0;
+        uint16_t year = 0;
+        bool dst = false;         // Sommerzeit aktiv (Bit 17)
+                                  // daylight saving time active (bit 17)
+        bool callBit = false;     // Bit 15 - Anrufbit / unregelmaessige Aussendung
+                                  // bit 15 - call bit / irregular transmission
+        bool parityMinOk = false, parityHourOk = false, parityDateOk = false;
+        unsigned long decodedAtMillis = 0; // millis() bei Abschluss der Dekodierung, 0 = noch nie
+                                           // millis() when decoding finished, 0 = never
+    };
+    Dcf77Decoded dcf77LastDecoded;
+
 #endif
 
     unsigned long lastNTPUpdate = 0; // Zeitpunkt des letzten RTC-Updates
@@ -173,14 +274,17 @@
                                      // Wait time after a DCF77 update before the RTC is updated (ms)
     unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
                                      // Timestamp of the last RTC update
-    unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten ERFOLGREICHEN NTP-Synchronisation (0 = noch nie); DCF77 uebernimmt die Systemzeit nur, wenn NTP seit laengerer Zeit nicht erfolgreich war
+    unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten ERFOLGREICHEN NTP-Synchronisation (0 = noch nie) -
+                                            // dient checkHourlyTimeSync-Aufrufstellen in uhr3.ino dazu, einen echten NTP-Erfolg
+                                            // vom (irrefuehrenden) blossen Rueckgabewert true von setupNTP() bei fehlendem WLAN
+                                            // zu unterscheiden; nur wenn dieser Wert NICHT waehrend des jeweiligen Versuchs
+                                            // aktualisiert wurde, springt DCF77 als Zeitquelle ein (siehe time_sync.h)
 
-    // Timestamp (millis()) of the last SUCCESSFUL NTP sync (0 = never); DCF77 only
-    // takes over the system time if NTP hasn't succeeded for a while
-
-    unsigned long lastNTPRetry = 0;
-
-    unsigned long lastCheck = 0;
+    // Timestamp (millis()) of the last SUCCESSFUL NTP sync (0 = never) - used
+    // at the checkHourlyTimeSync call sites in uhr3.ino to distinguish a real
+    // NTP success from setupNTP()'s (misleading) plain true return value when
+    // WiFi isn't connected; only when this value was NOT updated during that
+    // attempt does DCF77 step in as the time source (see time_sync.h)
 
     struct tm timeinfo;
 

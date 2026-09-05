@@ -338,9 +338,27 @@ void connectWiFiAtBoot() {
                 unsigned long startWait = millis();
                 while (millis() - startWait < WAIT_1h) { // Warte bis zu 1 Stunde auf gültige DCF77-Zeit
                                                          // wait up to 1 hour for a valid DCF77 time
-                    if (dcf.getUTCTime() > 0) {
-                        dcfTimeFound = true; // gültige Zeit gefunden
-                                             // valid time found
+
+                    // processDcf77Bits()/updateDcf77Status() laufen sonst nur
+                    // in loop() - hier vor dem Start von loop() muessen sie
+                    // manuell aufgerufen werden, sonst laeuft der ISR-
+                    // Ringpuffer (DCF77_EDGE_BUFFER_SIZE=16, siehe globals.h)
+                    // innerhalb weniger Sekunden voll und Flanken gehen
+                    // verloren. dcf.getUTCTime() (Original-Bibliothek) wird
+                    // hier bewusst nicht mehr verwendet, siehe
+                    // applyDcf77DecodedTime() in time_sync.h.
+
+                    // processDcf77Bits()/updateDcf77Status() otherwise only
+                    // run in loop() - here, before loop() has started, they
+                    // must be called manually, or the ISR's ring buffer
+                    // (DCF77_EDGE_BUFFER_SIZE=16, see globals.h) fills up
+                    // within a few seconds and edges get lost.
+                    // dcf.getUTCTime() (original library) is deliberately no
+                    // longer used here, see applyDcf77DecodedTime() in
+                    // time_sync.h.
+                    processDcf77Bits();
+                    updateDcf77Status();
+                    if (applyDcf77DecodedTime("[DCF77] boot (no WiFi/RTC)")) {
                         return;
                     }
                     DRAW_ON_BOTH_DISPLAYS(
@@ -487,6 +505,14 @@ void setup() {
             logfileNumber++;
             preferences.putInt(PK_LOG_FILE_NUMBER, logfileNumber);
         }
+
+        // Ueber Auswahlbox abschaltbares Aufblitzen der LED waehrend der
+        // DCF77-Sync-Phase (siehe dcfSyncLedEnabled in globals.h) - Default
+        // an, wie bisheriges Verhalten.
+        // LED flash during the DCF77 sync phase, switchable off via a
+        // checkbox (see dcfSyncLedEnabled in globals.h) - default on,
+        // matching the previous behavior.
+        dcfSyncLedEnabled = preferences.getBool(PK_DCF_SYNC_LED, true);
 
         DEBUG_PRINTLN("[SETUP] Initializing..");
 
@@ -1027,6 +1053,17 @@ void setup() {
         pinMode(DCF77_DATAPIN, INPUT_PULLUP);
         attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
 
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        // Eigenen Bit-Puffer fuer die Live-Anzeige auf /dcf77 (siehe
+        // globals.h/processDcf77Bits() in time_sync.h) auf "unbekannt"
+        // initialisieren - int8_t-Arrays lassen sich nicht per
+        // Deklaration auf -1 vorbelegen.
+        // Initialize the own bit buffer for the /dcf77 live display (see
+        // globals.h/processDcf77Bits() in time_sync.h) to "unknown" -
+        // int8_t arrays can't be pre-filled with -1 via declaration.
+        for (uint8_t i = 0; i < DCF77_TELEGRAM_BITS; i++) dcf77Bits[i] = -1;
+#endif
+
         // Wenn Button1 oder BOOT_BUTTON gedrückt ist, alle Zugangsdaten löschen
         // If Button1 or BOOT_BUTTON is pressed, clear all credentials
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
@@ -1039,6 +1076,23 @@ void setup() {
                 tft.println(translate("Reset WLan..."));
             );
             delay(1000);
+            // preferences.end()/begin() stand vorher NACH JEDEM einzelnen
+            // Eintrag hier in der Schleife (15 unnoetige Schliess-/Wieder-
+            // oeffnen-Zyklen) - preferences.putString() committet ohnehin pro
+            // Aufruf einzeln in den Flash, ein Schliessen/Wiederoeffnen des
+            // Namespace dazwischen bringt keinen zusaetzlichen Nutzen und hat
+            // nur den Reset-Vorgang bei jedem Tastendruck unnoetig verzoegert
+            // (vgl. das gleichwertige, aber korrekte eraseWiFiConfig() in
+            // wifi_manager.h, das alle Eintraege in einer einzigen offenen
+            // Session loescht).
+            // preferences.end()/begin() used to sit here AFTER EVERY single
+            // entry in the loop (15 needless close/reopen cycles) -
+            // preferences.putString() already commits to flash individually
+            // on each call, closing/reopening the namespace in between adds
+            // no benefit and only needlessly delayed the reset on every
+            // button press (compare the equivalent, but correct,
+            // eraseWiFiConfig() in wifi_manager.h, which clears all entries
+            // within a single open session).
             for (int i = 0; i < MAX_WLAN; i++) {
                 wifiSsid[i] = "";
                 wifiPass[i] = "";
@@ -1046,15 +1100,44 @@ void setup() {
                 String passKey = pkPass(i);
                 preferences.putString(ssidKey.c_str(), "");
                 preferences.putString(passKey.c_str(), "");
-                preferences.end();
-                preferences.begin("clock", false);
             }
         }
 
         connectWiFiAtBoot();
 
 
-        setupNTP();
+        // NTP hat Vorrang; misslingt der Versuch (oder ist noch kein WLAN
+        // verbunden), wird ersatzweise die zuletzt gueltige DCF77-Zeit
+        // uebernommen, sofern der eigene Dekoder bereits eine frische,
+        // Paritaets-korrekte Dekodierung vorliegen hat (siehe
+        // applyDcf77DecodedTime() in time_sync.h; direkt nach dem Boot ist
+        // das i.d.R. noch nicht der Fall - dann bleibt es bei RTC/AP-
+        // Fallback aus connectWiFiAtBoot() oben). Der Erfolg wird ueber
+        // lastNtpSuccessMillis geprueft statt ueber den Rueckgabewert von
+        // setupNTP(), da dieser bei fehlendem WLAN ebenfalls (irrefuehrend)
+        // true liefert. Derselbe Block laeuft stuendlich erneut in loop().
+
+        // NTP has priority; if the attempt fails (or WiFi isn't connected
+        // yet), the last valid DCF77 time is applied instead, provided the
+        // own decoder already has a fresh, parity-correct decode available
+        // (see applyDcf77DecodedTime() in time_sync.h; right after boot that
+        // usually isn't the case yet - then it stays with the RTC/AP
+        // fallback from connectWiFiAtBoot() above). Success is checked via
+        // lastNtpSuccessMillis rather than setupNTP()'s return value, since
+        // that also (misleadingly) returns true when WiFi isn't connected.
+        // The same block runs again hourly in loop().
+        {
+            unsigned long beforeNtpMillis = millis();
+            setupNTP();
+            bool ntpJustSucceeded = (lastNtpSuccessMillis != 0 && lastNtpSuccessMillis >= beforeNtpMillis);
+            if (ntpJustSucceeded) {
+                DEBUG_PRINTLN("[TIME SYNC] Initial sync: NTP succeeded");
+            }
+            else {
+                DEBUG_PRINTLN("[TIME SYNC] Initial sync: NTP unavailable, trying DCF77 fallback..");
+                applyDcf77DecodedTime("[DCF77] initial sync (NTP unavailable)");
+            }
+        }
 
         if (useTouch) {
             // Touch-Eingang initialisieren
@@ -1064,12 +1147,32 @@ void setup() {
 
         loadPresets();
 
-        if (rtcOk == RTC_AVAILABLE) {
-            // UDP starten
-            // Start UDP
-            udp.begin(NTP_PORT);
-            DEBUG_PRINTLN("[NTPD] NTP Server started");
-        }
+        // Bewusst UNABHAENGIG von rtcOk gestartet: loop() beantwortet
+        // eingehende NTP-Anfragen bereits live gated ueber
+        // "(WiFi.getMode()==WIFI_STA && rtcOk==RTC_AVAILABLE) || dcfTimeFound"
+        // (siehe dort) - eine RTC ist also gar nicht zwingend noetig, sobald
+        // DCF77 eine gueltige Zeit geliefert hat. War der Start hier weiterhin
+        // an "rtcOk == RTC_AVAILABLE" gebunden, blieb "udp" auf Geraeten ohne
+        // RTC-Modul (rtcOk bleibt RTC_NOT_AVAILABLE) fuer die gesamte Laufzeit
+        // ungebunden ("nicht per udp.begin() an Port 123 gebunden") - der
+        // NTP-Server der Uhr haette dann NIE geantwortet, selbst nachdem DCF77
+        // laengst synchronisiert hatte, weil dcfTimeFound zum Zeitpunkt dieses
+        // Aufrufs (direkt nach dem Boot) so gut wie nie schon wahr ist. Ein
+        // frueh gebundener, aber ungenutzter UDP-Socket ist harmlos.
+
+        // Deliberately started INDEPENDENT of rtcOk: loop() already live-gates
+        // whether an incoming NTP request is actually answered via
+        // "(WiFi.getMode()==WIFI_STA && rtcOk==RTC_AVAILABLE) || dcfTimeFound"
+        // (see there) - an RTC isn't strictly required once DCF77 has
+        // delivered a valid time. With the start here still tied to
+        // "rtcOk == RTC_AVAILABLE", "udp" stayed unbound for the entire
+        // runtime on devices without an RTC module (rtcOk stays
+        // RTC_NOT_AVAILABLE) - the clock's NTP server would then NEVER
+        // respond, even long after DCF77 had synchronized, since
+        // dcfTimeFound is essentially never already true at this point (right
+        // after boot). An early-bound but unused UDP socket is harmless.
+        udp.begin(NTP_PORT);
+        DEBUG_PRINTLN("[NTPD] NTP Server started");
 
         DEBUG_PRINTLN("[SETUP] Boot complete, free heap: " + String(ESP.getFreeHeap()) + " bytes");
         checkHeapWarning("Setup Ende");
@@ -1197,9 +1300,13 @@ void setup() {
             ipAddress = WiFi.softAPIP().toString();
         }
 
-        // DCF77-Zeit abrufen
-        // Fetch DCF77 time
-        getDCF77Time();
+        // DCF77-Empfangsstatus aktuell halten (lastDcfSyncTime/dcfTimeFound) -
+        // die eigentliche Zeituebernahme passiert getrennt davon, stuendlich
+        // mit NTP-Vorrang (siehe checkHourlyTimeSync-Logik weiter unten).
+        // Keep the DCF77 reception status up to date (lastDcfSyncTime/
+        // dcfTimeFound) - the actual time takeover happens separately, hourly
+        // with NTP priority (see the checkHourlyTimeSync logic further below).
+        updateDcf77Status();
 
         // Empfangsausfall bzw. RTC-Ausfall waehrend des Betriebs erkennen -
         // unabhaengig vom WLAN-Status, damit der Topbar-Live-Status
@@ -1210,8 +1317,33 @@ void setup() {
         checkDcf77Health();
         checkRtcHealth();
 
+        // Eigener DCF77-Bit-Fortschritt fuer /dcf77 (siehe globals.h/
+        // time_sync.h) - unabhaengig von WLAN-Status abgearbeitet wie die
+        // beiden Health-Checks oben, damit der Ringpuffer der ISR (siehe
+        // isr() in time_sync.h) auch dann zeitnah geleert wird, wenn die
+        // Uhr gerade kein WLAN hat.
+        // Own DCF77 bit progress for /dcf77 (see globals.h/time_sync.h) -
+        // handled independent of WiFi status like the two health checks
+        // above, so the ISR's ring buffer (see isr() in time_sync.h) is
+        // drained promptly even while the clock currently has no WiFi.
+        processDcf77Bits();
+
         // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
         // Check whether time has passed since the last call
+        //
+        // Stuendliche Zeitsynchronisation: NTP hat Vorrang, DCF77 ist der
+        // Fallback, falls NTP fehlschlaegt oder kein WLAN verbunden ist -
+        // derselbe Ablauf wie beim initialen Sync in setup() (siehe dort für
+        // die ausfuehrliche Begruendung von lastNtpSuccessMillis statt
+        // setupNTP()'s Rueckgabewert). Ersetzt die frueheren, redundanten
+        // checkNTPRetry()/checkNightlyTimeSync()-Mechanismen.
+        //
+        // Hourly time sync: NTP has priority, DCF77 is the fallback if NTP
+        // fails or no WiFi is connected - same flow as the initial sync in
+        // setup() (see there for the detailed reasoning behind using
+        // lastNtpSuccessMillis instead of setupNTP()'s return value).
+        // Replaces the former, redundant checkNTPRetry()/
+        // checkNightlyTimeSync() mechanisms.
         if (millis() - lastNTPUpdate > WAIT_1h) {
             if (timeinfo.tm_sec < 10 || timeinfo.tm_sec > 55) {
 
@@ -1231,7 +1363,16 @@ void setup() {
                 lastNTPUpdate = millis() - WAIT_1h + 15 * 1000;
             }
             else {
+                unsigned long beforeNtpMillis = millis();
                 setupNTP();
+                bool ntpJustSucceeded = (lastNtpSuccessMillis != 0 && lastNtpSuccessMillis >= beforeNtpMillis);
+                if (ntpJustSucceeded) {
+                    DEBUG_PRINTLN("[TIME SYNC] Hourly sync: NTP succeeded");
+                }
+                else {
+                    DEBUG_PRINTLN("[TIME SYNC] Hourly sync: NTP unavailable, trying DCF77 fallback..");
+                    applyDcf77DecodedTime("[DCF77] hourly sync (NTP unavailable)");
+                }
                 lastNTPUpdate = millis();
             }
 
@@ -1261,7 +1402,7 @@ void setup() {
         // cache is disabled (see isr() in time_sync.h).
         if (dcfLedTogglePending) {
             dcfLedTogglePending = false;
-            if (!dcfTimeFound) toggleLED();
+            if (!dcfTimeFound && dcfSyncLedEnabled) toggleLED();
         }
 #endif
 
@@ -1276,10 +1417,11 @@ void setup() {
         }
 
         //  checkWiFiScan(); // Überprüfe den Status des Scans
-        if (wifiActive && WiFi.isConnected()) {
-            checkNTPRetry();
-            checkNightlyTimeSync();
-        }
+        // NTP-/DCF77-Zeitsynchronisation laeuft jetzt stuendlich weiter oben
+        // (unabhaengig vom WLAN-Status abgearbeitet) - hier daher nichts
+        // mehr zu tun.
+        // NTP/DCF77 time sync now runs hourly further above (handled
+        // independent of WiFi status) - nothing left to do here.
 
         initial = false;
 

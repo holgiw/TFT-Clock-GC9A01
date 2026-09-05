@@ -593,6 +593,14 @@
         // collectStrongestNetworks() further above.
         collectStrongestNetworks(networkCount);
 
+        // Vom Treiber fuer die Scan-Ergebnisse belegten Speicher freigeben -
+        // fehlte hier bisher, obwohl checkWiFiScan()/scanAndCacheNetworks()
+        // das nach demselben collectStrongestNetworks()-Aufruf konsequent tun.
+        // Free the memory the driver allocated for the scan results - this
+        // was missing here even though checkWiFiScan()/scanAndCacheNetworks()
+        // consistently do it right after the same collectStrongestNetworks() call.
+        WiFi.scanDelete();
+
         clearTFT();
 
         DRAW_ON_BOTH_DISPLAYS(
@@ -754,6 +762,32 @@
 
         if (WiFi.status() == WL_CONNECTED) {
 
+            // PK_LAST_WLAN (die "einzige Quelle der Wahrheit" fuer das zuletzt
+            // verbundene Netz, siehe prefs_keys.h) muss allein vom WLAN-
+            // Verbindungserfolg abhaengen - NICHT von der optionalen Internet-
+            // Erreichbarkeit weiter unten. Stand vorher NACH den beiden
+            // Ping-bedingten early returns, wurde PK_LAST_WLAN bei fehlendem
+            // Ping-Server (Standardfall) oder kurzzeitig nicht erreichbarem
+            // Ping-Server NIE aktualisiert, obwohl die WLAN-Verbindung selbst
+            // laengst zu einem anderen Slot gewechselt war - checkWiFiReconnect()
+            // versuchte bei einer spaeteren Trennung dadurch weiterhin den
+            // FALSCHEN (alten) Slot erneut zu verbinden.
+
+            // PK_LAST_WLAN (the "single source of truth" for the last
+            // connected network, see prefs_keys.h) must depend only on the
+            // WiFi connection succeeding - NOT on the optional internet
+            // reachability check further below. Previously placed AFTER both
+            // ping-related early returns, PK_LAST_WLAN was NEVER updated when
+            // no ping server was configured (the default case) or the ping
+            // server was briefly unreachable, even though the WiFi connection
+            // itself had long since switched to a different slot -
+            // checkWiFiReconnect() would then keep retrying the WRONG (stale)
+            // slot on a later disconnect.
+            if (preferences.getInt(PK_LAST_WLAN, -1) != number) {
+                preferences.putInt(PK_LAST_WLAN, number);
+                DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
+            }
+
             // mDNS initialisieren
             // Initialize mDNS
             if (!MDNS.begin(hostname)) {
@@ -787,11 +821,6 @@
 
             if (verboseMode) {
                 showWlanCredentials(wifiSsid[number]);
-            }
-
-            if (preferences.getInt(PK_LAST_WLAN, -1) != number) {
-                preferences.putInt(PK_LAST_WLAN, number);
-                DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
             }
 
           //  if (!WiFi.softAPgetStationNum()) updateClock();
@@ -929,19 +958,31 @@
             preferences.remove(passKey.c_str());
         }
 
-        // Zusätzlich: Manuell NVS-Einträge für WiFi löschen
-        // Additionally: manually erase NVS entries for WiFi
-        nvs_handle_t nvsHandle;
-        esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvsHandle);
-        if (err == ESP_OK) {
-            nvs_erase_all(nvsHandle);
-            nvs_commit(nvsHandle);
-            nvs_close(nvsHandle);
-            DEBUG_PRINTLN("WiFi NVS entries erased");
-        }
-        else {
-            DEBUG_PRINTF("Error opening the NVS WiFi handle: %s\n", esp_err_to_name(err));
-        }
+        // Entfernt: hier stand zusaetzlich ein manuelles nvs_open("wifi", ...) +
+        // nvs_erase_all() "zur Sicherheit" - im ganzen Projekt wird Preferences
+        // aber ausschliesslich unter dem Namespace "clock" geoeffnet
+        // (preferences.begin("clock", false), siehe system_utils.h/uhr3.ino).
+        // Der Namespace "wifi" existierte nie, das Loeschen traf also
+        // garantiert nie echte Daten - trotz der Erfolgsmeldung im Log. Die
+        // eigentliche Loeschung passiert bereits vollstaendig und korrekt oben
+        // ueber preferences.remove(ssidKey/passKey) im richtigen Namespace.
+        // Ein Umbiegen auf "clock" waere KEIN gleichwertiger Ersatz gewesen:
+        // das haette den kompletten Namespace geleert, also z.B. auch
+        // Helligkeits-/Zeitzonen-/Preset-Einstellungen mit geloescht, obwohl
+        // nur die WLAN-Zugangsdaten zurueckgesetzt werden sollen.
+
+        // Removed: this used to additionally open nvs_open("wifi", ...) and
+        // call nvs_erase_all() "for extra safety" - throughout the project,
+        // Preferences is only ever opened under the "clock" namespace
+        // (preferences.begin("clock", false), see system_utils.h/uhr3.ino).
+        // The "wifi" namespace never existed, so this erase was guaranteed to
+        // never touch real data - despite the log line claiming success. The
+        // actual erasure already happens completely and correctly above via
+        // preferences.remove(ssidKey/passKey) in the correct namespace.
+        // Repointing this at "clock" would NOT have been an equivalent fix:
+        // that would wipe the entire namespace, e.g. also brightness/
+        // timezone/preset settings, even though only the WiFi credentials are
+        // meant to be reset here.
     }
 
 

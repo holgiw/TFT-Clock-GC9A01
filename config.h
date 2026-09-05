@@ -105,6 +105,27 @@
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Mitteleuropaeische Zeit
                                                       // Central European Time
 
+    // Anzahl Versuche PRO konfiguriertem NTP-Server, bevor setupNTP() zum
+    // naechsten Server weiterspringt (siehe setupNTP() in time_sync.h). Ein
+    // einzelnes verlorenes UDP-Antwortpaket (bei oeffentlichen Pool-Servern
+    // wie pool.ntp.org gelegentlich normal) fuehrte bisher sofort zu
+    // "[NTP] Failed to synchronize", obwohl der Server an sich erreichbar
+    // war. configTzTime() wird pro Versuch NEU aufgerufen (nicht nur
+    // getLocalTime() wiederholt), da der zugrundeliegende SNTP-Client sonst
+    // keine neue Anfrage verschickt - sein eigener interner Retry-Abstand
+    // liegt deutlich ueber WAIT_3s.
+
+    // Number of attempts PER configured NTP server before setupNTP() moves
+    // on to the next one (see setupNTP() in time_sync.h). A single lost UDP
+    // response packet (occasionally normal with public pool servers like
+    // pool.ntp.org) previously caused an immediate "[NTP] Failed to
+    // synchronize", even though the server itself was reachable.
+    // configTzTime() is called AGAIN for each attempt (not just
+    // getLocalTime() repeated), since otherwise the underlying SNTP client
+    // never sends a fresh request - its own internal retry interval is far
+    // longer than WAIT_3s.
+#define NTP_SYNC_ATTEMPTS 2
+
 #define DEFAULT_PING_SERVER "1.1.1.1:80"
 
     // --- Access-Point (Einrichtungsmodus) ---
@@ -147,18 +168,12 @@
 #define WAIT_6h 21600000 // 6 Stunden in Millisekunden
                          // 6 hours in milliseconds
 
-    // DCF77 uebernimmt die Systemzeit nur, wenn NTP seit mindestens dieser Zeit
-    // nicht mehr synchronisiert hat (bzw. kein WLAN verbunden ist) - verhindert,
-    // dass ein kurzer NTP-Ausfall sofort durch DCF77 "ueberschrieben" wird.
-
-    // DCF77 only takes over the system time once NTP has not synced for at
-    // least this long (or no WiFi is connected) - prevents a brief NTP
-    // outage from immediately being "overwritten" by DCF77.
-#define DCF77_NTP_GRACE_PERIOD (2 * WAIT_1h)
-
     // Fuer den DCF77-Status-Punkt in der Topbar (siehe getDcf77Status() in
-    // webserver_routes.h): unabhaengig von DCF77_NTP_GRACE_PERIOD oben, das nur
-    // steuert, ob DCF77 die Systemzeit uebernehmen darf. dcfTimeFound und
+    // webserver_routes.h): unabhaengig davon, ob DCF77 gerade tatsaechlich die
+    // Systemzeit stellt (das entscheidet der stuendliche NTP-/DCF77-Sync-Block in uhr3.ino
+    // anhand von lastNtpSuccessMillis, siehe globals.h - kein fester
+    // Kulanzzeitraum mehr, sondern ein direkter Erfolgs-Check bei jedem
+    // stuendlichen NTP-Versuch). dcfTimeFound und
     // dcf77Count werden im Code selbst NIE zurueckgesetzt (dcfTimeFound bleibt
     // fuer immer true, dcf77Count fuer immer >0, sobald sie einmal gesetzt
     // wurden) - ohne diese beiden Schwellwerte wuerde der Punkt nach einem
@@ -175,9 +190,11 @@
     // waehrend des Empfangs aendert sich dcf77Count etwa einmal pro Sekunde.
 
     // For the DCF77 status dot in the topbar (see getDcf77Status() in
-    // webserver_routes.h): independent of DCF77_NTP_GRACE_PERIOD above, which
-    // only controls whether DCF77 may take over the system time. dcfTimeFound
-    // and dcf77Count are NEVER reset anywhere in the code (dcfTimeFound stays
+    // webserver_routes.h): independent of whether DCF77 is actually driving
+    // the system time right now (decided by the hourly NTP/DCF77 sync block in
+    // uhr3.ino based on lastNtpSuccessMillis, see globals.h - no more fixed
+    // grace period, instead a direct success check on every hourly NTP
+    // attempt). dcfTimeFound and dcf77Count are NEVER reset anywhere in the code (dcfTimeFound stays
     // true forever, dcf77Count stays >0 forever, once either was ever set) -
     // without these two thresholds the dot would stay green forever after a
     // successful first sync (resp. at least yellow forever after the first
@@ -231,6 +248,64 @@
     // produces sparse, irregular pulses and rarely reaches this chain length.
 #define DCF77_PRESENCE_MIN_STREAK 6
 #define DCF77_PRESENCE_MAX_GAP_MS 1500
+
+    // Fuer den Bit-Fortschritts-Dekoder der /dcf77-Live-Seite (siehe
+    // processDcf77Bits() in time_sync.h): derselbe elektrische Jitter, der
+    // oben DCF77_PRESENCE_MIN_STREAK/DCF77_PRESENCE_MAX_GAP_MS noetig macht,
+    // erzeugt gelegentlich sehr kurze zusaetzliche Flankenpaare (Prellen/
+    // Rauschen im Bereich weniger Millisekunden bis niedriger zweistelliger
+    // Millisekunden), die deutlich kuerzer sind als jeder echte DCF77-Zustand
+    // (kuerzester echter Zustand: ca. 100ms-Impuls). Ohne Filterung wuerde
+    // jede solche Mini-Flanke faelschlich als eigenes Bit gezaehlt und den
+    // Fortschritt schneller als die tatsaechlich vergangene Zeit voranspringen
+    // lassen (sichtbar als "uebersprungene" Sekunden) sowie Bitwerte
+    // verfaelschen. DCF77_BIT_NOISE_IGNORE_MS legt die Untergrenze fest, unter
+    // der eine Flanke als Rauschen verworfen wird, OHNE den Referenzzeitpunkt
+    // fuer die naechste Dauerberechnung zu verschieben (das Rauschen wird so
+    // wirksam "uebersprungen", nicht mitgezaehlt).
+
+    // For the /dcf77 live page's bit-progress decoder (see
+    // processDcf77Bits() in time_sync.h): the same electrical jitter that
+    // makes DCF77_PRESENCE_MIN_STREAK/DCF77_PRESENCE_MAX_GAP_MS necessary
+    // above occasionally produces very short extra edge pairs (bounce/noise
+    // in the range of a few to low tens of milliseconds), far shorter than
+    // any genuine DCF77 state (shortest genuine state: the ~100ms pulse).
+    // Without filtering, every such mini-edge would be wrongly counted as
+    // its own bit, making the progress advance faster than real elapsed time
+    // (visible as "skipped" seconds) and corrupting bit values.
+    // DCF77_BIT_NOISE_IGNORE_MS sets the lower bound below which an edge is
+    // discarded as noise WITHOUT shifting the reference timestamp used for
+    // the next duration calculation (so the noise is effectively skipped
+    // over, not counted).
+#define DCF77_BIT_NOISE_IGNORE_MS 40
+
+    // Historie: hier stand testweise DCF77_MINUTE_MARKER_MIN_BIT_INDEX - eine
+    // Pause >=1300ms sollte nur noch nahe dem Telegrammende (dcf77BitIndex
+    // >=56) als echte Minutenmarke gelten, sonst nur als einzelne verlorene
+    // Sekunde. Grund war, dass eine einzelne schwache/verlorene Sekunde
+    // dieselbe Pausenlaenge erzeugt wie die echte Marke und diese sonst
+    // faelschlich mitten im Telegramm ausgeloest haette. Wieder entfernt:
+    // bei ZWEI oder mehr aufeinanderfolgenden verlorenen Sekunden (laengere
+    // Pause) wurde dcf77BitIndex trotzdem nur um 1 weitergezaehlt und geriet
+    // dadurch hinter die Wanduhr - die anschliessend tatsaechlich folgende
+    // echte Minutenmarke wurde dadurch entweder verworfen oder an einer
+    // falschen Position akzeptiert. Siehe processDcf77Bits() in time_sync.h
+    // fuer die jetzt wieder einfache, dafuer aber immer selbstkorrigierende
+    // Variante (jede Pause >=1300ms zaehlt als Minutenmarke, unabhaengig von
+    // der Position).
+
+    // History: this used to hold DCF77_MINUTE_MARKER_MIN_BIT_INDEX - a
+    // >=1300ms gap was only accepted as the genuine minute marker near the
+    // end of a telegram (dcf77BitIndex >=56), otherwise treated as a single
+    // lost second. The reasoning was that a single weak/lost second produces
+    // the same gap length as the real marker and would otherwise wrongly
+    // trigger it mid-telegram. Removed again: with TWO or more consecutive
+    // lost seconds (a longer gap), dcf77BitIndex was still only advanced by
+    // 1 and fell behind the wall clock - the genuine minute marker that then
+    // actually followed was as a result either discarded or accepted at what
+    // was actually the wrong position. See processDcf77Bits() in time_sync.h
+    // for the simple, always self-correcting variant now in place again
+    // (any gap >=1300ms counts as the minute marker, regardless of position).
 
     // Geschwindigkeit des Sekundenzeigers im Train-Station-Mode gegenueber der
     // realen Sekunde (in Millisekunden) - der Zeiger "eilt" etwas voraus und

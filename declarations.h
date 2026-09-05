@@ -39,16 +39,17 @@
     void IRAM_ATTR isr() ;
     void loadTimeFromRTC() ;
     void initializeNtpServers() ;
-    bool getDCF77Time() ;
+    struct tm dcf77DecodedToLocalTm() ;
+    bool updateDcf77Status() ;
+    bool applyDcf77DecodedTime(String source) ;
     void checkDcf77Health() ;
+    void decodeDcf77Telegram() ;
+    void processDcf77Bits() ;
     void checkRtcHealth() ;
-    void checkNightlyTimeSync() ;
     String testNtpServer(const String& server) ;
     boolean setupNTP() ;
     void handleNTPFailure() ;
     void setTimeStruct(const struct tm& timeinfo, String source) ;
-    void scheduleNTPRetry() ;
-    void checkNTPRetry() ;
     uint16_t i2cScan() ;
     void createNtpResponse(byte* packet, time_t currentTime) ;
 
