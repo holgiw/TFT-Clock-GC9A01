@@ -4,7 +4,6 @@
   - GC9A01
   - GC9D01
   - ILI9341 (deprecated - no longer actively maintained)
-- Display resolution and size are dynamically adjusted (e.g., 240x240 or 160x160 pixels).
 - Second, identical display always active: drives a second display of the same type via its own chip-select pin (CS2) on the shared SPI bus - each display gets its own, independently configurable rotation (Rotation Display 1 / Rotation Display 2), so the two can be mounted in different orientations. Status/boot messages (startup, reboot, SSID, WPS, factory reset, ...) are shown on both displays, each correctly rotated to match that display's own orientation.
 
 ---
