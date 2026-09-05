@@ -159,6 +159,15 @@
     // time_sync.h and the handling in loop().
     volatile bool dcfLedTogglePending = false;
 
+    // Zeitpunkt (millis()), zu dem der aktuelle Einmal-Blitz der LED wieder
+    // ausgeschaltet werden soll; 0 = kein Blitz aktiv (siehe
+    // DCF77_LED_BLINK_MS in config.h und die Abarbeitung in loop()).
+
+    // Time (millis()) at which the LED's current one-shot flash is to be
+    // switched off again; 0 = no flash active (see DCF77_LED_BLINK_MS in
+    // config.h and the handling in loop()).
+    unsigned long dcfLedOffAtMillis = 0;
+
     bool dcfSyncLedEnabled = true; // per Auswahlbox abschaltbar (Default: an) - steuert nur, ob loop() das per dcfLedTogglePending
                                     // angeforderte Blinken tatsaechlich ausfuehrt (siehe PK_DCF_SYNC_LED in prefs_keys.h); die ISR selbst
                                     // setzt dcfLedTogglePending unabhaengig davon immer, das Flag hier wird erst in loop() ausgewertet
@@ -200,8 +209,8 @@
     // unten, ausgewertet von applyDcf77DecodedTime()/updateDcf77Status() in
     // time_sync.h) - dcf.getUTCTime() der Original-Bibliothek wird dafuer
     // NICHT mehr benutzt (siehe dortige Kommentare zur Vorgeschichte).
-    // DCF77::int0handler() wird in isr() zwar weiterhin aufgerufen, ihr
-    // Ergebnis aber nirgends mehr gelesen. Die ISR (isr() in time_sync.h)
+    // DCF77::int0handler() wird in isr() nicht mehr aufgerufen (lag im Flash
+    // und war damit in der ISR ein Absturz-/Flankenverlustrisiko). Die ISR (isr() in time_sync.h)
     // schreibt bei jeder Flanke NUR Zeitstempel + Pegel in das kleine
     // Ringpuffer-Array unten (reines RAM, keine Flash-residenten Aufrufe -
     // sicher fuer die ISR, siehe deren Flash-Cache-Warnung). Die eigentliche
@@ -214,32 +223,168 @@
     // the actual time takeover (dcf77LastDecoded further below, consumed by
     // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - the
     // original library's dcf.getUTCTime() is NO LONGER used for that (see
-    // the comments there for the backstory). DCF77::int0handler() is still
-    // called in isr(), but its result is no longer read anywhere. The ISR
-    // (isr() in time_sync.h) ONLY writes timestamp + level into the small
-    // ring buffer array below on every edge (plain RAM, no flash-resident
-    // calls - safe for the ISR, see its flash-cache warning). The actual bit
+    // the comments there for the backstory). DCF77::int0handler() is no
+    // longer called at all (see isr() in time_sync.h). The ISR ONLY writes a
+    // timestamp into the ring buffer array below on every edge (plain RAM, no
+    // flash-resident calls - safe for the ISR, see its flash-cache
+    // warning). The actual bit
     // classification and decoding happen exclusively in
     // processDcf77Bits()/decodeDcf77Telegram() (time_sync.h), called from
     // loop(), NEVER in the ISR itself.
-#define DCF77_EDGE_BUFFER_SIZE 16
+    // Von 16 auf 64 vergroessert (kostet 256 Byte RAM): der Puffer muss die
+    // laengste Pause zwischen zwei processDcf77Bits()-Aufrufen ueberbruecken.
+    // Echter DCF77-Empfang erzeugt 2 Flanken pro Sekunde, 16 Plaetze reichten
+    // also nur fuer rund 8 Sekunden - ein blockierender NTP-Versuch
+    // (setupNTP(), mehrere WAIT_3s hintereinander), ein groesserer
+    // Webserver-Request oder eine Schreibserie auf LittleFS ueberschreitet das
+    // muehelos, und JEDE danach ankommende Flanke ging verloren. Mit 64
+    // Plaetzen sind es rund 32 Sekunden. Der Zaehler unten zeigt auf /dcf77,
+    // ob es trotzdem noch passiert.
+
+    // Enlarged from 16 to 64 (costs 256 bytes of RAM): the buffer has to
+    // bridge the longest pause between two processDcf77Bits() calls. Genuine
+    // DCF77 reception produces 2 edges per second, so 16 slots only covered
+    // about 8 seconds - a blocking NTP attempt (setupNTP(), several WAIT_3s in
+    // a row), a larger web server request or a burst of LittleFS writes
+    // exceeds that easily, and EVERY edge arriving afterwards was lost. With
+    // 64 slots it is about 32 seconds. The counter below shows on /dcf77
+    // whether it still happens anyway.
+#define DCF77_EDGE_BUFFER_SIZE 64
     volatile unsigned long dcf77EdgeMillis[DCF77_EDGE_BUFFER_SIZE];
-    volatile uint8_t dcf77EdgeLevel[DCF77_EDGE_BUFFER_SIZE]; // aktuell nur zu Diagnosezwecken mitgefuehrt, siehe processDcf77Bits()
-                                                             // currently only carried along for diagnostic purposes, see processDcf77Bits()
+    // dcf77EdgeLevel[] entfernt: der Pegel wurde nie ausgewertet (die
+    // Klassifizierung in processDcf77Bits() arbeitet ausschliesslich ueber die
+    // Dauer zwischen zwei Flanken), das dafuer noetige digitalRead() lag aber
+    // im Flash und war damit in der ISR ein Absturz-/Flankenverlustrisiko -
+    // siehe isr() in time_sync.h.
+    // dcf77EdgeLevel[] removed: the level was never evaluated (classification
+    // in processDcf77Bits() works purely from the duration between two edges),
+    // yet the digitalRead() it required lived in flash and was therefore a
+    // crash/edge-loss risk inside the ISR - see isr() in time_sync.h.
     volatile uint8_t dcf77EdgeHead = 0; // naechster freier Schreibindex - NUR von der ISR veraendert
                                         // next free write index - ONLY changed by the ISR
-    volatile uint8_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer (Diagnose) - z.B. waehrend eines
-                                           // blockierenden NTP-Sync-Versuchs (WAIT_3s), der loop() kurz anhaelt
-                                           // number of edges dropped when the buffer was full (diagnostic) - e.g. during
-                                           // a blocking NTP sync attempt (WAIT_3s) that briefly pauses loop()
+    volatile uint32_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer (Diagnose). Als uint32_t statt
+                                            // uint8_t: der Zaehler lief nach 256 verworfenen Flanken still ueber und fing
+                                            // wieder bei 0 an - genau bei starkem Verlust war der Diagnosewert also wertlos
+                                            // number of edges dropped when the buffer was full (diagnostic). uint32_t instead
+                                            // of uint8_t: the counter silently wrapped after 256 dropped edges and started
+                                            // over at 0 - so exactly under heavy loss the diagnostic value was worthless
     uint8_t dcf77EdgeTail = 0; // naechster zu lesende Index - NUR im Hauptthread (loop()) veraendert
                                // next index to read - ONLY changed on the main thread (loop())
 
 #define DCF77_TELEGRAM_BITS 59
-    int8_t dcf77Bits[DCF77_TELEGRAM_BITS]; // 0/1 pro Sekunde des laufenden Telegramms, -1 = (noch) unbekannt - NUR Hauptthread
-                                           // 0/1 per second of the running telegram, -1 = unknown (yet) - main thread only
-    uint8_t dcf77BitIndex = 0; // wie viele Bits des laufenden Telegramms bereits erkannt sind (0..DCF77_TELEGRAM_BITS)
-                               // how many bits of the running telegram have been recognized so far (0..DCF77_TELEGRAM_BITS)
+
+    // dcf77Bits ist nach der RASTERPOSITION indiziert (dcf77Phase, 0..59),
+    // NICHT nach der Sekunde der Minute - deshalb 60 Plaetze statt 59.
+    //
+    // Der Unterschied ist wichtig: die Zuordnung Rasterposition -> Sekunde
+    // steht erst fest, wenn die Minutenmarke gefunden ist (dcf77MarkerPos),
+    // und das dauert ein paar Minuten. Wurden die Bits vorher nach Sekunde
+    // abgelegt, konnte vor dem Markenfund gar nichts gesammelt und angezeigt
+    // werden - die /dcf77-Seite blieb in dieser ganzen Zeit leer, obwohl der
+    // Empfang laengst lief. Nach Rasterposition abgelegt, laeuft der
+    // Bit-Fortschritt ab dem ersten Impuls; die Umrechnung auf die Sekunde
+    // passiert erst beim Dekodieren (siehe decodeDcf77Telegram()) bzw. fuer
+    // die Anzeige in /api/dcf77status.
+
+    // dcf77Bits is indexed by the GRID POSITION (dcf77Phase, 0..59), NOT by
+    // the second of the minute - hence 60 slots instead of 59.
+    //
+    // The difference matters: the mapping grid position -> second is only
+    // fixed once the minute marker has been found (dcf77MarkerPos), and that
+    // takes a few minutes. With the bits stored by second, nothing could be
+    // collected or displayed before the marker was found - the /dcf77 page
+    // stayed empty for that whole time even though reception had long been
+    // running. Stored by grid position, the bit progress runs from the very
+    // first pulse; conversion to the second happens only when decoding (see
+    // decodeDcf77Telegram()) resp. for the display in /api/dcf77status.
+#define DCF77_GRID_SLOTS 60
+    int8_t dcf77Bits[DCF77_GRID_SLOTS]; // 0/1 je Rasterposition der laufenden Minute, -1 = (noch) unbekannt - NUR Hauptthread
+                                        // 0/1 per grid position of the running minute, -1 = unknown (yet) - main thread only
+    uint8_t dcf77BitIndex = 0; // Position (Sekunde der Minute) des NAECHSTEN erwarteten Impulses, 0..DCF77_TELEGRAM_BITS -
+                               // bei lueckenlosem Empfang gleichbedeutend mit "so viele Bits sind schon da"; nach einer
+                               // verlorenen Sekunde bleibt an deren Stelle eine Luecke (dcf77Bits[i] == -1) stehen und der
+                               // Index zeigt trotzdem auf die richtige Sekunde weiter (siehe processDcf77Bits() in time_sync.h)
+
+                               // position (second of the minute) of the NEXT expected pulse, 0..DCF77_TELEGRAM_BITS - with
+                               // gapless reception this is the same as "this many bits are in"; after a lost second a hole
+                               // (dcf77Bits[i] == -1) remains at that spot and the index still points at the correct second
+                               // (see processDcf77Bits() in time_sync.h)
+
+    bool dcf77Synced = false;  // true, sobald die Position im Telegramm bekannt ist (eine Minutenmarke wurde erkannt und
+                               // seitdem passte jeder Impulsabstand ins Sekundenraster). Solange false, werden empfangene
+                               // Impulse bewusst NICHT als Bits abgelegt - ihre Position waere reine Vermutung. Wird wieder
+                               // false, wenn ein Impulsabstand in kein Sekundenraster passt (laengerer Aussetzer, Stoerung)
+                               // oder ein dekodiertes Telegramm strukturell unmoeglich ist (Bit 0 != 0 bzw. Bit 20 != 1,
+                               // siehe decodeDcf77Telegram()) - danach wartet der Dekoder auf die naechste Minutenmarke.
+
+                               // true once the position within the telegram is known (a minute marker was detected and every
+                               // pulse distance since then fitted the one-second grid). While false, received pulses are
+                               // deliberately NOT stored as bits - their position would be pure guesswork. Goes back to false
+                               // when a pulse distance fits no second grid (longer dropout, interference) or a decoded
+                               // telegram is structurally impossible (bit 0 != 0 resp. bit 20 != 1, see
+                               // decodeDcf77Telegram()) - the decoder then waits for the next minute marker.
+
+    // --- Sekundenraster und Erkennung der Minutenmarke ---------------------
+    //
+    // dcf77Phase ist eine FREILAUFENDE Rasterposition 0..59 ohne Bezug zur
+    // echten Sekunde: sie wird bei jedem erkannten Impuls um die Anzahl der
+    // seitdem vergangenen Sekunden weitergezaehlt (siehe processDcf77Bits()).
+    // Welche dieser 60 Positionen die 59. Sekunde (die Minutenmarke) ist,
+    // ergibt sich aus der Statistik darunter, NICHT aus einem einzelnen
+    // Impulsabstand: die Marke ist die einzige Position, an der in JEDER
+    // Minute ein Impuls fehlt, waehrend empfangsbedingte Ausfaelle zufaellig
+    // ueber alle Positionen streuen. Nach wenigen Minuten hebt sich die Marke
+    // dadurch eindeutig ab - auch bei schlechtem Empfang, wo einzelne
+    // Impulsabstaende von 2 Sekunden staendig vorkommen und deshalb kein
+    // brauchbares Merkmal fuer die Minutenmarke sind.
+
+    // --- Second grid and minute marker detection ---------------------------
+    //
+    // dcf77Phase is a FREE-RUNNING grid position 0..59 with no relation to the
+    // real second: it is advanced by the number of seconds elapsed on every
+    // detected pulse (see processDcf77Bits()). Which of those 60 positions is
+    // the 59th second (the minute marker) follows from the statistics below,
+    // NOT from a single pulse distance: the marker is the only position where
+    // a pulse is missing in EVERY minute, while reception-related dropouts
+    // scatter randomly across all positions. After a few minutes the marker
+    // therefore stands out unambiguously - even with poor reception, where
+    // individual pulse distances of 2 seconds occur constantly and are
+    // therefore no usable indicator of the minute marker.
+    uint8_t dcf77Phase = 0;
+
+    uint8_t dcf77MarkerMiss[60] = { 0 }; // wie oft an dieser Rasterposition ein Impuls fehlte
+                                         // how often a pulse was missing at this grid position
+    uint8_t dcf77MarkerHit[60] = { 0 };  // wie oft an dieser Rasterposition ein Impuls ankam
+                                         // how often a pulse arrived at this grid position
+
+    int8_t dcf77MarkerPos = -1; // erkannte Rasterposition der Minutenmarke, -1 = noch unbekannt
+                                // detected grid position of the minute marker, -1 = not known yet
+
+    int8_t dcf77LastSecond = -1; // zuletzt belegte Sekunde der Minute, fuer die Erkennung des Minutenwechsels
+                                 // last second of the minute filled in, used to detect the minute change
+
+    uint8_t dcf77StructFails = 0; // aufeinanderfolgende Telegramme mit unmoeglichen Festbits (Bit 0 / Bit 20) -
+                                  // ab DCF77_STRUCT_FAIL_LIMIT gilt die erkannte Marke als falsch und wird verworfen
+                                  // consecutive telegrams with impossible fixed bits (bit 0 / bit 20) - from
+                                  // DCF77_STRUCT_FAIL_LIMIT on, the detected marker counts as wrong and is discarded
+
+    // --- Diagnosewerte fuer die /dcf77-Seite -------------------------------
+    // Machen von aussen sichtbar, was der Empfaenger tatsaechlich liefert -
+    // ohne Oszilloskop war bisher nicht zu unterscheiden, ob der Dekoder
+    // falsch rechnet oder schlicht keine brauchbaren Impulse ankommen.
+    // --- Diagnostic values for the /dcf77 page -----------------------------
+    // Make visible from the outside what the receiver actually delivers -
+    // without an oscilloscope there was previously no way to tell whether the
+    // decoder computes wrongly or simply no usable pulses arrive.
+    uint32_t dcf77PulsesSeen = 0;    // erkannte Impulse seit dem Start / pulses detected since start
+    uint32_t dcf77PulsesMissed = 0;  // uebersprungene Rasterpositionen / grid positions skipped
+    uint32_t dcf77PhaseBreaks = 0;   // wie oft das Sekundenraster verlorenging / how often the second grid was lost
+
+#define DCF77_DIAG_SLOTS 12
+    uint16_t dcf77DiagWidth[DCF77_DIAG_SLOTS] = { 0 }; // Impulsdauer in ms / pulse width in ms
+    uint16_t dcf77DiagGap[DCF77_DIAG_SLOTS] = { 0 };   // Abstand zum vorigen Impulsanfang in ms / distance to the previous pulse start in ms
+    uint8_t dcf77DiagIdx = 0;
+    uint8_t dcf77DiagCount = 0;
 
     // Ergebnis der letzten VOLLSTAENDIG dekodierten Minute (siehe
     // decodeDcf77Telegram() in time_sync.h) - bleibt bei einem
@@ -261,10 +406,29 @@
         bool callBit = false;     // Bit 15 - Anrufbit / unregelmaessige Aussendung
                                   // bit 15 - call bit / irregular transmission
         bool parityMinOk = false, parityHourOk = false, parityDateOk = false;
-        unsigned long decodedAtMillis = 0; // millis() bei Abschluss der Dekodierung, 0 = noch nie
-                                           // millis() when decoding finished, 0 = never
+        uint8_t repairedBits = 0; // wie viele fehlende Bits aus Paritaet/Festwerten rekonstruiert wurden
+                                  // how many missing bits were reconstructed from parity/fixed values
+        unsigned long decodedAtMillis = 0; // millis() beim Minutenanfang dieses Telegramms, 0 = noch nie
+                                           // millis() at this telegram's minute start, 0 = never
     };
     Dcf77Decoded dcf77LastDecoded;
+
+    // Letzte als gueltig bestaetigte Dekodierung, als Bezugspunkt fuer die
+    // Kohaerenzpruefung eines rekonstruierten Telegramms (siehe
+    // decodeDcf77Telegram() in time_sync.h): wurden fehlende Bits aus der
+    // Paritaet ergaenzt, kann die Paritaet diese Gruppe nicht mehr pruefen -
+    // stattdessen muss die Zeit exakt zur vorherigen bestaetigten Zeit plus
+    // der seitdem verstrichenen Minutenzahl passen. Ein vollstaendig
+    // empfangenes Telegramm braucht diese Pruefung nicht.
+
+    // Last decoding confirmed as valid, used as the reference for the
+    // coherence check of a reconstructed telegram (see decodeDcf77Telegram()
+    // in time_sync.h): when missing bits were filled in from parity, parity
+    // can no longer verify that group - instead the time has to match the
+    // previously confirmed time plus the number of minutes elapsed since
+    // exactly. A fully received telegram does not need this check.
+    time_t dcf77PrevEpoch = 0;
+    unsigned long dcf77PrevAtMillis = 0;
 
 #endif
 

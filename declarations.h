@@ -43,7 +43,10 @@
     bool updateDcf77Status() ;
     bool applyDcf77DecodedTime(String source) ;
     void checkDcf77Health() ;
-    void decodeDcf77Telegram() ;
+    bool decodeDcf77Telegram(unsigned long decodedAtMillis) ; // false = Telegramm strukturell unmoeglich, Synchronisation verwerfen (siehe processDcf77Bits())
+                                                              // false = telegram structurally impossible, drop synchronization (see processDcf77Bits())
+    void resetDcf77MarkerStats() ;
+    void evaluateDcf77Marker() ;
     void processDcf77Bits() ;
     void checkRtcHealth() ;
     String testNtpServer(const String& server) ;

@@ -8,72 +8,84 @@
     // included centrally in uhr3.ino BEFORE this file).
 
 
-    // Interrupt-Handler fuer den DCF77-Eingang.
-    //
-    // Hier darf NICHTS stehen, was im Flash liegt: waehrend der Flash-Cache
-    // deaktiviert ist (jeder LittleFS-Schreibvorgang - also auch jede Logzeile
-    // ueber logToFile() - und jedes nvs_commit() aus preferences.putXxx())
-    // fuehrt ein solcher Zugriff zu einem "Cache disabled but cached memory
-    // region accessed"-Panic-Reset. Deshalb wird die LED hier NICHT mehr
-    // direkt geschaltet (toggleLED() -> setLedOn()/setLedOff() -> pinMode()/
-    // digitalWrite(), alle Flash-resident), sondern nur ein Flag gesetzt, das
-    // loop() abarbeitet.
-    //
-    // HINWEIS: DCF77::int0handler() liegt in der Bibliothek und damit ebenfalls
-    // im Flash - das laesst sich von hier aus nicht aendern, ohne die
-    // Bibliothek zu patchen. Ein Restrisiko bleibt daher bestehen, ist aber
-    // deutlich kleiner als vorher (ein Aufruf statt vier).
+    // Interrupt-Handler fuer den DCF77-Eingang. Laeuft bei JEDER Flanke am
+    // Datenpin (CHANGE, siehe attachInterrupt() in uhr3.ino) und schreibt
+    // ausschliesslich einen Zeitstempel in einen RAM-Ringpuffer - die
+    // eigentliche Auswertung passiert in processDcf77Bits() aus loop().
+    // Begruendung im Detail siehe im Rumpf.
 
-    // Interrupt handler for the DCF77 input.
-    //
-    // NOTHING that lives in flash may run here: while the flash cache is
-    // disabled (every LittleFS write - so also every log line via logToFile()
-    // - and every nvs_commit() from preferences.putXxx()) such an access
-    // causes a "Cache disabled but cached memory region accessed" panic reset.
-    // That's why the LED is no longer switched directly here (toggleLED() ->
-    // setLedOn()/setLedOff() -> pinMode()/digitalWrite(), all flash-resident);
-    // only a flag is set, which loop() processes.
-    //
-    // NOTE: DCF77::int0handler() lives in the library and therefore also in
-    // flash - that can't be changed from here without patching the library. A
-    // residual risk remains, but it's much smaller than before (one call
-    // instead of four).
+    // Interrupt handler for the DCF77 input. Runs on EVERY edge at the data
+    // pin (CHANGE, see attachInterrupt() in uhr3.ino) and only ever writes a
+    // timestamp into a RAM ring buffer - the actual evaluation happens in
+    // processDcf77Bits() called from loop(). See the body for the detailed
+    // reasoning.
 
     void IRAM_ATTR isr() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
-        DCF77::int0handler();
+
+        // In dieser Funktion darf NICHTS aufgerufen werden, was im Flash
+        // liegt. Waehrend der Flash-Cache deaktiviert ist - das ist bei JEDEM
+        // LittleFS-Schreibvorgang (also auch bei jeder Logzeile ueber
+        // logToFile()) und bei jedem nvs_commit() aus preferences.putXxx() der
+        // Fall - fuehrt ein solcher Zugriff im guenstigen Fall dazu, dass die
+        // Flanke verlorengeht, im unguenstigen zu einem "Cache disabled but
+        // cached memory region accessed"-Panic-Reset.
+        //
+        // Entfernt wurden deshalb (beide lagen im Flash und waren nicht
+        // ersetzbar, nur verzichtbar):
+        //
+        // 1. DCF77::int0handler() - die Bibliotheksfunktion. Ihr Ergebnis
+        //    (dcf.getUTCTime()) wird seit der Umstellung auf den eigenen
+        //    Dekoder nirgends mehr gelesen (siehe applyDcf77DecodedTime()
+        //    weiter unten), der Aufruf war also reine Rechenzeit mit
+        //    Absturzrisiko in der ISR.
+        // 2. digitalRead(DCF77_DATAPIN) fuer dcf77EdgeLevel[] - der Pegel wird
+        //    von processDcf77Bits() nicht ausgewertet (die Klassifizierung
+        //    laeuft ausschliesslich ueber die Dauer zwischen zwei Flanken),
+        //    das Array war reine Diagnose-Altlast.
+        //
+        // Uebrig bleiben nur millis() und Schreibzugriffe auf RAM-Arrays.
+        // Genau das war die Ursache fuer verlorene Flanken ("lost") waehrend
+        // aktivem Logging: jede geschriebene Logzeile deaktivierte den Cache,
+        // und die in dieser Zeit anfallenden DCF77-Flanken gingen verloren -
+        // wodurch der Dekoder Sekunden verlor, haeufiger die Synchronisation
+        // verwarf und dadurch noch mehr Logzeilen erzeugte.
+
+        // NOTHING that lives in flash may be called in this function. While
+        // the flash cache is disabled - which is the case during EVERY
+        // LittleFS write (so also every log line via logToFile()) and every
+        // nvs_commit() from preferences.putXxx() - such an access at best
+        // makes the edge get lost and at worst causes a "Cache disabled but
+        // cached memory region accessed" panic reset.
+        //
+        // Removed for that reason (both lived in flash and were not
+        // replaceable, merely dispensable):
+        //
+        // 1. DCF77::int0handler() - the library function. Its result
+        //    (dcf.getUTCTime()) has not been read anywhere since the switch to
+        //    the own decoder (see applyDcf77DecodedTime() further below), so
+        //    the call was pure compute time with a crash risk inside the ISR.
+        // 2. digitalRead(DCF77_DATAPIN) for dcf77EdgeLevel[] - the level is
+        //    not evaluated by processDcf77Bits() (classification works purely
+        //    from the duration between two edges), the array was a leftover
+        //    diagnostic.
+        //
+        // What remains is millis() plus writes to RAM arrays. This was exactly
+        // the cause of lost edges while logging was enabled: every log line
+        // written disabled the cache, and the DCF77 edges occurring during
+        // that window were lost - which made the decoder lose seconds, drop
+        // synchronization more often and thereby produce even more log lines.
         if (!dcfTimeFound) dcfLedTogglePending = true;
         dcf77Count++;
         if (dcf77Count > 120) dcf77Count = 1;
 
-        // Eigener, von der DCF77-Bibliothek unabhaengiger Flanken-Mitschnitt
-        // fuer die Bit-Fortschrittsanzeige auf /dcf77 (siehe dcf77Edge*-
-        // Variablen in globals.h und processDcf77Bits() weiter unten) -
-        // schreibt NUR in ein Ringpuffer-Array (reines RAM), keine
-        // Flash-residenten Aufrufe, daher hier sicher (siehe Flash-Cache-
-        // Warnung oben in dieser Funktion). digitalRead() selbst ist hier
-        // unproblematisch - DCF77::int0handler() eine Zeile darueber macht
-        // intern nichts anderes, um den Pegel auszuwerten.
-        //
-        // Bei vollem Puffer (z.B. waehrend eines blockierenden NTP-Sync-
-        // Versuchs, siehe setupNTP() - WAIT_3s) wird die Flanke verworfen
-        // statt den noch ungelesenen Tail zu ueberschreiben.
-
-        // Own edge capture, independent of the DCF77 library, for the bit-
-        // progress display on /dcf77 (see the dcf77Edge* variables in
-        // globals.h and processDcf77Bits() further below) - ONLY writes to a
-        // ring buffer array (plain RAM), no flash-resident calls, therefore
-        // safe here (see the flash-cache warning above in this function).
-        // digitalRead() itself is fine here - DCF77::int0handler() one line
-        // above does nothing different internally to read the pin level.
-        //
-        // On a full buffer (e.g. during a blocking NTP sync attempt, see
-        // setupNTP() - WAIT_3s) the edge is dropped instead of overwriting
-        // the not-yet-read tail.
+        // Bei vollem Puffer wird die Flanke verworfen, statt den noch
+        // ungelesenen Tail zu ueberschreiben (Zaehler siehe dcf77EdgeDropped).
+        // On a full buffer the edge is dropped instead of overwriting the
+        // not-yet-read tail (counter: see dcf77EdgeDropped).
         uint8_t dcf77EdgeNextHead = (dcf77EdgeHead + 1) % DCF77_EDGE_BUFFER_SIZE;
         if (dcf77EdgeNextHead != dcf77EdgeTail) {
             dcf77EdgeMillis[dcf77EdgeHead] = millis();
-            dcf77EdgeLevel[dcf77EdgeHead] = digitalRead(DCF77_DATAPIN);
             dcf77EdgeHead = dcf77EdgeNextHead;
         }
         else {
@@ -256,7 +268,8 @@
     // gerade nicht verfuegbar ist. Auch direkt nutzbar fuer den Boot-
     // Sonderfall in connectWiFiAtBoot() (kein WLAN, keine RTC).
     // Liefert false (und tut sonst nichts), wenn kein ausreichend frisches
-    // (< 1 Minute altes), Paritaets-korrektes Telegramm vorliegt - das ist
+    // (hoechstens DCF77_DECODED_MAX_AGE altes, siehe config.h),
+    // Paritaets-korrektes Telegramm vorliegt - das ist
     // z.B. direkt nach dem Boot normal, solange DCF77 noch keine volle Minute
     // empfangen konnte.
 
@@ -266,7 +279,8 @@
     // available. Also directly usable for the boot-time special case in
     // connectWiFiAtBoot() (no WiFi, no
     // RTC). Returns false (and does nothing else) when no sufficiently fresh
-    // (< 1 minute old), parity-correct telegram is available - which is
+    // (at most DCF77_DECODED_MAX_AGE old, see config.h), parity-correct
+    // telegram is available - which is
     // normal e.g. right after boot, before DCF77 has had a chance to receive
     // a full minute yet.
 
@@ -276,7 +290,7 @@
             DEBUG_PRINTLN(source + " skipped: no valid DCF77 telegram decoded yet");
             return false;
         }
-        if (millis() - dcf77LastDecoded.decodedAtMillis >= WAIT_1m) {
+        if (millis() - dcf77LastDecoded.decodedAtMillis >= DCF77_DECODED_MAX_AGE) {
             DEBUG_PRINTLN(source + " skipped: last decoded DCF77 telegram is too old/stale");
             return false; // zu alt/veraltet
                           // too old/stale
@@ -464,152 +478,488 @@
     // DCF77 library itself is no longer used for this, see the comment there
     // about the switch).
 
-    void decodeDcf77Telegram() {
+    bool decodeDcf77Telegram(unsigned long decodedAtMillis) {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
-        Dcf77Decoded result;
-        result.decodedAtMillis = millis();
 
-        for (uint8_t i = 0; i < DCF77_TELEGRAM_BITS; i++) {
-            if (dcf77Bits[i] < 0) {
-                // Unvollstaendig (z.B. weil die vermeintliche Minutenmarke in
-                // Wirklichkeit nur eine durch Rauschen/eine verlorene Flanke
-                // ausgeloeste Fehlklassifizierung war, siehe
-                // DCF77_BIT_NOISE_IGNORE_MS in config.h und processDcf77Bits()
-                // unten) - dcf77LastDecoded hier bewusst NICHT anfassen: sonst
-                // wuerde ein zuvor erfolgreich dekodiertes Telegramm bei jedem
-                // solchen Fehlalarm durch einen leeren/ungueltigen Datensatz
-                // ueberschrieben, obwohl auf der Seite eigentlich weiter die
-                // letzte tatsaechlich gueltige Dekodierung angezeigt werden
-                // soll (siehe Bugreport: Live-Anzeige zeigte ein anderes
-                // Ergebnis als die tatsaechlich von der DCF77-Bibliothek
-                // uebernommene Zeit).
-                // Incomplete (e.g. because the presumed minute mark was
-                // actually just a misclassification caused by noise/a lost
-                // edge, see DCF77_BIT_NOISE_IGNORE_MS in config.h and
-                // processDcf77Bits() below) - deliberately do NOT touch
-                // dcf77LastDecoded here: otherwise a previously successfully
-                // decoded telegram would get overwritten with an empty/
-                // invalid record on every such false alarm, even though the
-                // page is supposed to keep showing the last actually valid
-                // decode (see bug report: the live display showed a
-                // different result than the time actually taken over by the
-                // DCF77 library).
-                return;
+        // Strukturpruefung VOR allem anderen: Bit 0 ist im DCF77-Telegramm
+        // immer 0 (Minutenbeginn), Bit 20 immer 1 (Start der Zeitinformation).
+        // Widerspricht auch nur eines der beiden, kann das Telegramm nicht an
+        // der angenommenen Position begonnen haben - der Dekoder steht also
+        // auf der falschen Sekunde. Dann false zurueckgeben; der Aufrufer
+        // verwirft nach mehreren solchen Telegrammen die erkannte Minutenmarke
+        // und sucht sie neu (siehe DCF77_STRUCT_FAIL_LIMIT in config.h).
+        // Geprueft wird nur gegen TATSAECHLICH empfangene Bits (-1 = Luecke).
+
+        // Structure check before anything else: in a DCF77 telegram bit 0 is
+        // always 0 (start of minute) and bit 20 always 1 (start of time
+        // information). If either one contradicts that, the telegram cannot
+        // have started at the assumed position - so the decoder sits on the
+        // wrong second. Return false in that case; after several such
+        // telegrams the caller discards the detected minute marker and
+        // searches for it anew (see DCF77_STRUCT_FAIL_LIMIT in config.h).
+        // Only checked against bits ACTUALLY received (-1 = gap).
+        // dcf77Bits ist nach Rasterposition indiziert (siehe globals.h); die
+        // Minutenmarke liegt auf dcf77MarkerPos und ist die 59. Sekunde, die
+        // Position danach ist die Sekunde 0. Hier einmal in Sekunden-
+        // reihenfolge umsortieren, danach arbeitet die ganze Funktion auf
+        // 'bits' mit den vertrauten Bitnummern des DCF77-Telegramms.
+
+        // dcf77Bits is indexed by grid position (see globals.h); the minute
+        // marker sits at dcf77MarkerPos and is the 59th second, the position
+        // after it is second 0. Reorder into second order once here; after
+        // that the whole function works on 'bits' with the DCF77 telegram's
+        // familiar bit numbers.
+        if (dcf77MarkerPos < 0) return true; // ohne Marke ist keine Zuordnung moeglich
+                                              // without the marker no mapping is possible
+
+        int8_t bits[DCF77_TELEGRAM_BITS];
+        for (uint8_t sec = 0; sec < DCF77_TELEGRAM_BITS; sec++) {
+            bits[sec] = dcf77Bits[((uint8_t)dcf77MarkerPos + 1 + sec) % DCF77_GRID_SLOTS];
+        }
+
+        if (bits[0] == 1 || bits[20] == 0) {
+            return false;
+        }
+
+        // --- Arbeitskopie mit Rekonstruktion fehlender Bits ----------------
+        //
+        // Ohne diesen Schritt braucht ein verwertbares Telegramm eine
+        // lueckenlose Minute: 42 aufeinanderfolgende Sekunden muessen sauber
+        // ankommen. Schon bei 10 % Ausfallquote passiert das rechnerisch nur
+        // in gut einer von hundert Minuten - der Dekoder lief dann zwar
+        // sauber, lieferte aber praktisch nie ein Ergebnis.
+        //
+        // Rekonstruierbar sind:
+        //  - Bit 0 und Bit 20: im Protokoll fest 0 bzw. 1
+        //  - Bit 17/18 (Sommer-/Winterzeit): zueinander invers, eines
+        //    ergaenzt das andere
+        //  - genau EIN fehlendes Bit je Paritaetsgruppe (Minute 21-28,
+        //    Stunde 29-35, Datum 36-58): sein Wert ist der, der die gerade
+        //    Paritaet der Gruppe herstellt
+        //
+        // Das ist die uebliche Einzel-Ausfall-Korrektur ueber die Paritaet.
+        // Der Preis: fuer eine so ergaenzte Gruppe kann die Paritaet nichts
+        // mehr pruefen (sie wurde ja gerade erfuellt). Deshalb wird ein
+        // Telegramm mit rekonstruierten Bits weiter unten zusaetzlich gegen
+        // die zuletzt bestaetigte Zeit geprueft.
+
+        // --- Working copy with reconstruction of missing bits --------------
+        //
+        // Without this step a usable telegram needs a gapless minute: 42
+        // consecutive seconds have to arrive cleanly. At a 10 % dropout rate
+        // that happens, statistically, in only about one minute in a hundred -
+        // the decoder then ran correctly but practically never produced a
+        // result.
+        //
+        // Reconstructable are:
+        //  - bit 0 and bit 20: fixed at 0 resp. 1 by the protocol
+        //  - bits 17/18 (summer/winter time): inverse to each other, one
+        //    completes the other
+        //  - exactly ONE missing bit per parity group (minute 21-28, hour
+        //    29-35, date 36-58): its value is the one that makes the group's
+        //    parity even
+        //
+        // This is the usual single-erasure correction via parity. The price:
+        // for a group completed this way, parity can no longer verify anything
+        // (it was just satisfied by construction). A telegram with
+        // reconstructed bits is therefore additionally checked against the
+        // last confirmed time further below.
+        uint8_t repaired = 0;
+
+        if (bits[0] < 0)  { bits[0] = 0;  repaired++; }
+        if (bits[20] < 0) { bits[20] = 1; repaired++; }
+
+        if (bits[17] < 0 && bits[18] >= 0) { bits[17] = bits[18] ? 0 : 1; repaired++; }
+        else if (bits[18] < 0 && bits[17] >= 0) { bits[18] = bits[17] ? 0 : 1; repaired++; }
+
+        // Genau ein fehlendes Bit je Gruppe aus der geraden Paritaet ergaenzen
+        // (der Bereich schliesst das Paritaetsbit selbst mit ein).
+        // Fill in exactly one missing bit per group from the even parity (the
+        // range includes the parity bit itself).
+        const uint8_t groupStart[3] = { 21, 29, 36 };
+        const uint8_t groupEnd[3]   = { 28, 35, 58 };
+        for (uint8_t g = 0; g < 3; g++) {
+            int missingIndex = -1;
+            uint8_t missingCount = 0;
+            int sum = 0;
+            for (uint8_t i = groupStart[g]; i <= groupEnd[g]; i++) {
+                if (bits[i] < 0) { missingCount++; missingIndex = i; }
+                else sum += bits[i];
+            }
+            if (missingCount == 1) {
+                bits[missingIndex] = (int8_t)(sum % 2); // ergaenzt zur geraden Paritaet
+                                                        // completes to even parity
+                repaired++;
             }
         }
 
-        result.callBit = (dcf77Bits[15] == 1);
-        result.dst = (dcf77Bits[17] == 1);
+        // Vollstaendigkeit NUR fuer die Bits verlangen, die tatsaechlich in die
+        // Zeit eingehen: Bit 17/18 (Sommer-/Winterzeit), Bit 20 (Startbit) und
+        // 21..58 (Minute/Stunde/Datum inkl. Paritaeten). Die Bits 1..14
+        // (Wettermeldung/Sonderfunktion), Bit 15 (Anrufbit) und Bit 19
+        // (Schaltsekunde) wertet dieser Dekoder gar nicht aus bzw. nur zur
+        // Anzeige - eine Luecke dort darf ein sonst vollstaendiges und
+        // korrektes Zeittelegramm nicht verwerfen.
+
+        // Require completeness ONLY for the bits that actually go into the
+        // time: bits 17/18 (summer/winter time), bit 20 (start bit) and 21..58
+        // (minute/hour/date incl. parities). Bits 1..14 (weather
+        // broadcast/special function), bit 15 (call bit) and bit 19 (leap
+        // second) are not evaluated by this decoder at all, or only for
+        // display - a gap there must not discard an otherwise complete and
+        // correct time telegram.
+        for (uint8_t i = 17; i < DCF77_TELEGRAM_BITS; i++) {
+            if (i == 19) continue; // Schaltsekunden-Ankuendigung, hier nicht ausgewertet
+                                    // leap second announcement, not evaluated here
+
+            if (bits[i] < 0) {
+                // Immer noch unvollstaendig - dcf77LastDecoded bewusst NICHT
+                // anfassen, damit die letzte tatsaechlich gueltige Dekodierung
+                // auf der Live-Seite stehen bleibt. true zurueckgeben: eine
+                // Luecke ist kein Grund, die Minutenmarke in Frage zu stellen.
+                // Still incomplete - deliberately do NOT touch
+                // dcf77LastDecoded, so the last actually valid decoding stays
+                // on the live page. Return true: a gap is no reason to doubt
+                // the minute marker.
+                return true;
+            }
+        }
+
+        Dcf77Decoded result;
+        // 0 bedeutet an anderer Stelle "noch nie dekodiert" (siehe
+        // /api/dcf77status in webserver_routes.h) - einen echten Zeitpunkt 0
+        // (nur in der ersten Millisekunde nach dem Boot moeglich) deshalb auf 1
+        // anheben, statt das Telegramm dort als "nicht vorhanden" erscheinen zu lassen.
+        // 0 means "never decoded" elsewhere (see /api/dcf77status in
+        // webserver_routes.h) - so lift a genuine timestamp of 0 (only possible
+        // in the very first millisecond after boot) to 1, instead of making the
+        // telegram appear "not present" there.
+        result.decodedAtMillis = (decodedAtMillis == 0) ? 1 : decodedAtMillis;
+        result.repairedBits = repaired;
+
+        result.callBit = (bits[15] == 1);
+        result.dst = (bits[17] == 1);
 
         // Minute (Bits 21-27, BCD), Paritaet Bit 28
         // Minute (bits 21-27, BCD), parity bit 28
-        int minuteUnits = dcf77Bits[21] + dcf77Bits[22] * 2 + dcf77Bits[23] * 4 + dcf77Bits[24] * 8;
-        int minuteTens = dcf77Bits[25] + dcf77Bits[26] * 2 + dcf77Bits[27] * 4;
+        int minuteUnits = bits[21] + bits[22] * 2 + bits[23] * 4 + bits[24] * 8;
+        int minuteTens = bits[25] + bits[26] * 2 + bits[27] * 4;
         result.minute = (uint8_t)(minuteTens * 10 + minuteUnits);
         int minuteParitySum = 0;
-        for (int i = 21; i <= 28; i++) minuteParitySum += dcf77Bits[i];
+        for (int i = 21; i <= 28; i++) minuteParitySum += bits[i];
         result.parityMinOk = (minuteParitySum % 2) == 0;
 
         // Stunde (Bits 29-34, BCD), Paritaet Bit 35
         // Hour (bits 29-34, BCD), parity bit 35
-        int hourUnits = dcf77Bits[29] + dcf77Bits[30] * 2 + dcf77Bits[31] * 4 + dcf77Bits[32] * 8;
-        int hourTens = dcf77Bits[33] + dcf77Bits[34] * 2;
+        int hourUnits = bits[29] + bits[30] * 2 + bits[31] * 4 + bits[32] * 8;
+        int hourTens = bits[33] + bits[34] * 2;
         result.hour = (uint8_t)(hourTens * 10 + hourUnits);
         int hourParitySum = 0;
-        for (int i = 29; i <= 35; i++) hourParitySum += dcf77Bits[i];
+        for (int i = 29; i <= 35; i++) hourParitySum += bits[i];
         result.parityHourOk = (hourParitySum % 2) == 0;
 
         // Datum: Tag (36-41), Wochentag (42-44), Monat (45-49), Jahr (50-57),
         // gemeinsame Paritaet Bit 58
         // Date: day (36-41), day of week (42-44), month (45-49), year
         // (50-57), combined parity bit 58
-        int dayUnits = dcf77Bits[36] + dcf77Bits[37] * 2 + dcf77Bits[38] * 4 + dcf77Bits[39] * 8;
-        int dayTens = dcf77Bits[40] + dcf77Bits[41] * 2;
+        int dayUnits = bits[36] + bits[37] * 2 + bits[38] * 4 + bits[39] * 8;
+        int dayTens = bits[40] + bits[41] * 2;
         result.day = (uint8_t)(dayTens * 10 + dayUnits);
 
-        result.weekday = (uint8_t)(dcf77Bits[42] + dcf77Bits[43] * 2 + dcf77Bits[44] * 4);
+        result.weekday = (uint8_t)(bits[42] + bits[43] * 2 + bits[44] * 4);
 
-        int monthUnits = dcf77Bits[45] + dcf77Bits[46] * 2 + dcf77Bits[47] * 4 + dcf77Bits[48] * 8;
-        int monthTens = dcf77Bits[49];
+        int monthUnits = bits[45] + bits[46] * 2 + bits[47] * 4 + bits[48] * 8;
+        int monthTens = bits[49];
         result.month = (uint8_t)(monthTens * 10 + monthUnits);
 
-        int yearUnits = dcf77Bits[50] + dcf77Bits[51] * 2 + dcf77Bits[52] * 4 + dcf77Bits[53] * 8;
-        int yearTens = dcf77Bits[54] + dcf77Bits[55] * 2 + dcf77Bits[56] * 4 + dcf77Bits[57] * 8;
+        int yearUnits = bits[50] + bits[51] * 2 + bits[52] * 4 + bits[53] * 8;
+        int yearTens = bits[54] + bits[55] * 2 + bits[56] * 4 + bits[57] * 8;
         result.year = (uint16_t)(2000 + yearTens * 10 + yearUnits);
 
         int dateParitySum = 0;
-        for (int i = 36; i <= 58; i++) dateParitySum += dcf77Bits[i];
+        for (int i = 36; i <= 58; i++) dateParitySum += bits[i];
         result.parityDateOk = (dateParitySum % 2) == 0;
 
-        result.valid = result.parityMinOk && result.parityHourOk && result.parityDateOk;
+        // Zusaetzlich zu den drei Paritaeten auch die Wertebereiche pruefen:
+        // die Paritaet erkennt nur eine UNGERADE Anzahl gekippter Bits - bei
+        // zwei Fehlern innerhalb derselben Gruppe (bei gestoertem Empfang
+        // durchaus moeglich) stimmt sie trotzdem, und ohne diese Pruefung
+        // waere z.B. "Monat 15" oder "Stunde 29" als gueltige Zeit
+        // durchgegangen und haette Systemzeit und RTC verstellt. Ebenso
+        // muessen die beiden Zeitzonenbits 17/18 zueinander invers sein.
+
+        // Besides the three parities, also check the value ranges: parity only
+        // detects an ODD number of flipped bits - with two errors inside the
+        // same group (entirely possible with disturbed reception) it still
+        // matches, and without this check e.g. "month 15" or "hour 29" would
+        // have passed as a valid time and adjusted the system time and RTC.
+        // Likewise the two timezone bits 17/18 have to be inverse.
+        bool rangesOk = (result.minute <= 59) &&
+                        (result.hour <= 23) &&
+                        (result.day >= 1 && result.day <= 31) &&
+                        (result.month >= 1 && result.month <= 12) &&
+                        (result.weekday >= 1 && result.weekday <= 7) &&
+                        (bits[17] != bits[18]);
+
+        bool selfConsistent = result.parityMinOk && result.parityHourOk && result.parityDateOk && rangesOk;
+
+        // Zeitpunkt dieses Telegramms als Unix-Zeit - Bezugspunkt sowohl fuer
+        // die Kohaerenzpruefung unten als auch fuer die naechste Minute.
+        // This telegram's time as a Unix timestamp - the reference both for
+        // the coherence check below and for the next minute.
+        struct tm decodedTm = {};
+        decodedTm.tm_year = result.year - 1900;
+        decodedTm.tm_mon = result.month - 1;
+        decodedTm.tm_mday = result.day;
+        decodedTm.tm_hour = result.hour;
+        decodedTm.tm_min = result.minute;
+        decodedTm.tm_sec = 0;
+        decodedTm.tm_isdst = result.dst ? 1 : 0;
+        time_t decodedEpoch = selfConsistent ? mktime(&decodedTm) : 0;
+
+        // Ein VOLLSTAENDIG empfangenes Telegramm ist mit korrekter Paritaet
+        // und plausiblen Werten fertig geprueft und sofort gueltig.
+        //
+        // Ein REKONSTRUIERTES Telegramm nicht: die aus der Paritaet ergaenzten
+        // Bits erfuellen die Paritaet ihrer Gruppe per Konstruktion, diese
+        // Gruppe ist damit ungeprueft. Es gilt erst als gueltig, wenn es exakt
+        // zum vorherigen Telegramm plus der seitdem verstrichenen Minutenzahl
+        // passt. Als Bezug reicht dabei auch ein vorheriges rekonstruiertes
+        // Telegramm: zwei unabhaengig empfangene Minuten, die genau eine
+        // Minute auseinanderliegen, koennen praktisch nicht beide auf
+        // dieselbe Weise falsch sein. Ohne diese zweite Instanz wuerde bei
+        // schwachem Empfang - also genau dann, wenn die Rekonstruktion
+        // gebraucht wird - die erste Zeituebernahme sehr lange auf eine
+        // zufaellig einmal lueckenlose Minute warten.
+
+        // A FULLY received telegram is completely verified by correct parity
+        // and plausible values, and is valid immediately.
+        //
+        // A RECONSTRUCTED one is not: the bits filled in from parity satisfy
+        // their group's parity by construction, so that group is unverified.
+        // It only counts as valid once it matches the previous telegram plus
+        // the number of minutes elapsed since, exactly. A previous
+        // reconstructed telegram is good enough as the reference: two
+        // independently received minutes that lie exactly one minute apart can
+        // practically not both be wrong in the same way. Without this second
+        // instance, with weak reception - i.e. exactly when reconstruction is
+        // needed - the first time takeover would wait a very long time for a
+        // minute that happens to arrive without gaps.
+        if (selfConsistent && repaired == 0) {
+            result.valid = true;
+        }
+        else if (selfConsistent && dcf77PrevEpoch != 0) {
+            unsigned long elapsedMs = result.decodedAtMillis - dcf77PrevAtMillis;
+            long elapsedMinutes = (long)((elapsedMs + 30000UL) / 60000UL);
+            time_t expected = dcf77PrevEpoch + (time_t)elapsedMinutes * 60;
+            result.valid = (elapsedMinutes >= 1) && (decodedEpoch == expected);
+            if (!result.valid) {
+                DEBUG_PRINTLN("[DCF77] Reconstructed telegram does not match the previous one - waiting for confirmation");
+            }
+        }
+
+        // Bezugspunkt fuer die naechste Minute IMMER dann merken, wenn das
+        // Telegramm in sich stimmig ist - auch wenn es (noch) nicht als
+        // gueltig gilt. Genau so bestaetigen sich zwei aufeinanderfolgende
+        // rekonstruierte Telegramme gegenseitig.
+        // ALWAYS remember the reference for the next minute when the telegram
+        // is self-consistent - even when it does not (yet) count as valid.
+        // This is exactly how two consecutive reconstructed telegrams confirm
+        // each other.
+        if (selfConsistent) {
+            dcf77PrevEpoch = decodedEpoch;
+            dcf77PrevAtMillis = result.decodedAtMillis;
+        }
+
+        if (!rangesOk) {
+            DEBUG_PRINTLN("[DCF77] Telegram parity ok but values implausible - discarded");
+        }
 
         dcf77LastDecoded = result;
+        return true;
+#else
+        (void)decodedAtMillis;
+        return true;
+#endif
+    }
+
+
+    // Setzt die Statistik zur Erkennung der Minutenmarke zurueck (siehe
+    // dcf77MarkerMiss/-Hit in globals.h). Noetig, sobald das Sekundenraster
+    // verlorengeht: dcf77Phase startet danach an einer beliebigen neuen
+    // Stelle, die bisher gesammelten Fehlstellen zeigen also auf Positionen,
+    // die es so nicht mehr gibt.
+
+    // Resets the statistics used to detect the minute marker (see
+    // dcf77MarkerMiss/-Hit in globals.h). Needed as soon as the second grid is
+    // lost: dcf77Phase then restarts at an arbitrary new place, so the missing
+    // pulses collected so far point at positions that no longer exist.
+
+    void resetDcf77MarkerStats() {
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        for (uint8_t i = 0; i < 60; i++) {
+            dcf77MarkerMiss[i] = 0;
+            dcf77MarkerHit[i] = 0;
+        }
+        dcf77MarkerPos = -1;
+        dcf77StructFails = 0;
+        dcf77LastSecond = -1;
+        dcf77Synced = false;
+        dcf77BitIndex = 0;
+        for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
+#endif
+    }
+
+
+    // Sucht in der Fehlstellen-Statistik die Rasterposition der Minutenmarke
+    // (die 59. Sekunde, in der DCF77 als einzige keinen Impuls sendet).
+    //
+    // Gesucht wird die Position, an der noch NIE ein Impuls ankam und die am
+    // haeufigsten gefehlt hat - mit deutlichem Vorsprung vor dem naechstbesten
+    // Kandidaten (DCF77_MARKER_MIN_LEAD, siehe config.h). Beides zusammen
+    // trennt die Marke zuverlaessig von empfangsbedingten Ausfaellen: die
+    // Marke fehlt in JEDER Minute, ein schwach empfangener Zeitschlitz nur
+    // gelegentlich und bekommt frueher oder spaeter auch einmal einen Impuls
+    // (womit er als Kandidat dauerhaft ausscheidet).
+
+    // Searches the missing-pulse statistics for the grid position of the
+    // minute marker (the 59th second, the only one in which DCF77 sends no
+    // pulse).
+    //
+    // What is sought is the position where a pulse has NEVER arrived and which
+    // has been missing most often - by a clear lead over the next best
+    // candidate (DCF77_MARKER_MIN_LEAD, see config.h). Together those two
+    // reliably separate the marker from reception dropouts: the marker is
+    // missing in EVERY minute, a weakly received time slot only occasionally,
+    // and sooner or later it does receive a pulse (which permanently
+    // disqualifies it as a candidate).
+
+    void evaluateDcf77Marker() {
+#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
+        int8_t best = -1;
+        uint8_t bestMiss = 0;
+        uint8_t secondMiss = 0;
+
+        for (uint8_t p = 0; p < 60; p++) {
+            if (dcf77MarkerHit[p] != 0) continue; // dort kam schon ein Impuls an - keine Marke
+                                                   // a pulse already arrived there - not the marker
+            uint8_t miss = dcf77MarkerMiss[p];
+            if (miss > bestMiss) {
+                secondMiss = bestMiss;
+                bestMiss = miss;
+                best = (int8_t)p;
+            }
+            else if (miss > secondMiss) {
+                secondMiss = miss;
+            }
+        }
+
+        if (best >= 0 && bestMiss >= DCF77_MARKER_MIN_MISSES &&
+            bestMiss >= (uint8_t)(secondMiss + DCF77_MARKER_MIN_LEAD)) {
+            dcf77MarkerPos = best;
+            dcf77StructFails = 0;
+            DEBUG_PRINTLN("[DCF77] Minute marker found at grid position " + String(best) +
+                          " (missing " + String(bestMiss) + "x, next candidate " + String(secondMiss) + "x)");
+        }
 #endif
     }
 
 
     // Wertet den von der ISR gefuellten Flanken-Ringpuffer aus (siehe isr()
-    // oben und die dcf77Edge*-Variablen in globals.h) und baut daraus - rein
-    // ueber die Dauer zwischen zwei Flanken, unabhaengig von der
-    // tatsaechlichen Pegel-Polaritaet des jeweiligen Empfaengermoduls - live
-    // den Bit-Fortschritt des laufenden Telegramms auf (dcf77Bits[]/
-    // dcf77BitIndex): kurze Dauer (<350ms) = das Bit dieser Sekunde (0 bei
-    // ~100ms, 1 bei ~200ms Sendedauer), mittlere Dauer (350-1299ms) =
-    // normale Sekundenpause (nichts zu tun, das Bit kam bereits aus der
-    // vorangegangenen kurzen Dauer), lange Dauer (>=1300ms) = die fehlende
-    // 59. Sekundenmarke, also der Minutenwechsel: laufendes Telegramm
-    // abschliessen und dekodieren (siehe decodeDcf77Telegram()), dann
-    // dcf77BitIndex fuer die neue Minute auf 0 zuruecksetzen - UNABHAENGIG
-    // von der aktuellen Position im Telegramm (siehe die ausfuehrliche
-    // Begruendung direkt beim ">= 1300"-Zweig weiter unten: ein
-    // positionsbasierter Plausibilitaetstest wurde testweise eingebaut und
-    // wieder verworfen, weil er bei mehrsekuendigen Aussetzern die echte
-    // Minutenmarke selbst verpasst/falsch einordnet - schlimmer als das
-    // Problem, das er loesen sollte).
+    // oben und die dcf77Edge*-Variablen in globals.h) und baut daraus den
+    // Bit-Fortschritt des laufenden Telegramms auf (dcf77Bits[]/dcf77BitIndex)
+    // - Grundlage sowohl fuer die Live-Anzeige auf /dcf77 als auch fuer die
+    // tatsaechliche Zeituebernahme (dcf77LastDecoded, siehe
+    // applyDcf77DecodedTime()/updateDcf77Status() oben).
+    //
+    // Arbeitsweise in drei Stufen:
+    //
+    // 1. IMPULSE ERKENNEN. Ein Intervall zwischen zwei Flanken, das kuerzer
+    //    als DCF77_PULSE_MAX_MS ist, ist ein Impuls; seine Dauer ergibt den
+    //    Bitwert (>=DCF77_PULSE_ONE_MIN_MS -> 1, sonst 0). Alles Laengere ist
+    //    die Pause bis zum naechsten Sekundenbeginn. Das funktioniert
+    //    unabhaengig von der Pegel-Polaritaet des Empfaengermoduls: in beiden
+    //    Faellen ist das kurze der beiden Intervalle der Impuls.
+    //
+    // 2. SEKUNDENRASTER HALTEN. Der Abstand zweier IMPULSANFAENGE ist bei
+    //    DCF77 immer ein ganzzahliges Vielfaches einer Sekunde. Daraus wird
+    //    die freilaufende Rasterposition dcf77Phase (0..59) fortgeschrieben -
+    //    auch ueber Empfangsluecken hinweg (bis
+    //    DCF77_MAX_PHASE_GAP_SECONDS). Eine fehlende Sekunde verschiebt damit
+    //    nichts, sie hinterlaesst nur eine Luecke an ihrer eigenen Stelle.
+    //
+    // 3. MINUTENMARKE BESTIMMEN. Welche Rasterposition die 59. Sekunde ist,
+    //    entscheidet NICHT ein einzelner Impulsabstand, sondern die Statistik
+    //    ueber mehrere Minuten (siehe evaluateDcf77Marker() oben): die Marke
+    //    ist die einzige Position, an der IMMER ein Impuls fehlt.
+    //
+    // Warum Stufe 3 so und nicht einfacher: eine Pause von zwei Sekunden als
+    // Minutenmarke zu werten, funktioniert nur bei praktisch perfektem
+    // Empfang. Sobald einzelne Sekunden ausfallen - und genau dann kommt es
+    // darauf an - erzeugt jeder Ausfall dieselbe Zwei-Sekunden-Pause wie die
+    // echte Marke. Der Dekoder synchronisierte sich dann auf eine falsche
+    // Position, verwarf sie beim naechsten Telegramm wieder (Festbits Bit 0 /
+    // Bit 20), synchronisierte erneut falsch - und die 59. Sekunde wurde nie
+    // stabil erkannt. Ueber die Haeufigkeit gemittelt verschwindet dieses
+    // Problem: zufaellige Ausfaelle streuen ueber alle 60 Positionen, die
+    // Marke trifft immer dieselbe.
     //
     // Muss aus loop() gerufen werden (NICHT aus der ISR - siehe deren
     // Flash-Cache-Warnung bei isr()), damit Array-Operationen und
-    // decodeDcf77Telegram() ohne Einschraenkung laufen koennen. Rein
-    // informativ/zum Debugging, komplett unabhaengig von der DCF77-
-    // Bibliothek und deren eigener Zeitdekodierung (applyDcf77DecodedTime()/
-    // updateDcf77Status() oben).
+    // decodeDcf77Telegram() ohne Einschraenkung laufen koennen.
 
     // Evaluates the edge ring buffer filled by the ISR (see isr() above and
-    // the dcf77Edge* variables in globals.h) and builds, purely from the
-    // duration between two edges and independent of the actual signal
-    // polarity of the particular receiver module, the running telegram's
-    // live bit progress (dcf77Bits[]/dcf77BitIndex): short duration (<350ms)
-    // = this second's bit (0 for a ~100ms, 1 for a ~200ms transmit
-    // duration), medium duration (350-1299ms) = the normal rest of the
-    // second (nothing to do, the bit already came from the preceding short
-    // duration), long duration (>=1300ms) = the missing 59th second mark,
-    // i.e. the minute change: finalize and decode the running telegram (see
-    // decodeDcf77Telegram()), then reset dcf77BitIndex to 0 for the new
-    // minute - REGARDLESS of the current position within the telegram (see
-    // the detailed reasoning right at the ">= 1300" branch further below: a
-    // position-based plausibility check was tried and reverted, because it
-    // caused the genuine minute marker itself to be missed/misjudged during
-    // multi-second dropouts - worse than the problem it was meant to solve).
+    // the dcf77Edge* variables in globals.h) and builds the running telegram's
+    // bit progress from it (dcf77Bits[]/dcf77BitIndex) - the basis both for
+    // the live display on /dcf77 and for the actual time takeover
+    // (dcf77LastDecoded, see applyDcf77DecodedTime()/updateDcf77Status()
+    // above).
+    //
+    // How it works, in three stages:
+    //
+    // 1. DETECT PULSES. An interval between two edges shorter than
+    //    DCF77_PULSE_MAX_MS is a pulse; its length gives the bit value
+    //    (>=DCF77_PULSE_ONE_MIN_MS -> 1, otherwise 0). Anything longer is the
+    //    rest of the second. This works regardless of the receiver module's
+    //    signal polarity: in both cases the shorter of the two intervals is
+    //    the pulse.
+    //
+    // 2. HOLD THE SECOND GRID. With DCF77 the distance between two PULSE
+    //    STARTS is always a whole multiple of one second. From that, the
+    //    free-running grid position dcf77Phase (0..59) is advanced - across
+    //    reception gaps as well (up to DCF77_MAX_PHASE_GAP_SECONDS). A missing
+    //    second therefore shifts nothing, it only leaves a hole at its own
+    //    position.
+    //
+    // 3. DETERMINE THE MINUTE MARKER. Which grid position is the 59th second
+    //    is NOT decided by a single pulse distance but by the statistics over
+    //    several minutes (see evaluateDcf77Marker() above): the marker is the
+    //    only position where a pulse is ALWAYS missing.
+    //
+    // Why stage 3 works this way and not more simply: treating a two-second
+    // gap as the minute marker only works with practically perfect reception.
+    // As soon as individual seconds drop out - and that is exactly when it
+    // matters - every dropout produces the same two-second gap as the genuine
+    // marker. The decoder then synchronized to a wrong position, discarded it
+    // again on the next telegram (fixed bits 0 / 20), synchronized wrongly
+    // again - and the 59th second was never stably detected. Averaged over
+    // frequency that problem disappears: random dropouts scatter across all 60
+    // positions, the marker always hits the same one.
     //
     // Must be called from loop() (NOT from the ISR - see its flash-cache
-    // warning at isr()), so array operations and decodeDcf77Telegram() can
-    // run without restriction. Purely informational/for debugging,
-    // completely independent of the DCF77 library and its own time decoding
-    // (applyDcf77DecodedTime()/updateDcf77Status() above).
+    // warning at isr()), so array operations and decodeDcf77Telegram() can run
+    // without restriction.
 
     void processDcf77Bits() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
         static unsigned long prevEdgeMillis = 0;
         static bool havePrevEdge = false;
+        static unsigned long lastPulseStartMillis = 0;
+        static bool havePulseStart = false;
+        static unsigned long lastGridLossLogMillis = 0;
 
         while (dcf77EdgeTail != dcf77EdgeHead) {
             unsigned long edgeMillis = dcf77EdgeMillis[dcf77EdgeTail];
-            // dcf77EdgeLevel[dcf77EdgeTail] wird hier bewusst nicht
-            // ausgewertet (siehe Kommentar oben) - die Klassifizierung
-            // arbeitet rein ueber die Dauer zwischen zwei Flanken.
-            // dcf77EdgeLevel[dcf77EdgeTail] is deliberately not evaluated
-            // here (see the comment above) - classification works purely
-            // from the duration between two edges.
             dcf77EdgeTail = (dcf77EdgeTail + 1) % DCF77_EDGE_BUFFER_SIZE;
 
             if (!havePrevEdge) {
@@ -620,108 +970,284 @@
 
             unsigned long duration = edgeMillis - prevEdgeMillis;
 
-            // Rauschen/Kontaktprellen an der Flanke (elektrischer Jitter,
-            // siehe DCF77_BIT_NOISE_IGNORE_MS in config.h sowie
-            // DCF77_PRESENCE_MIN_STREAK/-MAX_GAP_MS weiter oben in derselben
-            // Datei fuer denselben Effekt bei der Anwesenheitserkennung):
-            // eine derart kurze Flanke ignorieren, OHNE prevEdgeMillis auf
-            // sie zu verschieben - so wird sie beim naechsten, echten
-            // Flankenwechsel einfach "uebersprungen" statt eine viel zu
-            // kurze Dauer zu erzeugen, die faelschlich als eigenes Bit
-            // gezaehlt wuerde (siehe Bugreport: Bit-Fortschritt sprang
-            // sichtbar mehrere Sekunden auf einmal vor, Werte stimmten
-            // nicht).
-            // Noise/contact bounce on the edge (electrical jitter, see
-            // DCF77_BIT_NOISE_IGNORE_MS in config.h and
-            // DCF77_PRESENCE_MIN_STREAK/-MAX_GAP_MS further up in this same
-            // file for the same effect on presence detection): ignore such
-            // a short edge WITHOUT shifting prevEdgeMillis to it - that way
-            // it's simply "skipped over" at the next, genuine edge change
-            // instead of producing a far-too-short duration that would be
-            // wrongly counted as its own bit (see bug report: bit progress
-            // visibly jumped ahead by several seconds at once, values were
-            // wrong).
+            // Rauschen/Kontaktprellen: eine derart kurze Flanke ignorieren,
+            // OHNE prevEdgeMillis auf sie zu verschieben - so wird sie beim
+            // naechsten, echten Flankenwechsel einfach "uebersprungen", statt
+            // eine viel zu kurze Dauer zu erzeugen (siehe
+            // DCF77_BIT_NOISE_IGNORE_MS in config.h).
+            // Noise/contact bounce: ignore such a short edge WITHOUT moving
+            // prevEdgeMillis onto it - that way it is simply "skipped over" at
+            // the next genuine edge change instead of producing a far too
+            // short duration (see DCF77_BIT_NOISE_IGNORE_MS in config.h).
             if (duration < DCF77_BIT_NOISE_IGNORE_MS) {
                 continue;
             }
 
+            unsigned long pulseStart = prevEdgeMillis;
             prevEdgeMillis = edgeMillis;
 
-            if (duration >= 1300) {
-                // Zurueckgebaut: hier stand testweise eine bitIndex-basierte
-                // Plausibilitaetspruefung (DCF77_MINUTE_MARKER_MIN_BIT_INDEX),
-                // die eine Pause >=1300ms nur nahe dem Telegrammende als
-                // echte Minutenmarke akzeptiert hat, sonst nur 1 Position als
-                // verloren markiert. Das ging von genau EINER verlorenen
-                // Sekunde pro Pause aus - bei zwei oder mehr AUFEINANDER-
-                // FOLGENDEN schwachen/verlorenen Sekunden (laengere Pause,
-                // z.B. ~2900ms statt ~1900ms) wurde bitIndex trotzdem nur um 1
-                // erhoeht, blieb also hinter der Wanduhr zurueck - die dann
-                // tatsaechlich folgende echte Minutenmarke traf dadurch auf
-                // einen zu niedrigen bitIndex und wurde entweder verworfen
-                // (Bugreport: "59. Sekunde wird nicht erkannt") oder erst bei
-                // einer spaeteren, eigentlich falschen Position akzeptiert
-                // ("...oder an falscher Stelle") - je nachdem, wie weit
-                // bitIndex zu diesem Zeitpunkt bereits hinterherhing. Die
-                // Grundannahme (bitIndex verlaesslich synchron zur echten
-                // Sekunde-der-Minute) haelt bei mehrsekuendigen Aussetzern
-                // also nicht.
-                //
-                // Zurueck zur einfachen, dafuer aber IMMER selbstkorrigierenden
-                // Variante: jede Pause >=1300ms gilt als Minutenmarke, egal an
-                // welcher Position - dadurch kann die Synchronisation nie
-                // laenger als eine Minute verloren gehen. Der einzige "Preis"
-                // eines einzelnen Aussetzers ist ein verworfenes, weil
-                // unvollstaendiges Telegramm fuer genau diese eine Minute -
-                // das betrifft nur die Live-Anzeige auf /dcf77, NICHT
-                // dcf77LastDecoded: decodeDcf77Telegram() ueberschreibt dieses
-                // ohnehin nur bei einem vollstaendigen UND Paritaets-korrekten
-                // Telegramm (siehe dortiger Vollstaendigkeits-Check) - haeufige
-                // Resets bei schwachem Empfang sind also ein sichtbares, aber
-                // unschaedliches Symptom, keine Datenkorruption.
-
-                // Reverted: this used to have a bitIndex-based plausibility
-                // check (DCF77_MINUTE_MARKER_MIN_BIT_INDEX) that only
-                // accepted a >=1300ms gap as the genuine minute marker near
-                // the end of a telegram, otherwise just marked 1 position as
-                // lost. That assumed exactly ONE lost second per gap - with
-                // two or more CONSECUTIVE weak/lost seconds (a longer gap,
-                // e.g. ~2900ms instead of ~1900ms), bitIndex was still only
-                // advanced by 1, so it fell behind the wall clock - the
-                // genuine minute marker that then actually followed hit an
-                // implausibly low bitIndex and was either discarded (bug
-                // report: "59th second not recognized") or only accepted
-                // later at what was actually the wrong position ("...or at
-                // the wrong position") - depending how far bitIndex had
-                // already drifted by then. The underlying assumption
-                // (bitIndex reliably in sync with the real second-of-minute)
-                // doesn't hold across multi-second dropouts.
-                //
-                // Back to the simple variant, which is ALWAYS self-
-                // correcting instead: any gap >=1300ms counts as the minute
-                // marker, regardless of position - so sync can never be lost
-                // for more than one minute. The only "cost" of a single
-                // dropout is one discarded, incomplete telegram for that one
-                // minute - this only affects the live display on /dcf77, NOT
-                // dcf77LastDecoded: decodeDcf77Telegram() only ever
-                // overwrites that on a complete AND parity-correct telegram
-                // (see its completeness check) - frequent resets during weak
-                // reception are a visible but harmless symptom, not data
-                // corruption.
-                decodeDcf77Telegram();
-                for (uint8_t i = 0; i < DCF77_TELEGRAM_BITS; i++) dcf77Bits[i] = -1;
-                dcf77BitIndex = 0;
+            // Langes Intervall = Pause bis zum naechsten Sekundenbeginn; wie
+            // viele Sekunden vergangen sind, ergibt sich unten aus dem Abstand
+            // der IMPULSANFAENGE und bleibt damit auch dann richtig, wenn
+            // ganze Impulse fehlen.
+            // Long interval = the rest of the second; how many seconds have
+            // passed follows below from the distance between PULSE STARTS and
+            // therefore stays correct even when whole pulses are missing.
+            if (duration > DCF77_PULSE_MAX_MS) {
+                continue;
             }
-            else if (duration < 350) {
-                // Impulsdauer dieser Sekunde -> Bitwert
-                // this second's pulse duration -> bit value
-                if (dcf77BitIndex < DCF77_TELEGRAM_BITS) {
-                    dcf77Bits[dcf77BitIndex] = (duration >= 150) ? 1 : 0;
-                    dcf77BitIndex++;
+
+            // --- Ab hier: diese Flanke beendet einen Impuls ---
+            // --- From here on: this edge ends a pulse ---
+            int8_t bitValue = (duration >= DCF77_PULSE_ONE_MIN_MS) ? 1 : 0;
+
+            uint16_t steps = 1;
+            bool gridOk = false;
+            unsigned long gap = 0;
+
+            if (havePulseStart) {
+                gap = pulseStart - lastPulseStartMillis;
+                unsigned long secondsElapsed = (gap + DCF77_SECOND_MS / 2) / DCF77_SECOND_MS;
+                unsigned long expected = secondsElapsed * DCF77_SECOND_MS;
+                unsigned long deviation = (gap > expected) ? (gap - expected) : (expected - gap);
+
+                if (secondsElapsed < 1) {
+                    // Zwei Impulse innerhalb derselben Sekunde - das kann
+                    // DCF77 nicht senden, also eine Stoerung. Verwerfen und
+                    // dabei Raster UND Bezugszeitpunkt behalten, damit der
+                    // naechste echte Impuls wieder den korrekten
+                    // Sekundenabstand zum letzten echten Impuls hat.
+                    // Two pulses within the same second - DCF77 cannot send
+                    // that, so it is interference. Discard it while keeping
+                    // both the grid AND the reference timestamp, so the next
+                    // genuine pulse has the correct second distance to the
+                    // last genuine pulse again.
+                    continue;
+                }
+
+                gridOk = (secondsElapsed <= (unsigned long)DCF77_MAX_PHASE_GAP_SECONDS) &&
+                         (deviation <= DCF77_STEP_TOLERANCE_MS);
+                if (gridOk) steps = (uint16_t)secondsElapsed;
+            }
+
+            lastPulseStartMillis = pulseStart;
+            havePulseStart = true;
+
+            // Diagnose fuer die /dcf77-Seite: Impulsdauer und Abstand zum
+            // vorherigen Impulsanfang mitschreiben, damit von aussen sichtbar
+            // ist, was der Empfaenger tatsaechlich liefert.
+            // Diagnostics for the /dcf77 page: record pulse width and distance
+            // to the previous pulse start, so what the receiver actually
+            // delivers is visible from the outside.
+            dcf77DiagWidth[dcf77DiagIdx] = (uint16_t)duration;
+            dcf77DiagGap[dcf77DiagIdx] = (gap > 65535UL) ? 65535 : (uint16_t)gap;
+            dcf77DiagIdx = (dcf77DiagIdx + 1) % DCF77_DIAG_SLOTS;
+            if (dcf77DiagCount < DCF77_DIAG_SLOTS) dcf77DiagCount++;
+            dcf77PulsesSeen++;
+
+            if (!gridOk) {
+                // Raster verloren (erster Impuls, zu lange Luecke oder ein
+                // Abstand, der in kein Sekundenraster passt). Die gesammelte
+                // Fehlstellen-Statistik zeigt danach auf Positionen, die es so
+                // nicht mehr gibt - deshalb zuruecksetzen und mit diesem
+                // Impuls eine neue Phase beginnen.
+                // Grid lost (first pulse, too long a gap, or a distance
+                // fitting no second grid). The missing-pulse statistics
+                // collected so far then point at positions that no longer
+                // exist - so reset them and start a new phase with this pulse.
+                dcf77PhaseBreaks++;
+                resetDcf77MarkerStats();
+                dcf77Phase = 0;
+                dcf77MarkerHit[0] = 1;
+
+                // Ratenbegrenzt loggen: bei schlechtem Empfang kann das
+                // mehrmals pro Minute vorkommen, und JEDE Logzeile schreibt
+                // auf LittleFS - waehrend dieses Schreibvorgangs ist der
+                // Flash-Cache aus und die dabei anfallenden DCF77-Flanken
+                // gehen verloren. Ungebremstes Loggen wuerde den Empfang also
+                // genau dann zusaetzlich verschlechtern, wenn er ohnehin
+                // schon schlecht ist.
+                // Rate-limited logging: with poor reception this can happen
+                // several times per minute, and EVERY log line writes to
+                // LittleFS - during that write the flash cache is off and the
+                // DCF77 edges arriving meanwhile are lost. Unthrottled logging
+                // would therefore worsen reception exactly when it is already
+                // poor.
+                if (millis() - lastGridLossLogMillis > WAIT_1m) {
+                    lastGridLossLogMillis = millis();
+                    DEBUG_PRINTLN("[DCF77] Second grid lost, resynchronizing (total: " +
+                                  String(dcf77PhaseBreaks) + ")");
+                }
+                continue;
+            }
+
+            // Phase weiterschalten und die uebersprungenen Rasterpositionen
+            // als Fehlstelle zaehlen - aber NUR bei kurzen Luecken.
+            //
+            // Bei einer langen Empfangspause ist an den uebersprungenen
+            // Positionen nicht "ein Impuls ausgefallen", sondern es kam
+            // schlicht gar nichts an. Wuerde man sie mitzaehlen, bekaeme jede
+            // der 60 Positionen gleichmaessig Fehlstellen aufaddiert und die
+            // Minutenmarke - die sich ja gerade dadurch abheben soll, dass NUR
+            // sie immer fehlt - ginge im Rauschen unter.
+
+            // Advance the phase and count the skipped grid positions as
+            // missing - but ONLY for short gaps.
+            //
+            // During a long reception pause, the skipped positions did not
+            // "lose a pulse", nothing arrived at all. Counting them would add
+            // missing pulses evenly to all 60 positions, and the minute marker
+            // - which is supposed to stand out precisely because ONLY it is
+            // always missing - would drown in the noise.
+            uint8_t phaseBefore = dcf77Phase;
+
+            if (steps <= DCF77_MISS_COUNT_MAX_GAP) {
+                for (uint16_t k = 1; k < steps; k++) {
+                    uint8_t p = (uint8_t)((dcf77Phase + k) % DCF77_GRID_SLOTS);
+                    if (dcf77MarkerMiss[p] < DCF77_MARKER_COUNT_MAX) dcf77MarkerMiss[p]++;
+                    dcf77PulsesMissed++;
                 }
             }
-            // 350-1299ms: normale Sekundenpause, nichts zu tun
-            // 350-1299ms: normal rest of the second, nothing to do
+            else {
+                dcf77PulsesMissed += (steps - 1);
+            }
+
+            dcf77Phase = (uint8_t)((dcf77Phase + steps) % DCF77_GRID_SLOTS);
+            if (dcf77MarkerHit[dcf77Phase] < DCF77_MARKER_COUNT_MAX) dcf77MarkerHit[dcf77Phase]++;
+
+            // Saettigung: alle Zaehler halbieren, damit alte Ereignisse
+            // ausduennen und ein behobener Dauerstoerer nicht ewig nachwirkt.
+            // Saturation: halve all counters so old events thin out and a
+            // resolved persistent interferer does not keep echoing forever.
+            if (dcf77MarkerHit[dcf77Phase] >= DCF77_MARKER_COUNT_MAX) {
+                for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) {
+                    dcf77MarkerMiss[i] /= 2;
+                    dcf77MarkerHit[i] /= 2;
+                }
+            }
+
+            // Das Bit IMMER ablegen - dcf77Bits ist nach Rasterposition
+            // indiziert und braucht die Minutenmarke dafuer nicht (siehe
+            // globals.h). Vorher wurde erst nach dem Markenfund gesammelt,
+            // wodurch die /dcf77-Seite in den ersten Minuten (und bei nie
+            // gefundener Marke dauerhaft) keinerlei Fortschritt zeigte,
+            // obwohl der Empfang lief.
+
+            // ALWAYS store the bit - dcf77Bits is indexed by grid position and
+            // does not need the minute marker for that (see globals.h).
+            // Previously collecting only started after the marker was found,
+            // which left the /dcf77 page without any progress during the first
+            // minutes (and permanently if the marker was never found) even
+            // though reception was running.
+            // Solange die Minutenmarke unbekannt ist, ist auch der
+            // Minutenwechsel unbekannt - geleert wird deshalb bei jedem
+            // Umlauf des Rasters. Ohne das wuerden sich ueber die Minuten
+            // hinweg Bits AUS VERSCHIEDENEN MINUTEN im Raster ansammeln: die
+            // Anzeige liefe voll, obwohl gerade nichts ankommt, und das erste
+            // Telegramm nach dem Markenfund waere aus mehreren Minuten
+            // zusammengesetzt - mit im schlimmsten Fall in sich stimmigen
+            // Werten einer alten Minute.
+
+            // While the minute marker is unknown, the minute change is unknown
+            // too - so the grid is cleared on every wrap. Without that, bits
+            // FROM DIFFERENT MINUTES would accumulate in the grid over time:
+            // the display would fill up even though nothing is currently
+            // arriving, and the first telegram after the marker was found
+            // would be assembled from several minutes - in the worst case with
+            // self-consistent values of an old minute.
+            if (dcf77MarkerPos < 0 && dcf77Phase <= phaseBefore) {
+                for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
+            }
+
+            dcf77Bits[dcf77Phase] = bitValue;
+
+            if (dcf77MarkerPos < 0) {
+                evaluateDcf77Marker();
+
+                if (dcf77MarkerPos >= 0) {
+                    // Marke soeben gefunden: mit einem frischen Raster
+                    // beginnen. Die bis hierher gesammelten Bits stammen aus
+                    // der Suchphase und koennen aelter als die laufende Minute
+                    // sein - sie duerfen nicht in das erste Telegramm
+                    // einfliessen. dcf77LastSecond bleibt -1, damit der erste
+                    // Minutenwechsel danach sauber erkannt wird.
+                    // Marker just found: start with a fresh grid. The bits
+                    // collected up to here come from the search phase and may
+                    // be older than the current minute - they must not feed
+                    // into the first telegram. dcf77LastSecond stays -1 so the
+                    // first minute change afterwards is detected cleanly.
+                    for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
+                    dcf77Bits[dcf77Phase] = bitValue;
+                    dcf77LastSecond = -1;
+                }
+                else {
+                    // Position im Telegramm noch unbekannt: gesammelt wird
+                    // trotzdem, nur die Zuordnung zu einer Sekunde fehlt noch.
+                    // Der Fortschrittsbalken laeuft ueber die Rasterposition.
+                    // Position within the telegram still unknown: collecting
+                    // happens anyway, only the mapping to a second is still
+                    // missing. The progress display runs on the grid position.
+                    dcf77Synced = false;
+                    dcf77BitIndex = (uint8_t)(dcf77Phase + 1);
+                    continue;
+                }
+            }
+
+            dcf77Synced = true;
+
+            // Rasterposition -> Sekunde der Minute. Die Markenposition selbst
+            // ist die 59. Sekunde, die Position danach die Sekunde 0.
+            // Grid position -> second of the minute. The marker position
+            // itself is the 59th second, the one after it is second 0.
+            uint8_t sec = (uint8_t)((dcf77Phase + DCF77_GRID_SLOTS - (uint8_t)dcf77MarkerPos + 59) % DCF77_GRID_SLOTS);
+
+            // Minutenwechsel: die Sekundennummer ist kleiner als bei der
+            // vorherigen Ablage, das Telegramm der abgelaufenen Minute ist
+            // also vollstaendig. Als Zeitstempel der Minutenanfang - auch wenn
+            // die Sekunde 0 selbst nicht empfangen wurde, ist er ueber die
+            // aktuelle Sekundennummer exakt zurueckrechenbar.
+            // Minute change: the second number is lower than at the previous
+            // store, so the elapsed minute's telegram is complete. Timestamp:
+            // the start of the minute - even when second 0 itself was not
+            // received, it can be computed back exactly from the current
+            // second number.
+            if (dcf77LastSecond >= 0 && sec < (uint8_t)dcf77LastSecond) {
+                unsigned long minuteStart = pulseStart - (unsigned long)sec * DCF77_SECOND_MS;
+
+                // Das gerade abgelegte Bit gehoert schon zur NEUEN Minute -
+                // vor dem Dekodieren kurz herausnehmen und danach wieder
+                // eintragen, damit es weder im alten Telegramm mitzaehlt noch
+                // beim anschliessenden Loeschen verlorengeht.
+                // The bit just stored already belongs to the NEW minute - take
+                // it out before decoding and put it back afterwards, so it
+                // neither counts towards the old telegram nor gets lost in the
+                // clearing that follows.
+                dcf77Bits[dcf77Phase] = -1;
+
+                if (decodeDcf77Telegram(minuteStart)) {
+                    dcf77StructFails = 0;
+                }
+                else {
+                    // Festbits widersprechen: erst nach mehreren Telegrammen
+                    // in Folge gilt die Marke als falsch (ein einzelner
+                    // Stoerimpuls kann genau dort gelandet sein).
+                    // Fixed bits contradict: only after several telegrams in a
+                    // row does the marker count as wrong (a single spurious
+                    // pulse may have landed exactly there).
+                    dcf77StructFails++;
+                    if (dcf77StructFails >= DCF77_STRUCT_FAIL_LIMIT) {
+                        DEBUG_PRINTLN("[DCF77] Fixed bits keep contradicting - discarding minute marker, searching again");
+                        resetDcf77MarkerStats();
+                        continue;
+                    }
+                }
+
+                for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
+                dcf77Bits[dcf77Phase] = bitValue;
+            }
+
+            dcf77LastSecond = (int8_t)sec;
+            dcf77BitIndex = (uint8_t)(sec + 1);
         }
 #endif
     }
