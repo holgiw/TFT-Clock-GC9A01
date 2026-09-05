@@ -15,14 +15,20 @@
     // DCF77: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
     //
     // Anpassungen in DCF77.cpp:
+    //  Zeile 22: #include <TimeLib.h> ändern
+    //
+    // Der frueher noetige zweite Patch (IRAM_ATTR bei DCF77::int0handler())
+    // ist entfallen: die Bibliotheksfunktion wird nicht mehr aus der ISR
+    // aufgerufen, die DCF77-Dekodierung macht der Sketch inzwischen selbst
+    // (siehe isr()/processDcf77Bits() in time_sync.h).
 
     // Changes in DCF77.cpp:
-    //  zeile: 22: change #include <TimeLib.h>
-
-    //  Zeile 22: #include <TimeLib.h> ändern
-    //  add IRAM_ATTR   in: void IRAM_ATTR DCF77::int0handler() {
-
-    //  IRAM_ATTR ergänzen in: void IRAM_ATTR DCF77::int0handler() {
+    //  line 22: change #include <TimeLib.h>
+    //
+    // The second patch formerly required (IRAM_ATTR on DCF77::int0handler())
+    // is gone: the library function is no longer called from the ISR, the
+    // sketch now does the DCF77 decoding itself (see isr()/processDcf77Bits()
+    // in time_sync.h).
 
 
 #include <WiFi.h>
@@ -342,7 +348,7 @@ void connectWiFiAtBoot() {
                     // processDcf77Bits()/updateDcf77Status() laufen sonst nur
                     // in loop() - hier vor dem Start von loop() muessen sie
                     // manuell aufgerufen werden, sonst laeuft der ISR-
-                    // Ringpuffer (DCF77_EDGE_BUFFER_SIZE=16, siehe globals.h)
+                    // Ringpuffer (DCF77_EDGE_BUFFER_SIZE, siehe globals.h)
                     // innerhalb weniger Sekunden voll und Flanken gehen
                     // verloren. dcf.getUTCTime() (Original-Bibliothek) wird
                     // hier bewusst nicht mehr verwendet, siehe
@@ -351,7 +357,7 @@ void connectWiFiAtBoot() {
                     // processDcf77Bits()/updateDcf77Status() otherwise only
                     // run in loop() - here, before loop() has started, they
                     // must be called manually, or the ISR's ring buffer
-                    // (DCF77_EDGE_BUFFER_SIZE=16, see globals.h) fills up
+                    // (DCF77_EDGE_BUFFER_SIZE, see globals.h) fills up
                     // within a few seconds and edges get lost.
                     // dcf.getUTCTime() (original library) is deliberately no
                     // longer used here, see applyDcf77DecodedTime() in
@@ -1048,8 +1054,25 @@ void setup() {
         webserver.begin();
 
         // DCF77-Interrupt einrichten
+        //
+        // dcf.Start() faellt weg: die DCF77-Bibliothek wird seit der
+        // Umstellung auf den eigenen Dekoder nicht mehr benutzt (weder
+        // dcf.getUTCTime() noch DCF77::int0handler(), siehe isr()/
+        // processDcf77Bits() in time_sync.h). Start() registrierte lediglich
+        // den bibliothekseigenen Interrupt auf demselben Pin, den das
+        // attachInterrupt() eine Zeile weiter ohnehin sofort wieder ersetzt
+        // hat - der Aufruf war also wirkungslos und legte nur nahe, die
+        // Bibliothek sei noch beteiligt.
+
         // Set up the DCF77 interrupt
-        dcf.Start();
+        //
+        // dcf.Start() is gone: the DCF77 library has not been used since the
+        // switch to the own decoder (neither dcf.getUTCTime() nor
+        // DCF77::int0handler(), see isr()/processDcf77Bits() in time_sync.h).
+        // Start() merely registered the library's own interrupt on the same
+        // pin, which the attachInterrupt() one line below replaced again
+        // immediately anyway - so the call had no effect and only suggested
+        // the library were still involved.
         pinMode(DCF77_DATAPIN, INPUT_PULLUP);
         attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
 
@@ -1061,7 +1084,7 @@ void setup() {
         // Initialize the own bit buffer for the /dcf77 live display (see
         // globals.h/processDcf77Bits() in time_sync.h) to "unknown" -
         // int8_t arrays can't be pre-filled with -1 via declaration.
-        for (uint8_t i = 0; i < DCF77_TELEGRAM_BITS; i++) dcf77Bits[i] = -1;
+        for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
 #endif
 
         // Wenn Button1 oder BOOT_BUTTON gedrückt ist, alle Zugangsdaten löschen
@@ -1378,8 +1401,35 @@ void setup() {
 
         }
 
-        if (timeinfo.tm_sec == 0) setLedOff(); // wg. DCF
-                                               // because of DCF
+        // Sicherheits-Abschaltung der LED einmal pro Minute: die LED wird nur
+        // an genau zwei Stellen eingeschaltet (setLedOn() in setup() und der
+        // DCF77-Impuls-Blitz weiter unten), beide schalten sie selbst wieder
+        // aus. Sollte einer dieser Wege trotzdem einmal haengen bleiben (z.B.
+        // weil der Blitz genau in einen Reboot/eine blockierende Aktion
+        // faellt), holt dieser Aufruf die Abschaltung spaetestens nach einer
+        // Minute nach - die LED kann so nicht dauerhaft leuchten.
+        // Bewusst ueber millis() statt ueber timeinfo.tm_sec == 0: die
+        // Abschaltung soll auch dann greifen, wenn noch gar keine gueltige
+        // Uhrzeit vorliegt - also genau in der DCF77-Suchphase, in der die
+        // LED ueberhaupt blitzt.
+
+        // Safety switch-off of the LED once per minute: the LED is only turned
+        // on in exactly two places (setLedOn() in setup() and the DCF77 pulse
+        // flash further below), both of which switch it off again themselves.
+        // Should one of those paths ever get stuck (e.g. because the flash
+        // coincides with a reboot/a blocking action), this call performs the
+        // switch-off after a minute at the latest - so the LED cannot stay lit
+        // permanently.
+        // Deliberately driven by millis() instead of timeinfo.tm_sec == 0: the
+        // switch-off has to work even when no valid time exists yet - i.e.
+        // exactly during the DCF77 acquisition phase, which is when the LED
+        // flashes at all.
+        static unsigned long lastLedSafetyOffMillis = 0;
+        if (millis() - lastLedSafetyOffMillis >= WAIT_1m) {
+            lastLedSafetyOffMillis = millis();
+            dcfLedOffAtMillis = 0;
+            setLedOff();
+        }
 
         // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
         // In AP mode: process DNS requests (captive portal)
@@ -1400,9 +1450,40 @@ void setup() {
         // not in the ISR itself, since pinMode()/digitalWrite() live in flash
         // and calling them from the ISR causes a panic reset while the flash
         // cache is disabled (see isr() in time_sync.h).
+        // Einmal-Blitz statt Umschalten (frueher toggleLED()): beim Umschalten
+        // haengt der Endzustand von der GERADEN/UNGERADEN Anzahl empfangener
+        // Impulse ab - blieb der Empfang stehen oder wurde die Zeit gefunden
+        // (dcfTimeFound), blieb die LED bei ungerader Anzahl einfach an und
+        // leuchtete dauerhaft weiter. Jetzt schaltet jeder Impuls die LED fuer
+        // DCF77_LED_BLINK_MS (config.h) ein, und der Block direkt darunter
+        // schaltet sie garantiert wieder aus - unabhaengig davon, ob je ein
+        // weiterer Impuls kommt.
+
+        // One-shot flash instead of a toggle (formerly toggleLED()): with a
+        // toggle the final state depends on the EVEN/ODD number of pulses
+        // received - if reception stopped or the time was found
+        // (dcfTimeFound), an odd count simply left the LED on and it kept
+        // glowing permanently. Now every pulse switches the LED on for
+        // DCF77_LED_BLINK_MS (config.h), and the block right below switches it
+        // off again for certain - regardless of whether another pulse ever
+        // arrives.
         if (dcfLedTogglePending) {
             dcfLedTogglePending = false;
-            if (!dcfTimeFound && dcfSyncLedEnabled) toggleLED();
+            if (!dcfTimeFound && dcfSyncLedEnabled) {
+                setLedOn();
+                dcfLedOffAtMillis = millis() + DCF77_LED_BLINK_MS;
+                if (dcfLedOffAtMillis == 0) dcfLedOffAtMillis = 1; // 0 bedeutet "kein Blitz aktiv"
+                                                                   // 0 means "no flash active"
+            }
+        }
+
+        // Vorzeichenbehafteter Vergleich: so bleibt die Abschaltung auch beim
+        // millis()-Ueberlauf (nach ca. 49 Tagen) korrekt.
+        // Signed comparison: keeps the switch-off correct across the millis()
+        // overflow (after about 49 days) as well.
+        if (dcfLedOffAtMillis != 0 && (long)(millis() - dcfLedOffAtMillis) >= 0) {
+            dcfLedOffAtMillis = 0;
+            setLedOff();
         }
 #endif
 
@@ -1541,6 +1622,22 @@ void setup() {
         tft.printf("%2d.%02d.%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
 #endif
 
-        setLedOff();
+        // Hier stand frueher ein bedingungsloses setLedOff() am Ende JEDES
+        // loop()-Durchlaufs. Das hat den DCF77-Impuls-Blitz weiter oben direkt
+        // wieder geloescht - die LED war damit hoechstens fuer den Rest eines
+        // Durchlaufs an und das Blinken praktisch nicht zu sehen, obwohl die
+        // Einstellung "DCF77-Sync-LED-Blinken" aktiv war. Die Abschaltung
+        // uebernehmen jetzt zwei gezielte Stellen: die Ablaufzeit des
+        // Einmal-Blitzes (DCF77_LED_BLINK_MS) und die minuetliche
+        // Sicherheits-Abschaltung weiter oben.
+
+        // There used to be an unconditional setLedOff() here at the end of
+        // EVERY loop() pass. It immediately cleared the DCF77 pulse flash
+        // above again - the LED was on for at most the remainder of one pass
+        // and the blinking was practically invisible, even with the "DCF77
+        // sync LED blink" setting enabled. Switching off is now handled by two
+        // targeted places: the expiry of the one-shot flash
+        // (DCF77_LED_BLINK_MS) and the once-per-minute safety switch-off
+        // further above.
     }
 

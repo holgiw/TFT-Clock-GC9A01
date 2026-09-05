@@ -277,7 +277,187 @@
     // discarded as noise WITHOUT shifting the reference timestamp used for
     // the next duration calculation (so the noise is effectively skipped
     // over, not counted).
-#define DCF77_BIT_NOISE_IGNORE_MS 40
+    //
+    // Wert von 40 auf 70 angehoben: der kuerzeste ECHTE DCF77-Zustand ist der
+    // 100ms-Impuls, auch ein stark verzerrender Empfaenger unterschreitet 70ms
+    // praktisch nie. Mit 40ms wurde eine Stoerflanke mitten im Impuls (z.B.
+    // bei 20ms und 45ms) zwar als Rauschen erkannt, die zweite davon aber
+    // knapp nicht mehr - der Impuls zerfiel dadurch in zwei "Impulse" von
+    // 45ms und 55ms, was einen falschen Bitwert UND einen Impulsabstand von
+    // 45ms erzeugte. Mit 70ms wird das komplette Stoerpaar uebersprungen und
+    // der Impuls anschliessend in voller, korrekter Laenge gemessen.
+
+    //
+    // Raised from 40 to 70: the shortest GENUINE DCF77 state is the 100ms
+    // pulse, and even a heavily distorting receiver practically never goes
+    // below 70ms. With 40ms, a spurious edge inside the pulse (e.g. at 20ms
+    // and 45ms) was recognized as noise for the first one but just barely not
+    // for the second - so the pulse fell apart into two "pulses" of 45ms and
+    // 55ms, producing a wrong bit value AND a pulse distance of 45ms. With
+    // 70ms the whole spurious pair is skipped and the pulse is then measured
+    // at its full, correct length.
+#define DCF77_BIT_NOISE_IGNORE_MS 70
+
+    // --- Sekundenraster-Dekoder (siehe processDcf77Bits() in time_sync.h) ---
+    //
+    // Der Dekoder klassifiziert nicht mehr jede einzelne Flankendauer isoliert,
+    // sondern legt die Impulse auf ein Sekundenraster: der Abstand ZWEIER
+    // aufeinanderfolgender IMPULSANFAENGE ist bei DCF77 immer ein ganzzahliges
+    // Vielfaches einer Sekunde. Daraus ergibt sich, wie viele Sekunden seit dem
+    // letzten Impuls vergangen sind - auch dann, wenn dazwischen einzelne
+    // Sekunden zu schwach empfangen wurden. Genau das war die Ursache dafuer,
+    // dass frueher praktisch nie ein vollstaendiges Telegramm zusammenkam:
+    // JEDE Luecke >=1300ms galt als Minutenmarke, eine einzige verlorene
+    // Sekunde hat das laufende Telegramm also mitten in der Minute verworfen.
+    //
+    // DCF77_PULSE_MAX_MS:      laengstes Intervall, das noch als Impuls gilt
+    //                          (nominal 100/200ms, plus Verzerrung im Empfaenger)
+    // DCF77_PULSE_ONE_MIN_MS:  ab dieser Impulsdauer gilt das Bit als 1
+    // DCF77_SECOND_MS:         Rasterweite (eine DCF77-Sekunde)
+    // DCF77_STEP_TOLERANCE_MS: zulaessige Abweichung eines Impulsabstands vom
+    //                          naechsten ganzzahligen Sekundenvielfachen; groesser
+    //                          -> Position unklar, Synchronisation wird verworfen
+    // DCF77_MAX_LOST_SECONDS:  so viele Sekunden am Stueck duerfen fehlen, ohne
+    //                          dass die Position im Telegramm verloren geht
+
+    // --- Second-grid decoder (see processDcf77Bits() in time_sync.h) ---
+    //
+    // The decoder no longer classifies each edge duration in isolation; it puts
+    // the pulses onto a one-second grid: with DCF77, the distance between two
+    // consecutive PULSE STARTS is always a whole number of seconds. That yields
+    // how many seconds have passed since the last pulse - even when individual
+    // seconds in between were received too weakly. This was exactly why a
+    // complete telegram practically never came together before: ANY gap
+    // >=1300ms counted as the minute marker, so a single lost second discarded
+    // the running telegram in the middle of the minute.
+    //
+    // DCF77_PULSE_MAX_MS:      longest interval still counted as a pulse
+    //                          (100/200ms nominal, plus receiver distortion)
+    // DCF77_PULSE_ONE_MIN_MS:  from this pulse width on, the bit counts as 1
+    // DCF77_SECOND_MS:         grid width (one DCF77 second)
+    // DCF77_STEP_TOLERANCE_MS: permitted deviation of a pulse distance from the
+    //                          nearest whole multiple of a second; larger ->
+    //                          position unclear, synchronization is dropped
+    // DCF77_MAX_LOST_SECONDS:  this many consecutive seconds may be missing
+    //                          without losing the position within the telegram
+#define DCF77_PULSE_MAX_MS 450
+#define DCF77_PULSE_ONE_MIN_MS 150
+#define DCF77_SECOND_MS 1000
+#define DCF77_STEP_TOLERANCE_MS 300
+    // Wie viele Sekunden eine Empfangsluecke hoechstens ueberbruecken darf,
+    // ohne dass das Sekundenraster (dcf77Phase in globals.h) verlorengeht.
+    // Loest das frueher hier stehende DCF77_MAX_LOST_SECONDS (5) ab, das viel
+    // zu eng war: bei laengeren Aussetzern - genau dann also, wenn die Uhr die
+    // Synchronisation am dringendsten halten muesste - wurde das Raster
+    // verworfen und die Suche nach der Minutenmarke begann von vorn. Ueber
+    // eine Luecke laesst sich das Raster problemlos fortschreiben, solange der
+    // Abstand nahe genug an einem ganzzahligen Vielfachen einer Sekunde liegt;
+    // bei 60 Sekunden liegt der Quarzfehler des ESP32 (Groessenordnung 0,01 %)
+    // noch weit unter DCF77_STEP_TOLERANCE_MS.
+
+    // How many seconds a reception gap may bridge at most without losing the
+    // second grid (dcf77Phase in globals.h). Replaces the former
+    // DCF77_MAX_LOST_SECONDS (5), which was far too tight: on longer dropouts
+    // - i.e. exactly when the clock would need to hold synchronization most -
+    // the grid was discarded and the search for the minute marker started over.
+    // The grid can be carried across a gap without trouble as long as the
+    // distance is close enough to a whole multiple of a second; at 60 seconds
+    // the ESP32's crystal error (order of 0.01 %) is still far below
+    // DCF77_STEP_TOLERANCE_MS.
+#define DCF77_MAX_PHASE_GAP_SECONDS 60
+
+    // Erkennung der Minutenmarke (siehe dcf77MarkerMiss/-Hit in globals.h und
+    // processDcf77Bits() in time_sync.h): eine Rasterposition gilt als
+    // Minutenmarke, wenn dort noch NIE ein Impuls ankam, sie mindestens
+    // DCF77_MARKER_MIN_MISSES mal gefehlt hat und sie sich um mindestens
+    // DCF77_MARKER_MIN_LEAD Fehlstellen vom naechstbesten Kandidaten absetzt.
+    // Der Vorsprung verhindert, dass eine zufaellig mehrfach ausgefallene
+    // Sekunde faelschlich zur Marke erklaert wird. DCF77_MARKER_COUNT_MAX ist
+    // die Saettigungsgrenze der Zaehler; wird sie erreicht, werden alle
+    // halbiert, damit alte Ereignisse ausduennen und ein aufgeloester
+    // Dauerstoerer nicht ewig nachwirkt.
+
+    // Minute marker detection (see dcf77MarkerMiss/-Hit in globals.h and
+    // processDcf77Bits() in time_sync.h): a grid position counts as the minute
+    // marker when a pulse has NEVER arrived there, it has been missing at
+    // least DCF77_MARKER_MIN_MISSES times, and it leads the next best
+    // candidate by at least DCF77_MARKER_MIN_LEAD missing pulses. That lead
+    // prevents a second that happened to drop out repeatedly from being
+    // declared the marker. DCF77_MARKER_COUNT_MAX is the counters' saturation
+    // limit; when it is reached all of them are halved, so old events thin out
+    // and a resolved persistent interferer does not keep echoing forever.
+    // Bis zu wie vielen uebersprungenen Sekunden eine Luecke noch als
+    // "einzelne ausgefallene Sekunden" gewertet und in der Fehlstellen-
+    // Statistik gezaehlt wird. Laengere Luecken sind Empfangspausen: dort ist
+    // kein einzelner Impuls ausgefallen, es kam gar nichts an. Wuerden sie
+    // mitgezaehlt, bekaemen alle 60 Rasterpositionen gleichmaessig Fehlstellen
+    // und die Minutenmarke - die sich gerade dadurch abhebt, dass NUR sie
+    // immer fehlt - waere nicht mehr herauszufiltern.
+
+    // Up to how many skipped seconds a gap still counts as "individual
+    // dropped seconds" and is recorded in the missing-pulse statistics. Longer
+    // gaps are reception pauses: no individual pulse dropped there, nothing
+    // arrived at all. Counting them would add missing pulses evenly to all 60
+    // grid positions, and the minute marker - which stands out precisely
+    // because ONLY it is always missing - could no longer be filtered out.
+#define DCF77_MISS_COUNT_MAX_GAP 5
+
+#define DCF77_MARKER_MIN_MISSES 3
+#define DCF77_MARKER_MIN_LEAD 2
+#define DCF77_MARKER_COUNT_MAX 200
+
+    // So viele aufeinanderfolgende Telegramme mit unmoeglichen Festbits
+    // (Bit 0 != 0 bzw. Bit 20 != 1) gelten als Beweis, dass die erkannte
+    // Minutenmarke falsch liegt - danach wird sie verworfen und neu gesucht.
+    // Mehr als eines, weil auch ein einzelner Stoerimpuls genau auf diesen
+    // beiden Bits landen kann, ohne dass die Marke deswegen falsch waere.
+
+    // This many consecutive telegrams with impossible fixed bits (bit 0 != 0
+    // resp. bit 20 != 1) count as proof that the detected minute marker is
+    // wrong - it is then discarded and searched for anew. More than one,
+    // because a single spurious pulse can land on exactly those two bits
+    // without the marker being wrong because of it.
+#define DCF77_STRUCT_FAIL_LIMIT 3
+
+    // Wie alt das zuletzt dekodierte Telegramm hoechstens sein darf, damit es
+    // noch als Zeitquelle uebernommen wird (siehe applyDcf77DecodedTime() in
+    // time_sync.h). Vorher genau eine Minute - das hiess: nur wenn ausgerechnet
+    // die letzte Minute vor dem stuendlichen Sync-Versuch lueckenlos empfangen
+    // wurde, sprang DCF77 ueberhaupt ein; sonst passierte bis zum naechsten
+    // Versuch eine Stunde lang nichts. Bei durchwachsenem Empfang war das
+    // haeufig genug der Fall, um den DCF77-Rueckfall praktisch nie greifen zu
+    // lassen. Ein aelteres Telegramm ist voellig unproblematisch:
+    // applyDcf77DecodedTime() rechnet die seit der Dekodierung verstrichene
+    // Zeit ueber millis() sauber auf (inklusive Minuten-/Stunden-/Tageswechsel),
+    // und der Quarzfehler des ESP32 liegt in dieser Groessenordnung weit unter
+    // einer Sekunde.
+
+    // Maximum age of the last decoded telegram for it to still be taken as a
+    // time source (see applyDcf77DecodedTime() in time_sync.h). Previously
+    // exactly one minute - which meant DCF77 only stepped in when precisely
+    // the last minute before the hourly sync attempt had been received without
+    // gaps; otherwise nothing happened for another hour. With mixed reception
+    // that was frequent enough to make the DCF77 fallback practically never
+    // engage. An older telegram is entirely unproblematic:
+    // applyDcf77DecodedTime() cleanly adds the time elapsed since decoding via
+    // millis() (including minute/hour/day rollovers), and the ESP32's crystal
+    // error over this span is far below one second.
+#define DCF77_DECODED_MAX_AGE (10 * WAIT_1m)
+
+    // Dauer des Einmal-Aufblitzens der LED pro empfangenem DCF77-Impuls
+    // (siehe loop() in uhr3.ino). Bewusst ein kurzer Blitz mit eigener
+    // Abschaltzeit statt eines Umschaltens (toggleLED()): beim Umschalten
+    // haengt der Endzustand davon ab, ob die Anzahl der empfangenen Impulse
+    // gerade oder ungerade war - bleibt der Empfang stehen (oder wird die
+    // Zeit gefunden), blieb die LED bei ungerader Anzahl dauerhaft an.
+
+    // Duration of the LED's one-shot flash per received DCF77 pulse (see
+    // loop() in uhr3.ino). Deliberately a short flash with its own switch-off
+    // time instead of a toggle (toggleLED()): with a toggle the final state
+    // depends on whether the number of received pulses was even or odd - if
+    // reception stops (or the time is found), an odd count left the LED
+    // permanently on.
+#define DCF77_LED_BLINK_MS 80
 
     // Historie: hier stand testweise DCF77_MINUTE_MARKER_MIN_BIT_INDEX - eine
     // Pause >=1300ms sollte nur noch nahe dem Telegrammende (dcf77BitIndex

@@ -3847,16 +3847,66 @@
 #if !defined(DCF77_DATAPIN) || !defined(DCF77_INTERRUPT)
             webserver.send(200, "application/json", "{\"present\":false}");
 #else
+            // dcf77Bits ist nach Rasterposition indiziert (siehe globals.h).
+            // Ist die Minutenmarke bekannt, hier in die Sekundenreihenfolge
+            // des Telegramms umsortieren - dann passen die Kaestchen zu ihrer
+            // Beschriftung (Bit 0 = Minutenbeginn usw.). Ist sie noch nicht
+            // gefunden, werden die Rohpositionen ausgegeben: die Zuordnung zu
+            // Sekunden ist dann zwar noch unbekannt, aber man sieht sofort,
+            // dass ueberhaupt etwas empfangen wird (die Seite weist mit
+            // "Telegram sync: no" darauf hin).
+
+            // dcf77Bits is indexed by grid position (see globals.h). When the
+            // minute marker is known, reorder into the telegram's second order
+            // here - the boxes then match their labels (bit 0 = start of
+            // minute etc.). When it has not been found yet, the raw positions
+            // are output: the mapping to seconds is still unknown then, but it
+            // is immediately visible that something is being received at all
+            // (the page points this out with "Telegram sync: no").
             String bits;
             bits.reserve(DCF77_TELEGRAM_BITS);
             for (uint8_t i = 0; i < DCF77_TELEGRAM_BITS; i++) {
-                bits += (dcf77Bits[i] < 0) ? '?' : (char)('0' + dcf77Bits[i]);
+                uint8_t slot = (dcf77MarkerPos >= 0)
+                                   ? (uint8_t)(((uint8_t)dcf77MarkerPos + 1 + i) % DCF77_GRID_SLOTS)
+                                   : i;
+                bits += (dcf77Bits[slot] < 0) ? '?' : (char)('0' + dcf77Bits[slot]);
             }
 
             String json = "{\"present\":true";
             json += ",\"state\":\"" + getDcf77Status() + "\"";
             json += ",\"bitIndex\":" + String(dcf77BitIndex);
             json += ",\"bits\":\"" + bits + "\"";
+            json += ",\"synced\":" + String(dcf77Synced ? "true" : "false"); // Diagnose: ist die Position im Telegramm bekannt? (siehe dcf77Synced in globals.h)
+                                                                             // diagnostic: is the position within the telegram known? (see dcf77Synced in globals.h)
+            json += ",\"markerPos\":" + String(dcf77MarkerPos);   // Rasterposition der erkannten Minutenmarke, -1 = noch nicht gefunden
+                                                                  // grid position of the detected minute marker, -1 = not found yet
+            json += ",\"phase\":" + String(dcf77Phase);
+            json += ",\"pulsesSeen\":" + String(dcf77PulsesSeen);
+            json += ",\"pulsesMissed\":" + String(dcf77PulsesMissed);
+            json += ",\"phaseBreaks\":" + String(dcf77PhaseBreaks);
+
+            // Die letzten Impulse als Rohwerte (Dauer / Abstand zum vorigen
+            // Impulsanfang, beides in ms), aeltester zuerst. Damit laesst sich
+            // ohne Oszilloskop beurteilen, ob der Empfaenger ueberhaupt ein
+            // verwertbares Signal liefert: erwartet werden Dauern um 100 bzw.
+            // 200 ms und Abstaende, die dicht an einem Vielfachen von 1000 ms
+            // liegen. Weichen die Zahlen davon deutlich ab, liegt es am
+            // Empfang/Modul und nicht am Dekoder.
+
+            // The most recent pulses as raw values (width / distance to the
+            // previous pulse start, both in ms), oldest first. This makes it
+            // possible to judge without an oscilloscope whether the receiver
+            // delivers a usable signal at all: expected are widths around 100
+            // resp. 200 ms and distances close to a multiple of 1000 ms. If
+            // the numbers deviate clearly from that, it is the reception/module
+            // and not the decoder.
+            json += ",\"pulses\":[";
+            for (uint8_t i = 0; i < dcf77DiagCount; i++) {
+                uint8_t idx = (uint8_t)((dcf77DiagIdx + DCF77_DIAG_SLOTS - dcf77DiagCount + i) % DCF77_DIAG_SLOTS);
+                if (i > 0) json += ",";
+                json += "[" + String(dcf77DiagWidth[idx]) + "," + String(dcf77DiagGap[idx]) + "]";
+            }
+            json += "]";
             json += ",\"edgeDropped\":" + String(dcf77EdgeDropped); // Diagnose: Flanken, die wegen vollem Ringpuffer verworfen wurden (siehe isr() in time_sync.h)
                                                                      // diagnostic: edges dropped due to a full ring buffer (see isr() in time_sync.h)
             json += ",\"decoded\":{";
@@ -3878,6 +3928,8 @@
                 json += ",\"parityMin\":" + String(dcf77LastDecoded.parityMinOk ? "true" : "false");
                 json += ",\"parityHour\":" + String(dcf77LastDecoded.parityHourOk ? "true" : "false");
                 json += ",\"parityDate\":" + String(dcf77LastDecoded.parityDateOk ? "true" : "false");
+                json += ",\"repaired\":" + String(dcf77LastDecoded.repairedBits); // aus der Paritaet rekonstruierte Bits (siehe decodeDcf77Telegram())
+                                                                                    // bits reconstructed from parity (see decodeDcf77Telegram())
                 json += ",\"ageSeconds\":" + String(ageMs / 1000);
             }
             json += "}}";
@@ -4143,6 +4195,20 @@
             chunk += "<div class='card' style='max-width:900px;'>"; // 900px: breit genug fuer alle 59 Bit-Kaestchen in einer kompakten Rastergrid ohne unnoetige Zeilenumbrueche auf einem Desktop-Bildschirm
                                                                      // 900px: wide enough to fit all 59 bit boxes in a compact grid without unnecessary line wraps on a desktop screen
             chunk += "<h3>" + translate("Bit progress") + "</h3>";
+
+            // Hinweis fuer die Suchphase: bis die Minutenmarke gefunden ist,
+            // zeigen die Kaestchen die rohen Rasterpositionen, nicht die
+            // Bitnummern des Telegramms (siehe /api/dcf77status oben) - ohne
+            // diesen Hinweis waere die Beschriftung in dieser Zeit
+            // irrefuehrend. Wird vom Poll-Skript ein-/ausgeblendet.
+            // Note for the search phase: until the minute marker is found, the
+            // boxes show raw grid positions, not the telegram's bit numbers
+            // (see /api/dcf77status above) - without this note the labels
+            // would be misleading during that time. Shown/hidden by the poll
+            // script.
+            chunk += "<div id='dcfRawNote' hidden style='margin-bottom:.6rem;padding:.4rem .6rem;border-radius:.3rem;"
+                     "border:1px solid var(--panel-border);color:var(--muted);font-size:.75rem;'>"
+                     "Minute marker not identified yet - the boxes show raw grid positions, not telegram bit numbers.</div>";
             chunk += "<div id='dcfBitGrid' style='display:flex;flex-wrap:wrap;gap:3px;justify-content:center;font-family:var(--mono);font-size:.7rem;'>";
 
             for (int i = 0; i < DCF77_TELEGRAM_BITS; i++) {
@@ -4172,7 +4238,8 @@
             chunk += "<p style='color:var(--muted);font-size:.75rem;'>"
                      "<span style='display:inline-block;width:.8rem;height:.8rem;background:var(--accent);border-radius:.2rem;vertical-align:middle;'></span> = 1 &nbsp; "
                      "<span style='display:inline-block;width:.8rem;height:.8rem;border:1px solid var(--panel-border);border-radius:.2rem;vertical-align:middle;'></span> = 0 &nbsp; "
-                     "<i class='dot syncing' style='display:inline-block;position:static;'></i> = next</p>";
+                     "<i class='dot syncing' style='display:inline-block;position:static;'></i> = next &nbsp; "
+                     "<span style='display:inline-block;width:.8rem;height:.8rem;border:1px dashed var(--muted);border-radius:.2rem;vertical-align:middle;'></span> = lost</p>";
             // Diagnosewert: Anzahl der wegen vollem Ringpuffer verworfenen
             // Flanken seit dem letzten Neustart (siehe dcf77EdgeDropped in
             // globals.h, isr() in time_sync.h) - hilft zu unterscheiden, ob
@@ -4188,6 +4255,41 @@
             // (value stays at 0). Deliberately English, like the bit
             // tooltips above (diagnostic content).
             chunk += "<p style='color:var(--muted);font-size:.7rem;'>Dropped edges (buffer overflow): <span id='dcfEdgeDropped'>-</span></p>";
+
+            // Zweiter Diagnosewert: weiss der Dekoder gerade, an welcher
+            // Sekunde des Telegramms er steht? "no" heisst, dass er auf die
+            // naechste Minutenmarke wartet (nach einem Aussetzer oder direkt
+            // nach dem Einschalten) - in dieser Phase werden bewusst keine
+            // Bits eingetragen, das Raster oben bleibt also leer, ohne dass
+            // deshalb etwas defekt waere (siehe dcf77Synced in globals.h und
+            // processDcf77Bits() in time_sync.h). Bewusst englisch wie die
+            // uebrigen Diagnoseangaben auf dieser Seite.
+
+            // Second diagnostic value: does the decoder currently know which
+            // second of the telegram it is at? "no" means it is waiting for
+            // the next minute marker (after a dropout or right after power-on)
+            // - during that phase no bits are entered on purpose, so the grid
+            // above stays empty without anything being broken (see dcf77Synced
+            // in globals.h and processDcf77Bits() in time_sync.h). Deliberately
+            // English like the other diagnostics on this page.
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Telegram sync: <span id='dcfSynced'>-</span></p>";
+
+            // Rohdaten des Empfaengers: die zuletzt erkannten Impulse mit
+            // Dauer und Abstand, dazu die Zaehler fuer erkannte/fehlende
+            // Impulse und fuer verlorene Sekundenraster. Diese Zeilen
+            // beantworten die Frage, die sich sonst nur mit einem Oszilloskop
+            // klaeren laesst: liefert das Modul ein sauberes Signal, oder
+            // fehlen schlicht Impulse?
+
+            // The receiver's raw data: the most recently detected pulses with
+            // width and distance, plus the counters for detected/missing
+            // pulses and for lost second grids. These lines answer the
+            // question that otherwise needs an oscilloscope: does the module
+            // deliver a clean signal, or are pulses simply missing?
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Pulses seen / missed / grid losses: "
+                     "<span id='dcfSeen'>-</span> / <span id='dcfMissed'>-</span> / <span id='dcfBreaks'>-</span></p>";
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Last pulses (width / gap in ms, expected ~100 or ~200 / ~n&times;1000):<br>"
+                     "<span id='dcfPulses' style='font-family:var(--mono);'>-</span></p>";
             chunk += "</div>";
 
             // Dekodiertes Telegramm: Server rendert die uebersetzten
@@ -4219,6 +4321,15 @@
             chunk += "<tr><td>" + translate("Call bit") + "</td><td><span id='dcfCall'>-</span></td></tr>";
             chunk += "<tr><td>" + translate("Parity") + " (" + translate("Minute") + "/" + translate("Hour") + "/" + translate("Day") + ")</td><td><span id='dcfParityMin'>-</span> / <span id='dcfParityHour'>-</span> / <span id='dcfParityDate'>-</span></td></tr>";
             chunk += "<tr><td>" + translate("Last decoded") + "</td><td><span id='dcfAge'>-</span> s</td></tr>";
+            // Anzahl der Bits, die nicht empfangen, sondern aus der Paritaet
+            // bzw. den Festwerten rekonstruiert wurden (siehe
+            // decodeDcf77Telegram() in time_sync.h) - 0 heisst "vollstaendig
+            // empfangen". Bewusst englisch wie die uebrigen Diagnoseangaben.
+            // Number of bits that were not received but reconstructed from
+            // parity resp. fixed values (see decodeDcf77Telegram() in
+            // time_sync.h) - 0 means "fully received". Deliberately English
+            // like the other diagnostics.
+            chunk += "<tr><td>Reconstructed bits</td><td><span id='dcfRepaired'>-</span></td></tr>";
             chunk += "</table>";
             chunk += "</div>";
 
@@ -4230,8 +4341,19 @@
             chunk += "for(var i=0;i<TOTAL;i++){";
             chunk += "var el=document.getElementById('bit-'+i); if(!el) continue;";
             chunk += "el.classList.remove('syncing');";
+            chunk += "el.style.borderStyle='solid';";
             chunk += "if(i<bitIndex){";
             chunk += "if(bits.charAt(i)==='1'){el.style.background='var(--accent)';el.style.borderColor='var(--accent)';el.style.color='#1a1200';}";
+            // '?' vor dem aktuellen Index = Sekunde zu schwach empfangen und
+            // uebersprungen (Luecke). Gestrichelter Rahmen, damit sie sich von
+            // einer tatsaechlich empfangenen 0 unterscheidet - vorher sahen
+            // beide identisch aus, eine Luecke war auf der Seite also nicht zu
+            // erkennen (siehe processDcf77Bits() in time_sync.h).
+            // '?' before the current index = second received too weakly and
+            // skipped (a hole). Dashed border so it differs from an actually
+            // received 0 - previously both looked identical, so a hole was
+            // invisible on this page (see processDcf77Bits() in time_sync.h).
+            chunk += "else if(bits.charAt(i)==='?'){el.style.background='';el.style.borderColor='var(--muted)';el.style.borderStyle='dashed';el.style.color='var(--muted)';}";
             chunk += "else{el.style.background='';el.style.borderColor='var(--panel-border)';el.style.color='var(--muted)';}";
             chunk += "}else if(i===bitIndex){";
             chunk += "el.style.background='';el.style.borderColor='var(--accent)';el.style.color='var(--accent)';el.classList.add('syncing');";
@@ -4252,9 +4374,10 @@
             chunk += "document.getElementById('dcfParityHour').textContent=d.parityHour?'\\u2714':'\\u2716';";
             chunk += "document.getElementById('dcfParityDate').textContent=d.parityDate?'\\u2714':'\\u2716';";
             chunk += "document.getElementById('dcfAge').textContent=d.ageSeconds;";
+            chunk += "var rp=document.getElementById('dcfRepaired');if(rp)rp.textContent=(d.repaired?d.repaired:0);";
             chunk += "}";
             chunk += "var timer=null;";
-            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;}).catch(function(){});}";
+            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;var rn=document.getElementById('dcfRawNote');if(rn)rn.hidden=!!s.synced;var sy=document.getElementById('dcfSynced');if(sy)sy.textContent=s.synced?('yes (marker at grid position '+s.markerPos+')'):'no (collecting - the minute marker needs a few minutes)';var se=document.getElementById('dcfSeen');if(se)se.textContent=s.pulsesSeen;var mi=document.getElementById('dcfMissed');if(mi)mi.textContent=s.pulsesMissed;var br=document.getElementById('dcfBreaks');if(br)br.textContent=s.phaseBreaks;var pu=document.getElementById('dcfPulses');if(pu){if(!s.pulses||!s.pulses.length){pu.textContent='-';}else{pu.textContent=s.pulses.map(function(p){return p[0]+'/'+p[1];}).join('  ');}}}).catch(function(){});}";
             chunk += "function start(){if(timer)return;poll();timer=setInterval(poll,1000);}";
             chunk += "function stop(){if(!timer)return;clearInterval(timer);timer=null;}";
             chunk += "document.addEventListener('visibilitychange',function(){if(document.hidden)stop();else start();});";
@@ -7153,13 +7276,14 @@
                         }
                     }
                     if (freeIndex == -1) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] No free slot left - aborted");
+                        DEBUG_PRINTLN("[PRESET-MERGE] No free slot left - aborted (preset: " + name + ")");
                         break;
                     }
 
                     presets[freeIndex].name = name;
                     presets[freeIndex].url = url;
                     addedCount++;
+                    DEBUG_PRINTLN("[PRESET-MERGE] Added: " + name);
                 }
                 readFile.close();
                 LittleFS.remove(PRESET_IMPORT_TMP_PATH);
