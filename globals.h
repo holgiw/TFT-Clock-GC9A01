@@ -113,29 +113,41 @@
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
+    // Die DCF77-Bibliothek und ihre Flanken-Einstellung sind hier ersatzlos
+    // entfallen (frueher: "bool dcf77Flank" und eine DCF77-Instanz).
+    //
     // Historie: bei anhaltendem "DCF77 last sync: never" trotz nachweislich
-    // sauberem Empfang wurde u.a. diese Flanken-Polaritaet als Ursache
-    // vermutet und testweise auf true umgestellt - hat NICHT geholfen (blieb
-    // "never"), also zurueck auf den urspruenglichen Wert false. Die
-    // tatsaechliche Ursache lag nicht in der Flanken-Polaritaet, sondern
-    // tiefer in der Original-Bibliothek (dcf.getUTCTime()) - siehe dazu und
-    // zur seitdem erfolgten Umstellung auf den eigenen Dekoder die
-    // Kommentare bei applyDcf77DecodedTime()/updateDcf77Status() in
-    // time_sync.h. dcf.getUTCTime() wird fuer die Zeituebernahme nicht mehr
-    // benutzt, daher spielt dieser Wert inzwischen praktisch keine Rolle mehr.
+    // sauberem Empfang wurde die Flanken-Polaritaet als Ursache vermutet und
+    // testweise auf steigende Flanke umgestellt - ohne Wirkung. Die
+    // tatsaechliche Ursache lag in der Bibliothek selbst; seit der Umstellung
+    // auf den eigenen Dekoder ist die Frage gegenstandslos:
+    //
+    // Der Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr3.ino),
+    // reagiert also auf BEIDE Flanken, und processDcf77Bits() (time_sync.h)
+    // klassifiziert ausschliesslich ueber die DAUER zwischen zwei Flanken.
+    // Von zwei aufeinanderfolgenden Intervallen ist das kurze immer der
+    // Impuls und das lange die Pause - unabhaengig davon, ob das
+    // Empfaengermodul den Impuls als High- oder als Low-Pegel ausgibt. Der
+    // Pegel wird nirgends gelesen. Eine einstellbare oder automatisch
+    // erkannte Flankenrichtung braucht es damit nicht.
 
-    // History: with a persistent "DCF77 last sync: never" despite
-    // demonstrably clean reception, this edge polarity was suspected as one
-    // possible cause and switched to true as a test - did NOT help (stayed
-    // "never"), so reverted to the original value false. The actual cause
-    // was not the edge polarity but sat deeper inside the original library
-    // (dcf.getUTCTime()) - see the comments at applyDcf77DecodedTime()/
-    // updateDcf77Status() in time_sync.h for that and the subsequent switch
-    // to the own decoder. dcf.getUTCTime() is no longer used for the actual
-    // time takeover, so this value is now practically irrelevant.
-    bool dcf77Flank = false; // false = fallende Flanke, true = steigende Flanke
-                             // false = falling edge, true = rising edge
-    DCF77 dcf = DCF77(DCF77_DATAPIN, DCF77_DATAPIN, dcf77Flank);
+    // The DCF77 library and its edge setting have been removed entirely here
+    // (formerly: "bool dcf77Flank" and a DCF77 instance).
+    //
+    // History: with a persistent "DCF77 last sync: never" despite demonstrably
+    // clean reception, the edge polarity was suspected as the cause and
+    // switched to rising as a test - with no effect. The actual cause was
+    // inside the library itself; since the switch to the own decoder the
+    // question is moot:
+    //
+    // The interrupt sits on CHANGE (see attachInterrupt() in uhr3.ino), so it
+    // reacts to BOTH edges, and processDcf77Bits() (time_sync.h) classifies
+    // purely by the DURATION between two edges. Of two consecutive intervals
+    // the short one is always the pulse and the long one the gap - regardless
+    // of whether the receiver module outputs the pulse as a high or a low
+    // level. The level is never read. No configurable or auto-detected edge
+    // direction is needed.
+
     volatile uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale (wird in der ISR verändert)
                                       // Number of received DCF77 signals (modified in the ISR)
 
@@ -431,6 +443,33 @@
     unsigned long dcf77PrevAtMillis = 0;
 
 #endif
+
+    // Ist der EIGENE NTP-Server (die Uhr als Zeitquelle fuer andere Geraete,
+    // siehe startNtpServer() in time_sync.h und die Beantwortung in loop())
+    // gerade an Port 123 gebunden? Der Rueckgabewert von udp.begin() wurde
+    // frueher verworfen und der Start unbesehen als "[NTPD] NTP Server
+    // started" geloggt - ob wirklich jemand zuhoert, war weder im Log noch auf
+    // der Statusseite zu erkennen.
+
+    // Is the OWN NTP server (the clock as a time source for other devices, see
+    // startNtpServer() in time_sync.h and the answering code in loop())
+    // currently bound to port 123? The return value of udp.begin() used to be
+    // discarded and the start logged unconditionally as "[NTPD] NTP Server
+    // started" - whether anyone was actually listening was visible neither in
+    // the log nor on the status page.
+    bool ntpServerRunning = false;
+
+    // Diagnosezaehler fuer den eigenen NTP-Server (Anzeige auf /status): ohne
+    // sie liess sich ein ausbleibender Client-Erfolg nicht einordnen - kommt
+    // die Anfrage gar nicht an (Socket/Netz/Firewall) oder wird sie empfangen
+    // und nur nicht beantwortet (keine gueltige Systemzeit)?
+
+    // Diagnostic counters for the own NTP server (shown on /status): without
+    // them there was no way to place a client failure - does the request not
+    // arrive at all (socket/network/firewall), or is it received and merely not
+    // answered (no valid system time)?
+    uint32_t ntpRequestsReceived = 0;
+    uint32_t ntpRepliesSent = 0;
 
     unsigned long lastNTPUpdate = 0; // Zeitpunkt des letzten RTC-Updates
                                      // Timestamp of the last RTC update

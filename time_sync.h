@@ -1253,6 +1253,52 @@
     }
 
 
+    // Bindet den EIGENEN NTP-Server der Uhr an Port 123 (bzw. bindet ihn neu)
+    // und meldet, ob das geklappt hat. Die Uhr kann damit anderen Geraeten im
+    // Netz als Zeitquelle dienen; beantwortet werden die Anfragen in loop().
+    //
+    // Muss nach JEDEM Verbindungsaufbau erneut aufgerufen werden, nicht nur
+    // einmal beim Booten: connectWiFi() faehrt den WLAN-Stack zwischendurch
+    // komplett herunter (WiFi.mode(WIFI_MODE_NULL), siehe dort). Der in
+    // setup() gebundene UDP-Socket verliert dabei sein Netzwerk-Interface und
+    // empfaengt danach nichts mehr. Da udp.parsePacket() in loop() einfach
+    // dauerhaft 0 liefert, faellt das nirgends auf - der NTP-Server der Uhr
+    // war nach dem ersten Reconnect (z.B. Router-Neustart) stillschweigend
+    // tot, bis zum naechsten Neustart der Uhr.
+    //
+    // udp.stop() davor, damit ein noch gebundener Socket sauber freigegeben
+    // wird, statt beim erneuten begin() auf einem belegten Port zu scheitern.
+
+    // Binds (or rebinds) the clock's OWN NTP server to port 123 and reports
+    // whether that worked. This lets the clock serve as a time source for
+    // other devices on the network; the requests are answered in loop().
+    //
+    // Must be called after EVERY connection setup, not just once at boot:
+    // connectWiFi() shuts the WiFi stack down completely in between
+    // (WiFi.mode(WIFI_MODE_NULL), see there). The UDP socket bound in setup()
+    // loses its network interface in the process and receives nothing
+    // afterwards. Since udp.parsePacket() in loop() simply keeps returning 0,
+    // this goes unnoticed anywhere - the clock's NTP server was silently dead
+    // after the first reconnect (e.g. a router restart) until the clock was
+    // restarted.
+    //
+    // udp.stop() beforehand so a still-bound socket is released cleanly
+    // instead of failing on an occupied port at the next begin().
+
+    bool startNtpServer() {
+        udp.stop();
+        ntpServerRunning = (udp.begin(NTP_PORT) == 1);
+
+        if (ntpServerRunning) {
+            DEBUG_PRINTLN("[NTPD] NTP server listening on port " + String(NTP_PORT));
+        }
+        else {
+            DEBUG_PRINTLN("[NTPD] Could not bind port " + String(NTP_PORT) + " - clock is not available as a time source");
+        }
+        return ntpServerRunning;
+    }
+
+
     // Testet einen NTP-Server per direkter UDP-Anfrage (RFC 5905, minimales
     // Client-Paket), ohne die Systemzeit zu veraendern - nutzt eine eigene
     // lokale WiFiUDP-Instanz. Gibt bei Erfolg die UTC-Zeit als String zurueck.
@@ -1682,75 +1728,95 @@
     }
 
 
-    // Funktion, um ein NTP-Paket zu erstellen
-    // Function to build an NTP packet
+    // Baut aus dem empfangenen Anfragepaket die NTP-Antwort (RFC 5905, Mode 4)
+    // - IM SELBEN Puffer, den die Anfrage benutzt hat (siehe Aufrufstelle in
+    // loop()). 'receivedAt' ist der Zeitpunkt, zu dem die Anfrage eintraf.
 
-    void createNtpResponse(byte* packet, time_t currentTime) {
+    // Builds the NTP reply (RFC 5905, mode 4) from the received request packet
+    // - IN THE SAME buffer the request used (see the call site in loop()).
+    // 'receivedAt' is the instant at which the request arrived.
+
+    void createNtpResponse(byte* packet, const struct timeval& receivedAt) {
 
         // Originate Timestamp: der Transmit-Timestamp der ANFRAGE (Byte 40-47)
         // muss unveraendert in Byte 24-31 der Antwort zurueckgespiegelt werden.
-        // RFC-konforme Clients (ntpd, chrony, systemd-timesyncd) vergleichen
-        // dieses Feld mit dem Zeitstempel, den sie selbst gesendet haben, und
-        // verwerfen die Antwort sonst als "bogus packet" - vorher blieb das
-        // Feld durchgehend 0, die Antwort war also fuer echte NTP-Clients
-        // unbrauchbar. Muss VOR dem memset gesichert werden, da Anfrage und
-        // Antwort denselben Puffer benutzen (siehe Aufrufstelle in uhr3.ino).
+        // RFC-konforme Clients (ntpd, chrony, systemd-timesyncd, w32tm)
+        // vergleichen dieses Feld mit dem Zeitstempel, den sie selbst gesendet
+        // haben, und verwerfen die Antwort sonst als "bogus packet". Muss VOR
+        // dem memset gesichert werden, da Anfrage und Antwort denselben Puffer
+        // benutzen.
 
         // Originate Timestamp: the REQUEST's transmit timestamp (bytes 40-47)
-        // has to be mirrored back unchanged into bytes 24-31 of the response.
-        // RFC-compliant clients (ntpd, chrony, systemd-timesyncd) compare this
-        // field against the timestamp they sent themselves and otherwise
-        // discard the response as a "bogus packet" - previously the field
-        // stayed 0 throughout, making the response unusable for real NTP
-        // clients. Has to be saved BEFORE the memset, since request and
-        // response share the same buffer (see the call site in uhr3.ino).
+        // has to be mirrored back unchanged into bytes 24-31 of the reply.
+        // RFC-compliant clients (ntpd, chrony, systemd-timesyncd, w32tm)
+        // compare this field against the timestamp they sent themselves and
+        // otherwise discard the reply as a "bogus packet". Has to be saved
+        // BEFORE the memset, since request and reply share the same buffer.
         byte originateTimestamp[8];
         memcpy(originateTimestamp, &packet[40], sizeof(originateTimestamp));
 
         memset(packet, 0, NTP_PACKET_SIZE);
 
-        // Flags und Stratum
-        // Flags and stratum
-        packet[0] = 0b00100100; // LI, Version, Mode
-        packet[1] = 1;          // Stratum
+        packet[0] = 0b00100100; // LI = 0, Version 4, Mode 4 (Server)
+                                // LI = 0, version 4, mode 4 (server)
+        packet[1] = 1;          // Stratum 1 (primaere Referenz)
+                                // stratum 1 (primary reference)
         packet[2] = 6;          // Poll Interval
-        packet[3] = 0xEC;       // Precision
+        packet[3] = 0xEC;       // Precision (2^-20 s)
 
-        // Root Delay und Root Dispersion
-        // Root Delay and Root Dispersion
-        packet[4] = 0;
-        packet[5] = 0;
-        packet[6] = 0;
-        packet[7] = 0;
+        // Root Delay und Root Dispersion bleiben 0 (lokale Referenz).
+        // Root delay and root dispersion stay 0 (local reference).
 
-        // Reference Identifier
-        packet[12] = 'L';
-        packet[13] = 'O';
-        packet[14] = 'C';
-        packet[15] = 'L';
+        // Reference Identifier: bei Stratum 1 die Quelle als vier ASCII-Zeichen.
+        // Reference identifier: at stratum 1, the source as four ASCII chars.
+        packet[12] = 'D'; packet[13] = 'C'; packet[14] = 'F'; packet[15] = ' ';
 
-        // Reference Timestamp
-        time_t refTime = currentTime - 1; // Referenzzeit (1 Sekunde vorher)
-                                          // reference time (1 second earlier)
-        uint32_t refSeconds = htonl((uint32_t)(refTime + 2208988800UL));
-        memcpy(&packet[16], &refSeconds, 4);
+        // NTP zaehlt Sekunden seit 1900, Unix seit 1970.
+        // NTP counts seconds since 1900, Unix since 1970.
+        const uint32_t NTP_UNIX_OFFSET = 2208988800UL;
 
-        // Originate Timestamp: gespiegelter Transmit-Timestamp der Anfrage
-        // (oben vor dem memset gesichert), damit der Client die Antwort
-        // seiner eigenen Anfrage zuordnen kann.
-        // Originate Timestamp: mirrored transmit timestamp of the request
-        // (saved above before the memset), so the client can match the
-        // response to its own request.
+        // Sekundenbruchteile als 32-Bit-Bruch (Einheit: 1/2^32 Sekunde)
+        // mitliefern. Blieben sie 0, waere jede Antwort auf die volle Sekunde
+        // gerundet - der Client haette systematisch bis zu einer Sekunde
+        // Fehler, obwohl die Uhr die Zeit deutlich genauer kennt.
+
+        // Provide the fractional seconds as a 32-bit fraction (unit: 1/2^32 of
+        // a second). If they stayed 0, every reply would be rounded to the full
+        // second - the client would carry a systematic error of up to one
+        // second, even though the clock knows the time far more precisely.
+        auto writeTimestamp = [&](uint8_t offset, const struct timeval& tv) {
+            uint32_t seconds = htonl((uint32_t)(tv.tv_sec + NTP_UNIX_OFFSET));
+            uint32_t fraction = htonl((uint32_t)(((uint64_t)tv.tv_usec << 32) / 1000000ULL));
+            memcpy(&packet[offset], &seconds, 4);
+            memcpy(&packet[offset + 4], &fraction, 4);
+        };
+
+        // Reference Timestamp: Zeitpunkt, zu dem die eigene Uhr zuletzt
+        // gestellt wurde - hier vereinfacht der Empfangszeitpunkt minus einer
+        // Sekunde.
+        // Reference timestamp: when the own clock was last set - simplified
+        // here to the receive instant minus one second.
+        struct timeval referenceTime = receivedAt;
+        referenceTime.tv_sec -= 1;
+        writeTimestamp(16, referenceTime);
+
+        // Originate Timestamp: gespiegelter Transmit-Timestamp der Anfrage.
+        // Originate timestamp: mirrored transmit timestamp of the request.
         memcpy(&packet[24], originateTimestamp, sizeof(originateTimestamp));
 
-        uint32_t nowSeconds = htonl((uint32_t)(currentTime + 2208988800UL));
+        // Receive Timestamp: Eintreffen der Anfrage.
+        // Receive timestamp: when the request arrived.
+        writeTimestamp(32, receivedAt);
 
-        // Receive Timestamp: Zeitpunkt, zu dem die Anfrage eingetroffen ist.
-        // Blieb vorher 0; Clients berechnen daraus Verzoegerung und Offset.
-        // Receive Timestamp: the moment the request arrived. Previously stayed
-        // 0; clients use it to compute delay and offset.
-        memcpy(&packet[32], &nowSeconds, 4);
-
-        // Transmit Timestamp
-        memcpy(&packet[40], &nowSeconds, 4);
+        // Transmit Timestamp: JETZT, unmittelbar vor dem Senden - nicht der
+        // Empfangszeitpunkt. Der Client bildet aus Receive und Transmit die
+        // Bearbeitungszeit des Servers und rechnet sie aus der Laufzeit heraus;
+        // beide gleich zu setzen unterschlaegt diese Zeit.
+        // Transmit timestamp: NOW, immediately before sending - not the receive
+        // instant. The client derives the server's processing time from receive
+        // and transmit and removes it from the round-trip delay; setting both to
+        // the same value hides that time.
+        struct timeval transmitTime;
+        gettimeofday(&transmitTime, nullptr);
+        writeTimestamp(40, transmitTime);
     }

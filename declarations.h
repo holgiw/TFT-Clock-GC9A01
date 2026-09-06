@@ -54,7 +54,8 @@
     void handleNTPFailure() ;
     void setTimeStruct(const struct tm& timeinfo, String source) ;
     uint16_t i2cScan() ;
-    void createNtpResponse(byte* packet, time_t currentTime) ;
+    bool startNtpServer() ;
+    void createNtpResponse(byte* packet, const struct timeval& receivedAt) ;
 
 
     // --- display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch ---

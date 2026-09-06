@@ -374,6 +374,17 @@
         { "Call bit", "Anrufbit", "Bit d&#39;appel" },
         { "Parity", "Parit&auml;t", "Parit&eacute;" },
         { "Last decoded", "Zuletzt dekodiert", "Dernier d&eacute;codage" },
+
+        // Neu fuer die Info-Seite (/info, siehe webserver_routes.h und
+        // readme_text.h) - Projektlinks und Kontakt
+        // New for the info page (/info, see webserver_routes.h and
+        // readme_text.h) - project links and contact
+        { "Project and Contact", "Projekt und Kontakt", "Projet et contact" },
+        { "Project repository", "Projekt-Repository", "D&eacute;p&ocirc;t du projet" },
+        { "More projects by the author", "Weitere Projekte des Autors", "Autres projets de l&#39;auteur" },
+        { "Clock faces and hand sets", "Zifferbl&auml;tter und Zeigers&auml;tze", "Cadrans et jeux d&#39;aiguilles" },
+        { "Circuit diagram / PCB", "Schaltplan / Platine", "Sch&eacute;ma / circuit imprim&eacute;" },
+        { "Contact", "Kontakt", "Contact" },
     };
     static const size_t translationTableSize = sizeof(translationTable) / sizeof(translationTable[0]);
 

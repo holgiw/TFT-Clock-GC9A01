@@ -96,6 +96,22 @@
 #define GITHUB_ZIP_BASE "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/blob/master/graphic/"
 #define GITHUB_RAW_BASE "https://raw.githubusercontent.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/master/"
 
+    // Uebersichtsseite aller Projekte des Autors, Schaltplan/Platine und
+    // Kontaktadresse - werden auf der Info-Seite (/info in webserver_routes.h)
+    // verlinkt. Bewusst hier bei den uebrigen Projektadressen statt im
+    // Routencode: bei einem Fork oder Umzug muss so nur diese eine Stelle
+    // angepasst werden.
+
+    // Overview page of all the author's projects, the schematic/PCB and the
+    // contact address - linked on the info page (/info in
+    // webserver_routes.h). Deliberately kept here with the other project
+    // addresses instead of in the route code: on a fork or a move only this
+    // one place needs adjusting.
+#define GITHUB_AUTHOR_URL "https://github.com/" GITHUB_REPO_OWNER "?tab=repositories"
+#define GITHUB_GRAPHIC_URL GITHUB_REPO_URL "/tree/master/graphic"
+#define GITHUB_PCB_URL GITHUB_REPO_URL "/blob/master/PCB/ESP32-S2%20GC9A01.jpg"
+#define PROJECT_CONTACT_MAIL "howl@gmx.de"
+
     // --- Zeit / NTP-Standardwerte & Timing-Makros ---
     // --- Time / NTP defaults & timing macros ---
     // Zeitserver & Zeitzone Standardwert
