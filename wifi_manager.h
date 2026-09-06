@@ -788,22 +788,80 @@
                 DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
             }
 
-            // mDNS initialisieren
-            // Initialize mDNS
-            if (!MDNS.begin(hostname)) {
-                DEBUG_PRINTLN("[WIFI] Error starting mDNS");
+            // mDNS initialisieren.
+            //
+            // MDNS.end() davor: connectWiFi() laeuft nicht nur beim Booten,
+            // sondern auch bei jedem Reconnect (siehe checkWiFiReconnect()
+            // weiter oben) und nach einem WPS-Versuch. Ein zweites
+            // MDNS.begin() ohne vorheriges end() schlaegt im arduino-esp32-Core
+            // fehl bzw. haengt den HTTP-Dienst ein zweites Mal ein - nach dem
+            // ersten Verbindungsverlust war die Uhr dann fuer den Rest der
+            // Laufzeit nicht mehr unter "hostname.local" erreichbar, obwohl
+            // die WLAN-Verbindung wieder stand. end() auf einer nie
+            // gestarteten Instanz ist unproblematisch.
+
+            // Initialize mDNS.
+            //
+            // MDNS.end() beforehand: connectWiFi() runs not only at boot but
+            // also on every reconnect (see checkWiFiReconnect() further above)
+            // and after a WPS attempt. A second MDNS.begin() without a
+            // preceding end() fails in the arduino-esp32 core resp. registers
+            // the HTTP service a second time - after the first connection loss
+            // the clock was then no longer reachable at "hostname.local" for
+            // the rest of its runtime, even though the WiFi connection was back
+            // up. Calling end() on an instance that was never started is
+            // harmless.
+            MDNS.end();
+
+            // Ergebnis von MDNS.begin() merken, statt pingHostname
+            // bedingungslos auf true zu setzen: pingHostname entscheidet an
+            // mehreren Stellen, ob der Link auf "hostname.local" ueberhaupt
+            // angeboten wird (Topbar und Statusseite in webserver_routes.h,
+            // Anzeige auf dem Display in showWlanCredentials()). Fest auf true
+            // gesetzt, wurde der Link auch dann angezeigt, wenn mDNS gar nicht
+            // gestartet werden konnte - er fuehrte dann ins Leere.
+            // (Der Name stammt aus einem frueheren Ping-Test auf den
+            // mDNS-Namen, der hier auskommentiert war und ersatzlos entfaellt;
+            // MDNS.begin() selbst ist die verlaesslichere Auskunft.)
+
+            // Remember the result of MDNS.begin() instead of setting
+            // pingHostname to true unconditionally: pingHostname decides in
+            // several places whether the link to "hostname.local" is offered at
+            // all (topbar and status page in webserver_routes.h, display output
+            // in showWlanCredentials()). Hard-set to true, the link was shown
+            // even when mDNS could not be started at all - and then led
+            // nowhere. (The name comes from an earlier ping test against the
+            // mDNS name, which was commented out here and is dropped entirely;
+            // MDNS.begin() itself is the more reliable answer.)
+            pingHostname = MDNS.begin(hostname);
+            if (pingHostname) {
+                MDNS.addService("http", "tcp", 80); // HTTP-Dienst auf Port 80 bekanntgeben
+                                                    // announce the HTTP service on port 80
+                DEBUG_PRINTLN("[mDNS] Started, clock reachable at http://" + String(hostname) + ".local");
             }
             else {
-               MDNS.addService("http", "tcp", 80); // Beispiel: HTTP-Dienst auf Port 80
-                                                   // example: HTTP service on port 80
+                DEBUG_PRINTLN("[mDNS] Error starting mDNS - only the IP address will be offered");
             }
+
+            // Eigenen NTP-Server neu an Port 123 binden: der WLAN-Stack wurde
+            // weiter oben in dieser Funktion komplett heruntergefahren
+            // (WiFi.mode(WIFI_MODE_NULL)), der in setup() gebundene Socket hat
+            // dabei sein Netzwerk-Interface verloren. Ohne dieses erneute
+            // Binden blieb der NTP-Server der Uhr nach dem ersten Reconnect
+            // stumm - udp.parsePacket() liefert dann einfach dauerhaft 0,
+            // ohne Fehlermeldung (siehe startNtpServer() in time_sync.h).
+
+            // Rebind the own NTP server to port 123: the WiFi stack was shut
+            // down completely further up in this function
+            // (WiFi.mode(WIFI_MODE_NULL)), and the socket bound in setup() lost
+            // its network interface in the process. Without this rebind the
+            // clock's NTP server stayed silent after the first reconnect -
+            // udp.parsePacket() then simply keeps returning 0, with no error
+            // (see startNtpServer() in time_sync.h).
+            startNtpServer();
 
             DEBUG_PRINTLN("[WiFi] Connected to: " + wifiSsid[number]);
             DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
-            String fullHostname = String(hostname) + ".local";
-            pingHostname = true;
-            //   pingHostname = Ping.ping(fullHostname.c_str(),3);
-            //   DEBUG_PRINTF("[mDNS] Ping to %s: %s\n", fullHostname.c_str(), pingHostname ? "success" : "failed");
 
 
             String pingServer = preferences.getString(PK_PING_SERVER, "");

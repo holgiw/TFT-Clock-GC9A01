@@ -14,21 +14,17 @@
     //
     // DCF77: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
     //
-    // Anpassungen in DCF77.cpp:
-    //  Zeile 22: #include <TimeLib.h> ändern
-    //
-    // Der frueher noetige zweite Patch (IRAM_ATTR bei DCF77::int0handler())
-    // ist entfallen: die Bibliotheksfunktion wird nicht mehr aus der ISR
-    // aufgerufen, die DCF77-Dekodierung macht der Sketch inzwischen selbst
-    // (siehe isr()/processDcf77Bits() in time_sync.h).
+    // DCF77: keine Bibliothek mehr noetig, keine Patches mehr noetig.
+    // Empfang und Dekodierung macht der Sketch selbst - Interrupt auf CHANGE
+    // (beide Flanken), Auswertung rein ueber die Dauer zwischen zwei Flanken
+    // und damit unabhaengig von der Pegel-Polaritaet des Empfaengermoduls.
+    // Siehe isr()/processDcf77Bits() in time_sync.h.
 
-    // Changes in DCF77.cpp:
-    //  line 22: change #include <TimeLib.h>
-    //
-    // The second patch formerly required (IRAM_ATTR on DCF77::int0handler())
-    // is gone: the library function is no longer called from the ISR, the
-    // sketch now does the DCF77 decoding itself (see isr()/processDcf77Bits()
-    // in time_sync.h).
+    // DCF77: no library needed anymore, no patches needed anymore. Reception
+    // and decoding are done by the sketch itself - interrupt on CHANGE (both
+    // edges), evaluation purely from the duration between two edges and
+    // therefore independent of the receiver module's signal polarity. See
+    // isr()/processDcf77Bits() in time_sync.h.
 
 
 #include <WiFi.h>
@@ -81,14 +77,26 @@
 #include <Wire.h>
 #include <RTClib.h>
 #include <WiFiUdp.h>
-#include <DCF77.h>  // https://forum.arduino.cc/t/dcf77-am-esp-32/1213608/7
-                        // https://www.elkoba.com/magazin/eine-funkuhr-selbst-bauen-bauprojekt-dcf77/?srsltid=AfmBOorDPPTdSBRgDzH3HdjPTO9M7wl6MM68TusAIfYBCkYG6z13Rbt0
+// Die DCF77-Bibliothek wird nicht mehr eingebunden: Empfang und Dekodierung
+// macht der Sketch inzwischen selbst (isr()/processDcf77Bits() in time_sync.h),
+// die Bibliothek war zuletzt nur noch toter Ballast. Sie muss fuer diesen
+// Sketch also auch nicht mehr installiert sein - und der frueher noetige Patch
+// an DCF77.cpp entfaellt damit ebenfalls.
+// Urspruenglich verwendet: https://forum.arduino.cc/t/dcf77-am-esp-32/1213608/7
+
+// The DCF77 library is no longer included: reception and decoding are done by
+// the sketch itself now (isr()/processDcf77Bits() in time_sync.h), the library
+// had become dead weight. It therefore no longer needs to be installed for this
+// sketch - and the patch to DCF77.cpp formerly required is gone with it.
+// Originally used: https://forum.arduino.cc/t/dcf77-am-esp-32/1213608/7
 
 
 #include "globals.h"       // globale Objekte, Variablen, Structs
                            // global objects, variables, structs
 #include "declarations.h"  // Forward-Deklarationen aller Funktionen
                            // forward declarations of all functions
+#include "readme_text.h"   // Projektbeschreibung (README) in drei Sprachen fuer die /info-Seite
+                           // project description (README) in three languages for the /info page
 
 #include "wifi_manager.h"      // WLAN: Verbindung, AP, Scan, Reconnect
                                // WiFi: connection, AP, scan, reconnect
@@ -1194,8 +1202,17 @@ void setup() {
         // respond, even long after DCF77 had synchronized, since
         // dcfTimeFound is essentially never already true at this point (right
         // after boot). An early-bound but unused UDP socket is harmless.
-        udp.begin(NTP_PORT);
-        DEBUG_PRINTLN("[NTPD] NTP Server started");
+        // startNtpServer() statt udp.begin() direkt: prueft den Rueckgabewert,
+        // haelt ntpServerRunning fuer die Statusseite aktuell und wird nach
+        // jedem spaeteren Verbindungsaufbau erneut aufgerufen (siehe
+        // connectWiFi() in wifi_manager.h) - der Socket ueberlebt den
+        // WLAN-Neustart in connectWiFi() sonst nicht.
+        // startNtpServer() instead of udp.begin() directly: checks the return
+        // value, keeps ntpServerRunning current for the status page, and is
+        // called again after every later connection setup (see connectWiFi() in
+        // wifi_manager.h) - otherwise the socket does not survive the WiFi
+        // restart inside connectWiFi().
+        startNtpServer();
 
         DEBUG_PRINTLN("[SETUP] Boot complete, free heap: " + String(ESP.getFreeHeap()) + " bytes");
         checkHeapWarning("Setup Ende");
@@ -1508,17 +1525,50 @@ void setup() {
 
         }
 
-          // NTP-Server anfragen bearbeiten
+          // NTP-Server-Anfragen beantworten
+          // Test unter Windows:  w32tm /stripchart /computer:192.168.0.214
+          //
+          // Die Bedingung fragt die SYSTEMZEIT ab, nicht mehr die Zeitquelle.
+          // Vorher stand hier "(WiFi.getMode() == WIFI_STA && rtcOk ==
+          // RTC_AVAILABLE) || dcfTimeFound": ohne erkannte RTC und ohne bisher
+          // erfolgreichen DCF77-Empfang wurde eine Anfrage NIE beantwortet -
+          // auch dann nicht, wenn NTP die Systemzeit laengst korrekt gestellt
+          // hatte. Der Client sah nur eine Zeitueberschreitung (unter Windows
+          // "Fehler: 0x800705B4"), ohne jeden Hinweis auf die Ursache. Fuer
+          // eine Antwort zaehlt einzig, ob die Uhr eine gueltige Zeit hat -
+          // woher sie stammt, ist dem anfragenden Geraet egal.
+          //
+          // Schwelle wie bei getLocalTime()/setupNTP(): Jahr > 2016.
 
-          // Handle NTP server requests
-          // win:  w32tm /stripchart /computer:192.168.0.214
-        if ((WiFi.getMode() == WIFI_STA && rtcOk == RTC_AVAILABLE) || dcfTimeFound) {
+          // Answer NTP server requests
+          // Test on Windows:  w32tm /stripchart /computer:192.168.0.214
+          //
+          // The condition asks about the SYSTEM TIME now, no longer about the
+          // time source. It used to read "(WiFi.getMode() == WIFI_STA && rtcOk
+          // == RTC_AVAILABLE) || dcfTimeFound": without a detected RTC and
+          // without a successful DCF77 reception so far, a request was NEVER
+          // answered - not even when NTP had long since set the system time
+          // correctly. The client only saw a timeout (on Windows "error:
+          // 0x800705B4") with no hint as to why. All that matters for an answer
+          // is whether the clock has a valid time - where it came from is of no
+          // concern to the device asking.
+          //
+          // Threshold as in getLocalTime()/setupNTP(): year > 2016.
+        if (ntpServerRunning) {
             int packetSize = udp.parsePacket();
             if (packetSize) {
-                // IP-Adresse des Clients abrufen
-                // Get the client's IP address
+                // Empfangszeitpunkt SOFORT festhalten, vor allem Weiteren -
+                // er geht als Receive-Timestamp in die Antwort ein und ist die
+                // Grundlage, aus der der Client Laufzeit und Offset berechnet.
+                // Capture the receive instant IMMEDIATELY, before anything else
+                // - it goes into the reply as the receive timestamp and is what
+                // the client uses to compute delay and offset.
+                struct timeval receivedAt;
+                gettimeofday(&receivedAt, nullptr);
+
+                ntpRequestsReceived++;
+
                 IPAddress clientIP = udp.remoteIP();
-                DEBUG_PRINTLN("[NTPD] Request from: " + clientIP.toString());
 
                 // NTP-Paket lesen. Puffer vorher leeren: udp.read() fuellt nur
                 // so viele Bytes, wie tatsaechlich angekommen sind - bei einer
@@ -1534,19 +1584,29 @@ void setup() {
                 memset(ntpPacket, 0, NTP_PACKET_SIZE);
                 udp.read(ntpPacket, NTP_PACKET_SIZE);
 
-                // Aktuelle Zeit holen
-                // Get current time
-                time_t currentTime = mktime(&timeinfo);
+                // Ohne gueltige Systemzeit waere jede Antwort schlimmer als
+                // keine: der Client wuerde die Uhr als Zeitquelle akzeptieren
+                // und sich auf 1970 stellen. Anfrage in dem Fall verwerfen -
+                // der Client laeuft in seinen eigenen Timeout und probiert die
+                // naechste Quelle.
+                // Without a valid system time any answer would be worse than
+                // none: the client would accept the clock as a time source and
+                // set itself to 1970. Discard the request in that case - the
+                // client runs into its own timeout and tries the next source.
+                if (receivedAt.tv_sec <= 1483228800L) { // 2017-01-01
+                    DEBUG_PRINTLN("[NTPD] Request from " + clientIP.toString() +
+                                  " ignored - no valid system time yet");
+                }
+                else {
+                    createNtpResponse(ntpPacket, receivedAt);
 
-                // Antwort erstellen
-                // Build response
-                createNtpResponse(ntpPacket, currentTime);
+                    udp.beginPacket(udp.remoteIP(), udp.remotePort());
+                    udp.write(ntpPacket, NTP_PACKET_SIZE);
+                    udp.endPacket();
 
-                // Antwort senden
-                // Send response
-                udp.beginPacket(udp.remoteIP(), udp.remotePort());
-                udp.write(ntpPacket, NTP_PACKET_SIZE);
-                udp.endPacket();
+                    ntpRepliesSent++;
+                    DEBUG_PRINTLN("[NTPD] Answered request from " + clientIP.toString());
+                }
             }
         }
 

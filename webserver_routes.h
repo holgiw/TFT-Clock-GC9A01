@@ -216,6 +216,15 @@
         html += ".tabctrl{display:none;}";
         html += ".tabnav{margin:20px auto;max-width:900px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;}";
         html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
+        // Der Info-Eintrag ist kein Tab, sondern ein Link auf eine eigene
+        // Seite (/info) - optisch aber bewusst identisch zu den Tabs, damit
+        // die Leiste nicht auseinanderfaellt. Kein Unterstrich, da die
+        // globale a-Regel in generateNavigation() sonst greifen wuerde.
+        // The info entry is not a tab but a link to its own page (/info) -
+        // deliberately identical in appearance to the tabs so the bar does not
+        // fall apart. No underline, since the global a rule in
+        // generateNavigation() would otherwise apply.
+        html += ".tabnav a{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;text-decoration:none;}";
         html += ".tabpanel{display:none;}";
         html += ".card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:500px;margin:15px auto;padding:12px 16px;text-align:left;}";
         for (const char* t : { "status", "log", "wlan", "zifferblatt", "helligkeit", "zeit" }) {
@@ -3361,7 +3370,23 @@
             chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
             chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
             chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
-            chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
+            chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li>";
+
+            // Eigener NTP-Server: zeigt, ob die Uhr gerade tatsaechlich als
+            // Zeitquelle fuer andere Geraete erreichbar ist. Der Zustand kommt
+            // aus dem echten Rueckgabewert von udp.begin() (siehe
+            // startNtpServer() in time_sync.h) - vorher wurde der Start nur
+            // blind geloggt, und ob der Socket nach einem Reconnect noch
+            // gebunden war, liess sich von aussen gar nicht feststellen.
+
+            // Own NTP server: shows whether the clock is currently actually
+            // reachable as a time source for other devices. The state comes
+            // from the real return value of udp.begin() (see startNtpServer()
+            // in time_sync.h) - previously the start was merely logged blindly,
+            // and whether the socket was still bound after a reconnect could
+            // not be determined from the outside at all.
+            chunk += "<li>NTP Server (own): " + String(ntpServerRunning ? "running on port " + String(NTP_PORT) : "not running") +
+                     " - requests: " + String(ntpRequestsReceived) + ", answered: " + String(ntpRepliesSent) + "</li><br>";
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -3468,7 +3493,7 @@
                 chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
             }
             chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
-            chunk += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
+            chunk += "<li>DCF77 Input: both edges (CHANGE), polarity-independent</li><br>";
 #endif
 
             webserver.sendContent(chunk);
@@ -4391,6 +4416,74 @@
             webserver.sendContent("");
             });
 
+        // --- Info-Seite: Projektbeschreibung in der eingestellten Sprache ---
+        //
+        // Der Text kommt aus readme_text.h und liegt dort als flash-residente
+        // Zeichenkette. Er wird in Bloecken direkt aus dem Flash gesendet und
+        // NICHT vorher in einen String kopiert: rund 10 KB am Stueck im Heap
+        // waeren auf dem ESP32-S2 (fragmentierter interner RAM) eine
+        // unnoetige Belastung, obwohl der Inhalt statisch ist.
+
+        // --- Info page: project description in the selected language ---
+        //
+        // The text comes from readme_text.h and lives there as a
+        // flash-resident string. It is sent in blocks straight from flash and
+        // NOT copied into a String first: around 10 KB in one piece on the
+        // heap would be a needless burden on the ESP32-S2 (fragmented internal
+        // RAM), given the content is static.
+        webserver.on("/info", HTTP_GET, []() {
+            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+            webserver.send(200, "text/html", "");
+
+            String chunk = beginPage();
+            chunk += "<h2>" + translate("Info") + "</h2>";
+            chunk += "<div class='card' style='max-width:900px;'>";
+            chunk += "<p style='color:var(--muted);font-size:.8rem;'>" + translate("Version") + ": " + String(version) +
+                     " &nbsp;&middot;&nbsp; <a href='" + String(GITHUB_REPO_URL) + "' target='_blank' rel='noopener'>" +
+                     String(GITHUB_REPO_NAME) + "</a></p>";
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            const char* doc = readmeHtmlForCurrentLanguage();
+            size_t docLen = strlen(doc);
+            for (size_t offset = 0; offset < docLen; offset += 1024) {
+                size_t blockLen = (docLen - offset > 1024) ? 1024 : (docLen - offset);
+                webserver.sendContent(doc + offset, blockLen);
+            }
+
+            chunk = "</div>";
+
+            // Projekt- und Kontaktangaben: alle Adressen kommen aus den
+            // zentralen Makros in config.h, damit sie bei einem Fork oder
+            // Umzug des Repositorys nur dort gepflegt werden muessen.
+            // Externe Links mit rel='noopener', target='_blank' setzt sonst
+            // window.opener auf die Uhr - ausserdem soll die Weboberflaeche
+            // beim Nachschlagen nicht verlorengehen.
+
+            // Project and contact details: all addresses come from the central
+            // macros in config.h, so a fork or a move of the repository only
+            // needs maintaining there. External links with rel='noopener' -
+            // otherwise target='_blank' hands window.opener to the clock - and
+            // the web interface should not be lost while looking something up.
+            chunk += "<h2>" + translate("Project and Contact") + "</h2>";
+            chunk += "<div class='card' style='max-width:900px;'><ul>";
+            chunk += "<li>" + translate("Project repository") + ": <a href='" + String(GITHUB_REPO_URL) +
+                     "' target='_blank' rel='noopener'>" + String(GITHUB_REPO_URL) + "</a></li>";
+            chunk += "<li>" + translate("Clock faces and hand sets") + ": <a href='" + String(GITHUB_GRAPHIC_URL) +
+                     "' target='_blank' rel='noopener'>" + String(GITHUB_GRAPHIC_URL) + "</a></li>";
+            chunk += "<li>" + translate("Circuit diagram / PCB") + ": <a href='" + String(GITHUB_PCB_URL) +
+                     "' target='_blank' rel='noopener'>ESP32-S2 GC9A01</a></li>";
+            chunk += "<li>" + translate("More projects by the author") + ": <a href='" + String(GITHUB_AUTHOR_URL) +
+                     "' target='_blank' rel='noopener'>github.com/" + String(GITHUB_REPO_OWNER) + "</a></li>";
+            chunk += "<li>" + translate("Contact") + ": <a href='mailto:" + String(PROJECT_CONTACT_MAIL) + "'>" +
+                     String(PROJECT_CONTACT_MAIL) + "</a></li>";
+            chunk += "</ul></div>";
+
+            webserver.sendContent(chunk);
+            webserver.sendContent("</body></html>");
+            webserver.sendContent("");
+            });
+
         webserver.on("/currentfacebg", HTTP_GET, []() {
             if (!clockFaceBuffer) {
                 webserver.send(500, "text/plain", "Face not loaded");
@@ -4849,6 +4942,13 @@
             chunk += "<label for='tab-zeit'>" + translate("NTP&nbsp;Timezone") + "</label>";
             chunk += "<label for='tab-status'>" + translate("Status") + "</label>";
             chunk += "<label for='tab-log'>" + translate("Log") + "</label>";
+            // Info: kein Tab, sondern ein Link auf /info mit der
+            // Projektbeschreibung in der aktuell eingestellten Sprache
+            // (siehe readme_text.h und die /info-Route weiter unten).
+            // Info: not a tab but a link to /info with the project description
+            // in the currently selected language (see readme_text.h and the
+            // /info route further below).
+            chunk += "<a href='/info'>" + translate("Info") + "</a>";
             chunk += "</div>";
 
             webserver.sendContent(chunk);
@@ -5037,7 +5137,7 @@
                 chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
             }
             chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";
-            chunk += "<li>DCF77 Edge: " + String(dcf77Flank ? "rising" : "falling") + "</li><br>";
+            chunk += "<li>DCF77 Input: both edges (CHANGE), polarity-independent</li><br>";
 #endif
 
             webserver.sendContent(chunk);
