@@ -151,24 +151,41 @@
     volatile uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale (wird in der ISR verändert)
                                       // Number of received DCF77 signals (modified in the ISR)
 
-    volatile bool dcfTimeFound = false; // wird in der ISR gelesen/verändert
-                                        // read/modified in the ISR
+    volatile bool dcfTimeFound = false; // wird in loop()/updateDcf77Status() gesetzt, nicht mehr in der ISR gelesen
+                                        // set in loop()/updateDcf77Status(), no longer read in the ISR
 
-    // Wird in der ISR gesetzt und in loop() abgearbeitet: die ISR darf die LED
-    // NICHT selbst schalten, weil setLedOn()/setLedOff() ueber pinMode()/
-    // digitalWrite() gehen und damit im Flash liegen. Ist der Flash-Cache
-    // gerade deaktiviert (bei JEDEM LittleFS-Schreibvorgang - also auch bei
-    // jeder Logzeile - und bei jedem NVS-Commit), fuehrt ein Zugriff aus der
-    // ISR heraus zu einem "Cache disabled but cached memory region accessed"-
-    // Panic-Reset. Siehe isr() in time_sync.h und die Abarbeitung in loop().
+    // Wird in processDcf77Bits() gesetzt (aus loop() heraus, NICHT mehr in
+    // der ISR) und dort in uhr3.ino::loop() abgearbeitet. Zwei Gruende fuer
+    // die Trennung:
+    // 1. Die ISR darf die LED nicht selbst schalten, weil setLedOn()/
+    //    setLedOff() ueber pinMode()/digitalWrite() gehen und damit im Flash
+    //    liegen. Ist der Flash-Cache gerade deaktiviert (bei JEDEM LittleFS-
+    //    Schreibvorgang - also auch bei jeder Logzeile - und bei jedem
+    //    NVS-Commit), fuehrt ein Zugriff aus der ISR heraus zu einem "Cache
+    //    disabled but cached memory region accessed"-Panic-Reset.
+    // 2. Die ISR kennt nur rohe Flanken und kann nicht beurteilen, ob es sich
+    //    ueberhaupt um ein echtes DCF77-Signal handelt oder nur um Rauschen
+    //    auf dem Datenpin. Erst processDcf77Bits() weiss (ueber dcf77Confirmed,
+    //    siehe unten und checkDcf77Health() in time_sync.h), ob die Uhr DCF77
+    //    tatsaechlich erkannt hat - die LED soll genau das anzeigen, nicht
+    //    jede Flanke.
+    // Siehe isr()/processDcf77Bits() in time_sync.h und die Abarbeitung in loop().
 
-    // Set in the ISR and processed in loop(): the ISR must NOT switch the LED
-    // itself, because setLedOn()/setLedOff() go through pinMode()/
-    // digitalWrite() and therefore live in flash. While the flash cache is
-    // disabled (during EVERY LittleFS write - so also every log line - and
-    // every NVS commit), accessing it from inside the ISR causes a "Cache
-    // disabled but cached memory region accessed" panic reset. See isr() in
-    // time_sync.h and the handling in loop().
+    // Set in processDcf77Bits() (called from loop(), NO LONGER in the ISR)
+    // and processed there in uhr3.ino::loop(). Two reasons for the split:
+    // 1. The ISR must not switch the LED itself, because setLedOn()/
+    //    setLedOff() go through pinMode()/digitalWrite() and therefore live
+    //    in flash. While the flash cache is disabled (during EVERY LittleFS
+    //    write - so also every log line - and every NVS commit), accessing
+    //    it from inside the ISR causes a "Cache disabled but cached memory
+    //    region accessed" panic reset.
+    // 2. The ISR only sees raw edges and cannot judge whether this is a
+    //    genuine DCF77 signal at all or just noise on the data pin. Only
+    //    processDcf77Bits() knows (via dcf77Confirmed, see below and
+    //    checkDcf77Health() in time_sync.h) whether the clock has actually
+    //    RECOGNIZED DCF77 - the LED is meant to show exactly that, not every
+    //    single edge.
+    // See isr()/processDcf77Bits() in time_sync.h and the handling in loop().
     volatile bool dcfLedTogglePending = false;
 
     // Zeitpunkt (millis()), zu dem der aktuelle Einmal-Blitz der LED wieder
@@ -181,12 +198,14 @@
     unsigned long dcfLedOffAtMillis = 0;
 
     bool dcfSyncLedEnabled = true; // per Auswahlbox abschaltbar (Default: an) - steuert nur, ob loop() das per dcfLedTogglePending
-                                    // angeforderte Blinken tatsaechlich ausfuehrt (siehe PK_DCF_SYNC_LED in prefs_keys.h); die ISR selbst
-                                    // setzt dcfLedTogglePending unabhaengig davon immer, das Flag hier wird erst in loop() ausgewertet
+                                    // angeforderte Blinken tatsaechlich ausfuehrt (siehe PK_DCF_SYNC_LED in prefs_keys.h);
+                                    // processDcf77Bits() setzt dcfLedTogglePending unabhaengig davon immer, sobald DCF77 erkannt wurde,
+                                    // das Flag hier wird erst in loop() ausgewertet
 
                                     // switchable off via a checkbox (default: on) - only controls whether loop() actually carries out the
-                                    // blink requested via dcfLedTogglePending (see PK_DCF_SYNC_LED in prefs_keys.h); the ISR itself always
-                                    // sets dcfLedTogglePending regardless, this flag is only evaluated in loop()
+                                    // blink requested via dcfLedTogglePending (see PK_DCF_SYNC_LED in prefs_keys.h);
+                                    // processDcf77Bits() always sets dcfLedTogglePending regardless, as soon as DCF77 was recognized,
+                                    // this flag is only evaluated in loop()
 
     time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
                                 // Unix timestamp of the last successful DCF77 sync (0 = never)
