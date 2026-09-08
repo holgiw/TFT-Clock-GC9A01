@@ -2748,19 +2748,32 @@
 
             // DCF77-Sync-LED-Blinken speichern (siehe dcfSyncLedEnabled in
             // globals.h, ausgewertet in uhr3.ino loop()) - nur auf Builds mit
-            // DCF77-Empfaenger, sonst wuerde jedes Speichern dieses Formulars
-            // die Einstellung auf Builds ohne DCF77-Hardware unbemerkt auf
-            // "aus" ueberschreiben (die Checkbox wird dort ja gar nicht
-            // gerendert, haette also nie im POST gestanden).
+            // DCF77-Empfaenger UND nur, wenn dcf77Confirmed true ist. Beides
+            // aus demselben Grund: die Checkbox wird nur unter genau diesen
+            // Bedingungen ueberhaupt gerendert (siehe weiter oben in dieser
+            // Datei) - stuende sie NICHT im Formular (Hardware fehlt bzw.
+            // DCF77 noch nicht erkannt), waere sie folglich auch nie im POST
+            // enthalten. Ohne diese Absicherung wuerde JEDES Speichern dieser
+            // Einstellungsseite, bevor DCF77 je erkannt wurde, die
+            // gespeicherte Einstellung unbemerkt auf "aus" ueberschreiben -
+            // obwohl der Nutzer die Checkbox nie zu Gesicht bekommen, also
+            // auch nie etwas daran geaendert hat.
             // Save DCF77 sync LED blink setting (see dcfSyncLedEnabled in
             // globals.h, evaluated in uhr3.ino loop()) - only on builds with
-            // a DCF77 receiver, otherwise every save of this form would
-            // silently overwrite the setting to "off" on builds without
-            // DCF77 hardware (the checkbox isn't rendered there at all, so
-            // it would never have been present in the POST).
+            // a DCF77 receiver AND only once dcf77Confirmed is true. Both for
+            // the same reason: the checkbox is only ever rendered under
+            // exactly these conditions (see further above in this file) - if
+            // it is NOT in the form (hardware missing, or DCF77 not yet
+            // recognized), it consequently was never in the POST either.
+            // Without this guard, EVERY save of this settings page before
+            // DCF77 was ever recognized would silently overwrite the stored
+            // setting to "off" - even though the user never even saw the
+            // checkbox, let alone changed it.
 #if defined(DCF77_DATAPIN) && defined(DCF77_INTERRUPT)
-            dcfSyncLedEnabled = webserver.hasArg("dcfSyncLed");
-            preferences.putBool(PK_DCF_SYNC_LED, dcfSyncLedEnabled);
+            if (dcf77Confirmed) {
+                dcfSyncLedEnabled = webserver.hasArg("dcfSyncLed");
+                preferences.putBool(PK_DCF_SYNC_LED, dcfSyncLedEnabled);
+            }
 #endif
 
             wifiActive = webserver.hasArg("wifiActive");
@@ -5834,28 +5847,37 @@
             chunk += " style='width:auto;margin:0;'>" + translate("Enable Logging");
             chunk += " <span title='" + translate("Writes up to 9 log files to LittleFS for troubleshooting") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            // Nur auf Builds mit angeschlossenem DCF77-Empfaenger sichtbar
-            // (dieselbe Bedingung wie auf der /dcf77-Seite selbst) - NICHT an
-            // dcf77Confirmed gekoppelt (das Flag, das den Nav-Link/den
-            // Topbar-Punkt erst nach der ersten plausiblen Impulskette
-            // einblendet): genau in der Phase VOR dcf77Confirmed blinkt die
-            // LED am haeufigsten, waere die Checkbox erst danach sichtbar,
-            // liesse sie sich nicht abschalten, wenn man sie am noetigsten
-            // braucht (schwacher/noch fehlender Empfang).
+            // Nur auf Builds mit angeschlossenem DCF77-Empfaenger UND erst,
+            // sobald DCF77 auch tatsaechlich erkannt wurde (dcf77Confirmed,
+            // siehe globals.h/checkDcf77Health() - mehrere aufeinanderfolgende,
+            // plausibel getaktete Pegelwechsel, derselbe Massstab wie fuer den
+            // Nav-Link/Topbar-Punkt). Vorher stand hier bewusst KEINE Kopplung
+            // an dcf77Confirmed, mit der Begruendung, dass die LED gerade in
+            // der Phase davor am haeufigsten blinkt und man sie dann nicht
+            // abschalten koennte. Auf ausdruecklichen Wunsch geaendert: ohne
+            // jemals erkanntes DCF77-Signal (z.B. kein Empfaenger angeschlossen
+            // oder Antenne/Kabel defekt) soll die Option gar nicht erst
+            // auftauchen, statt eine Einstellung fuer eine Funktion anzubieten,
+            // die erkennbar nicht funktioniert.
             //
-            // Only visible on builds with a DCF77 receiver wired up (same
-            // condition as on the /dcf77 page itself) - deliberately NOT
-            // tied to dcf77Confirmed (the flag that only reveals the nav
-            // link/topbar dot after the first plausible pulse chain): the
-            // LED blinks most often in exactly the phase BEFORE
-            // dcf77Confirmed, so gating the checkbox on it would make it
-            // impossible to turn off right when it's needed most (weak or
-            // not-yet-established reception).
+            // Only visible on builds with a DCF77 receiver wired up AND only
+            // once DCF77 has actually been recognized (dcf77Confirmed, see
+            // globals.h/checkDcf77Health() - several consecutive, plausibly
+            // timed level changes, the same yardstick used for the nav
+            // link/topbar dot). This used to be deliberately NOT tied to
+            // dcf77Confirmed, reasoning that the LED blinks most often in
+            // exactly the phase before that and couldn't then be turned off.
+            // Changed on explicit request: without a DCF77 signal ever having
+            // been recognized (e.g. no receiver wired up, or a broken
+            // antenna/cable), the option should not appear at all instead of
+            // offering a setting for a feature that is visibly not working.
 #if defined(DCF77_DATAPIN) && defined(DCF77_INTERRUPT)
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='dcfSyncLed' value='1' ";
-            chunk += dcfSyncLedEnabled ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("DCF77 Sync LED Blink");
-            chunk += " <span title='" + translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            if (dcf77Confirmed) {
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='dcfSyncLed' value='1' ";
+                chunk += dcfSyncLedEnabled ? "checked" : "";
+                chunk += " style='width:auto;margin:0;'>" + translate("DCF77 Sync LED Blink");
+                chunk += " <span title='" + translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            }
 #endif
 
             String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);

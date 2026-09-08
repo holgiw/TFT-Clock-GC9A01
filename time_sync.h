@@ -75,7 +75,31 @@
         // written disabled the cache, and the DCF77 edges occurring during
         // that window were lost - which made the decoder lose seconds, drop
         // synchronization more often and thereby produce even more log lines.
-        if (!dcfTimeFound) dcfLedTogglePending = true;
+        //
+        // dcfLedTogglePending wird HIER bewusst nicht mehr gesetzt: die ISR
+        // sieht nur rohe Flanken und kann nicht unterscheiden, ob es sich um
+        // ein echtes DCF77-Signal oder Stoerrauschen auf dem Datenpin
+        // handelt. Die Anforderung eines LED-Blitzes erfolgt jetzt erst in
+        // processDcf77Bits(), sobald dcf77Confirmed true ist (siehe globals.h/
+        // checkDcf77Health()) - derselbe Massstab, mit dem auch der Topbar-
+        // Punkt und der Info/Einstellungen-Navigationseintrag bereits
+        // entscheiden, ob DCF77 als "wirklich angeschlossen" gilt (mehrere
+        // aufeinanderfolgende, plausibel getaktete Pegelwechsel). Das ist
+        // deutlich frueher als der Fund der Minutenmarke (der laut README bis
+        // zu 3 Minuten dauern kann), aber erst nach mehreren Flankenwechseln
+        // und nicht schon bei der ersten (moeglicherweise zufaelligen) Flanke.
+        //
+        // dcfLedTogglePending is deliberately no longer set HERE: the ISR
+        // only sees raw edges and cannot tell whether this is a genuine DCF77
+        // signal or just noise on the data pin. Requesting an LED flash now
+        // happens only in processDcf77Bits(), once dcf77Confirmed is true
+        // (see globals.h/checkDcf77Health()) - the same yardstick already
+        // used elsewhere to decide whether DCF77 counts as "actually
+        // connected" (the topbar dot, the settings navigation entry): several
+        // consecutive, plausibly timed level changes. That is well before the
+        // minute marker is found (which the README says can take up to 3
+        // minutes), but only after several edge changes, not already on the
+        // first (possibly coincidental) one.
         dcf77Count++;
         if (dcf77Count > 120) dcf77Count = 1;
 
@@ -1079,6 +1103,29 @@
                                   String(dcf77PhaseBreaks) + ")");
                 }
                 continue;
+            }
+
+            // LED-Blitz anfordern, sobald DCF77 als erkannt gilt
+            // (dcf77Confirmed, siehe globals.h/checkDcf77Health()) - derselbe
+            // Massstab wie fuer den Topbar-Punkt und den Navigationseintrag,
+            // damit im ganzen Sketch nur EINE Definition von "DCF77 erkannt"
+            // existiert statt mehrerer, leicht unterschiedlicher. Das ist
+            // deutlich frueher als der Fund der Minutenmarke weiter unten
+            // (kann laut README bis zu 3 Minuten dauern), aber erst nach
+            // mehreren aufeinanderfolgenden Pegelwechseln, nicht schon beim
+            // ersten (moeglicherweise zufaelligen) Impuls.
+            //
+            // Request an LED flash once DCF77 counts as recognized
+            // (dcf77Confirmed, see globals.h/checkDcf77Health()) - the same
+            // yardstick used for the topbar dot and the navigation entry, so
+            // the whole sketch has only ONE definition of "DCF77 recognized"
+            // instead of several, slightly different ones. That is well
+            // before the minute marker is found further below (which the
+            // README says can take up to 3 minutes), but only after several
+            // consecutive level changes, not already on the first (possibly
+            // coincidental) pulse.
+            if (dcf77Confirmed) {
+                dcfLedTogglePending = true;
             }
 
             // Phase weiterschalten und die uebersprungenen Rasterpositionen
