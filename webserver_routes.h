@@ -101,7 +101,14 @@
         // attribute (author CSS always wins over user-agent CSS). This rule
         // explicitly restores 'hidden' behavior.
         html += ".status[hidden]{display:none;}";
-        html += ".dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,92,92,.15);}";
+        // display:inline-block noetig, sonst ignorieren Browser width/height
+        // bei einem leeren <span> ausserhalb eines Flex-Kontexts (.status) -
+        // der Punkt wuerde eckig statt rund erscheinen.
+
+        // display:inline-block needed, otherwise browsers ignore width/height
+        // on an empty <span> outside a flex context (.status) - the dot
+        // would render square instead of round.
+        html += ".dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,92,92,.15);}";
         html += ".dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,132,.18);}";
         // "na" (grau) gilt nur noch fuer den Zeit-Punkt (Systemzeit noch nie
         // gesetzt). RTC/DCF77 nutzen es nicht mehr - fehlende Hardware macht
@@ -2840,6 +2847,14 @@
             String json = "{";
             json += "\"enabled\":" + String(rocrailEnabled ? "true" : "false") + ",";
             json += "\"connected\":" + String(rocrailConnected ? "true" : "false") + ",";
+            // "ready": TCP steht UND mindestens ein <clock>-Update kam an -
+            // erst dann sind Divider/Modellzeit echte Werte. Fuer "Verbunden"
+            // statt nur rocrailConnected, damit der Status nicht gruen zeigt, waehrend Divider/Modellzeit noch "-" zeigen.
+
+            // "ready": TCP is up AND at least one <clock> update has
+            // arrived - only then are divider/model time real values. Used
+            // for "Connected" instead of just rocrailConnected, so status isn't green while divider/model time still show "-".
+            json += "\"ready\":" + String((rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0) ? "true" : "false") + ",";
             json += "\"frozen\":" + String(rocrailFrozen ? "true" : "false") + ",";
             json += "\"host\":\"" + escapeJsonText(rocrailServerHost) + "\",";
             json += "\"port\":" + String(rocrailServerPort) + ",";
@@ -5625,10 +5640,19 @@
             chunk += "</form>";
             chunk += "</div>";
 
+            // "ready" statt nur rocrailConnected: erst wenn auch echte
+            // Modellzeit-Daten angekommen sind, zeigt der Status "Verbunden"
+            // (gruen) - sonst wuerde er schon gruen zeigen, waehrend Divider/Modellzeit noch "-" zeigen.
+
+            // "ready" instead of just rocrailConnected: only once real model-
+            // time data has actually arrived does the status show
+            // "Connected" (green) - otherwise it would show green while divider/model time still show "-".
+            bool rocrailReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0;
+
             chunk += "<div class='card' id='rocrailStatusCard' style='max-width:900px;'>";
             chunk += "<div>" + translate("Status") + ": <span class='dot" +
-                     String(rocrailEnabled ? (rocrailConnected ? " ok" : " syncing") : " na") +
-                     "' id='dot-rocrail'></span> ";
+                     String(rocrailEnabled ? (rocrailReady ? " ok" : " syncing") : " na") +
+                     "' id='dot-rocrail-panel'></span> ";
             // Drei vorgerenderte, uebersetzte Text-Spans statt JS textContent -
             // wie beim ".status[hidden]"-Muster der Topbar-Punkte dekodiert
             // der Browser Entities so korrekt; JS blendet nur per "hidden" um.
@@ -5637,8 +5661,8 @@
             // textContent - like the ".status[hidden]" pattern of the topbar
             // dots, the browser decodes entities correctly this way; JS only toggles "hidden".
             chunk += "<span id='rocrailStatusOff'" + String(rocrailEnabled ? " hidden" : "") + ">" + translate("Disabled") + "</span>";
-            chunk += "<span id='rocrailStatusSearching'" + String((rocrailEnabled && !rocrailConnected) ? "" : " hidden") + ">" + translate("Connecting") + "...</span>";
-            chunk += "<span id='rocrailStatusConnected'" + String((rocrailEnabled && rocrailConnected) ? "" : " hidden") + ">" + translate("Connected") + "</span>";
+            chunk += "<span id='rocrailStatusSearching'" + String((rocrailEnabled && !rocrailReady) ? "" : " hidden") + ">" + translate("Connecting") + "...</span>";
+            chunk += "<span id='rocrailStatusConnected'" + String(rocrailReady ? "" : " hidden") + ">" + translate("Connected") + "</span>";
             chunk += "</div>";
             chunk += "<div id='rocrailDetails'" + String(rocrailEnabled ? "" : " hidden") + ">";
             chunk += "<div>" + translate("Server") + ": <code id='rocrailHost'>-</code></div>";
@@ -5651,7 +5675,7 @@
             // Pre-rendered span instead of JS textContent - same reason as
             // rocrailStatusOff/-Searching/-Connected above (entities in
             // translations would otherwise be double-escaped).
-            chunk += " <span id='rocrailFrozenHint'" + String((rocrailEnabled && rocrailConnected && rocrailFrozen) ? "" : " hidden") + ">(" + translate("paused") + ")</span>";
+            chunk += " <span id='rocrailFrozenHint'" + String((rocrailReady && rocrailFrozen) ? "" : " hidden") + ">(" + translate("paused") + ")</span>";
             chunk += "</div>";
             chunk += "</div>";
             chunk += "</div>";
@@ -5665,7 +5689,7 @@
             // response is tiny (unlike the whole log file).
             chunk += "<script>";
             chunk += "(function() {";
-            chunk += "  var dot = document.getElementById('dot-rocrail');";
+            chunk += "  var dot = document.getElementById('dot-rocrail-panel');";
             chunk += "  var off = document.getElementById('rocrailStatusOff');";
             chunk += "  var searching = document.getElementById('rocrailStatusSearching');";
             chunk += "  var connected = document.getElementById('rocrailStatusConnected');";
@@ -5674,14 +5698,14 @@
             chunk += "  function poll() {";
             chunk += "    fetch('/api/rocrailStatus', {cache:'no-store'}).then(function(r){return r.json();}).then(function(s){";
             chunk += "      off.hidden = s.enabled; details.hidden = !s.enabled;";
-            chunk += "      searching.hidden = !s.enabled || s.connected;";
-            chunk += "      connected.hidden = !s.enabled || !s.connected;";
+            chunk += "      searching.hidden = !s.enabled || s.ready;";
+            chunk += "      connected.hidden = !s.enabled || !s.ready;";
             chunk += "      if (!s.enabled) { dot.className='dot na'; return; }";
-            chunk += "      dot.className = s.connected ? 'dot ok' : 'dot syncing';";
+            chunk += "      dot.className = s.ready ? 'dot ok' : 'dot syncing';";
             chunk += "      document.getElementById('rocrailHost').textContent = s.host ? (s.host + ':' + s.port) : '-';";
             chunk += "      document.getElementById('rocrailDivider').textContent = s.divider;";
             chunk += "      document.getElementById('rocrailModelTime').textContent = s.modelTime;";
-            chunk += "      frozenHint.hidden = !s.connected || !s.frozen;";
+            chunk += "      frozenHint.hidden = !s.ready || !s.frozen;";
             chunk += "    }).catch(function(){});";
             chunk += "  }";
             chunk += "  poll();";
