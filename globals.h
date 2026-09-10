@@ -1,14 +1,12 @@
 #pragma once
-    // ### Globale Objekte, Variablen und Datenstrukturen #################
-    // Benoetigt config.h (davor eingebunden). Sortiert nach Modul (WLAN, Zeit/DCF77/RTC, Zifferblatt/Display, Helligkeit, Touch, Presets, System).
-    // Enthaelt bewusst echte Definitionen statt extern-Deklarationen, da nur von uhr3.ino aus eingebunden (eine Uebersetzungseinheit) - hatte sonst zu Problemen gefuehrt.
+    // Globale Objekte/Variablen, nach Modul sortiert. Echte Definitionen statt
+    // extern, da nur von uhr3.ino eingebunden (eine Uebersetzungseinheit).
 
-    // ### Global objects, variables, and data structures #################
-    // Requires config.h (included beforehand). Sorted by module (WiFi, time/DCF77/RTC, clock face/display, brightness, touch, presets, system).
-    // Contains real definitions instead of extern declarations on purpose, since only included from uhr3.ino (one translation unit) - otherwise caused problems.
+    // Global objects/variables, sorted by module. Real definitions instead of
+    // extern, since only included from uhr3.ino (one translation unit).
 
-    // --- System / Allgemein ---
-    // --- System / General ---
+    // System / Allgemein
+    // System / General
     String currentLanguage = "de"; // Standardmäßig Deutsch
                                    // Default: German
 
@@ -22,8 +20,8 @@
     String ipAddress = "";
 
 
-    // --- Kern-Hardwareobjekte (TFT, Webserver, Preferences, RTC, ...) ---
-    // --- Core hardware objects (TFT, web server, preferences, RTC, ...) ---
+    // Kern-Hardwareobjekte (TFT, Webserver, Preferences, RTC, ...)
+    // Core hardware objects (TFT, web server, preferences, RTC, ...)
     TFT_eSPI tft = TFT_eSPI();
     WebServer webserver(80);
     Preferences preferences;
@@ -34,8 +32,8 @@
     RTC_DS3231 rtc;
 #endif
 
-    // --- WLAN ---
-    // --- WiFi ---
+    // WLAN
+    // WiFi
 #define MAX_WLAN 15
     String wifiSsid[MAX_WLAN];
     String wifiPass[MAX_WLAN];
@@ -47,21 +45,12 @@
     bool wifiActive = true;
 
     // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
-    // uhr3.ino und /api/startWPS in webserver_routes.h) - laeuft asynchron, damit
-    // der Webserver waehrend der WPS-Aushandlung nicht blockiert.
+    // uhr3.ino, /api/startWPS in webserver_routes.h) - laeuft asynchron und
+    // event-basiert ueber WiFi.onEvent(), um den Webserver nicht zu blockieren.
 
-    // State for a WPS request triggered by a web button (see loop() in uhr3.ino
-    // and /api/startWPS in webserver_routes.h) - runs asynchronously so the web
-    // server isn't blocked during WPS negotiation.
-    // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
-    // uhr3.ino und /api/startWPS in webserver_routes.h) - event-basiert statt
-    // Status-Polling, da WiFi.onEvent() laut offiziellem Espressif-WPS-Beispiel
-    // der zuverlaessige Weg ist, den Erfolg/Fehlschlag von WPS zu erkennen.
-
-    // State for a WPS request triggered by a web button (see loop() in uhr3.ino
-    // and /api/startWPS in webserver_routes.h) - event-based instead of status
-    // polling, since WiFi.onEvent() is, per the official Espressif WPS example,
-    // the reliable way to detect WPS success/failure.
+    // State for a web-button-triggered WPS request (see loop() in uhr3.ino,
+    // /api/startWPS in webserver_routes.h) - runs asynchronously and event-based
+    // via WiFi.onEvent(), so the web server isn't blocked.
     bool wpsPending = false;
     unsigned long wpsStartMillis = 0;
     String wpsPreviousSsid = ""; // Verbindung vor dem WPS-Start, um danach ggf. dorthin zurueckzuwechseln
@@ -70,20 +59,42 @@
                                            // set in the WiFi event callback (different context!)
     volatile bool wpsFailedEvent = false;
 
+    // Verzoegerter WPS-Start (siehe /api/startWPS in webserver_routes.h und
+    // loop() in uhr3.ino): der HTTP-Handler darf NICHT per delay() blockieren,
+    // um selbst auf startWPS() zu warten - waehrend eines blockierenden
+    // delay() kann der Webserver keine weitere Anfrage annehmen, also auch
+    // nicht die Folge-GET-Anfrage des Browsers fuer die per Redirect
+    // aufgerufene Zielseite (mit dem Trennungs-Banner). startWPS() wuerde die
+    // Verbindung dann stoeren, WAEHREND genau diese Seite noch laedt. Deshalb
+    // merkt sich der Handler nur den Wunsch + Zeitpunkt, loop() started WPS
+    // stattdessen zeitgesteuert (unblockierend, per millis()) etwas spaeter -
+    // die Zielseite mit dem Banner ist dann laengst ausgeliefert.
+
+    // Deferred WPS start (see /api/startWPS in webserver_routes.h and loop()
+    // in uhr3.ino): the HTTP handler must NOT block with delay() to wait out
+    // startWPS() itself - while such a delay() blocks, the web server cannot
+    // accept another request either, including the browser's follow-up GET
+    // for the redirect's target page (with the disconnect banner). startWPS()
+    // would then disturb the connection WHILE that very page is still
+    // loading. So the handler only records the request + timestamp, and
+    // loop() starts WPS instead on a timer (non-blocking, via millis()) a
+    // little later - by then the target page with the banner has long since
+    // been delivered.
+    bool wpsStartRequested = false;
+    unsigned long wpsStartRequestedAtMillis = 0;
+
     // MAC Adresse
     // MAC address
     uint8_t mac[6];
     char hostname[32];
 
-    // Zur Laufzeit erzeugtes Passwort des Einrichtungs-Access-Points (aus den
-    // letzten vier MAC-Bytes, siehe startAP() in wifi_manager.h). Als Puffer
-    // gehalten, damit es sowohl auf dem Display als auch in der Statuszeile der
-    // Weboberflaeche angezeigt werden kann. Leer, solange der AP nie lief.
+    // Zur Laufzeit erzeugtes AP-Passwort (aus MAC-Bytes, siehe startAP() in
+    // wifi_manager.h) - als Puffer, damit Display und Web-UI-Statuszeile es
+    // beide anzeigen koennen. Leer, solange der AP nie lief.
 
-    // Password of the setup access point, generated at runtime (from the last
-    // four MAC bytes, see startAP() in wifi_manager.h). Kept as a buffer so it
-    // can be shown both on the display and in the web interface's status line.
-    // Empty as long as the AP has never run.
+    // AP password generated at runtime (from MAC bytes, see startAP() in
+    // wifi_manager.h) - as a buffer so both the display and web UI status line
+    // can show it. Empty as long as the AP has never run.
     char apPassword[16] = "";
     bool pingHostname = false;
 
@@ -101,8 +112,8 @@
     int foundNetworkCount = 0;
     bool isScanning = false;
 
-    // --- Zeit, NTP, DCF77, RTC ---
-    // --- Time, NTP, DCF77, RTC ---
+    // Zeit, NTP, DCF77, RTC
+    // Time, NTP, DCF77, RTC
     // NTP-Server-Port
     // NTP server port
     const int NTP_PORT = 123;
@@ -113,40 +124,15 @@
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
-    // Die DCF77-Bibliothek und ihre Flanken-Einstellung sind hier ersatzlos
-    // entfallen (frueher: "bool dcf77Flank" und eine DCF77-Instanz).
-    //
-    // Historie: bei anhaltendem "DCF77 last sync: never" trotz nachweislich
-    // sauberem Empfang wurde die Flanken-Polaritaet als Ursache vermutet und
-    // testweise auf steigende Flanke umgestellt - ohne Wirkung. Die
-    // tatsaechliche Ursache lag in der Bibliothek selbst; seit der Umstellung
-    // auf den eigenen Dekoder ist die Frage gegenstandslos:
-    //
-    // Der Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr3.ino),
-    // reagiert also auf BEIDE Flanken, und processDcf77Bits() (time_sync.h)
-    // klassifiziert ausschliesslich ueber die DAUER zwischen zwei Flanken.
-    // Von zwei aufeinanderfolgenden Intervallen ist das kurze immer der
-    // Impuls und das lange die Pause - unabhaengig davon, ob das
-    // Empfaengermodul den Impuls als High- oder als Low-Pegel ausgibt. Der
-    // Pegel wird nirgends gelesen. Eine einstellbare oder automatisch
-    // erkannte Flankenrichtung braucht es damit nicht.
+    // Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr3.ino);
+    // processDcf77Bits() (time_sync.h) klassifiziert nur ueber die DAUER
+    // zwischen zwei Flanken - der Pegel wird nie gelesen, daher keine
+    // Flankenrichtung noetig.
 
-    // The DCF77 library and its edge setting have been removed entirely here
-    // (formerly: "bool dcf77Flank" and a DCF77 instance).
-    //
-    // History: with a persistent "DCF77 last sync: never" despite demonstrably
-    // clean reception, the edge polarity was suspected as the cause and
-    // switched to rising as a test - with no effect. The actual cause was
-    // inside the library itself; since the switch to the own decoder the
-    // question is moot:
-    //
-    // The interrupt sits on CHANGE (see attachInterrupt() in uhr3.ino), so it
-    // reacts to BOTH edges, and processDcf77Bits() (time_sync.h) classifies
-    // purely by the DURATION between two edges. Of two consecutive intervals
-    // the short one is always the pulse and the long one the gap - regardless
-    // of whether the receiver module outputs the pulse as a high or a low
-    // level. The level is never read. No configurable or auto-detected edge
-    // direction is needed.
+    // Interrupt is on CHANGE (see attachInterrupt() in uhr3.ino);
+    // processDcf77Bits() (time_sync.h) classifies purely by the DURATION
+    // between two edges - the level is never read, so no edge direction
+    // is needed.
 
     volatile uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale (wird in der ISR verändert)
                                       // Number of received DCF77 signals (modified in the ISR)
@@ -154,38 +140,15 @@
     volatile bool dcfTimeFound = false; // wird in loop()/updateDcf77Status() gesetzt, nicht mehr in der ISR gelesen
                                         // set in loop()/updateDcf77Status(), no longer read in the ISR
 
-    // Wird in processDcf77Bits() gesetzt (aus loop() heraus, NICHT mehr in
-    // der ISR) und dort in uhr3.ino::loop() abgearbeitet. Zwei Gruende fuer
-    // die Trennung:
-    // 1. Die ISR darf die LED nicht selbst schalten, weil setLedOn()/
-    //    setLedOff() ueber pinMode()/digitalWrite() gehen und damit im Flash
-    //    liegen. Ist der Flash-Cache gerade deaktiviert (bei JEDEM LittleFS-
-    //    Schreibvorgang - also auch bei jeder Logzeile - und bei jedem
-    //    NVS-Commit), fuehrt ein Zugriff aus der ISR heraus zu einem "Cache
-    //    disabled but cached memory region accessed"-Panic-Reset.
-    // 2. Die ISR kennt nur rohe Flanken und kann nicht beurteilen, ob es sich
-    //    ueberhaupt um ein echtes DCF77-Signal handelt oder nur um Rauschen
-    //    auf dem Datenpin. Erst processDcf77Bits() weiss (ueber dcf77Confirmed,
-    //    siehe unten und checkDcf77Health() in time_sync.h), ob die Uhr DCF77
-    //    tatsaechlich erkannt hat - die LED soll genau das anzeigen, nicht
-    //    jede Flanke.
-    // Siehe isr()/processDcf77Bits() in time_sync.h und die Abarbeitung in loop().
+    // Wird in processDcf77Bits() gesetzt, nicht in der ISR: setLedOn/Off()
+    // liegen im Flash (Panic-Reset-Risiko bei deaktiviertem Flash-Cache, z.B.
+    // waehrend LittleFS-Schreibvorgaengen), und nur processDcf77Bits() weiss
+    // ueber dcf77Confirmed, ob wirklich DCF77 erkannt wurde. Siehe isr() in time_sync.h.
 
-    // Set in processDcf77Bits() (called from loop(), NO LONGER in the ISR)
-    // and processed there in uhr3.ino::loop(). Two reasons for the split:
-    // 1. The ISR must not switch the LED itself, because setLedOn()/
-    //    setLedOff() go through pinMode()/digitalWrite() and therefore live
-    //    in flash. While the flash cache is disabled (during EVERY LittleFS
-    //    write - so also every log line - and every NVS commit), accessing
-    //    it from inside the ISR causes a "Cache disabled but cached memory
-    //    region accessed" panic reset.
-    // 2. The ISR only sees raw edges and cannot judge whether this is a
-    //    genuine DCF77 signal at all or just noise on the data pin. Only
-    //    processDcf77Bits() knows (via dcf77Confirmed, see below and
-    //    checkDcf77Health() in time_sync.h) whether the clock has actually
-    //    RECOGNIZED DCF77 - the LED is meant to show exactly that, not every
-    //    single edge.
-    // See isr()/processDcf77Bits() in time_sync.h and the handling in loop().
+    // Set in processDcf77Bits(), not the ISR: setLedOn/Off() live in flash
+    // (panic-reset risk while the flash cache is disabled, e.g. during
+    // LittleFS writes), and only processDcf77Bits() knows via dcf77Confirmed
+    // whether DCF77 was actually recognized. See isr() in time_sync.h.
     volatile bool dcfLedTogglePending = false;
 
     // Zeitpunkt (millis()), zu dem der aktuelle Einmal-Blitz der LED wieder
@@ -197,15 +160,10 @@
     // config.h and the handling in loop()).
     unsigned long dcfLedOffAtMillis = 0;
 
-    bool dcfSyncLedEnabled = true; // per Auswahlbox abschaltbar (Default: an) - steuert nur, ob loop() das per dcfLedTogglePending
-                                    // angeforderte Blinken tatsaechlich ausfuehrt (siehe PK_DCF_SYNC_LED in prefs_keys.h);
-                                    // processDcf77Bits() setzt dcfLedTogglePending unabhaengig davon immer, sobald DCF77 erkannt wurde,
-                                    // das Flag hier wird erst in loop() ausgewertet
-
-                                    // switchable off via a checkbox (default: on) - only controls whether loop() actually carries out the
-                                    // blink requested via dcfLedTogglePending (see PK_DCF_SYNC_LED in prefs_keys.h);
-                                    // processDcf77Bits() always sets dcfLedTogglePending regardless, as soon as DCF77 was recognized,
-                                    // this flag is only evaluated in loop()
+    bool dcfSyncLedEnabled = true; // per Checkbox abschaltbar (Default: an) - steuert nur, ob loop() das per
+                                    // dcfLedTogglePending angeforderte Blinken ausfuehrt (siehe PK_DCF_SYNC_LED)
+                                    // switchable via checkbox (default: on) - only controls whether loop() executes
+                                    // the blink requested via dcfLedTogglePending (see PK_DCF_SYNC_LED)
 
     time_t lastDcfSyncTime = 0; // Unix-Zeitstempel der letzten erfolgreichen DCF77-Synchronisation (0 = noch nie)
                                 // Unix timestamp of the last successful DCF77 sync (0 = never)
@@ -215,82 +173,39 @@
                                                    // millis() timestamp of the last observed change in dcf77Count (see checkDcf77Health() in time_sync.h) -
                                                    // detects a complete reception failure during operation, since dcf77Count itself is never reset to 0
 
-    uint8_t dcf77PlausiblePulseStreak = 0; // Anzahl aufeinanderfolgender dcf77Count-Aenderungen mit plausiblem
-                                            // Abstand zueinander (siehe DCF77_PRESENCE_MAX_GAP_MS in config.h,
-                                            // gepflegt von checkDcf77Health() in time_sync.h) - filtert einzelne,
-                                            // durch Rauschen auf einem floatenden Empfaengerpin ausgeloeste
-                                            // Interrupts heraus, siehe dcf77Confirmed unten
-                                            // number of consecutive dcf77Count changes with a plausible gap between
-                                            // them (see DCF77_PRESENCE_MAX_GAP_MS in config.h, maintained by
-                                            // checkDcf77Health() in time_sync.h) - filters out isolated interrupts
-                                            // triggered by noise on a floating receiver pin, see dcf77Confirmed below
+    uint8_t dcf77PlausiblePulseStreak = 0; // Zahl aufeinanderfolgender dcf77Count-Aenderungen mit plausiblem Abstand
+                                            // (siehe DCF77_PRESENCE_MAX_GAP_MS, checkDcf77Health()) - filtert Rauschen
+                                            // number of consecutive dcf77Count changes with a plausible gap (see
+                                            // DCF77_PRESENCE_MAX_GAP_MS, checkDcf77Health()) - filters out noise
 
-    bool dcf77Confirmed = false; // wird EINMALIG true, sobald dcf77PlausiblePulseStreak DCF77_PRESENCE_MIN_STREAK
-                                 // erreicht (siehe config.h) - bestimmt, ob der DCF77-Eintrag in der Topbar
-                                 // ueberhaupt angezeigt wird (siehe getDcf77Status() in webserver_routes.h);
-                                 // wird danach NIE zurueckgesetzt, genau wie dcfTimeFound/dcf77Count
-                                 // becomes true EXACTLY ONCE, when dcf77PlausiblePulseStreak reaches
-                                 // DCF77_PRESENCE_MIN_STREAK (see config.h) - decides whether the DCF77 entry
-                                 // in the topbar is shown at all (see getDcf77Status() in webserver_routes.h);
-                                 // never reset afterwards, just like dcfTimeFound/dcf77Count
+    bool dcf77Confirmed = false; // wird einmalig true bei DCF77_PRESENCE_MIN_STREAK (config.h) - bestimmt, ob der
+                                 // DCF77-Eintrag in der Topbar angezeigt wird; danach nie zurueckgesetzt
+                                 // becomes true exactly once at DCF77_PRESENCE_MIN_STREAK (config.h) - decides
+                                 // whether the DCF77 topbar entry is shown; never reset afterwards
 
-    // --- Eigener, von der DCF77-Bibliothek unabhaengiger Bit-Fortschritt ---
-    // Liefert sowohl die Live-Anzeige auf /dcf77 (siehe webserver_routes.h)
-    // ALS AUCH die tatsaechliche Zeituebernahme (dcf77LastDecoded weiter
-    // unten, ausgewertet von applyDcf77DecodedTime()/updateDcf77Status() in
-    // time_sync.h) - dcf.getUTCTime() der Original-Bibliothek wird dafuer
-    // NICHT mehr benutzt (siehe dortige Kommentare zur Vorgeschichte).
-    // DCF77::int0handler() wird in isr() nicht mehr aufgerufen (lag im Flash
-    // und war damit in der ISR ein Absturz-/Flankenverlustrisiko). Die ISR (isr() in time_sync.h)
-    // schreibt bei jeder Flanke NUR Zeitstempel + Pegel in das kleine
-    // Ringpuffer-Array unten (reines RAM, keine Flash-residenten Aufrufe -
-    // sicher fuer die ISR, siehe deren Flash-Cache-Warnung). Die eigentliche
-    // Bitklassifizierung und Dekodierung passiert ausschliesslich in
-    // processDcf77Bits()/decodeDcf77Telegram() (time_sync.h), aufgerufen aus
-    // loop(), NIEMALS in der ISR selbst.
+    // Eigener Bit-Fortschritt statt dcf.getUTCTime() der DCF77-Bibliothek -
+    // treibt Live-Anzeige (/dcf77) und Zeituebernahme (dcf77LastDecoded). ISR
+    // schreibt nur Zeitstempel in den Ringpuffer (RAM); Dekodierung passiert
+    // nur in processDcf77Bits()/decodeDcf77Telegram(), aufgerufen aus loop().
 
-    // --- Own DCF77 bit progress, independent of the DCF77 library ---
-    // Drives both the live display on /dcf77 (see webserver_routes.h) AND
-    // the actual time takeover (dcf77LastDecoded further below, consumed by
-    // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - the
-    // original library's dcf.getUTCTime() is NO LONGER used for that (see
-    // the comments there for the backstory). DCF77::int0handler() is no
-    // longer called at all (see isr() in time_sync.h). The ISR ONLY writes a
-    // timestamp into the ring buffer array below on every edge (plain RAM, no
-    // flash-resident calls - safe for the ISR, see its flash-cache
-    // warning). The actual bit
-    // classification and decoding happen exclusively in
-    // processDcf77Bits()/decodeDcf77Telegram() (time_sync.h), called from
-    // loop(), NEVER in the ISR itself.
-    // Von 16 auf 64 vergroessert (kostet 256 Byte RAM): der Puffer muss die
-    // laengste Pause zwischen zwei processDcf77Bits()-Aufrufen ueberbruecken.
-    // Echter DCF77-Empfang erzeugt 2 Flanken pro Sekunde, 16 Plaetze reichten
-    // also nur fuer rund 8 Sekunden - ein blockierender NTP-Versuch
-    // (setupNTP(), mehrere WAIT_3s hintereinander), ein groesserer
-    // Webserver-Request oder eine Schreibserie auf LittleFS ueberschreitet das
-    // muehelos, und JEDE danach ankommende Flanke ging verloren. Mit 64
-    // Plaetzen sind es rund 32 Sekunden. Der Zaehler unten zeigt auf /dcf77,
-    // ob es trotzdem noch passiert.
+    // Own bit progress instead of the library's dcf.getUTCTime() - drives the
+    // live display (/dcf77) and time takeover (dcf77LastDecoded). ISR only
+    // writes a timestamp to the ring buffer (RAM); decoding happens only in
+    // processDcf77Bits()/decodeDcf77Telegram(), called from loop().
 
-    // Enlarged from 16 to 64 (costs 256 bytes of RAM): the buffer has to
-    // bridge the longest pause between two processDcf77Bits() calls. Genuine
-    // DCF77 reception produces 2 edges per second, so 16 slots only covered
-    // about 8 seconds - a blocking NTP attempt (setupNTP(), several WAIT_3s in
-    // a row), a larger web server request or a burst of LittleFS writes
-    // exceeds that easily, and EVERY edge arriving afterwards was lost. With
-    // 64 slots it is about 32 seconds. The counter below shows on /dcf77
-    // whether it still happens anyway.
+    // Auf 64 vergroessert (256 Byte RAM): muss die laengste Pause zwischen
+    // zwei processDcf77Bits()-Aufrufen ueberbruecken (2 Flanken/s) - 16
+    // Plaetze (~8s) reichten nicht gegen blockierende NTP-/Web-/LittleFS-Vorgaenge.
+
+    // Enlarged to 64 (256 bytes RAM): must bridge the longest pause between
+    // two processDcf77Bits() calls (2 edges/s) - 16 slots (~8s) weren't
+    // enough against blocking NTP/web/LittleFS operations.
 #define DCF77_EDGE_BUFFER_SIZE 64
     volatile unsigned long dcf77EdgeMillis[DCF77_EDGE_BUFFER_SIZE];
-    // dcf77EdgeLevel[] entfernt: der Pegel wurde nie ausgewertet (die
-    // Klassifizierung in processDcf77Bits() arbeitet ausschliesslich ueber die
-    // Dauer zwischen zwei Flanken), das dafuer noetige digitalRead() lag aber
-    // im Flash und war damit in der ISR ein Absturz-/Flankenverlustrisiko -
-    // siehe isr() in time_sync.h.
-    // dcf77EdgeLevel[] removed: the level was never evaluated (classification
-    // in processDcf77Bits() works purely from the duration between two edges),
-    // yet the digitalRead() it required lived in flash and was therefore a
-    // crash/edge-loss risk inside the ISR - see isr() in time_sync.h.
+    // dcf77EdgeLevel[] entfernt: Pegel wurde nie ausgewertet (Klassifizierung
+    // laeuft ueber die Flankendauer), digitalRead() lag aber im Flash - Absturzrisiko in der ISR.
+    // dcf77EdgeLevel[] removed: level was never evaluated (classification
+    // works via edge duration), but digitalRead() lived in flash - crash risk in the ISR.
     volatile uint8_t dcf77EdgeHead = 0; // naechster freier Schreibindex - NUR von der ISR veraendert
                                         // next free write index - ONLY changed by the ISR
     volatile uint32_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer (Diagnose). Als uint32_t statt
@@ -304,83 +219,38 @@
 
 #define DCF77_TELEGRAM_BITS 59
 
-    // dcf77Bits ist nach der RASTERPOSITION indiziert (dcf77Phase, 0..59),
-    // NICHT nach der Sekunde der Minute - deshalb 60 Plaetze statt 59.
-    //
-    // Der Unterschied ist wichtig: die Zuordnung Rasterposition -> Sekunde
-    // steht erst fest, wenn die Minutenmarke gefunden ist (dcf77MarkerPos),
-    // und das dauert ein paar Minuten. Wurden die Bits vorher nach Sekunde
-    // abgelegt, konnte vor dem Markenfund gar nichts gesammelt und angezeigt
-    // werden - die /dcf77-Seite blieb in dieser ganzen Zeit leer, obwohl der
-    // Empfang laengst lief. Nach Rasterposition abgelegt, laeuft der
-    // Bit-Fortschritt ab dem ersten Impuls; die Umrechnung auf die Sekunde
-    // passiert erst beim Dekodieren (siehe decodeDcf77Telegram()) bzw. fuer
-    // die Anzeige in /api/dcf77status.
+    // dcf77Bits ist nach Rasterposition (dcf77Phase, 0..59) indiziert, nicht
+    // nach Sekunde - die Zuordnung Position->Sekunde steht erst nach Fund der
+    // Minutenmarke fest, sonst bliebe die /dcf77-Seite bis dahin leer.
 
-    // dcf77Bits is indexed by the GRID POSITION (dcf77Phase, 0..59), NOT by
-    // the second of the minute - hence 60 slots instead of 59.
-    //
-    // The difference matters: the mapping grid position -> second is only
-    // fixed once the minute marker has been found (dcf77MarkerPos), and that
-    // takes a few minutes. With the bits stored by second, nothing could be
-    // collected or displayed before the marker was found - the /dcf77 page
-    // stayed empty for that whole time even though reception had long been
-    // running. Stored by grid position, the bit progress runs from the very
-    // first pulse; conversion to the second happens only when decoding (see
-    // decodeDcf77Telegram()) resp. for the display in /api/dcf77status.
+    // dcf77Bits is indexed by grid position (dcf77Phase, 0..59), not by
+    // second - the mapping position->second is only fixed once the minute
+    // marker is found, otherwise the /dcf77 page would stay empty until then.
 #define DCF77_GRID_SLOTS 60
     int8_t dcf77Bits[DCF77_GRID_SLOTS]; // 0/1 je Rasterposition der laufenden Minute, -1 = (noch) unbekannt - NUR Hauptthread
                                         // 0/1 per grid position of the running minute, -1 = unknown (yet) - main thread only
-    uint8_t dcf77BitIndex = 0; // Position (Sekunde der Minute) des NAECHSTEN erwarteten Impulses, 0..DCF77_TELEGRAM_BITS -
-                               // bei lueckenlosem Empfang gleichbedeutend mit "so viele Bits sind schon da"; nach einer
-                               // verlorenen Sekunde bleibt an deren Stelle eine Luecke (dcf77Bits[i] == -1) stehen und der
-                               // Index zeigt trotzdem auf die richtige Sekunde weiter (siehe processDcf77Bits() in time_sync.h)
+    uint8_t dcf77BitIndex = 0; // Position (Sekunde) des naechsten erwarteten Impulses - bei einer verlorenen Sekunde
+                               // bleibt dort eine Luecke (-1), der Index zeigt trotzdem korrekt weiter (siehe processDcf77Bits())
+                               // position (second) of the next expected pulse - a lost second leaves a hole (-1)
+                               // there, the index still points correctly onward (see processDcf77Bits())
 
-                               // position (second of the minute) of the NEXT expected pulse, 0..DCF77_TELEGRAM_BITS - with
-                               // gapless reception this is the same as "this many bits are in"; after a lost second a hole
-                               // (dcf77Bits[i] == -1) remains at that spot and the index still points at the correct second
-                               // (see processDcf77Bits() in time_sync.h)
+    bool dcf77Synced = false;  // true, sobald Minutenmarke erkannt und seither jeder Abstand ins Sekundenraster passte;
+                               // Impulse werden nur dann als Bits abgelegt. Faellt bei Rasterbruch oder unmoeglichem
+                               // Telegramm (Bit 0/20, siehe decodeDcf77Telegram()) wieder auf false zurueck.
 
-    bool dcf77Synced = false;  // true, sobald die Position im Telegramm bekannt ist (eine Minutenmarke wurde erkannt und
-                               // seitdem passte jeder Impulsabstand ins Sekundenraster). Solange false, werden empfangene
-                               // Impulse bewusst NICHT als Bits abgelegt - ihre Position waere reine Vermutung. Wird wieder
-                               // false, wenn ein Impulsabstand in kein Sekundenraster passt (laengerer Aussetzer, Stoerung)
-                               // oder ein dekodiertes Telegramm strukturell unmoeglich ist (Bit 0 != 0 bzw. Bit 20 != 1,
-                               // siehe decodeDcf77Telegram()) - danach wartet der Dekoder auf die naechste Minutenmarke.
+                               // true once the minute marker is detected and every distance since fit the second
+                               // grid; pulses are only then stored as bits. Falls back to false on a grid break or
+                               // an impossible telegram (bit 0/20, see decodeDcf77Telegram()).
 
-                               // true once the position within the telegram is known (a minute marker was detected and every
-                               // pulse distance since then fitted the one-second grid). While false, received pulses are
-                               // deliberately NOT stored as bits - their position would be pure guesswork. Goes back to false
-                               // when a pulse distance fits no second grid (longer dropout, interference) or a decoded
-                               // telegram is structurally impossible (bit 0 != 0 resp. bit 20 != 1, see
-                               // decodeDcf77Telegram()) - the decoder then waits for the next minute marker.
+    // dcf77Phase ist eine freilaufende Rasterposition 0..59 ohne Sekundenbezug.
+    // Die Minutenmarke wird ueber Statistik erkannt (einzige Position, an der
+    // IMMER ein Impuls fehlt), nicht ueber einen einzelnen Abstand - robust
+    // auch bei Stoerungen mit haeufigen 2s-Abstaenden.
 
-    // --- Sekundenraster und Erkennung der Minutenmarke ---------------------
-    //
-    // dcf77Phase ist eine FREILAUFENDE Rasterposition 0..59 ohne Bezug zur
-    // echten Sekunde: sie wird bei jedem erkannten Impuls um die Anzahl der
-    // seitdem vergangenen Sekunden weitergezaehlt (siehe processDcf77Bits()).
-    // Welche dieser 60 Positionen die 59. Sekunde (die Minutenmarke) ist,
-    // ergibt sich aus der Statistik darunter, NICHT aus einem einzelnen
-    // Impulsabstand: die Marke ist die einzige Position, an der in JEDER
-    // Minute ein Impuls fehlt, waehrend empfangsbedingte Ausfaelle zufaellig
-    // ueber alle Positionen streuen. Nach wenigen Minuten hebt sich die Marke
-    // dadurch eindeutig ab - auch bei schlechtem Empfang, wo einzelne
-    // Impulsabstaende von 2 Sekunden staendig vorkommen und deshalb kein
-    // brauchbares Merkmal fuer die Minutenmarke sind.
-
-    // --- Second grid and minute marker detection ---------------------------
-    //
-    // dcf77Phase is a FREE-RUNNING grid position 0..59 with no relation to the
-    // real second: it is advanced by the number of seconds elapsed on every
-    // detected pulse (see processDcf77Bits()). Which of those 60 positions is
-    // the 59th second (the minute marker) follows from the statistics below,
-    // NOT from a single pulse distance: the marker is the only position where
-    // a pulse is missing in EVERY minute, while reception-related dropouts
-    // scatter randomly across all positions. After a few minutes the marker
-    // therefore stands out unambiguously - even with poor reception, where
-    // individual pulse distances of 2 seconds occur constantly and are
-    // therefore no usable indicator of the minute marker.
+    // dcf77Phase is a free-running grid position 0..59 with no relation to the
+    // real second. The minute marker is detected via statistics (the only
+    // position where a pulse is ALWAYS missing), not a single pulse distance -
+    // robust even with interference causing frequent 2s gaps.
     uint8_t dcf77Phase = 0;
 
     uint8_t dcf77MarkerMiss[60] = { 0 }; // wie oft an dieser Rasterposition ein Impuls fehlte
@@ -399,14 +269,12 @@
                                   // consecutive telegrams with impossible fixed bits (bit 0 / bit 20) - from
                                   // DCF77_STRUCT_FAIL_LIMIT on, the detected marker counts as wrong and is discarded
 
-    // --- Diagnosewerte fuer die /dcf77-Seite -------------------------------
-    // Machen von aussen sichtbar, was der Empfaenger tatsaechlich liefert -
-    // ohne Oszilloskop war bisher nicht zu unterscheiden, ob der Dekoder
-    // falsch rechnet oder schlicht keine brauchbaren Impulse ankommen.
-    // --- Diagnostic values for the /dcf77 page -----------------------------
-    // Make visible from the outside what the receiver actually delivers -
-    // without an oscilloscope there was previously no way to tell whether the
-    // decoder computes wrongly or simply no usable pulses arrive.
+    // Diagnosewerte fuer die /dcf77-Seite: machen sichtbar, was der Empfaenger
+    // tatsaechlich liefert - ohne Oszilloskop sonst nicht zu unterscheiden, ob
+    // der Dekoder falsch rechnet oder keine brauchbaren Impulse ankommen.
+    // Diagnostic values for the /dcf77 page: make visible what the receiver
+    // actually delivers - without an oscilloscope there's no other way to
+    // tell whether the decoder computes wrongly or no usable pulses arrive.
     uint32_t dcf77PulsesSeen = 0;    // erkannte Impulse seit dem Start / pulses detected since start
     uint32_t dcf77PulsesMissed = 0;  // uebersprungene Rasterpositionen / grid positions skipped
     uint32_t dcf77PhaseBreaks = 0;   // wie oft das Sekundenraster verlorenging / how often the second grid was lost
@@ -417,16 +285,13 @@
     uint8_t dcf77DiagIdx = 0;
     uint8_t dcf77DiagCount = 0;
 
-    // Ergebnis der letzten VOLLSTAENDIG dekodierten Minute (siehe
-    // decodeDcf77Telegram() in time_sync.h) - bleibt bei einem
-    // Paritaetsfehler zu Diagnosezwecken erhalten (valid=false statt das
-    // Ergebnis komplett zu verwerfen), damit die Live-Seite auch einen
-    // fehlerhaften Empfang sichtbar machen kann.
+    // Ergebnis der letzten vollstaendig dekodierten Minute - bleibt bei
+    // Paritaetsfehler erhalten (valid=false statt verwerfen), damit die
+    // Live-Seite auch fehlerhaften Empfang zeigen kann.
 
-    // Result of the last FULLY decoded minute (see decodeDcf77Telegram() in
-    // time_sync.h) - kept even on a parity error for diagnostic purposes
-    // (valid=false instead of discarding the result entirely), so the live
-    // page can also make a faulty reception visible.
+    // Result of the last fully decoded minute - kept on a parity error
+    // (valid=false instead of discarding it), so the live page can also
+    // show faulty reception.
     struct Dcf77Decoded {
         bool valid = false;       // alle drei Paritaeten (Minute/Stunde/Datum) korrekt
                                   // all three parities (minute/hour/date) correct
@@ -444,49 +309,36 @@
     };
     Dcf77Decoded dcf77LastDecoded;
 
-    // Letzte als gueltig bestaetigte Dekodierung, als Bezugspunkt fuer die
-    // Kohaerenzpruefung eines rekonstruierten Telegramms (siehe
-    // decodeDcf77Telegram() in time_sync.h): wurden fehlende Bits aus der
-    // Paritaet ergaenzt, kann die Paritaet diese Gruppe nicht mehr pruefen -
-    // stattdessen muss die Zeit exakt zur vorherigen bestaetigten Zeit plus
-    // der seitdem verstrichenen Minutenzahl passen. Ein vollstaendig
-    // empfangenes Telegramm braucht diese Pruefung nicht.
+    // Letzte bestaetigte Dekodierung als Referenz fuer die Kohaerenzpruefung
+    // rekonstruierter Telegramme (siehe decodeDcf77Telegram()): bei aus
+    // Paritaet ergaenzten Bits muss die Zeit exakt zur vorherigen plus
+    // verstrichenen Minuten passen - ein vollstaendiges Telegramm braucht das nicht.
 
-    // Last decoding confirmed as valid, used as the reference for the
-    // coherence check of a reconstructed telegram (see decodeDcf77Telegram()
-    // in time_sync.h): when missing bits were filled in from parity, parity
-    // can no longer verify that group - instead the time has to match the
-    // previously confirmed time plus the number of minutes elapsed since
-    // exactly. A fully received telegram does not need this check.
+    // Last confirmed decoding, used as the reference for the coherence check
+    // of reconstructed telegrams (see decodeDcf77Telegram()): with bits filled
+    // from parity, the time must exactly match the previous one plus elapsed
+    // minutes - a fully received telegram doesn't need this.
     time_t dcf77PrevEpoch = 0;
     unsigned long dcf77PrevAtMillis = 0;
 
 #endif
 
-    // Ist der EIGENE NTP-Server (die Uhr als Zeitquelle fuer andere Geraete,
-    // siehe startNtpServer() in time_sync.h und die Beantwortung in loop())
-    // gerade an Port 123 gebunden? Der Rueckgabewert von udp.begin() wurde
-    // frueher verworfen und der Start unbesehen als "[NTPD] NTP Server
-    // started" geloggt - ob wirklich jemand zuhoert, war weder im Log noch auf
-    // der Statusseite zu erkennen.
+    // Ist der eigene NTP-Server (siehe startNtpServer() in time_sync.h) an
+    // Port 123 gebunden - fuer korrektes Logging/Statusanzeige, statt den
+    // Erfolg von udp.begin() blind anzunehmen.
 
-    // Is the OWN NTP server (the clock as a time source for other devices, see
-    // startNtpServer() in time_sync.h and the answering code in loop())
-    // currently bound to port 123? The return value of udp.begin() used to be
-    // discarded and the start logged unconditionally as "[NTPD] NTP Server
-    // started" - whether anyone was actually listening was visible neither in
-    // the log nor on the status page.
+    // Is the own NTP server (see startNtpServer() in time_sync.h) bound to
+    // port 123 - for correct logging/status display, instead of blindly
+    // assuming udp.begin() succeeded.
     bool ntpServerRunning = false;
 
-    // Diagnosezaehler fuer den eigenen NTP-Server (Anzeige auf /status): ohne
-    // sie liess sich ein ausbleibender Client-Erfolg nicht einordnen - kommt
-    // die Anfrage gar nicht an (Socket/Netz/Firewall) oder wird sie empfangen
-    // und nur nicht beantwortet (keine gueltige Systemzeit)?
+    // Diagnosezaehler fuer den eigenen NTP-Server (siehe /status): unterscheiden,
+    // ob Anfragen ankommen (Netz/Firewall) oder nur unbeantwortet bleiben
+    // (keine gueltige Systemzeit).
 
-    // Diagnostic counters for the own NTP server (shown on /status): without
-    // them there was no way to place a client failure - does the request not
-    // arrive at all (socket/network/firewall), or is it received and merely not
-    // answered (no valid system time)?
+    // Diagnostic counters for the own NTP server (see /status): distinguish
+    // whether requests arrive at all (network/firewall) or just go unanswered
+    // (no valid system time).
     uint32_t ntpRequestsReceived = 0;
     uint32_t ntpRepliesSent = 0;
 
@@ -496,19 +348,126 @@
                                      // Wait time after a DCF77 update before the RTC is updated (ms)
     unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
                                      // Timestamp of the last RTC update
-    unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten ERFOLGREICHEN NTP-Synchronisation (0 = noch nie) -
-                                            // dient checkHourlyTimeSync-Aufrufstellen in uhr3.ino dazu, einen echten NTP-Erfolg
-                                            // vom (irrefuehrenden) blossen Rueckgabewert true von setupNTP() bei fehlendem WLAN
-                                            // zu unterscheiden; nur wenn dieser Wert NICHT waehrend des jeweiligen Versuchs
-                                            // aktualisiert wurde, springt DCF77 als Zeitquelle ein (siehe time_sync.h)
+    unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten erfolgreichen NTP-Sync (0 = nie) -
+                                            // unterscheidet echten Erfolg vom irrefuehrenden true-Rueckgabewert von
+                                            // setupNTP() ohne WLAN; bleibt er unveraendert, springt DCF77 ein (time_sync.h)
 
-    // Timestamp (millis()) of the last SUCCESSFUL NTP sync (0 = never) - used
-    // at the checkHourlyTimeSync call sites in uhr3.ino to distinguish a real
-    // NTP success from setupNTP()'s (misleading) plain true return value when
-    // WiFi isn't connected; only when this value was NOT updated during that
-    // attempt does DCF77 step in as the time source (see time_sync.h)
+    // Timestamp (millis()) of the last successful NTP sync (0 = never) -
+    // distinguishes a real success from setupNTP()'s misleading true return
+    // value without WiFi; if unchanged, DCF77 steps in (time_sync.h)
 
     struct tm timeinfo;
+
+    // Rocrail-Modellzeit (siehe rocrail_client.h): eigenstaendige, ggf.
+    // gegenueber der echten Zeit beschleunigte Zeitstruktur - komplett
+    // getrennt von "timeinfo" oben, das weiterhin die echte Systemzeit fuer
+    // Log/NTP-Server/woechentlichen Neustart traegt. renderClockFrame() liest
+    // je nach rocrailEnabled aus der einen oder der anderen Struktur.
+
+    // Rocrail model time (see rocrail_client.h): an independent time struct,
+    // possibly running faster than real time - fully separate from
+    // "timeinfo" above, which keeps carrying the real system time for
+    // logging/NTP server/weekly restart. renderClockFrame() reads from
+    // whichever struct applies, depending on rocrailEnabled.
+    struct tm rocrailTimeinfo;
+    bool rocrailEnabled = false;    // per Tab-Schalter/Preferences aktiviert
+                                    // enabled via the tab switch/preferences
+    bool rocrailConnected = false;  // TCP-Verbindung zum Server aktuell offen
+                                    // TCP connection to the server currently open
+    String rocrailServerHost = "";  // aktuell aktiver Server - siehe rocrailServerList[] unten
+                                    // fuer die vollstaendige Liste moeglicher Server (bis zu
+                                    // MAX_WLAN); wird beim Speichern in /save_rocrail aus dem
+                                    // per Haekchen ausgewaehlten Listeneintrag uebernommen.
+                                    // currently active server - see rocrailServerList[] below
+                                    // for the full list of possible servers (up to MAX_WLAN);
+                                    // taken over from the entry selected via the checkmark
+                                    // when saving in /save_rocrail.
+    uint16_t rocrailServerPort = ROCRAIL_DEFAULT_PORT;
+    char rocrailServerList[MAX_WLAN][64];        // Hostname/IP je Listenplatz (siehe pkRocrailServerHost())
+                                                 // hostname/IP per list slot (see pkRocrailServerHost())
+    uint16_t rocrailServerPortList[MAX_WLAN];    // Port je Listenplatz (siehe pkRocrailServerPort())
+                                                 // port per list slot (see pkRocrailServerPort())
+
+    // Anlagenname je Listenplatz - vom Nutzer frei editierbar (siehe
+    // panel-rocrail in webserver_routes.h). Ist das Feld fuer den gerade
+    // aktiven Server leer, uebernimmt processRocrailPlanTag()
+    // (rocrail_client.h) einmalig den vom Server per <plan title="..."/>
+    // gemeldeten Namen; ist es NICHT leer (vom Nutzer gesetzt oder schon
+    // einmal per RCP befuellt), wird es von dort an nicht mehr angetastet -
+    // erst ein manuelles Leeren des Felds durch den Nutzer schaltet die
+    // automatische Uebernahme fuer diesen Listenplatz wieder frei.
+
+    // Layout name per list slot - freely editable by the user (see
+    // panel-rocrail in webserver_routes.h). If the field for the currently
+    // active server is empty, processRocrailPlanTag() (rocrail_client.h)
+    // takes over the name reported by the server via <plan title="..."/>
+    // once; if it is NOT empty (set by the user, or already filled in once
+    // via RCP), it is left untouched from then on - only the user manually
+    // clearing the field re-enables automatic takeover for that list slot.
+    char rocrailServerNameList[MAX_WLAN][40];
+
+    int rocrailActiveServerIndex = -1;           // 0-basierter Index des per Haekchen ausgewaehlten
+                                                 // Listenplatzes, -1 = keiner ausgewaehlt
+                                                 // 0-based index of the list slot selected via the
+                                                 // checkmark, -1 = none selected
+    uint8_t rocrailDivider = 1;     // Modellzeit-Beschleunigungsfaktor vom Server
+                                    // model-time acceleration factor from the server
+    bool rocrailFrozen = false;     // per <clock state="freeze"/> angehalten (siehe processRocrailClockPayload())
+                                    // paused via <clock state="freeze"/> (see processRocrailClockPayload())
+    uint8_t rocrailBrightness = 255;    // zuletzt vom Server per <clock bri="..."/> gemeldeter
+                                        // Helligkeitswert (0-255, siehe processRocrailClockPayload())
+    bool rocrailBrightnessKnown = false; // true, sobald mindestens einmal ein bri-Wert empfangen
+                                         // wurde - erst dann uebernimmt updateBrightness() ihn
+                                         // (siehe dort); manche Rocrail-Installationen senden gar
+                                         // kein bri (keine Lichtsteuerung konfiguriert), dann bleibt
+                                         // die lokale Helligkeitssteuerung dauerhaft aktiv
+
+                                        // last brightness value reported by the server via
+                                        // <clock bri="..."/> (0-255, see processRocrailClockPayload())
+                                        // true once at least one bri value has been received - only
+                                        // then does updateBrightness() take it over (see there); some
+                                        // Rocrail setups never send bri at all (no lighting control
+                                        // configured), in which case the local brightness control
+                                        // stays active permanently
+    WiFiClient rocrailClient;
+    String rocrailRxBuffer;         // Empfangspuffer fuer XML-Tag-Bruchstuecke
+                                    // receive buffer for XML tag fragments
+    uint8_t rocrailLogChunkCount = 0; // Zaehler fuer die Diagnose-Logeintraege der ersten
+                                      // 5 empfangenen RCP-Rohdaten-Haeppchen (siehe pollRocrailClient())
+                                      // counter for the diagnostic log entries of the first 5
+                                      // received RCP raw data chunks (see pollRocrailClient())
+    unsigned long rocrailLastClockMillis = 0;  // millis() beim letzten <clock>-Update (0 = noch keins)
+                                               // millis() at the last <clock> update (0 = none yet)
+    float rocrailDisplaySeconds = 0.0f;        // aktuell angezeigte Modellzeit in Sekunden seit
+                                               // Mitternacht (fliessend, siehe advanceRocrailTime())
+                                               // currently displayed model time in seconds since
+                                               // midnight (continuous, see advanceRocrailTime())
+    unsigned long rocrailLastAdvanceMillis = 0; // millis() beim letzten Fortschreiben (advanceRocrailTime())
+                                                // millis() at the last advance step (advanceRocrailTime())
+    float rocrailDriftSeconds = 0.0f;          // verbleibende, sanft auszugleichende Abweichung zur
+                                               // zuletzt gemeldeten Server-Zeit (siehe advanceRocrailTime()/
+                                               // processRocrailClockPayload()) - 0 = keine Korrektur noetig
+                                               // remaining deviation to the last reported server time,
+                                               // eased in smoothly (see advanceRocrailTime()/
+                                               // processRocrailClockPayload()) - 0 = no correction needed
+    float rocrailSecFrac = 0.0f;               // Sekunde mit Nachkommastellen (0.0-59.999) fuer die
+                                               // glatte, nicht tickende Zeigerbewegung im Rocrail-
+                                               // Modus (siehe advanceRocrailTime()/renderClockFrame())
+                                               // second with a fractional part (0.0-59.999) for the
+                                               // smooth, non-ticking hand motion in Rocrail mode (see
+                                               // advanceRocrailTime()/renderClockFrame())
+    unsigned long rocrailLastConnectAttemptMillis = 0;
+    TaskHandle_t rocrailConnectTaskHandle = NULL; // eigene, kurzlebige Task fuer den
+                                                  // (blockierenden) Connect-Versuch, damit
+                                                  // loop() dabei nicht blockiert (siehe rocrail_client.h)
+                                                  // own short-lived task for the (blocking) connect
+                                                  // attempt, so loop() doesn't block during it (see rocrail_client.h)
+    volatile bool rocrailConnectTaskRunning = false; // Task laeuft gerade
+                                                     // task is currently running
+    volatile bool rocrailConnectTaskDone = false;    // Task fertig, Ergebnis in rocrailConnectTaskResult
+                                                     // task finished, result in rocrailConnectTaskResult
+    volatile bool rocrailConnectTaskResult = false;  // Ergebnis des letzten Connect-Versuchs
+                                                     // result of the last connect attempt
 
     String timezone = TIMEZONE_DEFAULT;
 
@@ -522,8 +481,8 @@
 
     String i2cAddr = "";
 
-    // --- Zifferblatt / Display ---
-    // --- Clock face / Display ---
+    // Zifferblatt / Display
+    // Clock face / Display
     String tftType = "UNKNOWN";
 
     TFT_eSprite backgroundSprite = TFT_eSprite(&tft);
@@ -531,27 +490,13 @@
     TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
     TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
 
-    // Sprites fuer Status-/Boot-Text (DRAW_ON_BOTH_DISPLAYS(), siehe config.h),
-    // NUR benoetigt beim GC9D01-Software-Rotations-Workaround (gc9d01SwRotation) -
-    // dort wird die Hardware-Rotation der Chips bewusst uebersprungen, daher muss
-    // Text dort stattdessen in ein Sprite mit eigener sprite.setRotation() gemalt
-    // werden, um pro Display korrekt gedreht zu erscheinen (siehe beginStatusDraw()/
-    // endStatusDraw() in display.h). Auf allen anderen Boards ungenutzt (dort malt
-    // DRAW_ON_BOTH_DISPLAYS direkt auf 'tft' - das MADCTL-Register des jeweils
-    // selektierten Chips dreht automatisch mit). Werden erst bei Bedarf angelegt
-    // (siehe statusSprite1Created/statusSprite2Created), um auf Boards ohne
-    // Software-Rotation keinen (P)SRAM zu verschwenden.
+    // Sprites fuer Status-/Boot-Text, nur fuer den GC9D01-Software-Rotations-
+    // Workaround noetig (dort wird die HW-Rotation uebersprungen) - auf
+    // anderen Boards ungenutzt. Werden erst bei Bedarf angelegt (kein (P)SRAM-Verschwenden).
 
-    // Sprites for status/boot text (DRAW_ON_BOTH_DISPLAYS(), see config.h), ONLY
-    // needed with the GC9D01 software rotation workaround (gc9d01SwRotation) -
-    // there, the chips' hardware rotation is deliberately skipped, so text must
-    // instead be drawn into a sprite with its own sprite.setRotation() to appear
-    // correctly rotated per display (see beginStatusDraw()/endStatusDraw() in
-    // display.h). Unused on every other board (there DRAW_ON_BOTH_DISPLAYS draws
-    // straight to 'tft' - the MADCTL register of whichever chip is currently
-    // selected rotates it automatically). Created lazily on first use (see
-    // statusSprite1Created/statusSprite2Created) to avoid wasting (P)SRAM on
-    // boards without the software rotation workaround.
+    // Sprites for status/boot text, only needed for the GC9D01 software
+    // rotation workaround (there, HW rotation is skipped) - unused on other
+    // boards. Created lazily on first use (avoids wasting (P)SRAM).
     TFT_eSprite statusSprite1 = TFT_eSprite(&tft);
     TFT_eSprite statusSprite2 = TFT_eSprite(&tft);
     bool statusSprite1Created = false;
@@ -585,46 +530,24 @@
 
     uint16_t rowBuffer[CLOCK_WIDTH];
 
-    // Nicht "ist PSRAM vorhanden" allgemein (dafuer wird ueberall direkt
-    // psramFound() aufgerufen) - steuert ausschliesslich den GC9D01-
-    // Software-Rotations-Workaround (siehe uhr3.ino und rotatedAngle() /
-    // loadClockFace() in display.h). Fuer alle anderen Boards fest false.
+    // Steuert nur den GC9D01-Software-Rotations-Workaround (nicht "ist PSRAM
+    // vorhanden" allgemein - dafuer wird ueberall psramFound() aufgerufen).
+    // Auf allen anderen Boards fest false.
 
-    // Not "is PSRAM available" in general (psramFound() is called directly
-    // everywhere for that) - controls exclusively the GC9D01 software
-    // rotation workaround (see uhr3.ino and rotatedAngle() / loadClockFace()
-    // in display.h). Hard-set to false for all other boards.
+    // Controls only the GC9D01 software rotation workaround (not "is PSRAM
+    // available" in general - psramFound() is called directly for that).
+    // Hard-set to false on all other boards.
     static bool gc9d01SwRotation = false;
 
     uint16_t* clockFaceBuffer = nullptr;
 
-    // --- Zwischenbild fuer Stunden- und Minutenzeiger -------------------------
-    //
-    // Haelt je Display ein fertiges "gedrehtes Zifferblatt + Stundenzeiger +
-    // Minutenzeiger". Grund: Stunden- und Minutenzeiger bewegen sich extrem
-    // langsam (Stundenzeiger 0,008 Grad/s, Minutenzeiger 0,1 Grad/s bzw. ein
-    // Sprung pro Minute), wurden aber bisher in JEDEM Tick neu rotiert - genau
-    // wie das Zifferblatt selbst, das bei Software-Rotation pro Tick pixelweise
-    // neu gedreht wurde. Jetzt wird dieses Bild nur noch aufgebaut, wenn sich
-    // wirklich etwas geaendert hat, und pro Tick nur noch kopiert. Dadurch
-    // bleibt Rechenzeit fuer den schleichenden Sekundenzeiger uebrig UND es
-    // wird gleichzeitig moeglich, die beiden langsamen Zeiger beim Aufbau in
-    // deutlich hoeherer Qualitaet zu zeichnen (kantengeglaettet, siehe
-    // blitHandAntiAliased() in display.h) statt mit dem harten
-    // Nearest-Neighbour von pushRotated().
+    // Fertiges "Zifferblatt + Stunden-/Minutenzeiger" pro Display - beide
+    // bewegen sich kaum, wurden aber bisher jeden Tick neu rotiert. Jetzt nur
+    // bei Aenderung (kantengeglaettet) neu aufgebaut, sonst kopiert - spart Zeit fuer den Sekundenzeiger.
 
-    // --- Composite image for the hour and minute hands ------------------------
-    //
-    // Holds, per display, a finished "rotated clock face + hour hand + minute
-    // hand". Reason: the hour and minute hands move extremely slowly (hour hand
-    // 0.008 deg/s, minute hand 0.1 deg/s or one jump per minute), yet they were
-    // rotated anew on EVERY tick - just like the clock face itself, which with
-    // software rotation was re-rotated pixel by pixel every tick. This image is
-    // now only rebuilt when something actually changed, and merely copied per
-    // tick. That leaves compute time for the sweeping second hand AND at the
-    // same time makes it possible to draw the two slow hands at much higher
-    // quality during the rebuild (anti-aliased, see blitHandAntiAliased() in
-    // display.h) instead of pushRotated()'s hard nearest-neighbour sampling.
+    // Finished "clock face + hour/minute hand" per display - both barely
+    // move but were re-rotated every tick before. Now rebuilt (anti-aliased)
+    // only on change, otherwise just copied - frees time for the second hand.
     struct HandComposite {
         uint16_t* buffer = nullptr;
         bool valid = false;
@@ -662,15 +585,13 @@
     // on every tick, even though brightness rarely changes in between.
     uint16_t* clockFaceBrightBuffer = nullptr;
 
-    // Display 2, baugleich mit Display 1, am CS2-Pin (siehe config.h) - fest
-    // aktiviert, kein Preferences-/UI-Schalter mehr (frueher useCS2/PK_USE_CS2).
+    // Display 2 (baugleich, am CS2-Pin, siehe config.h) ist fest aktiviert,
+    // kein Preferences-/UI-Schalter.
+    // Display 2 (identical, on the CS2 pin, see config.h) is permanently
+    // enabled, no preferences/UI toggle.
 
-    // Display 2, identical to Display 1, on the CS2 pin (see config.h) -
-    // permanently enabled, no more preferences/UI toggle (formerly
-    // useCS2/PK_USE_CS2).
-
-    // --- Helligkeit / Fotowiderstand (ADC) ---
-    // --- Brightness / photoresistor (ADC) ---
+    // Helligkeit / Fotowiderstand (ADC)
+    // Brightness / photoresistor (ADC)
     bool adcInverted = false; // Standardmäßig nicht invertiert
                               // Not inverted by default
 
@@ -681,15 +602,13 @@
     uint8_t lastAppliedBrightness = 255; // gehoert zum Zifferblatt-Cache und wird von loadClockFace() gepflegt
                                          // belongs to the clock face cache and is maintained by loadClockFace()
 
-    // Eigener Vergleichswert fuer die Zeiger-Sprites (siehe updateBrightness() in
-    // display.h): darf NICHT lastAppliedBrightness mitbenutzen, weil
-    // loadClockFace() diesen Wert bereits selbst aktualisiert und die
-    // Zeiger-Neueinfaerbung dadurch nie ausgeloest wurde.
+    // Eigener Vergleichswert fuer die Zeiger-Sprites (siehe updateBrightness()) -
+    // darf nicht lastAppliedBrightness teilen, sonst wuerde loadClockFace()
+    // die Neueinfaerbung nie ausloesen.
 
-    // Its own comparison value for the hand sprites (see updateBrightness() in
-    // display.h): must NOT share lastAppliedBrightness, because loadClockFace()
-    // already updates that value itself, which meant the hands were never
-    // re-tinted.
+    // Own comparison value for the hand sprites (see updateBrightness()) -
+    // must not share lastAppliedBrightness, or loadClockFace() would never
+    // trigger the re-tinting.
     uint8_t lastHandBrightness = 255;
     uint8_t targetBrightness = 255;
     int lowThreshold = 40;
@@ -718,23 +637,19 @@
     int currentLightPercent = 0;  // global speichern für Anzeige
                                   // store globally for display
 
-    // --- Touch ---
-    // --- Touch ---
-    // --- Touch / Debounce State ---
-    // --- Touch / debounce state ---
+    // Touch / Debounce
+    // Touch / debounce
     unsigned long touchLastMillis = 0;
     const unsigned long TOUCH_DEBOUNCE_MS = 300;
     bool touchLastState = false;
-    // --- Touch enable flag: aktivieren erst nach Setup-Initialisierung ---
-    // --- Touch enable flag: only enabled after setup initialization ---
+    // Touch-Freigabe erst nach Setup-Initialisierung
+    // Touch enabled only after setup initialization
     bool touchEnabled = false;
     unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
                                      // Timestamp when touch is enabled (ms)
     bool useTouch = false; // Touch verwenden
                            // Use touch
 
-    // --- Presets ---
-    // --- Presets ---
     // Presets
     // Presets
 #define MAX_PRESETS 50
@@ -744,14 +659,14 @@
     };
     Preset presets[MAX_PRESETS];
 
-    // --- Datei-Upload / Wartung ---
-    // --- File upload / maintenance ---
+    // Datei-Upload / Wartung
+    // File upload / maintenance
     File uploadFile;
     String uploadFilePath = "";
     bool uploadSuccess = false;
 
-    // --- Presets-Import (separat vom BMP-Upload oben, um Statuskonflikte zu vermeiden) ---
-    // --- Presets import (separate from the BMP upload above, to avoid status conflicts) ---
+    // Presets-Import (separat vom BMP-Upload, um Statuskonflikte zu vermeiden)
+    // Presets import (separate from the BMP upload, to avoid status conflicts)
     File presetImportFile;
     bool presetImportSuccess = false;
     const char* PRESET_IMPORT_TMP_PATH = "/tmp_presets_import.txt";
@@ -759,6 +674,6 @@
     int lastResetWeek = -1;
     int currentWeek = -1;
 
-    //Übersetzungen fÜr verschiedene Sprachen
+    // Uebersetzungen fuer verschiedene Sprachen
     // Translations for various languages
 #include "translation.h"

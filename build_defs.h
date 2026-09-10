@@ -3,10 +3,8 @@
 #define BUILD_DEFS_H
 
 
-// Beispiel für den __DATE__-String: "Jul 27 2012"
-// Example of __DATE__ string: "Jul 27 2012"
-// Beispiel für den __TIME__-String: "21:06:19"
-// Example of __TIME__ string: "21:06:19"
+// Beispiel-Format: __DATE__ = "Jul 27 2012", __TIME__ = "21:06:19"
+// Example format: __DATE__ = "Jul 27 2012", __TIME__ = "21:06:19"
 
 #define COMPUTE_BUILD_YEAR \
     ( \

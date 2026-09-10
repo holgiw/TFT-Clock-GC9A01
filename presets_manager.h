@@ -1,20 +1,16 @@
 #pragma once
-    // ### Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
-    // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
-    // zentral in uhr3.ino VOR dieser Datei eingebunden).
+    // Presets: Laden/Speichern/Wechseln der Anzeigekonfigurationen.
+    // Benoetigt globals.h, config.h, prefs_keys.h, declarations.h (vorher eingebunden).
 
-    // ### Presets: load/save/switch predefined display configurations
-    // Requires globals.h, config.h, prefs_keys.h and declarations.h (included
-    // centrally in uhr3.ino BEFORE this file).
+    // Presets: load/save/switch display configurations.
+    // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file).
 
 
-    // Entfernt ein "rotation=..."-Query-Parameter aus einer Preset-URL (Altlast aus
-    // frueheren Versionen, die die Display-Rotation faelschlich mit im Preset
-    // gespeichert haben - siehe switchToNextPreset() und createPresetFromPreferences()).
+    // Entfernt einen alten "rotation="-Parameter aus einer Preset-URL
+    // (Altlast frueherer Versionen, siehe switchToNextPreset()).
 
-    // Removes a "rotation=..." query parameter from a preset URL (legacy from
-    // older versions that mistakenly stored the display rotation in the preset -
-    // see switchToNextPreset() and createPresetFromPreferences()).
+    // Removes a legacy "rotation=" parameter from a preset URL
+    // (leftover from older versions, see switchToNextPreset()).
 
     String stripRotationParam(const String& url) {
         int qIdx = url.indexOf('?');
@@ -49,11 +45,11 @@
             presets[i].name = preferences.getString(nameKey.c_str(), "");
             presets[i].url = preferences.getString(urlKey.c_str(), "");
 
-            // Altlast bereinigen: frueher gespeicherte "rotation="-Parameter entfernen
-            // und dauerhaft korrigieren (nur bei Aenderung schreiben, Flash-Verschleiss).
+            // Alte "rotation="-Parameter entfernen und dauerhaft fixen (nur bei
+            // Aenderung schreiben, spart Flash-Verschleiss).
 
-            // Clean up legacy data: remove previously stored "rotation=" parameters
-            // and fix permanently (only write on change, to limit flash wear).
+            // Remove legacy "rotation=" parameters and fix permanently (write
+            // only on change, saves flash wear).
             if (presets[i].url.indexOf("rotation=") != -1) {
                 String cleaned = stripRotationParam(presets[i].url);
                 if (cleaned != presets[i].url) {
@@ -92,25 +88,20 @@
             // Ersetze eine vorhandene IP-Adresse durch die aktuelle IP des ESP
             // Replace an existing IP address with the ESP's current IP
             if (presets[i].url.startsWith("http://")) {
-                int ipEnd = presets[i].url.indexOf('/', 7); // Suche Ende der IP-Adresse
-                                                            // Find end of IP address
+                int ipEnd = presets[i].url.indexOf('/', 7);
                 if (ipEnd != -1) {
-                    presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd); // Ersetze die IP
-                                           // Replace the IP
+                    presets[i].url = "http://" + ipAddress + presets[i].url.substring(ipEnd);
                 }
                 else {
-                    presets[i].url = "http://" + ipAddress; // Nur IP ohne Pfad
-                                           // IP only, no path
+                    presets[i].url = "http://" + ipAddress;
                 }
             }
 
-            // Nur schreiben, wenn sich der Wert tatsaechlich geaendert hat - das
-            // Formular sendet immer alle MAX_PRESETS Eintraege mit, auch wenn nur
-            // einer davon bearbeitet wurde (vermeidet unnoetigen Flash-Verschleiss).
+            // Nur schreiben bei tatsaechlicher Aenderung - das Formular sendet
+            // immer alle MAX_PRESETS Eintraege mit (spart Flash-Verschleiss).
 
-            // Only write if the value actually changed - the form always submits
-            // all MAX_PRESETS entries, even if only one was edited (avoids
-            // unnecessary flash wear).
+            // Only write on actual change - the form always submits all
+            // MAX_PRESETS entries (saves flash wear).
             if (preferences.getString(nameKey.c_str(), "") != presets[i].name) {
                 preferences.putString(nameKey.c_str(), presets[i].name);
             }
@@ -153,15 +144,8 @@
         uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
-        // Hole die aktuelle IP-Adresse des ESP
-        // Get the ESP's current IP address
-
-
-        // Erstelle die URL mit den aktuellen Einstellungen (bewusst OHNE "rotation":
-        // geraeteweite Hardware-Einstellung, soll beim Laden unveraendert bleiben).
-
-        // Build the URL with the current settings (deliberately WITHOUT "rotation":
-        // a device-wide hardware setting that must stay unchanged when loading).
+        // URL bewusst OHNE "rotation": geraeteweite HW-Einstellung, bleibt beim Laden unveraendert.
+        // Build URL deliberately WITHOUT "rotation": device-wide HW setting, stays unchanged when loading.
         String url = "http://" + ipAddress + "/api/setMode?";
         if (background.startsWith("/")) {
             background = background.substring(1); // Entferne führenden Slash
@@ -189,21 +173,12 @@
         }
 
         // Eindeutigkeit sicherstellen: switchToNextPreset() identifiziert das
-        // aktuelle Preset ueber PK_CURRENT_PRESET anhand des NAMENS (nicht des
-        // Index), ebenso wird der Name persistent gespeichert. Zwei Presets mit
-        // identischem Namen (z.B. bei eigenem Namen ueber /api/createPreset)
-        // waeren dort nicht mehr unterscheidbar - es wuerde immer das erste
-        // Preset mit passendem Namen gefunden, ein Weiterschalten zum zweiten
-        // waere nie moeglich. Deshalb hier bei Kollision einen numerischen
-        // Suffix anhaengen, bis der Name eindeutig ist.
-        //
-        // Ensure uniqueness: switchToNextPreset() identifies the current preset
-        // via PK_CURRENT_PRESET by NAME (not by index), and the name is also
-        // what gets persisted. Two presets with an identical name (e.g. from a
-        // custom name via /api/createPreset) would no longer be distinguishable
-        // there - the first preset with a matching name would always be found,
-        // so switching to the second one would never be possible. So append a
-        // numeric suffix on collision until the name is unique.
+        // aktuelle Preset ueber den NAMEN (nicht den Index). Bei Kollision
+        // waeren zwei Presets nicht unterscheidbar - Suffix anhaengen.
+
+        // Ensure uniqueness: switchToNextPreset() identifies the current
+        // preset by NAME (not index). Colliding names would make presets
+        // indistinguishable - append a numeric suffix.
         if (!customName.isEmpty()) {
             String baseName = presetName;
             int suffix = 2;
@@ -238,13 +213,11 @@
     }
 
 
-    // Parst die in einem Preset gespeicherte Query-String-URL und extrahiert NUR
-    // die fuer eine Vorschau relevanten Werte (face, handSet, hubColor, hubSize,
-    // showSecondHand) - reine Lesefunktion, wendet nichts auf die Preferences an.
+    // Parst die Preset-URL und extrahiert nur die fuer die Vorschau relevanten
+    // Werte (face, handSet, hubColor, hubSize, showSecondHand) - reine Lesefunktion.
 
-    // Parses the query-string URL stored in a preset and extracts ONLY the
-    // values relevant for a preview (face, handSet, hubColor, hubSize,
-    // showSecondHand) - read-only, does not apply anything to preferences.
+    // Parses the preset URL and extracts only the values needed for the
+    // preview (face, handSet, hubColor, hubSize, showSecondHand) - read-only.
 
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut,
         uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) {
@@ -295,13 +268,11 @@
     }
 
 
-    // Entfernt alle Presets, deren Zifferblatt bzw. Zeigersatz mit dem angegebenen
-    // Wert uebereinstimmt (leer = nicht geprueft) - wird nach dem Loeschen einer
-    // Zifferblatt-/Zeigersatz-Datei aufgerufen, damit keine Presets verwaisen.
+    // Entfernt Presets, deren Zifferblatt/Zeigersatz dem angegebenen Wert
+    // entspricht (leer = ignoriert) - verhindert Verwaisung nach Datei-Loeschung.
 
-    // Removes all presets whose face or hand set matches the given value
-    // (empty = not checked) - called after deleting a face/hand-set file so
-    // no presets are left orphaned.
+    // Removes presets whose face/hand set matches the given value (empty =
+    // ignored) - prevents orphaned presets after a file is deleted.
 
     void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) {
         bool anyRemoved = false;
@@ -339,9 +310,6 @@
         savePresets();
     }
 
-
-    // --- Funktion: Wechselt zum nächsten Preset ---
-    // --- Function: switches to the next preset ---
 
     void switchToNextPreset() {
         // Sammle alle gültigen Presets
@@ -394,25 +362,13 @@
 
         DEBUG_PRINTLN("[PRESET] Switching to preset: " + presets[nextPresetIndex].name + " -> " + nextPresetUrl);
 
-        // HINWEIS: PK_CURRENT_PRESET wird bewusst NICHT schon hier gespeichert
-        // (frueher gab es diesen putString()-Aufruf zusaetzlich an dieser Stelle,
-        // redundant zum Aufruf weiter unten). Das war nicht nur redundant,
-        // sondern auch ein Bug: bricht die Funktion weiter unten vorzeitig ab
-        // (z.B. weil die URL keine Query-Parameter enthaelt, siehe "return"
-        // unten), wuerde PK_CURRENT_PRESET bereits auf den neuen Preset-Namen
-        // zeigen, obwohl dessen Einstellungen (Zifferblatt, Zeigersatz, etc.)
-        // nie tatsaechlich angewendet wurden. Deshalb wird der Name erst ganz
-        // am Ende, NACH erfolgreicher Anwendung aller Einstellungen, gespeichert.
-        //
-        // NOTE: PK_CURRENT_PRESET is deliberately NOT saved here already
-        // (previously there was an additional putString() call at this exact
-        // spot, redundant with the call further below). That was not just
-        // redundant but also a bug: if the function returns early further down
-        // (e.g. because the URL has no query parameters, see the "return"
-        // below), PK_CURRENT_PRESET would already point at the new preset's
-        // name even though its settings (clock face, hand set, etc.) were
-        // never actually applied. So the name is only saved at the very end,
-        // AFTER all settings have been successfully applied.
+        // PK_CURRENT_PRESET wird bewusst erst am Ende gespeichert, nicht hier -
+        // sonst wuerde bei vorzeitigem Return (z.B. fehlende Query-Parameter)
+        // der Name auf ein Preset zeigen, dessen Einstellungen nie griffen.
+
+        // PK_CURRENT_PRESET is deliberately saved only at the end, not here -
+        // otherwise an early return (e.g. missing query parameters) would leave
+        // the name pointing at a preset whose settings were never applied.
 
         // Entferne die Basis-URL, falls vorhanden
         // Remove the base URL, if present
@@ -475,13 +431,8 @@
                 preferences.putBool(PK_STATION_MODE, stationMode);
             }
             else if (key == "rotation") {
-                // Bewusst NICHT angewendet: Display-Rotation soll beim Laden eines
-                // Presets unveraendert bleiben (aeltere Presets koennen den Wert
-                // noch enthalten - wird hier absichtlich ignoriert).
-
-                // Deliberately NOT applied: display rotation must stay unchanged when
-                // loading a preset (older presets may still contain the value -
-                // intentionally ignored here).
+                // Bewusst ignoriert: Rotation ist eine geraeteweite HW-Einstellung.
+                // Deliberately ignored: rotation is a device-wide HW setting.
             }
             else if (key == "showSecondHand") {
                 showSecondHand = (value == "1" || value.equalsIgnoreCase("true"));

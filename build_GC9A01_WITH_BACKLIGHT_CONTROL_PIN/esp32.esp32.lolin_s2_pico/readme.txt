@@ -44,13 +44,13 @@ SSID einstellen:
 ODER
 
 	Findet er keinen WPS Router, geht er in den Accesspoint Mode.
-	Dann bitte mit dem WLAN Netzwerk SSID clock123 verbinden - das Passwort dafür wird individuell pro Gerät erzeugt und auf dem Display der Uhr angezeigt (kein festes, überall gleiches Passwort mehr) - es öffnet sich meist automatisch ein Browserfenster (Captive Portal), ansonsten im Browser die angezeigte IP mit HTTP aufrufen, z.b. http://192.168.4.1
+	Dann bitte mit dem WLAN Netzwerk SSID clock123 (PASS clock123) verbinden - es öffnet sich meist automatisch ein Browserfenster (Captive Portal), ansonsten im Browser die angezeigte IP mit HTTP aufrufen, z.b. http://192.168.4.1
 	Achtung, nur HTTP verwendenden, HTTPs funktioniert nicht!
 	Mit SAVE werden die geänderten Werte für das WLAN übermittelt und gespeichert.
 	RESET startet die Uhr neu.
 
-Wird der Taster (BUTTON, siehe Pinbelegung) beim Einschalten kurz gedrückt, zeigt die Uhr das aktuell verbundene WLAN an. Wird er länger als 10 Sekunden gehalten, startet auf dem Display ein roter "Factory Reset"-Countdown - bis zu diesem Punkt passiert noch nichts, Loslassen bricht harmlos ab. Erst wenn er länger als 15 Sekunden durchgehend gehalten wird, löst das einen vollständigen Werksreset aus: dabei werden WLAN-Zugangsdaten UND alle hochgeladenen Zifferblätter/Zeigersätze/Presets gelöscht (kein reines "nur WLAN löschen" mehr). Alternativ funktioniert dafür auch der eingebaute Boot-Taster (BOOT_BUTTON). Nach einem Werksreset geht die Uhr wieder in den WPS-/AccessPoint-Modus.
-Für ein WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets stattdessen über die Weboberfläche die Werksreset-Seite nutzen ("gespeicherte WLAN-Netzwerke zurücksetzen").
+Wird der Taster (BUTTON, siehe Pinbelegung) beim Einschalten gedrückt gehalten (ca. 10 Sekunden), werden ALLE gespeicherten WLAN-Zugangsdaten gelöscht und die Uhr geht in den AccessPoint Mode. Alternativ funktioniert dafür auch der eingebaute Boot-Taster (BOOT_BUTTON).
+Findet er anschließend einen Router im WPS Mode übernimmt er die WLAN Daten, bootet neu und versucht diese Verbindung herzustellen.
 
 Für die Helligkeitssteuerung ist ein Photowiderstand mit 10-15 K Ohm notwendig, der externe Widerstand hat einen Wert von 10KOhm.
 Die Portpins ADC_3V und ADC_GND versorgen den Spannungsteiler (Photowiderstand / 10kOhm Widerstand) mit der nötigen Versorgungsspannung.
@@ -178,13 +178,13 @@ Setting the SSID:
 OR
 
 	If it does not find a WPS router, it switches to Access Point mode.
-	In that case, please connect to the WiFi network SSID clock123 - the password for it is generated individually per device and shown on the clock's display (no more fixed, identical password) - a browser window (captive portal) usually opens automatically, otherwise open the displayed IP address in your browser using HTTP, e.g. http://192.168.4.1
+	In that case, please connect to the WiFi network SSID clock123 (PASSWORD clock123) - a browser window (captive portal) usually opens automatically, otherwise open the displayed IP address in your browser using HTTP, e.g. http://192.168.4.1
 	Note: only use HTTP, HTTPS does not work!
 	SAVE transmits and stores the changed WiFi settings.
 	RESET restarts the clock.
 
-If the button (BUTTON, see pinout) is pressed briefly while powering on, the clock shows the currently connected WiFi network. If held down for more than 10 seconds, a red "Factory Reset" countdown starts on the display - up to that point nothing happens yet, releasing it aborts harmlessly. Only holding it continuously for more than 15 seconds triggers a full factory reset: this erases the WiFi credentials AND all uploaded clock faces/hand sets/presets (there is no longer a "WiFi only" reset tier). The built-in Boot button (BOOT_BUTTON) works the same way. After a factory reset, the clock goes back into WPS/Access Point mode.
-For a WiFi-only reset without losing your own clock faces/hand sets/presets, use the Factory Reset page in the web interface instead ("reset saved WiFi networks").
+If the button (BUTTON, see pinout) is held down while powering on (approx. 10 seconds), ALL stored WiFi credentials are erased and the clock enters Access Point mode. The built-in Boot button (BOOT_BUTTON) works the same way.
+If it then finds a router in WPS mode, it takes over the WiFi credentials, reboots, and tries to establish that connection.
 
 For brightness control, a photoresistor with 10-15 kOhm is required; the external resistor has a value of 10 kOhm.
 Port pins ADC_3V and ADC_GND supply the voltage divider (photoresistor / 10 kOhm resistor) with the necessary supply voltage.

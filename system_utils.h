@@ -1,11 +1,9 @@
 #pragma once
-    // ### Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
-    // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
-    // zentral in uhr3.ino VOR dieser Datei eingebunden).
+    // Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
+    // Benoetigt globals.h, config.h, prefs_keys.h, declarations.h (vor dieser Datei eingebunden)
 
-    // ### System functions: buttons, logging, reset, restart, helpers
-    // Requires globals.h, config.h, prefs_keys.h and declarations.h
-    // (included centrally in uhr3.ino BEFORE this file).
+    // System functions: buttons, logging, reset, restart, helpers
+    // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file)
 
 
     // Button prüfen und ggf. Anzeige oder Factory Reset auslösen
@@ -66,19 +64,13 @@
                 delay(WAIT_3s);
             }
 
-            // Diese Funktion malt direkt auf den TFT statt auf das
-            // Sprite-Backbuffer. Der Text verschwindet zwar von selbst, weil
-            // updateClock() ohnehin ein volles Bild ausgibt - firstRun=true
-            // sorgt aber dafuer, dass die Zeiger danach direkt auf die aktuelle
-            // Zeit springen, statt aus ihrer alten Position dorthin zu
-            // schleichen (siehe Glaettung in renderClockFrame()).
+            // Malt direkt auf TFT statt Sprite-Backbuffer; firstRun=true laesst
+            // die Zeiger sofort zur aktuellen Zeit springen statt einzuschleichen
+            // (siehe Glaettung in renderClockFrame()).
 
-            // This function draws directly to the TFT instead of the sprite
-            // backbuffer. The text disappears by itself, since updateClock()
-            // outputs a full frame anyway - but firstRun=true makes the hands
-            // snap straight to the current time afterwards instead of easing
-            // there from their old position (see the smoothing in
-            // renderClockFrame()).
+            // Draws directly to TFT instead of the sprite backbuffer; firstRun=true
+            // makes the hands snap to the current time instead of easing in
+            // (see smoothing in renderClockFrame()).
             firstRun = true;
         }
 #endif
@@ -93,21 +85,13 @@
 
     void checkWeeklyRestart() {
 
-        // Eigene lokale Zeitstruktur statt der globalen 'timeinfo': diese
-        // Funktion laeuft in JEDEM loop()-Durchlauf, wuerde die globale Struktur
-        // also permanent ueberschreiben, die Zifferblatt, DCF77 und der
-        // NTP-Server ebenfalls benutzen. Ausserdem mit Timeout 0 statt des
-        // Defaults (5000 ms!): ohne gueltige Systemzeit hat getLocalTime()
-        // sonst pro Durchlauf volle 5 Sekunden blockiert - die Uhr stand
-        // praktisch still und Webserver/Button reagierten nur noch traege.
+        // Eigene lokale Zeitstruktur statt globaler 'timeinfo' (wird von
+        // Zifferblatt/DCF77/NTP genutzt). Timeout 0 statt 5000ms, sonst
+        // blockierte getLocalTime() ohne gueltige Zeit 5s pro Durchlauf.
 
-        // Its own local time struct instead of the global 'timeinfo': this
-        // function runs in EVERY loop() pass and would therefore constantly
-        // overwrite the global struct that the clock face, DCF77 and the NTP
-        // server use as well. Also with timeout 0 instead of the default
-        // (5000 ms!): without a valid system time, getLocalTime() previously
-        // blocked for a full 5 seconds per pass - the clock effectively stood
-        // still and the web server/button became sluggish.
+        // Own local time struct instead of the global 'timeinfo' (used by the
+        // clock face/DCF77/NTP). Timeout 0 instead of 5000ms, otherwise
+        // getLocalTime() blocked for 5s per pass without a valid time.
         struct tm restartTime;
         if (!getLocalTime(&restartTime, 0)) return;
 
@@ -134,34 +118,18 @@
                 DEBUG_PRINTLN("reboot now..");
                 delay(WAIT_1s);
 
-                // espReboot() statt direktem preferences.end()+ESP.restart(): die
-                // zentrale Reboot-Funktion uebernimmt bereits das korrekt
-                // zeitlich sortierte preferences.end() (siehe Kommentar dort),
-                // schreibt den generischen "Software-triggered reboot"-Log-
-                // Eintrag und zeigt den "Rebooting.."-Bildschirm - vorher wurde
-                // das hier per Kopie direkt nachgebaut, wodurch der woechentliche
-                // Reboot als einziger Aufrufer weder den generischen Log-Eintrag
-                // noch den Reboot-Bildschirm erhielt.
-                //
-                // espReboot() instead of a direct preferences.end()+ESP.restart():
-                // the central reboot function already handles the correctly
-                // ordered preferences.end() (see comment there), writes the
-                // generic "Software-triggered reboot" log entry, and shows the
-                // "Rebooting.." screen - previously this was hand-duplicated
-                // here, so the weekly reboot was the one caller missing both the
-                // generic log entry and the reboot screen.
+                // espReboot() statt eigenem preferences.end()+ESP.restart(): erledigt
+                // Log-Eintrag, "Rebooting.."-Anzeige und preferences.end() zentral.
+
+                // espReboot() instead of a direct preferences.end()+ESP.restart(): handles
+                // the log entry, "Rebooting.." screen and preferences.end() centrally.
                 espReboot();
             }
         }
     }
 
 
-    // --- Funktion: Löscht den gesamten NVS-Speicher ---
-    // --- Function: Erases the entire NVS storage ---
-
     void eraseAllNVS() {
-        // Löscht gesamten NVS-Speicher
-        // Erases entire NVS storage
         esp_err_t result = nvs_flash_erase();
         if (result == ESP_OK) {
             DEBUG_PRINTLN("Complete NVS storage erased (incl. WiFi, Preferences)");
@@ -173,9 +141,6 @@
         }
     }
 
-
-    // --- Funktion: Führt einen Factory Reset durch ---
-    // --- Function: Performs a factory reset ---
 
     void factoryReset() {
         DRAW_ON_BOTH_DISPLAYS(
@@ -197,55 +162,28 @@
     }
 
 
-    // --- Funktion: führt einen Reboot durch mit Anzeige ---
-    // --- Function: Performs a reboot with display ---
-
     void espReboot() {
 
-        // Generischer Log-Eintrag fuer JEDEN per Software ausgeloesten Reboot
-        // (WLAN-Wechsel, Einstellungen speichern, manueller Neustart-Button, etc.) -
-        // zentral hier statt an jeder einzelnen Aufrufstelle, damit kein Aufrufer
-        // vergessen werden kann. Wird VOR den Display-Aktionen geloggt, damit der
-        // Eintrag sicher im aktuellen Logfile landet, bevor der ESP neu startet.
+        // Generischer Log-Eintrag fuer jeden Software-Reboot, zentral hier statt
+        // an jeder Aufrufstelle. Wird VOR den Display-Aktionen geloggt, damit er
+        // sicher im Logfile landet, bevor der ESP neu startet.
 
-        // Generic log entry for EVERY software-triggered reboot (WiFi switch,
-        // saving settings, manual restart button, etc.) - centralized here
-        // instead of at each individual call site, so no caller can be missed.
-        // Logged BEFORE the display actions, so the entry reliably ends up in
-        // the current log file before the ESP restarts.
+        // Generic log entry for every software-triggered reboot, centralized here
+        // instead of at each call site. Logged BEFORE the display actions, so it
+        // reliably ends up in the log file before the ESP restarts.
         DEBUG_PRINTLN("[SYSTEM] Software-triggered reboot - restarting now..");
 
-        // preferences.end() wird bewusst ERST HIER (nach dem obigen Log-Eintrag)
-        // aufgerufen, nicht schon vom Aufrufer davor: logToFile() liest selbst
-        // preferences.getInt(PK_LOG_FILE_NUMBER, ...), um die aktuelle Logdatei
-        // zu bestimmen - war der Handle bereits geschlossen, lieferte das nur
-        // noch den Default-Wert zurueck und der Log-Eintrag landete in der
-        // falschen Datei (dort fehlte er dann scheinbar). Ein expliziter
-        // preferences.end() ist fuer die Datensicherheit ohnehin nicht noetig -
-        // jedes putXxx()/remove() committet laut Preferences-Quellcode bereits
-        // synchron per nvs_commit() - dient hier nur dem sauberen Schliessen
-        // des Handles vor dem Neustart.
+        // Erst HIER geschlossen (nach dem Log-Eintrag): logToFile() liest
+        // PK_LOG_FILE_NUMBER selbst aus preferences - waere der Handle schon zu,
+        // laende der Eintrag in der falschen Datei.
 
-        // preferences.end() is deliberately called HERE (after the log entry
-        // above), not already by the caller beforehand: logToFile() itself
-        // calls preferences.getInt(PK_LOG_FILE_NUMBER, ...) to determine the
-        // current log file - if the handle was already closed, that only
-        // returned the default value and the log entry ended up in the wrong
-        // file (appearing to be missing there). An explicit preferences.end()
-        // isn't actually needed for data safety anyway - per the Preferences
-        // source, every putXxx()/remove() already commits synchronously via
-        // nvs_commit() - this only cleanly closes the handle before restarting.
+        // Closed only HERE (after the log entry): logToFile() itself reads
+        // PK_LOG_FILE_NUMBER from preferences - if the handle were already
+        // closed, the entry would land in the wrong file.
         preferences.end();
 
-        // Kleine zusaetzliche Verzoegerung nach dem Log-Eintrag: logToFile()
-        // schliesst die Datei zwar bereits synchron (flusht auf den Flash),
-        // dies gibt dem Flash-Subsystem aber noch etwas Luft, bevor unten
-        // der eigentliche Neustart angestossen wird - reine Sicherheitsmarge.
-
-        // Small extra delay after the log entry: logToFile() already closes
-        // the file synchronously (flushes to flash), but this gives the flash
-        // subsystem a little more breathing room before the actual restart
-        // further down - purely an extra safety margin.
+        // Kurze Verzoegerung, gibt dem Flash-Subsystem Luft nach dem Log-Schreiben.
+        // Short delay, gives the flash subsystem breathing room after the log write.
         delay(100);
 
         DRAW_ON_BOTH_DISPLAYS(
@@ -264,32 +202,22 @@
     }
 
 
-    // ####################################################################
-    // ### LOG-FUNKTIONEN #################################################
+    // Log-Funktionen
+    // Log functions
 
-    // ### LOG FUNCTIONS ###################################################
+    // Gleiche Logik wie in logToFile() (siehe dort), aber ohne Seiteneffekte.
+    // Genutzt vom Log-Tab und /api/currentLog, damit beide dieselbe
+    // aktuelle Datei sehen.
 
-    // Ermittelt den Dateinamen der AKTUELL aktiven Logdatei - dieselbe Logik
-    // wie in logToFile() (siehe dort), aber ohne Seiteneffekte (kein
-    // Schreiben/Rotieren). Wird sowohl beim ersten Rendern des Log-Tabs als
-    // auch vom /api/currentLog Endpunkt genutzt (siehe webserver_routes.h),
-    // damit beide Stellen immer dieselbe, aktuelle Datei sehen - auch nach
-    // einer zwischenzeitlichen Rotation.
-
-    // Determines the filename of the CURRENTLY active log file - same logic
-    // as in logToFile() (see there), but without side effects (no
-    // writing/rotating). Used both when the Log tab is first rendered and by
-    // the /api/currentLog endpoint (see webserver_routes.h), so both places
-    // always see the same, current file - even after a rotation in between.
+    // Same logic as in logToFile() (see there), but without side effects.
+    // Used by the Log tab and /api/currentLog so both see the same
+    // current file.
 
     String getCurrentLogFileName() {
         uint16_t logfileNumber = preferences.getInt(PK_LOG_FILE_NUMBER, 1);
         return "/log_" + String(logfileNumber) + ".log";
     }
 
-
-    // Löscht alle Logdateien aus dem LittleFS
-    // Deletes all log files from LittleFS
 
     void deleteAllLogFiles() {
 
@@ -298,34 +226,21 @@
 
         while (file) {
             String fileName = file.name();
-            file.close(); // Datei schließen, bevor sie gelöscht wird
-                          // Close file before deleting it
+            file.close();
 
             if (fileName.endsWith(".log")) {
                 if (LittleFS.remove("/" + fileName)) {
                   //  DEBUG_PRINTLN("[LOG] Successfully deleted: " + fileName);
                 }
             }
-            file = root.openNextFile(); // Nächste Datei öffnen
-                                        // Open next file
+            file = root.openNextFile();
         }
-        // Auf 1 statt 0 zuruecksetzen: getCurrentLogFileName() und jede andere
-        // Stelle im Projekt, die PK_LOG_FILE_NUMBER liest, verwenden ausnahmslos
-        // 1 als Fallback-/Rollover-Wert (siehe z.B. getCurrentLogFileName() oben
-        // sowie logToFile()) - ein hier gespeicherter 0-Wert waere gegenueber
-        // dem Rest des Projekts inkonsistent und wuerde z.B. kurzzeitig zu einer
-        // nicht existierenden "/log_0.log"-Referenz fuehren, bis logToFile()
-        // beim naechsten Schreibvorgang den Wert selbst korrigiert.
-        //
-        // Reset to 1 instead of 0: getCurrentLogFileName() and every other spot
-        // in the project that reads PK_LOG_FILE_NUMBER uniformly use 1 as the
-        // fallback/rollover value (see e.g. getCurrentLogFileName() above and
-        // logToFile()) - a 0 stored here would be inconsistent with the rest of
-        // the project and would e.g. briefly result in a reference to a
-        // non-existent "/log_0.log" until logToFile() corrects the value itself
-        // on the next write.
-        preferences.putInt(PK_LOG_FILE_NUMBER, 1); // Log-Dateinummer zurücksetzen
-                                                   // Reset log file number
+        // Reset auf 1 statt 0: alle anderen Stellen (getCurrentLogFileName(),
+        // logToFile()) nutzen 1 als Fallback/Rollover-Wert; 0 waere inkonsistent.
+
+        // Reset to 1 instead of 0: every other spot (getCurrentLogFileName(),
+        // logToFile()) uses 1 as the fallback/rollover value; 0 would be inconsistent.
+        preferences.putInt(PK_LOG_FILE_NUMBER, 1);
     }
 
 
@@ -351,29 +266,21 @@
 
     void logToFile(const String& message) {
         if (!loggingEnabled) {
-            return; // Logging ist deaktiviert
-                    // Logging is disabled
+            return;
         }
 
-        // Überprüfe, ob LittleFS gemountet ist
-        // Check whether LittleFS is mounted
         if (!LittleFS.begin()) {
             if (loggingEnabled) Serial.println("[LOG] LittleFS is not mounted. Log will not be written");
             return;
         }
 
-        // Überprüfe, ob die Nachricht leer ist oder nur aus Leerzeichen/Zeilenumbrüchen besteht
-        // Check whether the message is empty or only whitespace/newlines
         String trimmedMessage = message;
-        trimmedMessage.trim(); // Entfernt führende und nachfolgende Leerzeichen sowie \n, \r
-                               // Removes leading/trailing whitespace and \n, \r
+        trimmedMessage.trim(); // Entfernt auch \n, \r
+                               // Also removes \n, \r
         if (trimmedMessage.isEmpty()) {
-            return; // Nachricht nicht schreiben
-                    // Don't write the message
+            return;
         }
 
-        // Überprüfe, ob genügend Speicherplatz verfügbar ist
-        // Check whether enough storage space is available
         size_t freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
         if (freeSpace < 15 * 1024) { // Weniger als 15 KB frei
                                      // Less than 15 KB free
@@ -390,26 +297,22 @@
         if (logfileNumber > 9) {
             logfileNumber = 1;
             preferences.putInt(PK_LOG_FILE_NUMBER, logfileNumber);
-            preferences.putBool(PK_LOGGING_ENABLED, false); // Logging deaktivieren
-                                                            // Disable logging
+            preferences.putBool(PK_LOGGING_ENABLED, false);
             deleteAllLogFiles();
             loggingEnabled = preferences.getBool(PK_LOGGING_ENABLED, false);
-            return; // Kein Logfile schreiben, da Logging jetzt deaktiviert ist
-                    // Don't write a log file since logging is now disabled
+            return; // Logging jetzt deaktiviert, kein Logfile schreiben
+                    // Logging now disabled, don't write a log file
         }
 
         String logFileName = "/log_" + String(logfileNumber) + ".log";
 
-        // Überprüfe die Größe des aktuellen Logfiles
-        // Check the size of the current log file
         if (LittleFS.exists(logFileName)) {
             File currentLogFile = LittleFS.open(logFileName, FILE_READ);
             if (currentLogFile) {
                 size_t fileSize = currentLogFile.size();
                 currentLogFile.close();
 
-                if (fileSize > 10 * 1024) { // Wenn die Datei größer als 10 KB ist
-                                            // If the file is larger than 10 KB
+                if (fileSize > 10 * 1024) {
                     logfileNumber++;
                     preferences.putInt(PK_LOG_FILE_NUMBER, logfileNumber);
                     logFileName = "/log_" + String(logfileNumber) + ".log";
@@ -417,65 +320,25 @@
             }
         }
 
-        // Zeitstempel generieren
-        // Generate timestamp
         char timestamp[32];
 
-        // Zeitzone NICHT hier erneut setzen: configTzTime() startet dabei
-        // auch den SNTP-Client neu - bei jedem einzelnen Log-Eintrag (diese
-        // Funktion wird von JEDEM DEBUG_PRINTLN() aufgerufen, siehe config.h)
-        // waere das ein staendiger Neustart der Zeitsynchronisation und
-        // Ursache fuer eine driftende/falsche Anzeige trotz erfolgreichem
-        // NTP-Sync. Die Zeitzone wird bereits einmalig in setupNTP() beim
-        // Boot gesetzt und bleibt fuer die gesamte Laufzeit gueltig -
-        // getLocalTime() unten liest sie automatisch mit.
+        // Zeitzone hier NICHT erneut setzen: configTzTime() wuerde bei JEDEM
+        // Log-Eintrag (jeder DEBUG_PRINTLN, siehe config.h) den SNTP-Client
+        // neustarten und die Zeitsynchronisation staendig unterbrechen.
 
-        // Do NOT set the timezone again here: configTzTime() also restarts
-        // the SNTP client - since this function is called by EVERY single
-        // DEBUG_PRINTLN() (see config.h), that would mean constantly
-        // restarting time sync on every log line, causing the display to
-        // drift/show a wrong time despite a successful NTP sync. The
-        // timezone is already set once in setupNTP() at boot and stays
-        // valid for the whole runtime - getLocalTime() below picks it up
-        // automatically.
-
-        // Berechne die Millisekunden relativ zur aktuellen Sekunde
-        // Calculate milliseconds relative to the current second
+        // Do NOT set the timezone again here: configTzTime() would restart the
+        // SNTP client on EVERY log entry (every DEBUG_PRINTLN, see config.h),
+        // constantly disrupting time sync.
         unsigned long currentMillis = millis();
         unsigned long millisInSecond = currentMillis % 1000;
 
-        // Eigene lokale Zeitstruktur statt der globalen 'timeinfo': diese
-        // Funktion wird von JEDEM DEBUG_PRINT/PRINTLN/PRINTF aufgerufen (siehe
-        // config.h) und hat vorher bei jeder Logzeile die globale Struktur
-        // ueberschrieben, die Zifferblatt, DCF77 und der NTP-Server benutzen.
-        // Konkret hat das in der DCF77-Zeituebernahme (heute
-        // applyDcf77DecodedTime() in time_sync.h, damals noch getDCF77Time()
-        // genannt) zugeschlagen: setTimeStruct() loggt
-        // intern und hat 'timeinfo' veraendert, BEVOR rtc.adjust(DateTime(
-        // timeinfo...)) sie ausgelesen hat - die RTC konnte also mit einer
-        // anderen Zeit gestellt werden als DCF77 geliefert hat.
-        //
-        // Ausserdem: Timeout 0 statt 500 ms (blockierte sonst jede Logzeile,
-        // solange keine gueltige Zeit gesetzt war) und keine WiFi-Bedingung
-        // mehr - die Systemzeit ist auch ohne WLAN gueltig, wenn sie von RTC
-        // oder DCF77 kommt; vorher stand in diesen Faellen unnoetig nur die
-        // Millisekunden-Ersatzform im Log.
+        // Eigene lokale Zeitstruktur wie in checkWeeklyRestart() (siehe dort).
+        // Timeout 0 statt 500ms, keine WiFi-Bedingung mehr - Zeit ist auch
+        // ohne WLAN gueltig, wenn sie von RTC oder DCF77 stammt.
 
-        // Its own local time struct instead of the global 'timeinfo': this
-        // function is called by EVERY DEBUG_PRINT/PRINTLN/PRINTF (see
-        // config.h) and previously overwrote, on every log line, the global
-        // struct used by the clock face, DCF77 and the NTP server. It bit
-        // specifically in the DCF77 time takeover (today
-        // applyDcf77DecodedTime() in time_sync.h, back then still called
-        // getDCF77Time()): setTimeStruct() logs internally and
-        // modified 'timeinfo' BEFORE rtc.adjust(DateTime(timeinfo...)) read it
-        // - so the RTC could be set to a different time than DCF77 delivered.
-        //
-        // Also: timeout 0 instead of 500 ms (previously blocked every log line
-        // while no valid time was set) and no more WiFi condition - the system
-        // time is valid without WiFi too when it comes from the RTC or DCF77;
-        // previously those cases needlessly logged only the millisecond
-        // fallback form.
+        // Own local time struct, same reason as in checkWeeklyRestart() (see
+        // there). Timeout 0 instead of 500ms, no WiFi condition anymore - time
+        // is valid without WiFi too when it comes from RTC or DCF77.
         struct tm logTime;
         if (getLocalTime(&logTime, 0)) {
             strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S", &logTime);
@@ -485,15 +348,11 @@
             snprintf(timestamp, sizeof(timestamp), "[%lu ms] ", currentMillis);
         }
 
-        // Öffne die Datei im Anhängemodus (append)
-        // Open the file in append mode
         File logFile = LittleFS.open(logFileName, FILE_APPEND);
         if (!logFile) {
             if (loggingEnabled) Serial.println("[LOG] Error opening log file: " + logFileName);
             return;
         }
-        // Schreibe Zeitstempel und Nachricht in die Datei
-        // Write timestamp and message to the file
         logFile.print(timestamp);
         logFile.println(message);
         logFile.close();
@@ -507,20 +366,14 @@
         int start = 0;
         int end = str.length() - 1;
 
-        // Führende Leerzeichen entfernen
-        // Remove leading whitespace
         while (start <= end && isspace(str[start])) {
             start++;
         }
 
-        // Nachfolgende Leerzeichen entfernen
-        // Remove trailing whitespace
         while (end >= start && isspace(str[end])) {
             end--;
         }
 
-        // Substring zurückgeben, der keine führenden oder nachfolgenden Leerzeichen enthält
-        // Return substring without leading or trailing whitespace
         return str.substring(start, end + 1);
     }
 

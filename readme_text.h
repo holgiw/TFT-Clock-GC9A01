@@ -90,7 +90,6 @@ static const char README_HTML_EN[] = R"rawliteral(
 <li>Separate pages for Presets, Clock Face, Hand Set, File Manager, Live Preview, DCF77 and Factory Reset.</li>
 <li>Multi-language interface: German, English, French.</li>
 <li>Live status bar with clock and status dots for time, RTC, DCF77 and ambient light, updated every few seconds.</li>
-<li>Live preview in the top-left corner shows the current look; clicking it saves the current settings as a new preset.</li>
 <li>Additional clock faces, hand sets and presets can be downloaded from GitHub; missing dependencies are fetched automatically.</li>
 <li>Factory reset with separate options: everything, clock faces, hand sets, presets or saved WiFi networks.</li>
 </ul>
@@ -116,6 +115,17 @@ static const char README_HTML_EN[] = R"rawliteral(
 <li>Uptime display, reboot from the web interface, weekly preventive restart.</li>
 <li>API interface for switching settings from outside.</li>
 <li>Hardware: ESP32-S2, photoresistor for brightness, optional DS3231 real time clock, DCF77 receiver module.</li>
+</ul>
+
+<h2>11. Rocrail Model Time</h2>
+<ul>
+<li>Optional connection to a Rocrail server (model railroad control software): the hands can show its "fast clock" (model time) instead of the real time, enabled via a switch on the Time tab.</li>
+<li>Enabling Rocrail, saving its server address, or restarting the clock all trigger an immediate connection attempt instead of waiting for the once-a-minute retry.</li>
+<li>Model time runs at Rocrail's own acceleration factor (the "divider") rather than 1:1; the clock keeps advancing independently between server updates and falls back to real time if updates stop for more than 2 minutes.</li>
+<li>The station-clock second hand scales its speed with the divider instead of switching off, and is hidden above a configurable divider threshold since it would no longer be readable.</li>
+<li>If the server also reports a brightness value, the display takes its brightness from there instead of the photoresistor/time window, resuming automatically once the connection drops.</li>
+<li>The Preview page mirrors the same model time and divider speed.</li>
+<li>The Rocrail tab shows a live connection status, the divider, the plan name and the current model time.</li>
 </ul>
 )rawliteral";
 
@@ -174,7 +184,6 @@ static const char README_HTML_DE[] = R"rawliteral(
 <li>Eigene Seiten f&uuml;r Presets, Zifferblatt, Zeigersatz, Dateimanager, Live-Vorschau, DCF77 und Werkseinstellungen.</li>
 <li>Mehrsprachige Oberfl&auml;che: Deutsch, Englisch, Franz&ouml;sisch.</li>
 <li>Statusleiste mit Uhrzeit und Statuspunkten f&uuml;r Zeit, RTC, DCF77 und Umgebungslicht, die sich alle paar Sekunden aktualisieren.</li>
-<li>Die Live-Vorschau oben links zeigt das aktuelle Aussehen; ein Klick darauf speichert die aktuellen Einstellungen als neues Preset.</li>
 <li>Weitere Zifferbl&auml;tter, Zeigers&auml;tze und Presets lassen sich von GitHub laden; fehlende Abh&auml;ngigkeiten werden automatisch mitgeholt.</li>
 <li>Werkseinstellungen mit getrennten Optionen: alles, Zifferbl&auml;tter, Zeigers&auml;tze, Presets oder gespeicherte WLAN-Netzwerke.</li>
 </ul>
@@ -200,6 +209,17 @@ static const char README_HTML_DE[] = R"rawliteral(
 <li>Anzeige der Laufzeit, Neustart &uuml;ber die Weboberfl&auml;che, w&ouml;chentlicher vorbeugender Neustart.</li>
 <li>API-Schnittstelle zum Umschalten der Einstellungen von au&szlig;en.</li>
 <li>Hardware: ESP32-S2, Fotowiderstand f&uuml;r die Helligkeit, optionale DS3231-Echtzeituhr, DCF77-Empfangsmodul.</li>
+</ul>
+
+<h2>11. Rocrail-Modellzeit</h2>
+<ul>
+<li>Optionale Verbindung zu einem Rocrail-Server (Modelleisenbahn-Steuerungssoftware): die Zeiger k&ouml;nnen statt der echten Zeit dessen "Fast Clock" (Modellzeit) anzeigen, aktiviert &uuml;ber einen Schalter auf dem Zeit-Tab.</li>
+<li>Rocrail aktivieren, die Serveradresse speichern oder ein Neustart der Uhr l&ouml;sen jeweils sofort einen Verbindungsversuch aus, statt auf den min&uuml;tlichen Wiederholungsversuch zu warten.</li>
+<li>Die Modellzeit l&auml;uft mit Rocrails eigenem Beschleunigungsfaktor (dem "Divider") statt 1:1; die Uhr schreibt zwischen den Server-Updates eigenst&auml;ndig fort und f&auml;llt auf die echte Zeit zur&uuml;ck, wenn l&auml;nger als 2 Minuten keine Updates mehr eintreffen.</li>
+<li>Der Sekundenzeiger der Bahnhofsuhr skaliert seine Geschwindigkeit mit dem Divider statt sich abzuschalten, und wird oberhalb eines einstellbaren Divider-Schwellwerts ausgeblendet, da er sonst nicht mehr ablesbar w&auml;re.</li>
+<li>Meldet der Server zus&auml;tzlich einen Helligkeitswert, &uuml;bernimmt das Display dessen Helligkeit statt Fotowiderstand/Zeitfenster und schaltet automatisch zur&uuml;ck, sobald die Verbindung endet.</li>
+<li>Die Vorschau-Seite spiegelt dieselbe Modellzeit und Divider-Geschwindigkeit.</li>
+<li>Der Rocrail-Tab zeigt Live-Verbindungsstatus, Divider, Anlagenname und aktuelle Modellzeit.</li>
 </ul>
 )rawliteral";
 
@@ -258,7 +278,6 @@ static const char README_HTML_FR[] = R"rawliteral(
 <li>Pages s&eacute;par&eacute;es pour les pr&eacute;r&eacute;glages, le cadran, les aiguilles, le gestionnaire de fichiers, l&#39;aper&ccedil;u en direct, DCF77 et la r&eacute;initialisation d&#39;usine.</li>
 <li>Interface multilingue&nbsp;: allemand, anglais, fran&ccedil;ais.</li>
 <li>Barre d&#39;&eacute;tat avec l&#39;heure et des points d&#39;&eacute;tat pour l&#39;heure, le RTC, DCF77 et la lumi&egrave;re ambiante, actualis&eacute;s toutes les quelques secondes.</li>
-<li>L&#39;aper&ccedil;u en direct en haut &agrave; gauche montre l&#39;apparence actuelle&nbsp;; un clic enregistre les r&eacute;glages courants comme nouveau pr&eacute;r&eacute;glage.</li>
 <li>D&#39;autres cadrans, jeux d&#39;aiguilles et pr&eacute;r&eacute;glages peuvent &ecirc;tre t&eacute;l&eacute;charg&eacute;s depuis GitHub&nbsp;; les d&eacute;pendances manquantes sont r&eacute;cup&eacute;r&eacute;es automatiquement.</li>
 <li>R&eacute;initialisation d&#39;usine avec options s&eacute;par&eacute;es&nbsp;: tout, cadrans, jeux d&#39;aiguilles, pr&eacute;r&eacute;glages ou r&eacute;seaux WiFi enregistr&eacute;s.</li>
 </ul>
@@ -284,6 +303,17 @@ static const char README_HTML_FR[] = R"rawliteral(
 <li>Affichage de la dur&eacute;e de fonctionnement, red&eacute;marrage depuis l&#39;interface web, red&eacute;marrage pr&eacute;ventif hebdomadaire.</li>
 <li>Interface API pour modifier les r&eacute;glages depuis l&#39;ext&eacute;rieur.</li>
 <li>Mat&eacute;riel&nbsp;: ESP32-S2, photor&eacute;sistance pour la luminosit&eacute;, horloge temps r&eacute;el DS3231 en option, module de r&eacute;ception DCF77.</li>
+</ul>
+
+<h2>11. Heure mod&egrave;le Rocrail</h2>
+<ul>
+<li>Connexion optionnelle &agrave; un serveur Rocrail (logiciel de commande de train miniature)&nbsp;: les aiguilles peuvent afficher son &laquo;&nbsp;fast clock&nbsp;&raquo; (heure du mod&egrave;le) au lieu de l&#39;heure r&eacute;elle, activ&eacute;e via un interrupteur sur l&#39;onglet Heure.</li>
+<li>Activer Rocrail, enregistrer l&#39;adresse du serveur ou red&eacute;marrer l&#39;horloge d&eacute;clenchent chacun une tentative de connexion imm&eacute;diate, au lieu d&#39;attendre la nouvelle tentative toutes les minutes.</li>
+<li>L&#39;heure du mod&egrave;le s&#39;&eacute;coule selon le facteur d&#39;acc&eacute;l&eacute;ration propre &agrave; Rocrail (le &laquo;&nbsp;diviseur&nbsp;&raquo;) plut&ocirc;t que 1:1&nbsp;; l&#39;horloge continue d&#39;avancer seule entre deux mises &agrave; jour du serveur et revient &agrave; l&#39;heure r&eacute;elle si plus aucune mise &agrave; jour n&#39;arrive pendant plus de 2 minutes.</li>
+<li>La trotteuse de l&#39;horloge de gare acc&eacute;l&egrave;re proportionnellement au diviseur au lieu de se d&eacute;sactiver, et se masque au-del&agrave; d&#39;un seuil de diviseur r&eacute;glable, car elle ne serait plus lisible.</li>
+<li>Si le serveur indique aussi une valeur de luminosit&eacute;, l&#39;&eacute;cran reprend cette luminosit&eacute; au lieu de la photor&eacute;sistance/plage horaire, et revient automatiquement d&egrave;s que la connexion est coup&eacute;e.</li>
+<li>La page Aper&ccedil;u refl&egrave;te la m&ecirc;me heure mod&egrave;le et la m&ecirc;me vitesse de diviseur.</li>
+<li>L&#39;onglet Rocrail affiche l&#39;&eacute;tat de connexion en direct, le diviseur, le nom du plan et l&#39;heure mod&egrave;le actuelle.</li>
 </ul>
 )rawliteral";
 
