@@ -415,6 +415,7 @@
         // Start the access point first, so the clock becomes reachable via
         // WPS retry or the web interface in any case (even if the scan
         // below hangs/fails).
+
         // MAC hier selbst holen: startAP() kann erreicht werden, ohne dass
         // connectWiFi() je lief (kein gespeichertes Netz) - nur dort wurde
         // mac[] bisher befuellt, sonst waere das Passwort auf jeder Uhr gleich.
@@ -431,9 +432,11 @@
         // Password from the last 4 MAC bytes (hex = 8 chars, WPA2 minimum) -
         // different per device. SSID stays fixed (AP_SSID); the password used
         // to be identical to it and thus the same/known on every clock.
+
         // Kleinbuchstaben (%02x): auf dem Display und beim Abtippen am Handy
         // eindeutiger zu lesen. Der Hostname weiter unten in connectWiFi()
         // bleibt bewusst bei Grossbuchstaben, der ist ein anderer Bezeichner.
+
         // Lower case (%02x): easier to read on the display and to type on a
         // phone. The hostname further below in connectWiFi() deliberately stays
         // upper case, that is a different identifier.
@@ -473,6 +476,7 @@
 
         // availableNetworks füllen - staerkste zuerst, siehe
         // collectStrongestNetworks() weiter oben.
+
         // Fill availableNetworks - strongest first, see
         // collectStrongestNetworks() further above.
         collectStrongestNetworks(networkCount);
@@ -480,6 +484,7 @@
         // Vom Treiber fuer die Scan-Ergebnisse belegten Speicher freigeben -
         // fehlte hier bisher, obwohl checkWiFiScan()/scanAndCacheNetworks()
         // das nach demselben collectStrongestNetworks()-Aufruf konsequent tun.
+
         // Free the memory the driver allocated for the scan results - this
         // was missing here even though checkWiFiScan()/scanAndCacheNetworks()
         // consistently do it right after the same collectStrongestNetworks() call.

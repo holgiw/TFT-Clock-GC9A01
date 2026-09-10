@@ -625,6 +625,7 @@ void setup() {
 
         // Rotation von Display 2 (CS2) - unabhaengig von tftRotation1, damit
         // beide Displays unterschiedlich ausgerichtet montiert sein koennen.
+
         // rotation of Display 2 (CS2) - independent of tftRotation1, so
         // both displays can be mounted with a different orientation.
         tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
@@ -924,25 +925,12 @@ void setup() {
         connectWiFiAtBoot();
 
         // Bei konfiguriertem Rocrail-Server nach dem Neustart sofort einen
-        // Verbindungsversuch anstossen, statt bis zum ersten regulaeren
-        // Zeitfenster (Sekunde 59, siehe connectRocrailClient()) zu warten -
-        // dieselbe Funktion, die auch beim Speichern im Webinterface greift
-        // (siehe /applydisplaysettings, /save_rocrail in webserver_routes.h).
-        // Nur im normalen STA-Betrieb sinnvoll (wie bei pollRocrailClient()
-        // weiter unten in loop()) - im AP-/Einrichtungsmodus ist ohnehin kein
-        // Rocrail-Server im Heimnetz erreichbar. triggerRocrailConnectNow()
-        // selbst ist ein no-op, wenn rocrailEnabled aus ist oder kein Server
-        // hinterlegt ist.
+        // Verbindungsversuch anstossen, statt bis zum ersten Zeitfenster zu
+        // warten - no-op, wenn Rocrail aus ist, kein Server hinterlegt ist, oder im AP-/Einrichtungsmodus.
 
         // With a configured Rocrail server, kick off a connection attempt
         // right after a restart, instead of waiting for the first regular
-        // window (second 59, see connectRocrailClient()) - the same function
-        // that also fires when saving in the web interface (see
-        // /applydisplaysettings, /save_rocrail in webserver_routes.h). Only
-        // meaningful in normal STA operation (as with pollRocrailClient()
-        // further below in loop()) - no Rocrail server on the home network
-        // is reachable in AP/setup mode anyway. triggerRocrailConnectNow()
-        // itself is a no-op if rocrailEnabled is off or no server is configured.
+        // window - a no-op if Rocrail is off, no server is configured, or in AP/setup mode.
         if (WiFi.getMode() == WIFI_STA) {
             triggerRocrailConnectNow();
         }
@@ -1017,22 +1005,13 @@ void setup() {
         // /api/startWPS) - blockiert loop() nicht, reagiert auf die im WiFi-Event-
         // Callback gesetzten Flags statt WiFi.status() zu pollen (zuverlaessiger).
 
-        // Verzoegerter, NICHT-blockierender Start von WPS: der HTTP-Handler von
-        // /api/startWPS setzt nur wpsStartRequested + wpsStartRequestedAtMillis
-        // und kehrt sofort zurueck, damit der Webserver die per Redirect
-        // aufgerufene Zielseite (mit dem Trennungs-Banner) sofort ausliefern
-        // kann. startWPS() selbst wird erst hier aufgerufen, nachdem dem
-        // Browser genug Zeit blieb, die Seite zu laden und den Banner
-        // anzuzeigen - ein delay() im Handler wuerde stattdessen genau diese
-        // Auslieferung blockieren.
+        // Verzoegerter, NICHT-blockierender Start von WPS: der Handler von
+        // /api/startWPS setzt nur die Flags und kehrt sofort zurueck, damit
+        // die per Redirect aufgerufene Zielseite sofort ausgeliefert wird - startWPS() selbst laeuft erst hier, mit etwas Verzoegerung.
 
-        // Deferred, NON-blocking start of WPS: the /api/startWPS HTTP handler
-        // only sets wpsStartRequested + wpsStartRequestedAtMillis and returns
-        // immediately, so the web server can serve the redirect's target page
-        // (with the disconnect banner) right away. startWPS() itself is only
-        // called here, once the browser has had enough time to load the page
-        // and show the banner - a delay() in the handler would instead block
-        // exactly that delivery.
+        // Deferred, NON-blocking start of WPS: the /api/startWPS handler
+        // only sets the flags and returns immediately, so the redirect's
+        // target page is served right away - startWPS() itself only runs here, after a short delay.
         if (wpsStartRequested && millis() - wpsStartRequestedAtMillis >= (2 * WAIT_1s)) {
             wpsStartRequested = false;
             startWPS();
@@ -1100,15 +1079,14 @@ void setup() {
                 wpsPending = false;
                 setLedOff(); // Blink-Signalisierung unten beenden
                              // end the blink signaling below
+
                 // Ggf. urspruengliche Verbindung wiederherstellen, falls durch
                 // den WPS-Versuch getrennt (siehe restorePreviousWpsConnection()
-                // in wifi_manager.h - gemeinsame Logik fuer diesen und den
-                // Timeout-Zweig unten, vorher hier dupliziert).
+                // in wifi_manager.h - gemeinsame Logik fuer diesen und den Timeout-Zweig unten).
 
                 // Restore the original connection if it was dropped by the
                 // WPS attempt, if applicable (see restorePreviousWpsConnection()
-                // in wifi_manager.h - shared logic for this and the timeout
-                // branch below, previously duplicated here).
+                // in wifi_manager.h - shared logic for this and the timeout branch below).
                 restorePreviousWpsConnection();
             }
             else if (millis() - wpsStartMillis > (2 * WAIT_1m)) {
@@ -1123,6 +1101,7 @@ void setup() {
                 // Wartephase (noch kein Event, noch kein Timeout): Status-LED
                 // blinkt periodisch als sichtbares Lebenszeichen, solange auf
                 // den Tastendruck am Router gewartet wird - unabhaengig vom
+
                 // DCF77-Blinken (siehe processDcf77Bits() in time_sync.h, dort
                 // per "&& !wpsPending" bewusst zurueckgestellt, damit sich
                 // beide Signalisierungen nicht optisch ueberlagern).
@@ -1130,6 +1109,7 @@ void setup() {
                 // Waiting phase (no event yet, no timeout yet): the status LED
                 // blinks periodically as a visible sign of life while waiting
                 // for the button press on the router - independent of the
+
                 // DCF77 blink (see processDcf77Bits() in time_sync.h, held
                 // back there via "&& !wpsPending" so the two signals don't
                 // visually overlap).
@@ -1153,6 +1133,7 @@ void setup() {
         // DCF77-Empfangsstatus aktuell halten (lastDcfSyncTime/dcfTimeFound) -
         // die eigentliche Zeituebernahme passiert getrennt davon, stuendlich
         // mit NTP-Vorrang (siehe checkHourlyTimeSync-Logik weiter unten).
+
         // Keep the DCF77 reception status up to date (lastDcfSyncTime/
         // dcfTimeFound) - the actual time takeover happens separately, hourly
         // with NTP priority (see the checkHourlyTimeSync logic further below).
@@ -1161,6 +1142,7 @@ void setup() {
         // Empfangsausfall bzw. RTC-Ausfall waehrend des Betriebs erkennen -
         // unabhaengig vom WLAN-Status, damit der Topbar-Live-Status
         // (/api/topbarStatus in webserver_routes.h) auch dann aktuell bleibt.
+
         // Check for a reception failure resp. RTC failure during operation -
         // independent of WiFi state, so the topbar live status
         // (/api/topbarStatus in webserver_routes.h) stays current either way.
@@ -1262,6 +1244,7 @@ void setup() {
 
         // Vorzeichenbehafteter Vergleich: so bleibt die Abschaltung auch beim
         // millis()-Ueberlauf (nach ca. 49 Tagen) korrekt.
+
         // Signed comparison: keeps the switch-off correct across the millis()
         // overflow (after about 49 days) as well.
         if (dcfLedOffAtMillis != 0 && (long)(millis() - dcfLedOffAtMillis) >= 0) {
@@ -1279,6 +1262,7 @@ void setup() {
         // wpsPending ausschliessen: waehrend einer laufenden WPS-Verhandlung
         // (bis zu 2 Minuten, siehe oben) trennt sich das WLAN typischerweise
         // kurzzeitig - ohne diese Bedingung griff hier vor allem beim ALLERERSTEN
+
         // Verbindungsverlust seit Boot (firstAttempt in checkWiFiReconnect())
         // sofort ein eigener Reconnect-Versuch ein und kollidierte mit der noch
         // laufenden WPS-Verhandlung um denselben Funkchip.
@@ -1286,6 +1270,7 @@ void setup() {
         // Exclude wpsPending: while a WPS negotiation is in progress (up to 2
         // minutes, see above), WiFi typically drops briefly - without this
         // condition, especially on the VERY FIRST disconnect since boot
+
         // (firstAttempt in checkWiFiReconnect()), a reconnect attempt fired
         // immediately and collided with the still-running WPS negotiation over
         // the same radio.
@@ -1296,6 +1281,7 @@ void setup() {
         // Nur im normalen STA-Betrieb sinnvoll - im AP-/Einrichtungsmodus
         // ist kein Rocrail-Server im Heimnetz erreichbar. pollRocrailClient()
         // ist selbst ein no-op, solange rocrailEnabled aus ist.
+
         // Only meaningful in normal STA operation - no Rocrail server on the
         // home network is reachable in AP/setup mode. pollRocrailClient()
         // itself is a no-op as long as rocrailEnabled is off.
@@ -1306,6 +1292,7 @@ void setup() {
         //  checkWiFiScan(); // Überprüfe den Status des Scans
         // NTP-/DCF77-Zeitsynchronisation laeuft jetzt stuendlich weiter oben
         // (unabhaengig vom WLAN-Status abgearbeitet) - hier daher nichts
+
         // mehr zu tun.
         // NTP/DCF77 time sync now runs hourly further above (handled
         // independent of WiFi status) - nothing left to do here.
@@ -1314,23 +1301,20 @@ void setup() {
 
         }
 
-          // NTP-Server-Anfragen beantworten (Test: w32tm /stripchart /computer:<ip>)
-          //
-          // Die Bedingung prueft die SYSTEMZEIT, nicht die Zeitquelle - nur so
-          // wird geantwortet, sobald irgendeine Quelle (NTP/DCF77/RTC) eine
-          // gueltige Zeit gesetzt hat. Schwelle wie setupNTP(): Jahr > 2016.
+          // NTP-Server-Anfragen beantworten (Test: w32tm /stripchart /computer:<ip>) -
+          // die Bedingung prueft die SYSTEMZEIT, nicht die Zeitquelle, damit
+          // jede gueltige Quelle (NTP/DCF77/RTC) antwortet. Schwelle wie setupNTP(): Jahr > 2016.
 
-          // Answer NTP server requests (test: w32tm /stripchart /computer:<ip>)
-          //
-          // The condition checks the SYSTEM TIME, not the time source - this
-          // way it answers once any source (NTP/DCF77/RTC) has set a valid
-          // time. Threshold as in setupNTP(): year > 2016.
+          // Answer NTP server requests (test: w32tm /stripchart /computer:<ip>) -
+          // the condition checks the SYSTEM TIME, not the time source, so
+          // any valid source (NTP/DCF77/RTC) triggers a reply. Threshold as in setupNTP(): year > 2016.
         if (ntpServerRunning) {
             int packetSize = udp.parsePacket();
             if (packetSize) {
                 // Empfangszeitpunkt SOFORT festhalten, vor allem Weiteren -
                 // er geht als Receive-Timestamp in die Antwort ein und ist die
                 // Grundlage, aus der der Client Laufzeit und Offset berechnet.
+
                 // Capture the receive instant IMMEDIATELY, before anything else
                 // - it goes into the reply as the receive timestamp and is what
                 // the client uses to compute delay and offset.

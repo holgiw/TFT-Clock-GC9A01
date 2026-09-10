@@ -59,27 +59,13 @@
                                            // set in the WiFi event callback (different context!)
     volatile bool wpsFailedEvent = false;
 
-    // Verzoegerter WPS-Start (siehe /api/startWPS in webserver_routes.h und
-    // loop() in uhr3.ino): der HTTP-Handler darf NICHT per delay() blockieren,
-    // um selbst auf startWPS() zu warten - waehrend eines blockierenden
-    // delay() kann der Webserver keine weitere Anfrage annehmen, also auch
-    // nicht die Folge-GET-Anfrage des Browsers fuer die per Redirect
-    // aufgerufene Zielseite (mit dem Trennungs-Banner). startWPS() wuerde die
-    // Verbindung dann stoeren, WAEHREND genau diese Seite noch laedt. Deshalb
-    // merkt sich der Handler nur den Wunsch + Zeitpunkt, loop() started WPS
-    // stattdessen zeitgesteuert (unblockierend, per millis()) etwas spaeter -
-    // die Zielseite mit dem Banner ist dann laengst ausgeliefert.
+    // Verzoegerter WPS-Start: der HTTP-Handler darf nicht per delay()
+    // blockieren, sonst kann der Webserver die Folge-Anfrage fuer die
+    // Redirect-Zielseite nicht mehr annehmen - loop() startet WPS stattdessen zeitgesteuert etwas spaeter.
 
-    // Deferred WPS start (see /api/startWPS in webserver_routes.h and loop()
-    // in uhr3.ino): the HTTP handler must NOT block with delay() to wait out
-    // startWPS() itself - while such a delay() blocks, the web server cannot
-    // accept another request either, including the browser's follow-up GET
-    // for the redirect's target page (with the disconnect banner). startWPS()
-    // would then disturb the connection WHILE that very page is still
-    // loading. So the handler only records the request + timestamp, and
-    // loop() starts WPS instead on a timer (non-blocking, via millis()) a
-    // little later - by then the target page with the banner has long since
-    // been delivered.
+    // Deferred WPS start: the HTTP handler must not block with delay(),
+    // otherwise the web server can't accept the redirect target page's
+    // follow-up request - loop() starts WPS on a timer a bit later instead.
     bool wpsStartRequested = false;
     unsigned long wpsStartRequestedAtMillis = 0;
 
@@ -114,6 +100,7 @@
 
     // Zeit, NTP, DCF77, RTC
     // Time, NTP, DCF77, RTC
+
     // NTP-Server-Port
     // NTP server port
     const int NTP_PORT = 123;
@@ -126,11 +113,13 @@
 
     // Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr3.ino);
     // processDcf77Bits() (time_sync.h) klassifiziert nur ueber die DAUER
+
     // zwischen zwei Flanken - der Pegel wird nie gelesen, daher keine
     // Flankenrichtung noetig.
 
     // Interrupt is on CHANGE (see attachInterrupt() in uhr3.ino);
     // processDcf77Bits() (time_sync.h) classifies purely by the DURATION
+
     // between two edges - the level is never read, so no edge direction
     // is needed.
 
@@ -142,11 +131,13 @@
 
     // Wird in processDcf77Bits() gesetzt, nicht in der ISR: setLedOn/Off()
     // liegen im Flash (Panic-Reset-Risiko bei deaktiviertem Flash-Cache, z.B.
+
     // waehrend LittleFS-Schreibvorgaengen), und nur processDcf77Bits() weiss
     // ueber dcf77Confirmed, ob wirklich DCF77 erkannt wurde. Siehe isr() in time_sync.h.
 
     // Set in processDcf77Bits(), not the ISR: setLedOn/Off() live in flash
     // (panic-reset risk while the flash cache is disabled, e.g. during
+
     // LittleFS writes), and only processDcf77Bits() knows via dcf77Confirmed
     // whether DCF77 was actually recognized. See isr() in time_sync.h.
     volatile bool dcfLedTogglePending = false;
@@ -185,11 +176,13 @@
 
     // Eigener Bit-Fortschritt statt dcf.getUTCTime() der DCF77-Bibliothek -
     // treibt Live-Anzeige (/dcf77) und Zeituebernahme (dcf77LastDecoded). ISR
+
     // schreibt nur Zeitstempel in den Ringpuffer (RAM); Dekodierung passiert
     // nur in processDcf77Bits()/decodeDcf77Telegram(), aufgerufen aus loop().
 
     // Own bit progress instead of the library's dcf.getUTCTime() - drives the
     // live display (/dcf77) and time takeover (dcf77LastDecoded). ISR only
+
     // writes a timestamp to the ring buffer (RAM); decoding happens only in
     // processDcf77Bits()/decodeDcf77Telegram(), called from loop().
 
@@ -204,16 +197,13 @@
     volatile unsigned long dcf77EdgeMillis[DCF77_EDGE_BUFFER_SIZE];
     // dcf77EdgeLevel[] entfernt: Pegel wurde nie ausgewertet (Klassifizierung
     // laeuft ueber die Flankendauer), digitalRead() lag aber im Flash - Absturzrisiko in der ISR.
+
     // dcf77EdgeLevel[] removed: level was never evaluated (classification
     // works via edge duration), but digitalRead() lived in flash - crash risk in the ISR.
     volatile uint8_t dcf77EdgeHead = 0; // naechster freier Schreibindex - NUR von der ISR veraendert
                                         // next free write index - ONLY changed by the ISR
-    volatile uint32_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer (Diagnose). Als uint32_t statt
-                                            // uint8_t: der Zaehler lief nach 256 verworfenen Flanken still ueber und fing
-                                            // wieder bei 0 an - genau bei starkem Verlust war der Diagnosewert also wertlos
-                                            // number of edges dropped when the buffer was full (diagnostic). uint32_t instead
-                                            // of uint8_t: the counter silently wrapped after 256 dropped edges and started
-                                            // over at 0 - so exactly under heavy loss the diagnostic value was worthless
+    volatile uint32_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer - uint32_t, da uint8_t nach 256 ueberlaufen wuerde (Diagnose).
+                                            // number of edges dropped when the buffer was full - uint32_t, since uint8_t would wrap after 256 (diagnostic).
     uint8_t dcf77EdgeTail = 0; // naechster zu lesende Index - NUR im Hauptthread (loop()) veraendert
                                // next index to read - ONLY changed on the main thread (loop())
 
@@ -244,11 +234,13 @@
 
     // dcf77Phase ist eine freilaufende Rasterposition 0..59 ohne Sekundenbezug.
     // Die Minutenmarke wird ueber Statistik erkannt (einzige Position, an der
+
     // IMMER ein Impuls fehlt), nicht ueber einen einzelnen Abstand - robust
     // auch bei Stoerungen mit haeufigen 2s-Abstaenden.
 
     // dcf77Phase is a free-running grid position 0..59 with no relation to the
     // real second. The minute marker is detected via statistics (the only
+
     // position where a pulse is ALWAYS missing), not a single pulse distance -
     // robust even with interference causing frequent 2s gaps.
     uint8_t dcf77Phase = 0;
@@ -272,6 +264,7 @@
     // Diagnosewerte fuer die /dcf77-Seite: machen sichtbar, was der Empfaenger
     // tatsaechlich liefert - ohne Oszilloskop sonst nicht zu unterscheiden, ob
     // der Dekoder falsch rechnet oder keine brauchbaren Impulse ankommen.
+
     // Diagnostic values for the /dcf77 page: make visible what the receiver
     // actually delivers - without an oscilloscope there's no other way to
     // tell whether the decoder computes wrongly or no usable pulses arrive.
@@ -311,11 +304,13 @@
 
     // Letzte bestaetigte Dekodierung als Referenz fuer die Kohaerenzpruefung
     // rekonstruierter Telegramme (siehe decodeDcf77Telegram()): bei aus
+
     // Paritaet ergaenzten Bits muss die Zeit exakt zur vorherigen plus
     // verstrichenen Minuten passen - ein vollstaendiges Telegramm braucht das nicht.
 
     // Last confirmed decoding, used as the reference for the coherence check
     // of reconstructed telegrams (see decodeDcf77Telegram()): with bits filled
+
     // from parity, the time must exactly match the previous one plus elapsed
     // minutes - a fully received telegram doesn't need this.
     time_t dcf77PrevEpoch = 0;
@@ -358,52 +353,35 @@
 
     struct tm timeinfo;
 
-    // Rocrail-Modellzeit (siehe rocrail_client.h): eigenstaendige, ggf.
-    // gegenueber der echten Zeit beschleunigte Zeitstruktur - komplett
-    // getrennt von "timeinfo" oben, das weiterhin die echte Systemzeit fuer
-    // Log/NTP-Server/woechentlichen Neustart traegt. renderClockFrame() liest
-    // je nach rocrailEnabled aus der einen oder der anderen Struktur.
+    // Rocrail-Modellzeit (siehe rocrail_client.h): eigenstaendige,
+    // ggf. beschleunigte Zeitstruktur, komplett getrennt von "timeinfo"
+    // oben. renderClockFrame() liest je nach rocrailEnabled aus der einen oder anderen Struktur.
 
-    // Rocrail model time (see rocrail_client.h): an independent time struct,
-    // possibly running faster than real time - fully separate from
-    // "timeinfo" above, which keeps carrying the real system time for
-    // logging/NTP server/weekly restart. renderClockFrame() reads from
-    // whichever struct applies, depending on rocrailEnabled.
+    // Rocrail model time (see rocrail_client.h): an independent, possibly
+    // accelerated time struct, fully separate from "timeinfo" above.
+    // renderClockFrame() reads from whichever struct applies, depending on rocrailEnabled.
     struct tm rocrailTimeinfo;
     bool rocrailEnabled = false;    // per Tab-Schalter/Preferences aktiviert
                                     // enabled via the tab switch/preferences
     bool rocrailConnected = false;  // TCP-Verbindung zum Server aktuell offen
                                     // TCP connection to the server currently open
-    String rocrailServerHost = "";  // aktuell aktiver Server - siehe rocrailServerList[] unten
-                                    // fuer die vollstaendige Liste moeglicher Server (bis zu
-                                    // MAX_WLAN); wird beim Speichern in /save_rocrail aus dem
-                                    // per Haekchen ausgewaehlten Listeneintrag uebernommen.
-                                    // currently active server - see rocrailServerList[] below
-                                    // for the full list of possible servers (up to MAX_WLAN);
-                                    // taken over from the entry selected via the checkmark
-                                    // when saving in /save_rocrail.
+    String rocrailServerHost = "";  // aktuell aktiver Server - siehe rocrailServerList[] unten;
+                                    // wird beim Speichern aus dem angehakten Listeneintrag uebernommen.
+                                    // currently active server - see rocrailServerList[] below;
+                                    // taken over from the checked list entry when saving.
     uint16_t rocrailServerPort = ROCRAIL_DEFAULT_PORT;
     char rocrailServerList[MAX_WLAN][64];        // Hostname/IP je Listenplatz (siehe pkRocrailServerHost())
                                                  // hostname/IP per list slot (see pkRocrailServerHost())
     uint16_t rocrailServerPortList[MAX_WLAN];    // Port je Listenplatz (siehe pkRocrailServerPort())
                                                  // port per list slot (see pkRocrailServerPort())
 
-    // Anlagenname je Listenplatz - vom Nutzer frei editierbar (siehe
-    // panel-rocrail in webserver_routes.h). Ist das Feld fuer den gerade
-    // aktiven Server leer, uebernimmt processRocrailPlanTag()
-    // (rocrail_client.h) einmalig den vom Server per <plan title="..."/>
-    // gemeldeten Namen; ist es NICHT leer (vom Nutzer gesetzt oder schon
-    // einmal per RCP befuellt), wird es von dort an nicht mehr angetastet -
-    // erst ein manuelles Leeren des Felds durch den Nutzer schaltet die
-    // automatische Uebernahme fuer diesen Listenplatz wieder frei.
+    // Anlagenname je Listenplatz - vom Nutzer frei editierbar. Ist das Feld
+    // leer, uebernimmt processRocrailPlanTag() (rocrail_client.h) einmalig
+    // den vom Server gemeldeten Namen; ist es nicht leer, bleibt es unangetastet - erst manuelles Leeren schaltet die Uebernahme wieder frei.
 
-    // Layout name per list slot - freely editable by the user (see
-    // panel-rocrail in webserver_routes.h). If the field for the currently
-    // active server is empty, processRocrailPlanTag() (rocrail_client.h)
-    // takes over the name reported by the server via <plan title="..."/>
-    // once; if it is NOT empty (set by the user, or already filled in once
-    // via RCP), it is left untouched from then on - only the user manually
-    // clearing the field re-enables automatic takeover for that list slot.
+    // Layout name per list slot - freely editable by the user. If the field
+    // is empty, processRocrailPlanTag() (rocrail_client.h) takes over the
+    // name reported by the server once; if not empty, it stays untouched - only clearing it manually re-enables takeover.
     char rocrailServerNameList[MAX_WLAN][40];
 
     int rocrailActiveServerIndex = -1;           // 0-basierter Index des per Haekchen ausgewaehlten
@@ -416,19 +394,13 @@
                                     // paused via <clock state="freeze"/> (see processRocrailClockPayload())
     uint8_t rocrailBrightness = 255;    // zuletzt vom Server per <clock bri="..."/> gemeldeter
                                         // Helligkeitswert (0-255, siehe processRocrailClockPayload())
-    bool rocrailBrightnessKnown = false; // true, sobald mindestens einmal ein bri-Wert empfangen
-                                         // wurde - erst dann uebernimmt updateBrightness() ihn
-                                         // (siehe dort); manche Rocrail-Installationen senden gar
-                                         // kein bri (keine Lichtsteuerung konfiguriert), dann bleibt
-                                         // die lokale Helligkeitssteuerung dauerhaft aktiv
+    bool rocrailBrightnessKnown = false; // true, sobald einmal ein bri-Wert empfangen wurde - erst
+                                         // dann uebernimmt updateBrightness() ihn; sendet der Server
+                                         // nie bri, bleibt die lokale Helligkeitssteuerung dauerhaft aktiv.
 
-                                        // last brightness value reported by the server via
-                                        // <clock bri="..."/> (0-255, see processRocrailClockPayload())
-                                        // true once at least one bri value has been received - only
-                                        // then does updateBrightness() take it over (see there); some
-                                        // Rocrail setups never send bri at all (no lighting control
-                                        // configured), in which case the local brightness control
-                                        // stays active permanently
+                                        // true once a bri value has been received - only then does
+                                        // updateBrightness() take it over; if the server never sends
+                                        // bri, local brightness control stays active permanently.
     WiFiClient rocrailClient;
     String rocrailRxBuffer;         // Empfangspuffer fuer XML-Tag-Bruchstuecke
                                     // receive buffer for XML tag fragments
@@ -447,12 +419,14 @@
     float rocrailDriftSeconds = 0.0f;          // verbleibende, sanft auszugleichende Abweichung zur
                                                // zuletzt gemeldeten Server-Zeit (siehe advanceRocrailTime()/
                                                // processRocrailClockPayload()) - 0 = keine Korrektur noetig
+
                                                // remaining deviation to the last reported server time,
                                                // eased in smoothly (see advanceRocrailTime()/
                                                // processRocrailClockPayload()) - 0 = no correction needed
     float rocrailSecFrac = 0.0f;               // Sekunde mit Nachkommastellen (0.0-59.999) fuer die
                                                // glatte, nicht tickende Zeigerbewegung im Rocrail-
                                                // Modus (siehe advanceRocrailTime()/renderClockFrame())
+
                                                // second with a fractional part (0.0-59.999) for the
                                                // smooth, non-ticking hand motion in Rocrail mode (see
                                                // advanceRocrailTime()/renderClockFrame())
@@ -460,6 +434,7 @@
     TaskHandle_t rocrailConnectTaskHandle = NULL; // eigene, kurzlebige Task fuer den
                                                   // (blockierenden) Connect-Versuch, damit
                                                   // loop() dabei nicht blockiert (siehe rocrail_client.h)
+
                                                   // own short-lived task for the (blocking) connect
                                                   // attempt, so loop() doesn't block during it (see rocrail_client.h)
     volatile bool rocrailConnectTaskRunning = false; // Task laeuft gerade
@@ -572,6 +547,7 @@
 
     // Arbeitskopie der Zeigerpixel fuer den kantengeglaetteten Aufbau (die
     // Sprite-eigenen readPixel()-Aufrufe waeren pro Subsample zu teuer).
+
     // Working copy of the hand pixels for the anti-aliased rebuild (the sprite's
     // own readPixel() calls would be too expensive per subsample).
     uint16_t* handPixelScratch = nullptr;
@@ -587,6 +563,7 @@
 
     // Display 2 (baugleich, am CS2-Pin, siehe config.h) ist fest aktiviert,
     // kein Preferences-/UI-Schalter.
+
     // Display 2 (identical, on the CS2 pin, see config.h) is permanently
     // enabled, no preferences/UI toggle.
 

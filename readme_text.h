@@ -1,39 +1,11 @@
 #pragma once
-    // ### Info-Seite: Projektbeschreibung (README) in drei Sprachen ########
-    //
-    // Der Text liegt als 'static const char[]' direkt im Flash - genau wie die
-    // Uebersetzungstabelle in translation.h: der ESP32 liest Flash ueber den
-    // Cache wie normalen Speicher, PROGMEM/Umkopieren ist nicht noetig. Die
-    // /info-Route (siehe webserver_routes.h) gibt den Block der aktuell
-    // eingestellten Sprache stueckweise aus, ohne ihn vorher in einen String
-    // (also in den Heap) zu kopieren - bei rund 10 KB pro Sprache waere das
-    // auf diesem Chip sonst ein ernsthaftes Problem.
-    //
-    // Bewusst fertiges HTML statt Markdown: ein Markdown-Parser auf dem ESP32
-    // waere zusaetzlicher Code und zusaetzliche Fehlerquellen fuer ein
-    // Ergebnis, das hier ohnehin feststeht.
-    //
-    // Umlaute und Akzente als HTML-Entities (&uuml; usw.), wie in
-    // translation.h - so ist die Darstellung unabhaengig davon, in welcher
-    // Kodierung die Quelldatei gespeichert wird.
+    // Info-Seite: Projektbeschreibung in drei Sprachen als fertiges HTML
+    // direkt aus dem Flash gestreamt, ohne Heap-Kopie und ohne Markdown-
+    // Parser. Umlaute als HTML-Entities wie in translation.h.
 
-    // ### Info page: project description (README) in three languages #######
-    //
-    // The text lives as 'static const char[]' directly in flash - just like
-    // the translation table in translation.h: the ESP32 reads flash through
-    // the cache like normal memory, no PROGMEM/copying needed. The /info route
-    // (see webserver_routes.h) sends the block for the currently selected
-    // language in chunks, without copying it into a String (i.e. onto the
-    // heap) first - at around 10 KB per language that would be a serious
-    // problem on this chip.
-    //
-    // Deliberately finished HTML instead of Markdown: a Markdown parser on the
-    // ESP32 would be extra code and an extra source of errors for a result
-    // that is fixed here anyway.
-    //
-    // Umlauts and accents as HTML entities (&uuml; etc.), as in translation.h -
-    // this keeps rendering independent of the encoding the source file is
-    // saved in.
+    // Info page: project description in three languages as finished HTML,
+    // streamed directly from flash without a heap copy or a Markdown
+    // parser. Umlauts as HTML entities, as in translation.h.
 
 static const char README_HTML_EN[] = R"rawliteral(
 <h2>1. Support for Multiple TFT Displays</h2>
@@ -320,6 +292,7 @@ static const char README_HTML_FR[] = R"rawliteral(
 
     // Liefert den README-Block zur aktuell eingestellten Sprache; faellt auf
     // Englisch zurueck, wenn fuer eine Sprache keine Fassung vorliegt.
+
     // Returns the README block for the currently selected language; falls back
     // to English if no version exists for a language.
 

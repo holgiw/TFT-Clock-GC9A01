@@ -130,6 +130,7 @@
 
         // Nie mehr ausgleichen als noch aussteht (kein Ueberschwingen bei
         // grossem elapsedRealSec, z.B. nach einem verzoegerten Frame).
+
         // Never correct more than what's outstanding (no overshoot with a
         // large elapsedRealSec, e.g. after a delayed frame).
         if (rocrailDriftSeconds != 0.0f) {
@@ -359,6 +360,7 @@
         // Sekunde 59: im Bahnhofsuhr-Modus ruht der Zeiger dort schon seit
         // ~58,5s. timeinfo statt rocrailTimeinfo, da bis zur Verbindung
         // ohnehin die echte Zeit angezeigt wird.
+
         // Second 59: in station-clock mode the hand has been resting there
         // since ~58.5s. timeinfo instead of rocrailTimeinfo, since the real
         // time is shown anyway until connected.
@@ -413,6 +415,7 @@
 
         // Waehrend die Connect-Task laeuft, rocrailClient nicht anfassen
         // (WiFiClient ist nicht nebenlaeufig-sicher).
+
         // While the connect task is running, don't touch rocrailClient
         // (WiFiClient isn't safe for concurrent access).
         if (rocrailConnectTaskRunning) return;
@@ -435,6 +438,7 @@
                 // Diagnose: nur die ersten 5 Rohdaten-Haeppchen loggen, um
                 // das Logfile nicht mit haeufigen Statuszeilen zulaufen zu
                 // lassen.
+
                 // Diagnostic: only log the first 5 raw data chunks, so the
                 // log file doesn't fill up with frequent status lines.
                 if (rocrailLogChunkCount < 5) {
@@ -448,6 +452,7 @@
                 // Puffer deckeln: ein <clock/>-Tag ist immer kurz, ein
                 // grosser Broadcast (z.B. <plan>) soll den Heap nicht
                 // unbegrenzt wachsen lassen.
+
                 // Cap the buffer: a <clock/> tag is always short, a large
                 // broadcast (e.g. <plan>) shouldn't grow the heap without bound.
                 if (rocrailRxBuffer.length() > 4096) {

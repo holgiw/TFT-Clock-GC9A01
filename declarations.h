@@ -27,6 +27,7 @@
 
     // In uhr3.ino definiert (nicht in wifi_manager.h), da sie den kompletten
     // Boot-Ablauf des WLAN-Aufbaus kapselt - siehe Kommentar dort.
+
     // Defined in uhr3.ino (not in wifi_manager.h), since it encapsulates the
     // whole boot-time WiFi setup flow - see the comment there.
     void connectWiFiAtBoot() ;
@@ -161,6 +162,7 @@
 
     // prefs_keys.h / wifi_manager.h: verifiziertes Preferences-Schreiben
     // prefs_keys.h / wifi_manager.h: verified Preferences writing
+
     // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
     // um einen fehlgeschlagenen Schreibvorgang (z.B. durch vollen NVS-Namespace) zu erkennen,
     // statt ihn erst nach einem Neustart als "Eintrag verschwunden" zu bemerken.

@@ -79,31 +79,22 @@
     constexpr const char* PK_ROCRAIL_ENABLED   = "rocrailEnabled";
 
     // PK_ROCRAIL_SERVER/PK_ROCRAIL_SRV_PORT: der aktuell aktive Server -
-    // wird beim Speichern in /save_rocrail aus der Liste unten (dem per
-    // Haekchen ausgewaehlten Eintrag) uebernommen. rocrail_client.h liest
-    // weiterhin nur diese beiden Werte, kennt die Liste selbst nicht.
-    // Frueher der einzige, manuell eingetragene Server - daher der Name
-    // ohne Index.
+    // wird beim Speichern aus der Liste unten (dem angehakten Eintrag)
+    // uebernommen. rocrail_client.h kennt nur diese zwei Werte, nicht die Liste.
 
     // PK_ROCRAIL_SERVER/PK_ROCRAIL_SRV_PORT: the currently active server -
-    // taken over from the list below (the entry selected via the checkmark)
-    // when saving in /save_rocrail. rocrail_client.h continues to read only
-    // these two values, it doesn't know about the list itself. Formerly the
-    // single, manually entered server - hence the name has no index.
+    // taken over from the list below (the checked entry) when saving.
+    // rocrail_client.h only knows these two values, not the list.
     constexpr const char* PK_ROCRAIL_SERVER    = "rocrailServer";
     constexpr const char* PK_ROCRAIL_SRV_PORT  = "rocrailSrvPort";
 
-    // Liste moeglicher Rocrail-Server (bis zu MAX_WLAN Eintraege, siehe
-    // globals.h) - wie bei den NTP-Servern (pkNtpServer()) immer ein leerer
-    // Platz nach dem letzten befuellten (siehe panel-rocrail in
-    // webserver_routes.h). PK_ROCRAIL_ACTIVE_SRV haelt den 0-basierten Index
-    // des per Haekchen ausgewaehlten Eintrags, -1 = keiner ausgewaehlt.
+    // Liste moeglicher Rocrail-Server (bis zu MAX_WLAN Eintraege) - wie bei
+    // den NTP-Servern immer ein leerer Platz nach dem letzten befuellten.
+    // PK_ROCRAIL_ACTIVE_SRV: 0-basierter Index des angehakten Eintrags, -1 = keiner.
 
-    // List of possible Rocrail servers (up to MAX_WLAN entries, see
-    // globals.h) - like the NTP servers (pkNtpServer()), always one empty
-    // slot after the last filled one (see panel-rocrail in
-    // webserver_routes.h). PK_ROCRAIL_ACTIVE_SRV holds the 0-based index of
-    // the entry selected via the checkmark, -1 = none selected.
+    // List of possible Rocrail servers (up to MAX_WLAN entries) - like the
+    // NTP servers, always one empty slot after the last filled one.
+    // PK_ROCRAIL_ACTIVE_SRV: 0-based index of the checked entry, -1 = none.
     constexpr const char* PK_ROCRAIL_ACTIVE_SRV = "rocSrvActive";
 
     // Liefert den Preferences-Key fuer den Hostnamen/die IP des Rocrail-Server-Eintrags an Index i
@@ -121,6 +112,7 @@
     // Liefert den Preferences-Key fuer den (vom Nutzer editierbaren, siehe
     // rocrailServerNameList[] in globals.h) Anlagennamen des Rocrail-Server-
     // Eintrags an Index i
+
     // Returns the preferences key for the (user-editable, see
     // rocrailServerNameList[] in globals.h) layout name of the Rocrail
     // server entry at index i
@@ -131,23 +123,13 @@
     // Maintenance
     constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
 
-    // Bekannte Default-Wert-Inkonsistenzen (im Original-Sketch)
-    // Known Default-Value Inconsistencies (in the original sketch)
-    // PK_STATION_MODE: Default ueberall `true`, ausser einer Webserver-Handler-Stelle mit `false` (beim Zentralisieren einheitlich auf `true` setzen).
-    // PK_STATION_MODE: default is `true` everywhere except one webserver handler using `false` (unify to `true` when centralizing).
-    // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt bei fehlendem Wert 8/20 - rein kosmetisch, sollte vereinheitlicht werden.
-    // PK_BRIGHT_START_HOUR/END_HOUR: load function uses 7/21, status page shows 8/20 when missing - cosmetic only, should be unified.
-    // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: der Erststart-Init-Block in uhr3.ino schreibt board-abhaengige Werte
-    // (GC9D01/GC9A01_WITH_BACKLIGHT bekommen andere Zahlen als sonstige Displays), aber ALLE spaeteren preferences.getX(...)-Aufrufe (uhr3.ino setup(),
-    // display.h, webserver_routes.h) verwenden ausnahmslos die "Nicht-Backlight"-Defaultwerte als Fallback-Parameter. Betrifft nur den Fall, dass einer
-    // dieser Keys auf einem Backlight-/GC9D01-Geraet nach dem Erststart verlorengeht (z.B. NVS-Fehler, oder ein Key wird erst mit einem spaeteren
-    // Firmware-Update eingefuehrt, nachdem PK_FIRST_START bereits gesetzt ist) - die Uhr faellt dann auf den falschen (fuer Nicht-Backlight-Displays
-    // gedachten) Wert zurueck, statt auf den fuer dieses Display eigentlich vorgesehenen.
-    // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: the first-run init block in uhr3.ino writes board-dependent values
-    // (GC9D01/GC9A01_WITH_BACKLIGHT get different numbers than other displays), but ALL later preferences.getX(...) calls (uhr3.ino setup(),
-    // display.h, webserver_routes.h) uniformly use the "non-backlight" values as their fallback parameter. Only matters if one of these keys is lost
-    // on a backlight/GC9D01 device after the first run (e.g. an NVS error, or a key introduced by a later firmware update after PK_FIRST_START is
-    // already set) - the clock then falls back to the wrong (non-backlight) value instead of the one actually intended for that display.
+    // PK_STATION_MODE: Default ueberall `true`, ausser einer Stelle mit `false`.
+    // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt 8/20 - rein kosmetisch.
+    // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: Erststart schreibt board-abhaengige Werte, spaetere Fallbacks nutzen aber immer die Nicht-Backlight-Defaults.
+
+    // PK_STATION_MODE: default `true` everywhere, except one spot with `false`.
+    // PK_BRIGHT_START_HOUR/END_HOUR: load function uses 7/21, status page shows 8/20 - cosmetic only.
+    // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: first run writes board-dependent values, but later fallbacks always use the non-backlight defaults.
 
 
     // Indizierte Keys (WLAN-Slots, NTP-Server, Presets)

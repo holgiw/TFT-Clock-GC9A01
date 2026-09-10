@@ -9,6 +9,7 @@
 
     // Board-Auswahl (Prozessor, TFT-Typ)
     // Board selection (processor, TFT type)
+
     // Prozessor
     // Processor
 #define ESP32_S2  //nur ESP32-S2 unterstuetzt
@@ -16,8 +17,8 @@
 
     // TFT auswaehlen
     // select TFT
-//#define GC9A01
-    #define GC9A01_WITH_BACKLIGHT
+#define GC9A01
+    //#define GC9A01_WITH_BACKLIGHT
     //#define GC9D01
     //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt / DEPRECATED - no longer maintained, GC9A01 is preferred
 
@@ -49,11 +50,13 @@
 
     // SPI-CS Display 1 - manuell gesteuert (setCS1()/setCS2() in display.h),
     // nicht mehr automatisch von TFT_eSPI. Muss deshalb hier UND in
+
     // User_Setup.h der Bibliothek auf -1 stehen, sonst "stehlen" sich beide
     // Displays bei unterschiedlicher Rotation gegenseitig Bilddaten.
 
     // SPI CS for display 1 - driven manually (setCS1()/setCS2() in
     // display.h), no longer automatically by TFT_eSPI. Must therefore be -1
+
     // here AND in the library's User_Setup.h, otherwise the two displays
     // "steal" each other's frame data when rotated differently.
 #define CS_1    12
@@ -198,30 +201,24 @@
     // logs early instead of only being noticed later via /status.
 #define HEAP_WARNING_THRESHOLD 20480 // 20 KB
 
-    // Erlaubter Wertebereich fuer die Groesse der Web-Vorschau (/preview,
-    // siehe webserver_routes.h) - vom Nutzer per Schieberegler einstellbar,
-    // in PK_PREVIEW_SIZE gespeichert. Von /preview UND /api/setPreviewSize
-    // genutzt, daher hier zentral statt an beiden Stellen dupliziert.
+    // Erlaubter Wertebereich fuer die Groesse der Web-Vorschau (/preview) -
+    // vom Nutzer per Schieberegler einstellbar, in PK_PREVIEW_SIZE
+    // gespeichert. Zentral hier statt in /preview und /api/setPreviewSize dupliziert.
 
-    // Allowed value range for the web preview's size (/preview, see
-    // webserver_routes.h) - user-adjustable via a slider, stored in
-    // PK_PREVIEW_SIZE. Used by both /preview AND /api/setPreviewSize, so
-    // centralized here instead of duplicated in both places.
+    // Allowed value range for the web preview's size (/preview) - user-
+    // adjustable via a slider, stored in PK_PREVIEW_SIZE. Centralized here
+    // instead of duplicated in /preview and /api/setPreviewSize.
 #define PREVIEW_SIZE_MIN 150
 #define PREVIEW_SIZE_MAX 800
 #define PREVIEW_SIZE_DEFAULT 400
 
     // Fuehrt einen Zeichenblock je einmal fuer Display 1 und 2 aus, korrekt
-    // rotiert (beginStatusDraw()/endStatusDraw() in display.h) - fuer
-    // Status-/Boot-Texte, die direkt auf 'tft' statt ueber das Sprite-System
-    // zeichnen. Makro statt Funktion, da schon vor display.h benutzt
-    // (wifi_manager.h); __VA_ARGS__ wegen Kommas in tft.printf(...).
+    // rotiert (beginStatusDraw()/endStatusDraw() in display.h). Makro statt
+    // Funktion, da schon vor display.h benutzt (wifi_manager.h).
 
     // Runs a drawing block once for display 1 and once for 2, correctly
-    // rotated (beginStatusDraw()/endStatusDraw() in display.h) - for
-    // status/boot text drawing directly to 'tft' instead of via the sprite
-    // system. Macro instead of function since it's used before display.h is
-    // included (wifi_manager.h); __VA_ARGS__ because of commas in tft.printf(...).
+    // rotated (beginStatusDraw()/endStatusDraw() in display.h). Macro
+    // instead of function since it's used before display.h is included (wifi_manager.h).
 #define DRAW_ON_BOTH_DISPLAYS(...) \
     do { \
         { TFT_eSPI& tft = beginStatusDraw(1); __VA_ARGS__ } \
@@ -255,6 +252,7 @@
 
     // Zeit / NTP-Standardwerte & Timing-Makros
     // Time / NTP defaults & timing macros
+
     // Zeitserver & Zeitzone Standardwert
     // time server & timezone default
 #define NTP_SERVER_1 "pool.ntp.org"
@@ -264,11 +262,13 @@
 
     // Versuche PRO NTP-Server, bevor setupNTP() zum naechsten wechselt (siehe
     // time_sync.h) - ein einzelnes verlorenes UDP-Paket soll nicht sofort als
+
     // Fehlschlag zaehlen. configTzTime() wird pro Versuch neu aufgerufen,
     // da der SNTP-Client sonst keine neue Anfrage verschickt.
 
     // Attempts PER NTP server before setupNTP() moves to the next one (see
     // time_sync.h) - a single lost UDP packet shouldn't count as a failure
+
     // right away. configTzTime() is called fresh each attempt, since
     // otherwise the SNTP client won't send a new request.
 #define NTP_SYNC_ATTEMPTS 2
@@ -308,6 +308,7 @@
     // Rocrail-Modellzeit (siehe rocrail_client.h): TCP-Client-Port des
     // Servers ist IANA-registriert und praktisch immer 8051. Verbindungs-
     // versuch laeuft minuetlich - ein haengender Modellbahn-PC soll nicht
+
     // im Sekundentakt angeklopft werden. Kurzer, expliziter Connect-Timeout
     // statt des laengeren Standard-Timeouts, damit ein nicht erreichbarer
     // Server loop() nur kurz blockiert (siehe connectRocrailClient()).
@@ -315,6 +316,7 @@
     // Rocrail model time (see rocrail_client.h): the server's TCP client
     // port is IANA-registered and practically always 8051. The connection
     // attempt runs once a minute - an unreachable layout PC shouldn't be
+
     // knocked on every second. A short, explicit connect timeout instead of
     // the longer default one, so an unreachable server only blocks loop()
     // briefly (see connectRocrailClient()).
@@ -326,6 +328,7 @@
     // Ab diesem Divider werden Sekundenzeiger UND Nabe ausgeblendet (siehe
     // renderClockFrame()) - bei so hoher Beschleunigung ist ihre Bewegung/
     // Sichtbarkeit ohnehin kaum noch sinnvoll.
+
     // From this divider onwards, the second hand AND the hub are hidden
     // (see renderClockFrame()) - at such high acceleration their movement/
     // visibility isn't meaningfully useful anyway.
@@ -333,97 +336,63 @@
 
     // Bleibt ein <clock>-Update laenger als das aus, gilt die Modellzeit als
     // veraltet - die Uhr faellt dann auf NTP/RTC/DCF77 zurueck (siehe
-    // rocrailTimeReady in renderClockFrame()), statt eine womoeglich stark
-    // abgedriftete Extrapolation unbegrenzt weiterzuzeigen.
+    // rocrailTimeReady in renderClockFrame()).
+
     // If a <clock> update stays absent longer than this, the model time
     // counts as stale - the clock then falls back to NTP/RTC/DCF77 (see
-    // rocrailTimeReady in renderClockFrame()), instead of indefinitely
-    // showing a possibly badly drifted extrapolation.
+    // rocrailTimeReady in renderClockFrame()).
 #define ROCRAIL_STALE_TIMEOUT_MS (2 * WAIT_1m)
 
-    // Weicht eine neu gemeldete <clock>-Zeit von der gerade angezeigten
-    // Modellzeit ab, wird das NICHT schlagartig uebernommen, sondern
-    // sanft angeglichen (siehe advanceRocrailTime()/processRocrailClockPayload()
-    // in rocrail_client.h) - der Sekundenzeiger laeuft dafuer voruebergehend
-    // etwas schneller oder langsamer als der eingestellte Divider. Anteil
-    // der verbleibenden Abweichung, der pro Sekunde ausgeglichen wird -
-    // 0.5 heisst: nach 1s sind noch 50% uebrig, nach 2s noch 25%, usw.
-    // Oberhalb von ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS wird stattdessen
-    // sofort gesprungen, da ein sanftes Angleichen dort zu lange braeuchte
-    // (z.B. nach laengerem Verbindungsverlust oder beim ersten Sync).
+    // Weicht eine neu gemeldete <clock>-Zeit ab, wird sanft statt schlagartig
+    // angeglichen (siehe advanceRocrailTime()) - Anteil der Abweichung, der
+    // pro Sekunde ausgeglichen wird. Oberhalb von SNAP_THRESHOLD wird stattdessen sofort gesprungen.
 
-    // If a newly reported <clock> time differs from the model time
-    // currently displayed, it is NOT adopted abruptly, but eased in
-    // smoothly (see advanceRocrailTime()/processRocrailClockPayload() in
-    // rocrail_client.h) - the second hand temporarily runs a bit faster or
-    // slower than the configured divider for this. Fraction of the
-    // remaining deviation eliminated per second - 0.5 means: after 1s 50%
-    // remains, after 2s 25%, and so on. Above
-    // ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS it snaps directly instead, since
-    // easing in gradually would take too long there (e.g. after a longer
-    // connection loss, or on the first sync).
+    // If a newly reported <clock> time differs, it's eased in smoothly
+    // instead of abruptly (see advanceRocrailTime()) - fraction of the
+    // deviation corrected per second. Above SNAP_THRESHOLD it snaps directly instead.
 #define ROCRAIL_DRIFT_CORRECTION_RATE 0.5f
 #define ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS 30.0f
 
-    // DCF77-Status-Punkt in der Topbar (getDcf77Status() in
-    // webserver_routes.h): dcfTimeFound/dcf77Count werden nie zurueckgesetzt,
-    // daher die beiden Schwellwerte, damit der Punkt bei Empfangsausfall
-    // wieder auf gelb/rot zurueckfaellt statt fuer immer gruen zu bleiben.
-    // STALE_AFTER: wie lange eine Dekodierung/ein Impuls als aktuell gilt.
+    // DCF77-Status-Punkt in der Topbar: dcfTimeFound/dcf77Count werden nie
+    // zurueckgesetzt, daher diese Schwellwerte, damit der Punkt bei
+    // Empfangsausfall wieder auf gelb/rot faellt statt fuer immer gruen zu bleiben.
 
-    // DCF77 status dot in the topbar (getDcf77Status() in
-    // webserver_routes.h): dcfTimeFound/dcf77Count are never reset, hence
-    // these thresholds so the dot falls back to yellow/red on a reception
-    // outage instead of staying green forever.
-    // STALE_AFTER: how long a decode/pulse still counts as current.
+    // DCF77 status dot in the topbar: dcfTimeFound/dcf77Count are never
+    // reset, hence these thresholds so the dot falls back to yellow/red on
+    // a reception outage instead of staying green forever.
 #define DCF77_SYNC_STALE_AFTER (15 * WAIT_1m)
 #define DCF77_PULSE_STALE_AFTER WAIT_1m
 
-    // Anwesenheitserkennung DCF77 (dcf77Confirmed in globals.h, gepflegt von
-    // checkDcf77Health() in time_sync.h): ein floatender Pin kann durch
-    // Rauschen einzelne Interrupts ausloesen, echter Empfang aendert
-    // dcf77Count dagegen sehr regelmaessig. MIN_STREAK verlangt mehrere
-    // aufeinanderfolgende plausible Aenderungen; MAX_GAP_MS die dafuer
-    // maximal zulaessige Luecke zwischen zwei Aenderungen.
+    // Anwesenheitserkennung DCF77: ein floatender Pin kann durch Rauschen
+    // einzelne Interrupts ausloesen, echter Empfang aendert dcf77Count
+    // dagegen regelmaessig - MIN_STREAK/MAX_GAP_MS verlangen mehrere passende Aenderungen in Folge.
 
-    // DCF77 presence detection (dcf77Confirmed in globals.h, maintained by
-    // checkDcf77Health() in time_sync.h): a floating pin can trigger stray
-    // interrupts from noise, while genuine reception changes dcf77Count very
-    // regularly. MIN_STREAK requires several consecutive plausible changes;
-    // MAX_GAP_MS is the max allowed gap between two of them.
+    // DCF77 presence detection: a floating pin can trigger stray interrupts
+    // from noise, genuine reception changes dcf77Count regularly instead -
+    // MIN_STREAK/MAX_GAP_MS require several matching changes in a row.
 #define DCF77_PRESENCE_MIN_STREAK 6
 #define DCF77_PRESENCE_MAX_GAP_MS 1500
 
     // Rausch-Filter fuer den Bit-Fortschritt (processDcf77Bits() in
     // time_sync.h): sehr kurze Stoerflanken (Prellen) sind deutlich kuerzer
+
     // als jeder echte Zustand (kuerzester: ~100ms). Flanken unter diesem Wert
     // werden verworfen, ohne den Referenzzeitpunkt zu verschieben.
 
     // Noise filter for the bit progress (processDcf77Bits() in time_sync.h):
     // very short spurious edges (bounce) are much shorter than any genuine
+
     // state (shortest: ~100ms). Edges below this value are discarded without
     // shifting the reference timestamp.
 #define DCF77_BIT_NOISE_IGNORE_MS 70
 
-    // Sekundenraster-Dekoder (processDcf77Bits() in time_sync.h): der
-    // Abstand zweier Impulsanfaenge ist bei DCF77 immer ein ganzzahliges
-    // Vielfaches einer Sekunde - so bleibt die Position auch bei einzelnen
-    // schwach empfangenen Sekunden erhalten.
-    //
-    // PULSE_MAX_MS: laengstes Intervall, das noch als Impuls gilt
-    // PULSE_ONE_MIN_MS: ab dieser Dauer gilt das Bit als 1
-    // SECOND_MS: Rasterweite (eine DCF77-Sekunde)
-    // STEP_TOLERANCE_MS: zulaessige Abweichung vom naechsten Sekundenvielfachen
+    // Sekundenraster-Dekoder: Impulsabstand ist bei DCF77 immer ein
+    // Vielfaches einer Sekunde, daher bleibt die Position auch bei
+    // schwachem Empfang erhalten. PULSE_MAX/ONE_MIN: Impuls-/Bit-1-Schwelle, SECOND_MS: Rasterweite, STEP_TOLERANCE: erlaubte Abweichung.
 
-    // Second-grid decoder (processDcf77Bits() in time_sync.h): with DCF77
-    // the distance between two pulse starts is always a whole number of
-    // seconds - so position is kept even when individual seconds were
-    // received too weakly.
-    //
-    // PULSE_MAX_MS: longest interval still counted as a pulse
-    // PULSE_ONE_MIN_MS: from this width on, the bit counts as 1
-    // SECOND_MS: grid width (one DCF77 second)
-    // STEP_TOLERANCE_MS: allowed deviation from the nearest whole second
+    // Second-grid decoder: with DCF77 the pulse spacing is always a whole
+    // number of seconds, so the position survives even weak reception.
+    // PULSE_MAX/ONE_MIN: pulse/bit-1 threshold, SECOND_MS: grid width, STEP_TOLERANCE: allowed deviation.
 #define DCF77_PULSE_MAX_MS 450
 #define DCF77_PULSE_ONE_MIN_MS 150
 #define DCF77_SECOND_MS 1000
@@ -437,25 +406,13 @@
     // still far below STEP_TOLERANCE_MS.
 #define DCF77_MAX_PHASE_GAP_SECONDS 60
 
-    // Minutenmarken-Erkennung (dcf77MarkerMiss/-Hit in globals.h,
-    // processDcf77Bits() in time_sync.h): eine Rasterposition gilt als Marke,
-    // wenn sie mind. MIN_MISSES mal fehlte und mind. MIN_LEAD Fehlstellen
-    // Vorsprung vor dem naechstbesten Kandidaten hat (verhindert eine
-    // zufaellig oft ausgefallene Sekunde als Fehlerkennung). COUNT_MAX
-    // halbiert die Zaehler bei Erreichen, damit alte Ereignisse ausduennen.
-    // MISS_COUNT_MAX_GAP: bis zu dieser Luecken-Laenge zaehlt als einzelne
-    // ausgefallene Sekunde statt als Empfangspause (die sonst alle Positionen
-    // gleich belasten und die Marke unkenntlich machen wuerde).
+    // Minutenmarken-Erkennung: eine Rasterposition gilt als Marke, wenn sie
+    // mind. MIN_MISSES mal fehlte und mind. MIN_LEAD Vorsprung vor dem
+    // naechstbesten Kandidaten hat. COUNT_MAX halbiert die Zaehler, MISS_COUNT_MAX_GAP begrenzt eine einzelne ausgefallene Sekunde.
 
-    // Minute marker detection (dcf77MarkerMiss/-Hit in globals.h,
-    // processDcf77Bits() in time_sync.h): a grid position counts as the
-    // marker once it missed at least MIN_MISSES times and leads the next
-    // best candidate by at least MIN_LEAD (prevents a repeatedly dropped
-    // second from being misidentified). COUNT_MAX halves the counters once
-    // reached, so old events thin out.
-    // MISS_COUNT_MAX_GAP: gaps up to this length count as an individual
-    // dropped second rather than a reception pause (which would otherwise
-    // burden every position equally and mask the real marker).
+    // Minute marker detection: a grid position counts as the marker once it
+    // missed at least MIN_MISSES times and leads the next best candidate by
+    // at least MIN_LEAD. COUNT_MAX halves the counters, MISS_COUNT_MAX_GAP bounds a single dropped second.
 #define DCF77_MISS_COUNT_MAX_GAP 5
 
 #define DCF77_MARKER_MIN_MISSES 3
@@ -473,6 +430,7 @@
 
     // Maximalalter des letzten dekodierten Telegramms, um noch als
     // Zeitquelle zu gelten (applyDcf77DecodedTime() in time_sync.h) - ein
+
     // aelteres Telegramm ist unproblematisch, da die verstrichene Zeit ueber
     // millis() exakt nachgerechnet wird.
 
@@ -487,6 +445,7 @@
 
     // Duration of the LED flash per DCF77 pulse (loop() in uhr3.ino) -
     // deliberately a flash with a fixed switch-off time instead of
+
     // toggleLED(), since the final state would otherwise depend on whether
     // the pulse count was even or odd.
 #define DCF77_LED_BLINK_MS 80
@@ -507,21 +466,13 @@
     // Size of the hand preview in pixels - kept here instead of a magic number in route code.
 #define LIVE_PREVIEW_SIZE 400
 
-    // Hoehe der scrollbaren Textfenster im Log-Tab und auf der Info-Seite
-    // (siehe webserver_routes.h). Als CSS-Fragment und an EINER Stelle, damit
-    // beide Fenster gleich hoch bleiben.
-    //
-    // vh statt fester Pixel: das Fenster reicht so auf einem grossen Monitor
-    // bis kurz vor den unteren Rand, statt bei 400px aufzuhoeren. min-height
-    // haelt es auf niedrigen Fenstern/Handys trotzdem benutzbar gross.
+    // Hoehe der scrollbaren Textfenster im Log-Tab und auf der Info-Seite -
+    // an EINER Stelle, damit beide Fenster gleich hoch bleiben. vh statt
+    // fester Pixel: reicht auf grossen Monitoren weiter runter, min-height haelt es auf Handys trotzdem gross genug.
 
     // Height of the scrollable text windows in the Log tab and on the info
-    // page (see webserver_routes.h). A CSS fragment in ONE place, so both
-    // windows stay the same height.
-    //
-    // vh instead of fixed pixels: the window then reaches close to the bottom
-    // edge on a large monitor instead of stopping at 400px. min-height keeps
-    // it usably large on short windows/phones anyway.
+    // page - in ONE place, so both windows stay the same height. vh instead
+    // of fixed pixels: reaches further down on large monitors, min-height still keeps it usable on phones.
 #define INFO_LOG_WINDOW_HEIGHT_CSS "height:72vh;min-height:400px;"
 
     // Transparent in R5G6B5 RGB(16)
