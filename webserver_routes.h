@@ -1,57 +1,69 @@
 #pragma once
-    // ### Webinterface: alle HTTP-Routen & HTML-Generierung ##############
-    // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
-    // zentral in uhr3.ino VOR dieser Datei eingebunden).
+    // Alle HTTP-Routen und HTML-Generierung. Benoetigt globals.h, config.h,
+    // prefs_keys.h und declarations.h (vorher in uhr3.ino eingebunden).
 
-    // ### Web interface: all HTTP routes & HTML generation ##############
-    // Requires globals.h, config.h, prefs_keys.h and declarations.h (included
-    // centrally in uhr3.ino BEFORE this file).
+    // All HTTP routes and HTML generation. Requires globals.h, config.h,
+    // prefs_keys.h and declarations.h (included earlier in uhr3.ino).
 
-    // Fuer "new (std::nothrow)" in /preview_defaultface: liefert bei
-    // fehlgeschlagener Allokation garantiert nullptr, statt sich auf das
-    // (implementierungsabhaengige) Verhalten von "new" ohne Exceptions zu
-    // verlassen.
-    // For "new (std::nothrow)" in /preview_defaultface: guarantees a nullptr on
-    // a failed allocation instead of relying on the (implementation-defined)
-    // behaviour of plain "new" without exceptions.
+    // Fuer "new (std::nothrow)": garantiert nullptr statt
+    // implementierungsabhaengigem Verhalten bei fehlgeschlagener Allokation.
+
+    // For "new (std::nothrow)": guarantees nullptr instead of
+    // implementation-defined behaviour on a failed allocation.
 #include <new>
+
+    // Tab-Leiste der Startseite an EINER Stelle: Reihenfolge = Anzeige-
+    // reihenfolge, Index-gleich zu SETTINGS_TAB_LABELS. Genutzt von der
+    // CSS-Erzeugung (generateHtmlHeader()), den radio-Inputs der Startseite
+    // und generateSettingsTabNav() - sonst muesste ein neuer Tab an drei
+    // Stellen nachgetragen werden, und eine vergessene faellt nicht auf.
+
+    // The start page's tab bar in ONE place: order = display order, index-
+    // aligned with SETTINGS_TAB_LABELS. Used by the CSS generation
+    // (generateHtmlHeader()), the start page's radio inputs and
+    // generateSettingsTabNav() - otherwise a new tab would have to be added
+    // in three places, and a forgotten one would go unnoticed.
+    static const char* const SETTINGS_TAB_KEYS[] = { "wlan", "zifferblatt", "helligkeit", "zeit", "rocrail", "status", "log" };
+
+    // Uebersetzungsschluessel je Tab (siehe translation.h). "Rocrail" reiht
+    // sich noch bei den Einrichtungs-/Feature-Tabs ein (wie WLAN/Zifferblatt/
+    // Helligkeit/Zeit), "Status"/"Log" stehen bewusst am Ende: Diagnose-Tabs
+    // nach dem Einrichtungsablauf. "Rocrail" bewusst unuebersetzt
+    // (Produktname, wie "DCF77" ein Protokollname bleibt).
+
+    // Translation key per tab (see translation.h). "Rocrail" still belongs
+    // with the setup/feature tabs (like WiFi/Clock Setup/Brightness/NTP
+    // Timezone), "Status"/"Log" are deliberately last: diagnostic tabs after
+    // the setup flow. "Rocrail" deliberately untranslated (a product name,
+    // the same way "DCF77" stays a protocol name).
+    static const char* const SETTINGS_TAB_LABELS[] = { "WiFi Settings", "Clock Setup", "Brightness", "NTP&nbsp;Timezone", "Rocrail", "Status", "Log" };
+
+    static const size_t SETTINGS_TAB_COUNT = sizeof(SETTINGS_TAB_KEYS) / sizeof(SETTINGS_TAB_KEYS[0]);
+
 
     // Generiert den HTML-Header für die Weboberfläche
     // Generates the HTML header for the web interface
 
     String generateHtmlHeader(String extraHead) {
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-        html.reserve(5000);  // Header: Dark-Theme + Tab-CSS + Topbar-CSS, einmal pro Seite aufgerufen (angehoben: zusaetzliche CSS-Regeln fuer reduzierte Bewegung/Offline-Hinweis)
-                             // Header: dark theme + tab CSS + topbar CSS, called once per page
-        // Dunkles Theme (angelehnt an eine externe Referenzvorlage) + CSS-only
-        // Tab-Mechanik (verstecktes radio-Input + Label + allgemeiner
-        // Geschwister-Selektor "~") fuer die neue Tab-Hub-Startseite ("/").
-        // Gilt sitenweit (jede Seite bindet generateHtmlHeader() ein), damit
-        // auch die weiterhin eigenstaendigen Seiten (Presets, Dateiverwaltung,
-        // etc.) optisch einheitlich bleiben.
+        html.reserve(5000);  // Vorab reservierter Speicher fuer CSS+HTML
+                              // Pre-reserved capacity for CSS+HTML
+        // Dunkles Theme mit CSS-only Tab-Mechanik (verstecktes radio-Input +
+        // Label + Selektor "~") fuer die Tab-Hub-Startseite. Gilt sitenweit,
+        // damit alle Seiten optisch einheitlich bleiben.
 
-        // Dark theme (inspired by an external reference) plus a CSS-only tab
-        // mechanism (hidden radio input + label + general sibling selector "~")
-        // for the new tab-hub home page ("/"). Applies site-wide (every page
-        // includes generateHtmlHeader()) so standalone pages stay visually consistent.
+        // Dark theme with a CSS-only tab mechanism (hidden radio input +
+        // label + "~" selector) for the tab-hub home page. Applies site-wide
+        // so every page stays visually consistent.
         html += "<style>";
         html += ":root{--bg:#10151a;--panel:#1a2129;--panel-border:#2a333c;--text:#e8edf2;--muted:#8f9ba7;--accent:#f5a623;--accent-dim:#7a530f;--ok:#3ddc84;--bad:#ff5c5c;--mono:ui-monospace,\"SFMono-Regular\",Menlo,Consolas,monospace;}";
-        // Bewusst KEIN padding-top auf body: die Topbar ist das erste Kind
-        // von body, ein padding-top wuerde (da position:sticky den
-        // Textfluss nicht verlaesst) auch sie selbst nach unten schieben
-        // statt nur den Inhalt darunter - dann waere sie beim ersten Laden
-        // nicht mehr ganz oben. Die frueher hier noetige Zusatz-Reservierung
-        // fuer zwei fest positionierte Ecken-Boxen (Live-Vorschau/Status)
-        // ist entfallen, seit diese Boxen komplett entfernt wurden (siehe
-        // generateTopBar()).
+        // Bewusst kein padding-top auf body: die Topbar ist sticky
+        // positioniert und wuerde sonst mitverschoben statt nur der Inhalt
+        // darunter.
 
-        // Deliberately NO padding-top on body: the topbar is body's first
-        // child, and a padding-top would (since position:sticky never
-        // leaves the flow) push it down too, not just the content below it
-        // - it would then no longer be at the very top on first load. The
-        // extra reservation this used to need for two fixed-position
-        // corner boxes (live preview/status) is gone now that those boxes
-        // were removed entirely (see generateTopBar()).
+        // Deliberately no padding-top on body: the topbar is sticky-
+        // positioned and would otherwise shift down too, not just the
+        // content below it.
         html += "body{font-family:Arial,Helvetica,sans-serif;text-align:center;background:var(--bg);color:var(--text);}";
         html += "input,select,button{margin:10px;padding:10px;width:80%;box-sizing:border-box;background:#0d1216;color:var(--text);border:1px solid var(--panel-border);border-radius:6px;}";
         html += "input[type=checkbox],input[type=radio]{width:auto;}";
@@ -67,18 +79,11 @@
                                                           // left-align <li>
         html += "a{color:var(--accent);}";
         html += "small{color:var(--muted);}";
-        // --- Statuszeile (Topbar), sitenweit ganz oben auf jeder Seite -
-        // siehe generateTopBar() weiter unten fuer die Markup-Erzeugung.
-        // Die frueheren zwei fest positionierten Ecken-Boxen (Live-Vorschau
-        // links/Status rechts) sind komplett entfernt - die Topbar ist die
-        // einzige feste Statusanzeige der Seite, daher kein Extra-Abstand
-        // (margin/padding) mehr noetig, nur der normale Textfluss.
-        // --- Status bar (topbar), site-wide at the very top of every page -
-        // see generateTopBar() further below for the markup generation.
-        // The former two fixed-position corner boxes (live preview left/
-        // status right) have been removed entirely - the topbar is now the
-        // page's only fixed status display, so no extra spacing (margin/
-        // padding) is needed beyond normal text flow.
+        // Statuszeile (Topbar), sitenweit oben auf jeder Seite - siehe
+        // generateTopBar() fuer die Markup-Erzeugung.
+
+        // Status bar (topbar), site-wide at the top of every page - see
+        // generateTopBar() for the markup generation.
         html += ".topbar{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1.2rem;padding:.9rem 1rem;border-bottom:1px solid var(--panel-border);position:sticky;top:0;background:var(--bg);z-index:5;}";
         html += ".brand{display:flex;align-items:baseline;gap:.5rem;margin-right:auto;}";
         html += ".brand-mark{font-family:var(--mono);color:var(--accent);font-size:.8rem;letter-spacing:.05em;}";
@@ -86,77 +91,32 @@
         html += ".topbar h1 a.host-link{color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);}";
         html += ".topbar h1 a.host-link:hover{color:var(--accent);border-bottom-color:var(--accent);}";
         html += ".ip-hint{font-family:var(--mono);font-size:.7rem;color:var(--muted);}";
-        // font-size hier bewusst "inherit" (statt weggelassen) - sonst wuerde
-        // die allgemeine Regel "a{color:var(--accent);}" weiter unten zwar
-        // nicht die Schriftgroesse aendern (Browser erben die ohnehin von
-        // .ip-hint), aber explizit ist hier sicherer als sich auf die
-        // Vererbung zu verlassen, falls spaeter eine andere Regel dazwischenfunkt.
-        // font-size here deliberately "inherit" (rather than omitted) -
-        // without it, the general "a{color:var(--accent);}" rule further
-        // below would not actually change the font size (browsers inherit
-        // it from .ip-hint anyway), but being explicit here is safer than
-        // relying on inheritance in case another rule interferes later.
+        // font-size hier bewusst "inherit" statt weggelassen, um nicht von
+        // Vererbung abhaengig zu sein, falls spaeter eine Regel dazwischenfunkt.
+
+        // font-size deliberately "inherit" rather than omitted, to not rely
+        // on inheritance in case another rule interferes later.
         html += ".ip-hint a{color:inherit;font-size:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);}";
         html += ".ip-hint a:hover{color:var(--accent);border-bottom-color:var(--accent);}";
         html += ".status-strip{display:flex;gap:.9rem;flex-wrap:wrap;}";
         html += ".status{display:flex;align-items:center;gap:.4rem;font-size:.8rem;color:var(--muted);}";
-        // .status setzt selbst "display:flex" - das UEBERSCHREIBT das native
-        // 'hidden'-Attribut auf demselben Element (siehe #status-rtc/
-        // #status-dcf77 in generateTopBar()): das Browser-Standard-CSS setzt
-        // "hidden" nur ueber eine sehr niedrig priorisierte User-Agent-Regel
-        // ([hidden]{display:none}) um, die von JEDER eigenen "display"-Angabe
-        // auf demselben Element ausgehebelt wird - unabhaengig von
-        // Selektor-Spezifitaet, da Autoren-CSS grundsaetzlich vor
-        // User-Agent-CSS gewinnt. Ohne diese Regel blieb ein per 'hidden'
-        // eigentlich verstecktes RTC/DCF77-Element also trotzdem sichtbar
-        // (als roter Punkt, da .dot ohne Zusatzklasse rot ist) - genau der
-        // gemeldete Bug ("RTC/DCF77 werden trotz 'nicht vorhanden' weiter
-        // angezeigt"), obwohl rtcOk/dcf77Confirmed serverseitig korrekt
-        // "nicht vorhanden" waren (siehe getRtcStatus()/getDcf77Status()).
-        // Explizite Regel stellt das 'hidden'-Verhalten wieder her.
-        // .status itself sets "display:flex" - that OVERRIDES the native
-        // 'hidden' attribute on the same element (see #status-rtc/
-        // #status-dcf77 in generateTopBar()): the browser's default CSS only
-        // implements "hidden" via a very low-priority user-agent rule
-        // ([hidden]{display:none}), which gets overridden by ANY "display"
-        // declaration on that same element from author CSS - regardless of
-        // selector specificity, since author CSS always wins over user-agent
-        // CSS. Without this rule, an RTC/DCF77 element that was actually
-        // meant to be hidden stayed visible anyway (as a red dot, since
-        // .dot with no extra class is red) - exactly the reported bug ("RTC/
-        // DCF77 still shown despite being 'not available'"), even though
-        // rtcOk/dcf77Confirmed were correctly "not available" server-side
-        // (see getRtcStatus()/getDcf77Status()). This rule explicitly
-        // restores the 'hidden' behavior.
+        // .status setzt "display:flex", was das native 'hidden'-Attribut
+        // ueberschreibt (Autoren-CSS gewinnt immer gegen User-Agent-CSS).
+        // Diese Regel stellt das 'hidden'-Verhalten explizit wieder her.
+
+        // .status sets "display:flex", which overrides the native 'hidden'
+        // attribute (author CSS always wins over user-agent CSS). This rule
+        // explicitly restores 'hidden' behavior.
         html += ".status[hidden]{display:none;}";
         html += ".dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,92,92,.15);}";
         html += ".dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,132,.18);}";
-        // "na" (nicht verfuegbar): nur noch fuer den "Zeit"-Punkt relevant
-        // (Systemzeit seit Boot noch nie gesetzt, siehe getTimeStatus()
-        // unten) - ein voruebergehender Startzustand, kein optionales
-        // Bauteil. Bewusst GRAU statt rot: rot (die Standardfarbe von .dot
-        // ohne Zusatzklasse) ist reserviert fuer einen echten Fehler
-        // (Hardware war/ist ansprechbar, liefert aber ungueltige Werte bzw.
-        // ist waehrend des Betriebs ausgefallen) - "gar nicht vorhanden" und
-        // "kaputt" sind unterschiedliche Zustaende und verdienen
-        // unterschiedliche Farben. RTC und DCF77 nutzen "na" NICHT (mehr) fuer
-        // einen grauen Punkt: bei beiden ist "Hardware fehlt" der Normalfall
-        // auf einem Board ohne dieses optionale Bauteil - dafuer bleibt der
-        // ganze Eintrag komplett unsichtbar (hidden), statt dauerhaft grau
-        // angezeigt zu werden, siehe getRtcStatus()/getDcf77Status()/
-        // generateTopBar() unten.
-        // "na" (not available): now only relevant for the "Time" dot (system
-        // time never set since boot, see getTimeStatus() below) - a
-        // temporary startup state, not optional hardware. Deliberately GRAY
-        // instead of red: red (the default color of a plain .dot with no
-        // extra class) is reserved for a genuine error (hardware was/is
-        // reachable but returns invalid values, or failed during operation)
-        // - "not present at all" and "broken" are different states and
-        // deserve different colors. RTC and DCF77 no longer use "na" for a
-        // gray dot: for both, "hardware missing" is the normal case on a
-        // board without that optional add-on - so the whole entry stays
-        // fully hidden instead of permanently gray, see
-        // getRtcStatus()/getDcf77Status()/generateTopBar() below.
+        // "na" (grau) gilt nur noch fuer den Zeit-Punkt (Systemzeit noch nie
+        // gesetzt). RTC/DCF77 nutzen es nicht mehr - fehlende Hardware macht
+        // den Eintrag komplett unsichtbar statt dauerhaft grau.
+
+        // "na" (gray) now only applies to the Time dot (system time never
+        // set). RTC/DCF77 no longer use it - missing hardware hides the
+        // whole entry instead of showing it permanently gray.
         html += ".dot.na{background:var(--muted);box-shadow:0 0 0 3px rgba(143,155,167,.18);}";
         // Live-Wertanzeige (z.B. Fotowiderstand-Helligkeit) statt farbigem
         // Punkt - heller Monospace-Text, analog zum Kontrast von .datetime
@@ -165,80 +125,69 @@
         // colored dot - bright monospace text, mirroring the contrast of
         // .datetime against its muted label.
         html += ".statval{font-family:var(--mono);color:var(--text);}";
-        // "syncing" (bisher nur DCF77): Empfaenger bekommt Impulse, hat aber
-        // noch kein vollstaendiges, gueltiges Zeittelegramm dekodiert (dauert
-        // durch das DCF77-Protokoll bis zu einer Minute) - gelb blinkend statt
-        // rot, damit man den Unterschied zu "gar kein Empfang" sieht.
-        // "syncing" (currently only DCF77): the receiver is getting pulses
-        // but has not yet decoded a complete, valid time telegram (the
-        // DCF77 protocol can take up to a minute) - blinking yellow instead
-        // of red, so it's visibly different from "no reception at all".
+        // "syncing" (DCF77): Empfaenger bekommt Impulse, hat aber noch kein
+        // gueltiges Zeittelegramm dekodiert - gelb blinkend statt rot.
+
+        // "syncing" (DCF77): receiver gets pulses but hasn't decoded a valid
+        // time telegram yet - blinking yellow instead of red.
         html += ".dot.syncing{background:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,.18);animation:dotBlink 1s ease-in-out infinite;}";
         html += "@keyframes dotBlink{0%,100%{opacity:1;}50%{opacity:.25;}}";
-        // Wer in den Systemeinstellungen reduzierte Bewegung wuenscht (prefers-
-        // reduced-motion), bekommt statt des Blinkens eine feste, gedimmte
-        // Opazitaet - der Zustand ("syncing") bleibt ueber Punktfarbe/Tooltip
-        // weiterhin erkennbar, nur ohne die Animation.
-        // Anyone with reduced motion enabled in their system settings
-        // (prefers-reduced-motion) gets a fixed, dimmed opacity instead of the
-        // blink - the "syncing" state stays recognizable via dot color/tooltip,
-        // just without the animation.
+        // prefers-reduced-motion: feste gedimmte Opazitaet statt Blinken.
+        // prefers-reduced-motion: fixed dimmed opacity instead of blinking.
         html += "@media (prefers-reduced-motion:reduce){.dot.syncing{animation:none;opacity:.6;}}";
         html += ".datetime{font-family:var(--mono);font-size:.8rem;color:var(--muted);}";
-        // Wird per JS eingeblendet, wenn /api/topbarStatus mehrfach in Folge
-        // nicht erreichbar war (siehe Live-Status-Skript in generateTopBar())
-        // - macht sichtbar, dass die angezeigten Werte (Punkte, Uhrzeit)
-        // moeglicherweise nicht mehr aktuell sind, statt das stillschweigend
-        // beim letzten bekannten Stand einzufrieren.
-        // Shown via JS once /api/topbarStatus has failed repeatedly in a row
-        // (see the live-status script in generateTopBar()) - makes it visible
-        // that the displayed values (dots, time) may be stale, instead of
-        // silently freezing at the last known state.
+        // Zeigt an, dass /api/topbarStatus mehrfach fehlschlug und die
+        // angezeigten Werte veraltet sein koennen.
+
+        // Indicates /api/topbarStatus failed repeatedly and the displayed
+        // values may be stale.
         html += ".offline-hint{display:none;color:var(--bad);font-size:.75rem;margin-left:.3rem;}";
         html += ".offline-hint.show{display:inline;}";
-        // Checkbox/Buttons hier explizit margin/padding auf 0 setzen - sonst
-        // greift die allgemeine Regel "input,select,button{margin:10px;padding:10px;...}"
-        // weiter oben und sprengt die kompakte Topbar.
-        // Explicitly zero out margin/padding here - otherwise the general
-        // "input,select,button{margin:10px;padding:10px;...}" rule further
-        // above applies and blows up the compact topbar.
+        // margin/padding hier explizit 0 - sonst greift die allgemeine
+        // input/select/button-Regel und sprengt die kompakte Topbar.
+
+        // margin/padding explicitly 0 here - otherwise the general
+        // input/select/button rule applies and blows up the compact topbar.
         html += ".reset-btn{background:transparent;border:1px solid var(--panel-border);color:var(--bad);border-radius:.4rem;width:2rem;height:2rem;padding:0;margin:0;font-size:1rem;line-height:1;cursor:pointer;}";
         html += ".reset-btn:hover{border-color:var(--bad);background:rgba(255,92,92,.12);}";
         html += ".reset-btn:focus-visible{outline:2px solid var(--bad);outline-offset:1px;}";
-        // --- CSS-only Tabs: Radios ausblenden, Panels standardmaessig
-        // verstecken, per :checked ~ .panel-X wieder einblenden. Radios,
-        // .tabnav und alle .panel-* muessen dafuer direkte Geschwister
-        // sein (siehe Aufbau der neuen "/" Seite).
+        // CSS-only Tabs: Radios ausblenden, Panels per :checked ~ .panel-X
+        // einblenden. Radios/.tabnav/.panel-* muessen direkte Geschwister sein.
 
-        // --- CSS-only tabs: hide radios, hide panels by default, show them
-        // again via :checked ~ .panel-X. Radios, .tabnav and all .panel-* must
-        // be direct siblings for this (see markup of the new "/" page).
+        // CSS-only tabs: hide radios, show panels via :checked ~ .panel-X.
+        // Radios/.tabnav/.panel-* must be direct siblings.
         html += ".tabctrl{display:none;}";
         html += ".tabnav{margin:20px auto;max-width:900px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;}";
         html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
-        // Der Info-Eintrag ist kein Tab, sondern ein Link auf eine eigene
-        // Seite (/info) - optisch aber bewusst identisch zu den Tabs, damit
-        // die Leiste nicht auseinanderfaellt. Kein Unterstrich, da die
-        // globale a-Regel in generateNavigation() sonst greifen wuerde.
-        // The info entry is not a tab but a link to its own page (/info) -
-        // deliberately identical in appearance to the tabs so the bar does not
-        // fall apart. No underline, since the global a rule in
-        // generateNavigation() would otherwise apply.
+        // Eintraege, die auf eine andere Seite fuehren (Info von der Startseite,
+        // die Tabs von der Info-Seite zurueck), sind Links - optisch aber wie
+        // ein Tab. Kein Unterstrich, sonst greift die globale a-Regel.
+
+        // Entries leading to another page (Info from the start page, the tabs
+        // from the info page back) are links - but styled like a tab. No
+        // underline, otherwise the global a rule applies.
         html += ".tabnav a{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;text-decoration:none;}";
+
+        // <span>: der Eintrag der GERADE offenen Seite (Info auf /info) - kein
+        // Selbstlink, gleiche Pille wie die uebrigen. ".active" faerbt ihn wie
+        // den angehakten Tab unten, damit beide Seiten identisch aussehen.
+
+        // <span>: the entry of the page currently open (Info on /info) - not a
+        // self-link, same pill as the others. ".active" colors it like the
+        // checked tab below, so both pages look identical.
+        html += ".tabnav span{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;font-weight:bold;}";
+        html += ".tabnav .active{background:var(--accent);border-color:var(--accent);color:#1a1200;}";
         html += ".tabpanel{display:none;}";
         html += ".card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:500px;margin:15px auto;padding:12px 16px;text-align:left;}";
-        for (const char* t : { "status", "log", "wlan", "zifferblatt", "helligkeit", "zeit" }) {
-            html += String("#tab-") + t + ":checked ~ .tabnav label[for='tab-" + t + "']{background:var(--accent);color:#1a1200;}";
+        for (size_t i = 0; i < SETTINGS_TAB_COUNT; i++) {
+            String t = String(SETTINGS_TAB_KEYS[i]);
+            html += String("#tab-") + t + ":checked ~ .tabnav label[for='tab-" + t + "']{background:var(--accent);border-color:var(--accent);color:#1a1200;}";
             html += String("#tab-") + t + ":checked ~ .panel-" + t + "{display:block;}";
         }
         html += "</style>" + extraHead + "</head><body>";
 
-        // Statuszeile ganz oben, noch vor der JavaScript-Warnung - sitenweit,
-        // da generateHtmlHeader() von JEDER Seite eingebunden wird (siehe
-        // generateTopBar() weiter unten).
-        // Status bar at the very top, even before the JavaScript warning -
-        // site-wide, since generateHtmlHeader() is included by EVERY page
-        // (see generateTopBar() further below).
+        // Statuszeile vor der JS-Warnung, da generateHtmlHeader() von jeder Seite eingebunden wird
+        // Status bar before the JS warning, since every page includes generateHtmlHeader()
         html += generateTopBar();
 
         // Seite benötigt JavaScript
@@ -250,80 +199,32 @@
     }
 
 
-    // Vier moegliche Status-Werte fuer jeden Punkt in der Topbar - gemeinsames
-    // Vokabular fuer generateTopBar() (Erstladen) und /api/topbarStatus (5s-
-    // Live-Poll), damit Text und Punktfarbe nie auseinanderlaufen:
-    //
-    // "ok"      - gruen  - funktioniert.
-    // "syncing" - gelb, blinkend - versucht gerade aktiv zu synchronisieren.
-    // "bad"     - rot (Standardfarbe von .dot ohne Zusatzklasse) - echter
-    //             Fehler: die Hardware/Verbindung WAR bzw. IST grundsaetzlich
-    //             ansprechbar, liefert aber ungueltige Werte oder ist waehrend
-    //             des Betriebs ausgefallen.
-    // "na"      - grau (nur bei "Zeit"/getTimeStatus()) bzw. der ganze
-    //             Eintrag komplett unsichtbar (RTC, DCF77) - nicht
-    //             verfuegbar: bei "Zeit" bedeutet "na" "seit Boot noch nie
-    //             gesetzt" (ein voruebergehender Startzustand, kein
-    //             optionales Bauteil, daher weiterhin ein grauer Punkt). Bei
-    //             RTC/DCF77 dagegen ist das Fehlen der Hardware der
-    //             Normalfall auf einem Board ohne diese optionale
-    //             Zusatzhardware - dafuer erscheint dort gar kein Eintrag,
-    //             statt eines dauerhaft grauen Punktes (siehe getRtcStatus()/
-    //             getDcf77Status() weiter unten sowie die 'hidden'-Logik in
-    //             generateTopBar()). Kein echter Fehler in beiden Faellen,
-    //             sondern schlicht "nichts da".
-    //
-    // Vier possible status values for every dot in the topbar - shared
-    // vocabulary for generateTopBar() (initial render) and /api/topbarStatus
-    // (5s live poll), so the text and the dot color never drift apart:
-    //
-    // "ok"      - green  - working.
-    // "syncing" - yellow, blinking - actively trying to synchronize right now.
-    // "bad"     - red (the default color of a plain .dot with no extra class)
-    //             - a genuine error: the hardware/connection WAS or IS
-    //             fundamentally reachable, but returns invalid values or
-    //             failed during operation.
-    // "na"      - gray (only for "Time"/getTimeStatus()) resp. the whole
-    //             entry fully hidden (RTC, DCF77) - not available: for
-    //             "Time", "na" means "never set since boot" (a temporary
-    //             startup state, not optional hardware, so it still gets a
-    //             gray dot). For RTC/DCF77, however, missing hardware is the
-    //             normal case on a board without that optional add-on - so
-    //             no entry appears at all there, instead of a permanently
-    //             gray dot (see getRtcStatus()/getDcf77Status() below and
-    //             the 'hidden' logic in generateTopBar()). Not a genuine
-    //             error in either case, just "nothing there".
+    // Status-Werte fuer die Topbar-Punkte, gemeinsam genutzt von
+    // generateTopBar() und /api/topbarStatus: "ok" gruen, "syncing" gelb
+    // blinkend, "bad" rot (echter Fehler), "na" grau bzw. Eintrag ausgeblendet.
 
-    // Ermittelt den Zeit-Status ("ok"/"na") - kein eigener Fehlerzustand
-    // definiert, da es fuer die reine Systemzeit kein Konzept von "gefunden,
-    // aber ungueltig" gibt (anders als bei RTC/DCF77).
-    // Determines the time status ("ok"/"na") - no separate error state
-    // defined, since there's no "found but invalid" concept for plain system
-    // time (unlike RTC/DCF77).
+    // Status values for the topbar dots, shared by generateTopBar() and
+    // /api/topbarStatus: "ok" green, "syncing" blinking yellow, "bad" red
+    // (genuine error), "na" gray or entry hidden (hardware missing).
+
+    // Ermittelt den Zeit-Status ("ok"/"na") - kein Fehlerzustand, da es fuer
+    // Systemzeit kein "gefunden, aber ungueltig" gibt.
+
+    // Determines the time status ("ok"/"na") - no error state, since there's
+    // no "found but invalid" concept for system time.
 
     String getTimeStatus() {
         return (timeinfo.tm_year > 0) ? "ok" : "na";
     }
 
 
-    // Ermittelt den RTC-Status ("ok"/"bad"/"na") aus rtcOk (siehe globals.h,
-    // wird von checkRtcHealth() in time_sync.h laufend aktualisiert):
-    // RTC_AVAILABLE -> "ok", RTC_AVAILABLE_BUT_INVALID (Chip gefunden, aber
-    // Zeit ungueltig/Stromausfall) -> "bad" (echter Fehler), RTC_NOT_AVAILABLE
-    // (nie gefunden, oder von checkRtcHealth() als nicht mehr ansprechbar
-    // erkannt) -> "na". generateTopBar() zeigt bei "na" KEINEN grauen Punkt
-    // (mehr) an, sondern blendet den kompletten RTC-Eintrag aus (hidden) -
-    // ein Board ohne RTC-Chip soll in der Topbar gar nicht erst auftauchen,
-    // nicht als "grau/nicht verfuegbar" markiert sein.
+    // Ermittelt den RTC-Status aus rtcOk (siehe globals.h/checkRtcHealth()):
+    // AVAILABLE->"ok", AVAILABLE_BUT_INVALID->"bad", NOT_AVAILABLE->"na".
+    // Bei "na" blendet generateTopBar() den RTC-Eintrag komplett aus.
 
-    // Determines the RTC status ("ok"/"bad"/"na") from rtcOk (see globals.h,
-    // kept current by checkRtcHealth() in time_sync.h): RTC_AVAILABLE -> "ok",
-    // RTC_AVAILABLE_BUT_INVALID (chip found, but time invalid/lost power) ->
-    // "bad" (genuine error), RTC_NOT_AVAILABLE (never found, or detected as no
-    // longer reachable by checkRtcHealth()) -> "na". generateTopBar() no
-    // longer shows a gray dot for "na" - instead it hides the whole RTC entry
-    // (hidden): a board with no RTC chip should not appear in the topbar at
-    // all, rather than being marked "gray/not available".
+    // Determines RTC status from rtcOk (see globals.h/checkRtcHealth()):
+    // AVAILABLE->"ok", AVAILABLE_BUT_INVALID->"bad", NOT_AVAILABLE->"na".
+    // generateTopBar() fully hides the RTC entry on "na".
 
     String getRtcStatus() {
 #if defined SDA_PIN && defined SCL_PIN
@@ -336,83 +237,19 @@
     }
 
 
-    // Ermittelt den DCF77-Status ("ok"/"syncing"/"bad"/"na") - gemeinsame
-    // Logik fuer generateTopBar() (Erstladen) und /api/topbarStatus (5s-Live-
-    // Poll), vorher an beiden Stellen dupliziert. Beruecksichtigt zusaetzlich,
-    // ob die letzte erfolgreiche Dekodierung (lastDcfSyncTime) bzw. der letzte
-    // tatsaechlich empfangene Impuls (lastDcf77PulseChangeMillis, siehe
-    // checkDcf77Health() in time_sync.h) noch aktuell genug sind (siehe
-    // DCF77_SYNC_STALE_AFTER/DCF77_PULSE_STALE_AFTER in config.h) - vorher
-    // blieb der Punkt nach dem ersten erfolgreichen Sync fuer immer gruen
-    // (dcfTimeFound wird nie zurueckgesetzt) bzw. nach dem ersten jemals
-    // empfangenen Impuls fuer immer mindestens gelb (dcf77Count wird nie auf 0
-    // zurueckgesetzt), selbst wenn der Empfang spaeter waehrend des Betriebs
-    // komplett abbricht.
-    //
-    // "ok": zuletzt erfolgreich dekodiert, nicht laenger als
-    //   DCF77_SYNC_STALE_AFTER her.
-    // "syncing": entweder noch nie erfolgreich dekodiert, oder der letzte
-    //   erfolgreiche Sync ist zu alt - aber es kommen noch Impulse an
-    //   (innerhalb von DCF77_PULSE_STALE_AFTER), der Empfaenger versucht also
-    //   noch.
-    // "na": dcf77Confirmed (siehe globals.h/checkDcf77Health() in
-    //   time_sync.h) ist noch false - es wurde noch KEINE Kette aus
-    //   mehreren, aufeinanderfolgenden Impulsen mit plausiblem Abstand
-    //   beobachtet. Ein Funkempfaenger laesst sich nicht aktiv anpingen, es
-    //   gibt also keine Moeglichkeit zu pruefen, ob ueberhaupt eine Antenne
-    //   angeschlossen ist, ausser auf echte Aktivitaet zu warten - und ein
-    //   EINZELNER dcf77Count-Wechsel reicht dafuer nicht: ein floatender,
-    //   nicht angeschlossener Datenpin kann durch Rauschen einzelne
-    //   Interrupts ausloesen (siehe DCF77_PRESENCE_MIN_STREAK/
-    //   DCF77_PRESENCE_MAX_GAP_MS in config.h fuer die Begruendung). generateTopBar()
-    //   zeigt bei "na" DESHALB keinen grauen Punkt mehr, sondern blendet den
-    //   kompletten DCF77-Eintrag aus (hidden), bis dcf77Confirmed true wird -
-    //   siehe dort.
-    // "bad": es GAB bereits Empfang bzw. einen erfolgreichen Sync, aber seit
-    //   DCF77_PULSE_STALE_AFTER ist kein einziger Impuls mehr angekommen -
-    //   echter Ausfall waehrend des Betriebs (z.B. Antenne abgerissen,
-    //   Stoerquelle).
+    // Ermittelt den DCF77-Status: "ok" wenn zuletzt erfolgreich dekodiert
+    // (DCF77_SYNC_STALE_AFTER), sonst "syncing" solange noch Impulse kommen,
+    // "na" ohne bestaetigten Empfang (dcf77Confirmed), sonst "bad".
 
-    // Determines the DCF77 status ("ok"/"syncing"/"bad"/"na") - shared logic
-    // for generateTopBar() (initial render) and /api/topbarStatus (5s live
-    // poll), previously duplicated in both places. Additionally takes into
-    // account whether the last successful decode (lastDcfSyncTime) resp. the
-    // last actually received pulse (lastDcf77PulseChangeMillis, see
-    // checkDcf77Health() in time_sync.h) are still recent enough (see
-    // DCF77_SYNC_STALE_AFTER/DCF77_PULSE_STALE_AFTER in config.h) - previously
-    // the dot stayed green forever after the first successful sync
-    // (dcfTimeFound is never reset) resp. at least yellow forever after the
-    // first pulse ever received (dcf77Count is never reset to 0), even if
-    // reception later failed completely during operation.
-    //
-    // "ok": last successfully decoded, no longer than DCF77_SYNC_STALE_AFTER
-    //   ago.
-    // "syncing": either never successfully decoded yet, or the last successful
-    //   sync is too old - but pulses are still arriving (within
-    //   DCF77_PULSE_STALE_AFTER), so the receiver is still trying.
-    // "na": dcf77Confirmed (see globals.h / checkDcf77Health() in
-    //   time_sync.h) is still false - no chain of several consecutive,
-    //   plausibly-spaced pulses has been observed yet. A radio receiver
-    //   can't be actively pinged, so there's no way to check whether an
-    //   antenna is even connected other than waiting for real activity - and
-    //   a SINGLE dcf77Count change isn't enough for that: a floating,
-    //   unconnected data pin can trigger isolated interrupts from noise (see
-    //   DCF77_PRESENCE_MIN_STREAK/DCF77_PRESENCE_MAX_GAP_MS in config.h for
-    //   the reasoning). That's why generateTopBar() no longer shows a gray
-    //   dot for "na" here - instead it hides the whole DCF77 entry until
-    //   dcf77Confirmed becomes true, see there.
-    // "bad": reception or a successful sync DID happen before, but not a
-    //   single pulse has arrived for DCF77_PULSE_STALE_AFTER since - a
-    //   genuine failure during operation (e.g. antenna disconnected,
-    //   interference).
+    // Determines DCF77 status: "ok" if last decoded within
+    // DCF77_SYNC_STALE_AFTER, else "syncing" while pulses still arrive,
+    // "na" without confirmed reception (dcf77Confirmed), else "bad".
 
     String getDcf77Status() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
-        // dcf77Confirmed statt "lastDcf77PulseChangeMillis == 0": ein
-        // EINZELNER Impuls (auch ein durch Rauschen auf einem floatenden Pin
-        // ausgeloester) reicht nicht als Nachweis fuer echten Empfang - siehe
-        // DCF77_PRESENCE_MIN_STREAK/DCF77_PRESENCE_MAX_GAP_MS in config.h.
-        if (!dcf77Confirmed) return "na"; // noch keine plausible Impulskette beobachtet / no plausible pulse chain observed yet
+        // Ein einzelner Impuls (auch durch Rauschen) reicht nicht als Nachweis -
+        // siehe DCF77_PRESENCE_MIN_STREAK/MAX_GAP_MS in config.h.
+        if (!dcf77Confirmed) return "na"; // noch keine plausible Impulskette / no plausible pulse chain yet
         bool syncFresh = dcfTimeFound && lastDcfSyncTime != 0 &&
                           (time(nullptr) - lastDcfSyncTime) < (time_t)(DCF77_SYNC_STALE_AFTER / 1000);
         if (syncFresh) return "ok";
@@ -426,15 +263,11 @@
     }
 
 
-    // Baut den Tooltip-/aria-label-Text fuer einen Status-Punkt ("Zeit: OK",
-    // "DCF77: Synchronisiere", "RTC: Nicht verfuegbar", ...) - gemeinsam fuer
-    // generateTopBar() und /api/topbarStatus, damit Text und Punktfarbe nie
-    // auseinanderlaufen. state: "ok" | "syncing" | "bad" | "na" (siehe oben).
+    // Baut den Tooltip-/aria-label-Text fuer einen Status-Punkt, gemeinsam
+    // genutzt von generateTopBar() und /api/topbarStatus.
 
-    // Builds the tooltip/aria-label text for a status dot ("Time: OK",
-    // "DCF77: Syncing", "RTC: Not available", ...) - shared by
-    // generateTopBar() and /api/topbarStatus, so the text and the dot color
-    // never drift apart. state: "ok" | "syncing" | "bad" | "na" (see above).
+    // Builds the tooltip/aria-label text for a status dot, shared by
+    // generateTopBar() and /api/topbarStatus.
 
     String dotStatusText(const String& label, const String& state) {
         String stateText = (state == "ok") ? translate("OK") :
@@ -445,65 +278,21 @@
     }
 
 
-    // Escaped Text fuer die sichere Einbettung in HTML (z.B. Logdatei-Inhalt
-    // im <pre id='logContent'> des Log-Tabs, siehe unten) - Logzeilen koennen
-    // beliebige Zeichen enthalten (z.B. "<" aus geloggten Werten), ohne
-    // Escaping wuerde das das umgebende Markup brechen.
+    // Escaped Text fuer sichere HTML-Einbettung (z.B. Logdatei-Inhalt) sowie
+    // Anfuehrungszeichen, da Werte auch in einfach gequotete Attribute
+    // (value='...', onclick='...') eingebettet werden - sonst Attribut-Injection.
 
-    // Escapes text for safe embedding in HTML (e.g. log file content inside
-    // the Log tab's <pre id='logContent'>, see below) - log lines can contain
-    // arbitrary characters (e.g. "<" from logged values), without escaping
-    // that would break the surrounding markup.
+    // Escapes text for safe HTML embedding (e.g. log content) and also
+    // quote characters, since values are also embedded into single-quoted
+    // attributes (value='...', onclick='...') - otherwise attribute injection.
 
-    // Escapt zusaetzlich Anfuehrungszeichen (' und ") - urspruenglich nur fuer
-    // reinen Textinhalt gedacht (z.B. Logzeilen in <pre>), inzwischen aber auch
-    // an mehreren Stellen fuer Werte benutzt, die in einfach gequotete HTML-
-    // Attribute eingebettet werden (value='...', onclick='...'). Ohne
-    // Escaping von "'" haette ein einzelnes Anfuehrungszeichen im Wert (z.B.
-    // in einem Dateinamen, Preset-Namen, Hostnamen oder einer WLAN-SSID) das
-    // Attribut vorzeitig beendet und zusaetzliche, vom Angreifer kontrollierte
-    // Attribute wie onerror='...'/onfocus='...' injizieren koennen - reines
-    // "<"/">"-Escaping verhindert zwar das Einschleusen eines neuen <script>-
-    // Tags, aber NICHT diese Art von Attribut-Injection.
+    // Fuer Werte in onclick='...', das intern selbst einen JS-String enthaelt:
+    // aeusseres HTML-Zeichen als Entity, inneres JS-Zeichen per Backslash
+    // escapen (Browser dekodiert HTML-Entities VOR dem JS-Parsing).
 
-    // Also escapes quote characters (' and ") - originally meant only for
-    // plain text content (e.g. log lines inside <pre>), but by now also used
-    // in several places for values embedded into single-quoted HTML
-    // attributes (value='...', onclick='...'). Without escaping "'", a single
-    // quote character in the value (e.g. in a filename, preset name, hostname,
-    // or WiFi SSID) could terminate the attribute early and inject additional,
-    // attacker-controlled attributes like onerror='...'/onfocus='...' -
-    // escaping only "<"/">" prevents injecting a new <script> tag, but NOT
-    // this kind of attribute injection.
-    // Fuer Werte, die in ein onclick='...'-HTML-Attribut eingebettet werden,
-    // das INTERN wiederum einen JS-String-Literal enthaelt (z.B.
-    // onclick=\"fn('TEXT')\" oder onclick='fn(\"TEXT\")') - ein einfaches
-    // escapeHtmlText() reicht hier NICHT: der Browser dekodiert HTML-
-    // Entities in einem Attributwert, BEVOR der Inhalt als JS geparst wird -
-    // ein per &#39; entity-escapetes Anfuehrungszeichen wird also vor der
-    // JS-Auswertung wieder zu einem rohen "'" und wuerde den inneren
-    // JS-String trotzdem vorzeitig beenden. Deshalb: das AEUSSERE HTML-
-    // Anfuehrungszeichen per Entity escapen (verhindert ein vorzeitiges Ende
-    // des Attributs schon beim HTML-Parsing, unabhaengig von Entity-
-    // Dekodierung), das INNERE JS-Anfuehrungszeichen per Backslash escapen
-    // (verhindert ein vorzeitiges Ende des JS-Strings NACH der Dekodierung).
-    // jsStringQuote gibt an, welches Zeichen den inneren JS-String begrenzt
-    // ('...' oder "...") - das jeweils andere gilt automatisch als aeusseres
-    // HTML-Attribut-Anfuehrungszeichen.
-
-    // For values embedded into an onclick='...' HTML attribute that itself
-    // contains a JS string literal (e.g. onclick=\"fn('TEXT')\" or
-    // onclick='fn(\"TEXT\")') - plain escapeHtmlText() is NOT enough: the
-    // browser decodes HTML entities within an attribute value BEFORE the
-    // content is parsed as JS - a quote character entity-escaped as &#39;
-    // turns back into a raw "'" before JS evaluation and would still
-    // terminate the inner JS string early. So: escape the OUTER HTML quote
-    // via HTML entity (prevents the attribute from ending early during HTML
-    // parsing, regardless of entity decoding), and escape the INNER JS quote
-    // via backslash (prevents the JS string from ending early after
-    // decoding). jsStringQuote says which character delimits the inner JS
-    // string ('...' or "...") - the other one is automatically treated as
-    // the outer HTML attribute quote.
+    // For values inside onclick='...' that itself contains a JS string:
+    // escape the outer HTML quote as an entity, the inner JS quote with a
+    // backslash (the browser decodes HTML entities BEFORE JS parsing).
     String escapeForJsStringInAttr(const String& text, char jsStringQuote) {
         String out;
         out.reserve(text.length());
@@ -522,29 +311,13 @@
     }
 
 
-    // Escaped einen String zur sicheren Einbettung als JS-String-Literal DIREKT
-    // innerhalb eines <script>-Blocks (also NICHT in einem HTML-Attribut wie
-    // onclick='...' - dafuer escapeForJsStringInAttr() oben verwenden). Wichtig:
-    // <script>-Inhalte sind fuer den HTML-Parser ein "raw text element" - HTML-
-    // Entities werden dort NICHT dekodiert, escapeHtmlText() waere hier also
-    // wirkungslos (ein "&#39;" bliebe woertlich "&#39;" statt zu "'" zu werden).
-    // Stattdessen: Backslash und das umschliessende Anfuehrungszeichen per
-    // Backslash escapen (verhindert vorzeitiges Ende des JS-Strings), und "<"
-    // zusaetzlich als "\x3C" escapen, damit eine Zeichenfolge wie "</script>"
-    // im eingebetteten Text nicht das gesamte <script>-Element vorzeitig
-    // beendet (das wuerde sonst beliebiges nachfolgendes HTML/JS ermoeglichen).
-    //
-    // Escapes a string for safe embedding as a JS string literal DIRECTLY
-    // inside a <script> block (i.e. NOT inside an HTML attribute like
-    // onclick='...' - use escapeForJsStringInAttr() above for that). Important:
-    // <script> content is a "raw text element" for the HTML parser - HTML
-    // entities are NOT decoded there, so escapeHtmlText() would be ineffective
-    // here (an "&#39;" would stay literally "&#39;" instead of becoming "'").
-    // Instead: backslash-escape the backslash and the enclosing quote character
-    // (prevents the JS string from ending early), and additionally escape "<"
-    // as "\x3C" so a sequence like "</script>" in the embedded text cannot
-    // prematurely end the whole <script> element (which would otherwise allow
-    // arbitrary following HTML/JS to be injected).
+    // Escaped fuer JS-String-Literale DIREKT in <script> (nicht in einem
+    // Attribut, siehe escapeForJsStringInAttr). <script>-Inhalt wird nicht
+    // HTML-entity-dekodiert, daher Backslash + "<" als "\x3C" escapen.
+
+    // Escapes for JS string literals DIRECTLY inside <script> (not an
+    // attribute, see escapeForJsStringInAttr). <script> content isn't HTML-
+    // entity-decoded, so escape backslash plus "<" as "\x3C".
     String escapeForJsStringLiteral(const String& text, char jsStringQuote = '"') {
         String out;
         out.reserve(text.length());
@@ -579,47 +352,47 @@
     }
 
 
-    // Erzeugt die Statuszeile (Topbar) - sitenweit oben auf jeder Seite (wird
-    // aus generateHtmlHeader() direkt nach dem <body>-Tag eingebunden, siehe
-    // dort). Zeigt: Projekt-/Geraetename, Hostname/IP (bzw. Access-Point im
-    // Setup-Modus), je einen Status-Punkt pro unabhaengiger Zeitquelle (Zeit/
-    // NTP, RTC, DCF77 - RTC/DCF77 nur fuer tatsaechlich verbaute Hardware,
-    // siehe die #if-Bloecke unten; DCF77 zusaetzlich erst, sobald der erste
-    // Impuls seit Boot beobachtet wurde, siehe dcfPresent unten), den
-    // Live-Helligkeitswert des Fotowiderstands (falls vorhanden, siehe
-    // photoresistorFound unten), die aktuelle Uhrzeit sowie manuelles
-    // Neu-Laden und Neustart. KEIN WLAN-Punkt: laedt die Seite ueberhaupt,
-    // ist WLAN per Definition aktiv - ein eigener Punkt waere redundant.
-    //
-    // Ersetzt die vormalige, ausfuehrlichere Statusbox oben rechts
-    // (Speicherplatz, AP-Passwort, volle Hostname-/IP-Links) sowie das
-    // Live-Zeiger-Vorschau-Widget oben links - beide wurden auf Wunsch
-    // vollstaendig entfernt (generateHtmlStatus() geloescht, der
-    // entsprechende Codeblock aus generateNavigation() entfernt); diese
-    // Topbar ist seitdem die einzige feste Statusanzeige der Seite.
+    // Wie escapeHtmlText(), aber fuer String-Werte in JSON-Antworten -
+    // noetig, sobald ein Feld nicht aus einer festen, selbst erzeugten Menge
+    // stammt (anders als z.B. die Dot-States "ok"/"bad"/...), sondern
+    // Server-/Netzwerkdaten enthalten kann: der Rocrail-Hostname und der vom
+    // Server gemeldete Anlagenname (siehe /api/rocrailStatus) koennten sonst
+    // ein Anfuehrungszeichen enthalten und die JSON-Antwort zerbrechen.
 
-    // Generates the status bar (topbar) - site-wide at the top of every page
-    // (included from generateHtmlHeader() right after the <body> tag, see
-    // there). Shows: project/device name, hostname/IP (or the access point
-    // in setup mode), one status dot per independent time source (time/NTP,
-    // RTC, DCF77 - RTC/DCF77 only for hardware actually present, see the #if
-    // blocks below; DCF77 additionally only once the first pulse since boot
-    // has been observed, see dcfPresent below), the photoresistor's live
-    // brightness value (if present, see photoresistorFound below), the
-    // current time, plus manual reload and restart. NO WiFi dot: if the page
-    // loaded at all, WiFi is by definition up - a dot for it would be
-    // redundant.
-    //
-    // Replaces the former, more detailed status box top-right (storage
-    // usage, AP password, full hostname/IP links) as well as the live
-    // hand-preview widget top-left - both were removed entirely on request
-    // (generateHtmlStatus() deleted, the corresponding block removed from
-    // generateNavigation()); this topbar is now the page's only fixed
-    // status display.
+    // Like escapeHtmlText(), but for string values in JSON responses -
+    // needed as soon as a field doesn't come from a fixed, self-generated
+    // set (unlike e.g. the dot states "ok"/"bad"/...), but can contain
+    // server/network data: the Rocrail hostname and the plan name reported
+    // by the server (see /api/rocrailStatus) could otherwise contain a
+    // quote character and break the JSON response.
+
+    String escapeJsonText(const String& text) {
+        String out;
+        out.reserve(text.length());
+        for (size_t i = 0; i < text.length(); i++) {
+            char c = text[i];
+            switch (c) {
+                case '"':  out += "\\\""; break;
+                case '\\': out += "\\\\"; break;
+                default:   out += c;      break;
+            }
+        }
+        return out;
+    }
+
+
+    // Erzeugt die Statuszeile (Topbar): Geraetename, Hostname/IP, je ein
+    // Status-Punkt pro Zeitquelle (Zeit/RTC/DCF77), Helligkeitswert, Uhrzeit,
+    // Neu-Laden/Neustart. Kein WLAN-Punkt - ohne WLAN laedt die Seite gar nicht.
+
+    // Generates the status bar (topbar): device name, hostname/IP, one
+    // status dot per time source (time/RTC/DCF77), brightness, time,
+    // reload/restart. No WiFi dot - the page can't load without WiFi.
 
     String generateTopBar() {
         String html;
-        html.reserve(3600); // angehoben: Tooltip-/aria-label-Texte auf den Punkten sowie das erweiterte Live-Status-Skript (Offline-Erkennung, Sichtbarkeits-Pause)
+        html.reserve(3600); // Platz fuer Punkte, Tooltips und Live-Status-Skript
+                            // Room for dots, tooltips and the live-status script
 
         html += "<header class='topbar'>";
         html += "<div class='brand'>";
@@ -632,27 +405,17 @@
             html += "<span class='ip-hint'><a href='http://" + WiFi.localIP().toString() + "/'>" + WiFi.localIP().toString() + "</a></span>";
         }
         else if (staConnected) {
-            // Hostname noch nicht bestaetigt (z.B. sehr kurz nach dem Verbinden) -
-            // SSID als Platzhalter zeigen, damit die Zeile nicht leer bleibt.
-            // Hostname not confirmed yet (e.g. very shortly after connecting) -
-            // show the SSID as a placeholder so the line doesn't stay empty.
+            // Hostname noch nicht bestaetigt - SSID als Platzhalter zeigen.
+            // Hostname not confirmed yet - show the SSID as a placeholder.
             html += "<h1>" + WiFi.SSID() + "</h1>";
             html += "<span class='ip-hint'><a href='http://" + WiFi.localIP().toString() + "/'>" + WiFi.localIP().toString() + "</a></span>";
         }
         else {
-            // Access-Point-/Einrichtungsmodus: kein mDNS-Hostname verfuegbar,
-            // daher unverlinkt. Das AP-Passwort steht bewusst NICHT hier -
-            // frueher wurde es in der (inzwischen entfernten) Statusbox aus
-            // generateHtmlStatus() angezeigt; seit deren Entfernung steht es
-            // ueberhaupt nicht mehr im Webinterface (nur noch auf dem
-            // Display waehrend des AP-Bildschirms, siehe startAP() in
-            // wifi_manager.h).
-            // Access point/setup mode: no mDNS hostname available, so plain
-            // text. The AP password deliberately does NOT appear here -
-            // it used to be shown in the (now removed) status box from
-            // generateHtmlStatus(); since that box was removed it no longer
-            // appears anywhere in the web UI (only on the display during
-            // the AP screen, see startAP() in wifi_manager.h).
+            // AP-/Setup-Modus: kein mDNS-Hostname. AP-Passwort bewusst nicht
+            // hier - steht nur auf dem Display, siehe startAP() in wifi_manager.h.
+
+            // AP/setup mode: no mDNS hostname. AP password deliberately not
+            // shown here - only on the display, see startAP() in wifi_manager.h.
             html += "<h1>Access Point</h1>";
             html += "<span class='ip-hint'><a href='http://" + WiFi.softAPIP().toString() + "/'>" + WiFi.softAPIP().toString() + "</a></span>";
         }
@@ -660,124 +423,44 @@
 
         html += "<div class='status-strip'>";
 
-        // Systemzeit gilt als plausibel gesetzt, sobald tm_year > 0 ist (0 =
-        // seit Boot nie gesetzt, siehe struct tm-Default in globals.h) -
-        // unabhaengig davon, ob die Zeit zuletzt von NTP, RTC oder DCF77 kam.
-        // System time counts as plausibly set once tm_year > 0 (0 = never set
-        // since boot, see the struct tm default in globals.h) - regardless of
-        // whether it last came from NTP, RTC or DCF77.
-        // IDs auf den drei Status-Punkten ("dot-time"/"dot-rtc"/"dot-dcf77") -
-        // werden vom Live-Status-Skript weiter unten gebraucht, um bei einem
-        // Ausfall waehrend des Betriebs (WLAN weg, RTC/DCF77 verliert Sync)
-        // die Farbe periodisch zu aktualisieren, ohne die ganze Seite neu zu
-        // laden (Auto-Refresh gibt es hier bewusst nicht mehr, siehe
-        // generateTopBar()-Kommentar oben).
-        // IDs on the three status dots ("dot-time"/"dot-rtc"/"dot-dcf77") -
-        // needed by the live-status script further below to periodically
-        // update the color if something fails during operation (WiFi drops,
-        // RTC/DCF77 loses sync), without reloading the whole page (there is
-        // deliberately no more auto-refresh here, see the generateTopBar()
-        // comment above).
-        // title (Hover-Tooltip) + role='img'/aria-label auf jedem Punkt: die
-        // Bedeutung der Punktfarbe war vorher NUR ueber die Farbe selbst
-        // erkennbar - fuer Farbfehlsichtige oder Screenreader-Nutzer nicht
-        // zugaenglich. dotStatusText()/getDcf77Status() siehe oben; das
-        // Live-Status-Skript weiter unten aktualisiert title/aria-label bei
-        // jedem Poll mit, damit sie nie von der tatsaechlichen Punktfarbe
-        // abweichen.
-        // title (hover tooltip) + role='img'/aria-label on every dot: the
-        // meaning of the dot color was previously only conveyed by the color
-        // itself - not accessible to colorblind users or screen readers.
-        // dotStatusText()/getDcf77Status() see above; the live-status script
-        // further below keeps title/aria-label up to date on every poll so
-        // they never drift from the dot's actual color.
-        // Status kommt aus getTimeStatus()/getRtcStatus()/getDcf77Status()
-        // (siehe oben) - vier moegliche Werte ("ok"/"syncing"/"bad"/"na"), CSS-
-        // Klasse und Punktfarbe siehe ".dot"/".dot.ok"/".dot.syncing"/".dot.na"
-        // weiter oben in generateHtmlHeader(). "bad" bekommt bewusst KEINE
-        // Zusatzklasse - das ist die Standardfarbe (rot) von ".dot" selbst.
-        // Status comes from getTimeStatus()/getRtcStatus()/getDcf77Status()
-        // (see above) - four possible values ("ok"/"syncing"/"bad"/"na"), CSS
-        // class and dot color see ".dot"/".dot.ok"/".dot.syncing"/".dot.na"
-        // further above in generateHtmlHeader(). "bad" deliberately gets NO
-        // extra class - that's plain ".dot"'s own default color (red).
-        // "Zeit" wird bewusst als LETZTER Eintrag im Status-Strip gerendert
-        // (direkt vor #topbar-datetime), nicht als erster - so steht der
-        // Zeit-Punkt optisch unmittelbar neben der Datumsanzeige, die er
-        // betrifft, statt links vor den Hardware-Eintraegen (RTC/DCF77/
-        // Licht) zu stehen. timeState/timeOk werden aber weiterhin HIER
-        // berechnet (nicht erst spaeter), da timeOk unten bei der
-        // #topbar-datetime-Befuellung gebraucht wird - nur die HTML-Ausgabe
-        // des Punkts selbst wandert ans Ende des Status-Strips.
-        // "Zeit" is deliberately rendered as the LAST entry in the status
-        // strip (right before #topbar-datetime), not the first - so the
-        // time dot sits visually right next to the date display it relates
-        // to, instead of standing to the left of the hardware entries (RTC/
-        // DCF77/Light). timeState/timeOk are still computed HERE (not
-        // later), since timeOk is needed below when filling in
-        // #topbar-datetime - only the dot's own HTML output moves to the
-        // end of the status strip.
+        // IDs ("dot-time"/"dot-rtc"/"dot-dcf77") + title/aria-label auf jedem
+        // Punkt: Live-Status-Skript aktualisiert Farbe und Text bei jedem
+        // Poll, damit Farbfehlsichtige/Screenreader die Bedeutung erkennen.
+
+        // IDs ("dot-time"/"dot-rtc"/"dot-dcf77") + title/aria-label on every
+        // dot: the live-status script updates color and text on every poll,
+        // so colorblind users/screen readers can tell the meaning apart.
+        // "Zeit" wird als letzter Eintrag gerendert, direkt neben der
+        // Datumsanzeige - timeState wird aber schon hier berechnet, da es
+        // unten fuer #topbar-datetime gebraucht wird.
+
+        // "Time" is rendered last, right next to the date display -
+        // timeState is computed here already since it's needed below for
+        // #topbar-datetime.
         String timeState = getTimeStatus();
         bool timeOk = (timeState == "ok"); // fuer die Datumsanzeige weiter unten wiederverwendet / reused for the date display further below
         String timeTitle = dotStatusText(translate("Time"), timeState);
 
 #ifdef ADC_PIN
-        // Live-Helligkeitswert des Fotowiderstands statt eines Status-Punkts
-        // (siehe .statval-CSS oben) - photoresistorFound wird einmalig beim
-        // Boot per Spannungsteiler-Test ermittelt (siehe uhr3.ino) und
-        // aendert sich danach nicht mehr; anders als bei DCF77 ist das ein
-        // echter, aktiver Hardware-Test (kein reines "noch keine Aktivitaet
-        // beobachtet"), ein grauer "na"-Punkt waere hier also unnoetig -
-        // ohne Fotowiderstand entfaellt der Eintrag einfach komplett.
-        // Zusaetzlich an useAdc gekoppelt: ist Auto-Brightness deaktiviert,
-        // legt der Boot-Code ADC_GND/ADC_3V auf INPUT (siehe uhr3.ino) - der
-        // Spannungsteiler ist dann unbestromt und currentLightPercent wird
-        // von updateBrightness() (display.h) nicht mehr aktualisiert, bliebe
-        // also eingefroren stehen. Ohne useAdc daher lieber den Eintrag ganz
-        // weglassen statt einen veralteten Wert zu zeigen.
-        // "Licht" wird bewusst als ERSTER Eintrag im Status-Strip gerendert
-        // (ganz links, direkt nach der Brand-Marke) - siehe Kommentar bei
-        // timeState/timeTitle weiter oben zur Reihenfolge der uebrigen
-        // Eintraege (RTC/DCF77/Zeit).
-        // Live brightness value from the photoresistor instead of a status
-        // dot (see the .statval CSS above) - photoresistorFound is
-        // determined once at boot via a voltage-divider test (see
-        // uhr3.ino) and never changes afterwards; unlike DCF77 this is a
-        // genuine, active hardware test (not just "no activity observed
-        // yet"), so a gray "na" dot would be pointless here - without a
-        // photoresistor the entry is simply omitted entirely.
-        // Also gated on useAdc: with auto-brightness disabled, the boot code
-        // sets ADC_GND/ADC_3V to INPUT (see uhr3.ino) - the voltage divider
-        // is then unpowered and currentLightPercent is no longer updated by
-        // updateBrightness() (display.h), so it would stay frozen. Without
-        // useAdc, omit the entry entirely rather than show a stale value.
-        // "Light" is deliberately rendered as the FIRST entry in the status
-        // strip (all the way to the left, right after the brand mark) - see
-        // the comment at timeState/timeTitle further above for the ordering
-        // of the remaining entries (RTC/DCF77/Time).
+        // Live-Helligkeitswert statt Status-Punkt. Ohne useAdc (Spannungsteiler
+        // unbestromt, siehe uhr3.ino) den Eintrag lieber weglassen statt einen
+        // eingefrorenen Wert zu zeigen.
+
+        // Live brightness value instead of a status dot. Without useAdc
+        // (voltage divider unpowered, see uhr3.ino) omit the entry rather
+        // than show a stale value.
         if (photoresistorFound && useAdc) {
-            html += "<span class='status'>" + translate("Light") + ": <span id='value-light' class='statval'>" + String(currentLightPercent) + " %</span></span>";
+            html += "<span class='status' id='status-light'>" + translate("Light") + ": <span id='value-light' class='statval'>" + String(currentLightPercent) + " %</span></span>";
         }
 #endif
 
 #if defined SDA_PIN && defined SCL_PIN
         String rtcState = getRtcStatus();
-        // rtcPresent: false nur solange rtcOk == RTC_NOT_AVAILABLE ist (siehe
-        // getRtcStatus()) - der ganze Eintrag bleibt dann per 'hidden'
-        // unsichtbar statt eines grauen "na"-Punkts (Board ohne RTC-Chip soll
-        // in der Topbar gar nicht erst auftauchen). checkRtcHealth() prueft
-        // NUR bei bereits gefundener RTC periodisch auf Ausfall (siehe dort)
-        // und probiert eine beim Boot nicht gefundene RTC nicht erneut - der
-        // Eintrag bleibt in dem Fall also dauerhaft ausgeblendet, bis zum
-        // naechsten Neustart mit angeschlossener RTC.
-        // rtcPresent: false only for as long as rtcOk == RTC_NOT_AVAILABLE
-        // (see getRtcStatus()) - the whole entry then stays invisible via
-        // 'hidden' instead of a gray "na" dot (a board with no RTC chip
-        // should not appear in the topbar at all). checkRtcHealth() only
-        // periodically re-checks for failure once an RTC was already found
-        // (see there) and does not re-probe an RTC that was never found at
-        // boot - so in that case the entry stays hidden permanently until
-        // the next restart with an RTC actually connected.
+        // rtcPresent false nur bei RTC_NOT_AVAILABLE - Eintrag bleibt dann
+        // per 'hidden' unsichtbar statt eines grauen "na"-Punkts.
+
+        // rtcPresent false only on RTC_NOT_AVAILABLE - the entry then stays
+        // invisible via 'hidden' instead of a gray "na" dot.
         bool rtcPresent = (rtcState != "na");
         String rtcTitle = dotStatusText("RTC", rtcState);
         html += "<span class='status' id='status-rtc'" + String(rtcPresent ? "" : " hidden") + "><i id='dot-rtc' role='img' aria-label='" + rtcTitle + "' title='" + rtcTitle + "' class='dot";
@@ -786,38 +469,14 @@
 #endif
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
-        // beruecksichtigt neben den rohen dcfTimeFound/dcf77Count-Werten auch
-        // deren zeitliche Aktualitaet (DCF77_SYNC_STALE_AFTER/
-        // DCF77_PULSE_STALE_AFTER in config.h), damit der Punkt einen
-        // Empfangsausfall waehrend des Betriebs auch tatsaechlich anzeigt.
-        // besides the raw dcfTimeFound/dcf77Count values, also takes their
-        // recency into account (DCF77_SYNC_STALE_AFTER/DCF77_PULSE_STALE_AFTER
-        // in config.h), so the dot actually reflects a reception failure
-        // occurring during operation.
         String dcfState = getDcf77Status();
-        // dcfPresent: false nur solange noch nie (seit Boot) ein Impuls
-        // angekommen ist (dcfState=="na", siehe getDcf77Status()). Ein
-        // Funkempfaenger laesst sich nicht aktiv anpingen - es gibt also
-        // keinen Weg zu wissen, ob ueberhaupt eine Antenne angeschlossen
-        // ist, ausser auf echte Aktivitaet zu warten. Der ganze Eintrag
-        // bleibt deshalb per natives 'hidden'-Attribut unsichtbar (statt
-        // eines grauen "na"-Punkts, wie es RTC bekommt), bis der erste
-        // Impuls beobachtet wurde - das Live-Status-Skript weiter unten
-        // blendet ihn dann per setPresent() live ein, ohne Seiten-Reload.
-        // Einmal sichtbar geworden bleibt er es dauerhaft (siehe
-        // getDcf77Status()): ein spaeterer Empfangsausfall zeigt sich dann
-        // als roter "bad"-Punkt, nicht durch erneutes Verstecken.
-        // dcfPresent: false only for as long as not a single pulse has
-        // arrived since boot (dcfState=="na", see getDcf77Status()). A radio
-        // receiver can't be actively pinged - there's no way to know whether
-        // an antenna is even connected other than waiting for real activity.
-        // The whole entry therefore stays invisible via the native 'hidden'
-        // attribute (instead of a gray "na" dot like RTC gets) until the
-        // first pulse is observed - the live-status script further below
-        // then reveals it live via setPresent(), no page reload needed. Once
-        // revealed it stays revealed (see getDcf77Status()): a later
-        // reception failure then shows as a red "bad" dot, not by hiding it
-        // again.
+        // dcfPresent false bis der erste Impuls beobachtet wurde (dcfState==
+        // "na") - Eintrag bleibt per 'hidden' unsichtbar statt grauem Punkt,
+        // wird dann per setPresent() live eingeblendet und bleibt sichtbar.
+
+        // dcfPresent false until the first pulse is observed (dcfState==
+        // "na") - the entry stays 'hidden' instead of a gray dot, then gets
+        // revealed live via setPresent() and stays visible.
         bool dcfPresent = (dcfState != "na");
         String dcfTitle = dotStatusText("DCF77", dcfState);
         html += "<span class='status' id='status-dcf77'" + String(dcfPresent ? "" : " hidden") + "><i id='dot-dcf77' role='img' aria-label='" + dcfTitle + "' title='" + dcfTitle + "' class='dot";
@@ -826,27 +485,32 @@
         html += "'></i>DCF77</span>";
 #endif
 
-        // "Zeit"-Punkt ganz nach rechts verschoben - letzter Eintrag im
-        // Status-Strip, direkt gefolgt von #topbar-datetime (siehe Kommentar
-        // bei timeState/timeTitle weiter oben).
-        // "Time" dot moved all the way to the right - last entry in the
-        // status strip, immediately followed by #topbar-datetime (see the
-        // comment at timeState/timeTitle further above).
-        html += "<span class='status'><i id='dot-time' role='img' aria-label='" + timeTitle + "' title='" + timeTitle + "' class='dot";
+        // Nur sichtbar, wenn der Rocrail-Master-Schalter (Zifferblatt-Tab)
+        // aktiv ist - gruen bei bestehender Verbindung, sonst rot (Basis-
+        // ".dot" ohne "ok"-Klasse ist bereits rot, siehe CSS oben).
+
+        // Only visible when the Rocrail master switch (Clock Setup tab) is
+        // on - green while connected, red otherwise (the base ".dot"
+        // without the "ok" class is already red, see CSS above).
+        String rocrailTitle = dotStatusText("Rocrail", rocrailConnected ? "ok" : "error");
+        html += "<span class='status' id='status-rocrail'" + String(rocrailEnabled ? "" : " hidden") + "><i id='dot-rocrail' role='img' aria-label='" + rocrailTitle + "' title='" + rocrailTitle + "' class='dot";
+        if (rocrailConnected) html += " ok";
+        html += "'></i>Rocrail</span>";
+
+        // "Zeit"-Punkt letzter Eintrag, direkt vor #topbar-datetime.
+        // "Time" dot is the last entry, right before #topbar-datetime.
+        html += "<span class='status' id='status-time'><i id='dot-time' role='img' aria-label='" + timeTitle + "' title='" + timeTitle + "' class='dot";
         if (timeState == "ok") html += " ok";
         else if (timeState == "na") html += " na";
         html += "'></i>" + translate("Time") + "</span>";
 
         html += "</div>";
 
-        // id='topbar-datetime' - immer rendern (auch leer, wenn die Zeit noch
-        // nicht gesetzt ist), damit das Element im DOM existiert und das
-        // Live-Status-Skript weiter unten den Text jede Runde aktualisieren
-        // kann, ohne die Seite neu zu laden.
-        // id='topbar-datetime' - always rendered (empty if the time isn't
-        // set yet), so the element exists in the DOM and the live-status
-        // script further below can update its text every round without
-        // reloading the page.
+        // Immer rendern (auch leer), damit das Live-Status-Skript den Text
+        // per Poll aktualisieren kann, ohne die Seite neu zu laden.
+
+        // Always rendered (even empty) so the live-status script can update
+        // the text on each poll without reloading the page.
         html += "<div id='topbar-datetime' class='datetime'>";
         if (timeOk) {
             char nowStr[20];
@@ -855,117 +519,85 @@
         }
         html += "</div>";
 
-        // Versteckter Hinweis, den das Live-Status-Skript weiter unten
-        // einblendet, wenn /api/topbarStatus mehrfach in Folge fehlschlaegt -
-        // siehe Kommentar bei ".offline-hint" oben in generateHtmlHeader().
-        // Hidden hint, shown by the live-status script further below once
-        // /api/topbarStatus has failed repeatedly in a row - see the
-        // ".offline-hint" comment above in generateHtmlHeader().
+        // Versteckter Hinweis, siehe ".offline-hint" in generateHtmlHeader().
+        // Hidden hint, see ".offline-hint" in generateHtmlHeader().
         html += "<span id='topbar-offline-hint' class='offline-hint'>&#9888; " + translate("Connection lost") + "</span>";
 
-        // Weder manueller Refresh-Knopf noch Auto-Refresh: ergeben in diesem
-        // Projekt keinen Sinn, da alle live angezeigten Werte (Uhrzeit oben,
-        // die rotierenden Zeiger auf /preview) ohnehin rein im Browser per
-        // JavaScript weiterlaufen, ohne dass die Seite neu geladen werden
-        // muesste - ein Refresh wuerde nichts zeigen, was nicht schon aktuell ist.
-        // Neustart bleibt (siehe reset-btn) - das ist keine reine Anzeige-
-        // Aktualisierung, sondern ein echter Geraete-Neustart.
+        // Kein Refresh-Knopf/Auto-Refresh - alle Werte aktualisieren sich
+        // ohnehin per JS. Neustart bleibt (echter Geraete-Neustart).
 
-        // Neither a manual refresh button nor auto-refresh: pointless in this
-        // project, since every live value shown (the time above, the
-        // rotating hands on /preview) already keeps itself current purely in
-        // the browser via JavaScript, with no need to reload the page - a
-        // refresh wouldn't show anything that isn't already current.
-        // Restart stays (see reset-btn) - that's not a display refresh, it's
-        // an actual device restart.
+        // No refresh button/auto-refresh - all values already update via
+        // JS. Restart stays (an actual device restart).
         html += "<button type='button' class='reset-btn' onclick='if(confirm(\"" + translate("Are you sure you want to reboot?") + "\")){location.href=\"/reboot\";}' title='" + translate("Reboot") + "'>&#9211;</button>";
 
         html += "</header>";
 
-        // Live-Status fuer die drei Punkte (Zeit/RTC/DCF77) UND die
-        // Uhrzeit-Anzeige: fragt periodisch /api/topbarStatus ab und
-        // aktualisiert die "ok"/"syncing"-Klassen der Punkte sowie den Text
-        // von #topbar-datetime - kein Neuladen der Seite noetig (Auto-Refresh
-        // gibt es hier bewusst nicht mehr, siehe Kommentar weiter oben). So
-        // wechselt die Punktfarbe auch, wenn waehrend des Betriebs etwas
-        // ausfaellt oder nicht mehr erreichbar ist (WLAN weg -> die
-        // Verbindung selbst bricht dann ohnehin ab, aber RTC/DCF77 koennen
-        // unabhaengig davon ihre Synchronisation verlieren), und die
-        // angezeigte Uhrzeit bleibt aktuell, ohne staendig die ganze Seite
-        // neu zu laden. 5s-Intervall: haeufig genug, um einen Ausfall
-        // zeitnah zu zeigen bzw. die Minutenanzeige aktuell zu halten, aber
-        // unauffaellig fuer den ESP32.
-        // getElementById liefert null fuer Punkte, deren Hardware auf diesem
-        // Board nicht verbaut ist (kein #if im DOM) - werden dann einfach
-        // uebersprungen.
+        // Live-Status: pollt /api/topbarStatus alle 5s und aktualisiert Punkte
+        // + Uhrzeit ohne Seiten-Reload. Offline-Hinweis erst nach zwei
+        // fehlgeschlagenen Polls. Polling pausiert, waehrend der Tab im
+        // Hintergrund ist.
 
-        // Live status for the three dots (time/RTC/DCF77) AND the displayed
-        // time: periodically polls /api/topbarStatus and updates the dots'
-        // "ok"/"syncing" classes as well as #topbar-datetime's text - no page
-        // reload needed (there is deliberately no more auto-refresh here, see
-        // the comment further above). This way the dot color also changes if
-        // something fails or becomes unreachable during operation (WiFi
-        // dropping breaks the connection itself anyway, but RTC/DCF77 can
-        // independently lose their sync), and the displayed time stays
-        // current without reloading the whole page over and over. 5s
-        // interval: frequent enough to show a failure promptly and keep the
-        // minute display current, without being excessive for the ESP32.
-        // getElementById returns null for dots whose hardware isn't present
-        // on this board (no #if in the DOM) - those are simply skipped.
-        // setStatusDot(): gemeinsame Funktion fuer alle drei Punkte (Zeit,
-        // RTC, DCF77) - state ist einer von "ok"/"syncing"/"bad"/"na" (siehe
-        // dotStatusText()-Kommentar oben), "bad" bekommt bewusst KEINE
-        // Zusatzklasse (Standardfarbe rot von ".dot" selbst). Aktualisiert
-        // zusaetzlich title/aria-label mit dem vom Server mitgeschickten,
-        // uebersetzten Text (siehe dotStatusText() oben), damit Tooltip/
-        // Screenreader-Text nie von der Punktfarbe abweichen.
-        // setOnline(): blendet den Offline-Hinweis ein/aus (siehe
-        // "#topbar-offline-hint" oben) - nach zwei aufeinanderfolgenden
-        // fehlgeschlagenen Polls (~10s bei 5s-Intervall), damit ein einzelner
-        // kurzer Netzwerk-Hakler nicht sofort einen Alarm ausloest.
-        // visibilitychange: pausiert das Polling, waehrend der Tab im
-        // Hintergrund ist (unnoetige Anfragen an den ESP32 sparen) und holt
-        // beim Zurueckkehren sofort den aktuellen Stand nach, statt bis zu 5s
-        // auf den naechsten Intervall-Tick zu warten.
-        // setStatusDot(): shared function for all three dots (time, RTC,
-        // DCF77) - state is one of "ok"/"syncing"/"bad"/"na" (see the
-        // dotStatusText() comment above), "bad" deliberately gets NO extra
-        // class (plain ".dot"'s own default color, red). Also updates
-        // title/aria-label with the translated text the server sends along
-        // (see dotStatusText() above), so the tooltip/screen-reader text never
-        // drifts from the dot's color.
-        // setOnline(): shows/hides the offline hint (see
-        // "#topbar-offline-hint" above) - after two consecutive failed polls
-        // (~10s at the 5s interval), so a single brief network hiccup doesn't
-        // immediately trigger an alarm.
-        // visibilitychange: pauses polling while the tab is in the background
-        // (saves pointless requests to the ESP32) and immediately catches up
-        // on return instead of waiting up to 5s for the next interval tick.
+        // Live status: polls /api/topbarStatus every 5s and updates dots +
+        // time without a page reload. Offline hint only after two failed
+        // polls. Polling pauses while the tab is in the background.
+
+        // pageVersion: die Build-Version, mit der DIESE Seite gerade
+        // gerendert wurde (siehe "version" globals.h). Weicht die Version im
+        // naechsten Poll davon ab, laeuft auf der Uhr inzwischen eine neuere
+        // Firmware (OTA-Update oder WPS-Neustart) - die Seite wird dann
+        // komplett neu geladen, damit HTML/JS/CSS wieder zur aktuellen
+        // Firmware passen, statt mit veraltetem UI weiterzulaufen.
+
+        // pageVersion: the build version THIS page was rendered with (see
+        // "version" in globals.h). If a later poll reports a different
+        // version, newer firmware is now running on the clock (OTA update or
+        // WPS reboot) - the page then does a full reload so its HTML/JS/CSS
+        // match the current firmware again instead of running on with a
+        // stale UI.
         html += "<script>(function(){";
+        // "version" ist ein reiner Build-Zeitstempel ohne Anfuehrungszeichen
+        // o.ae. (siehe globals.h) - daher hier ohne Escaping direkt als
+        // JS-String-Literal eingebettet, wie auch beim JSON oben.
+        // "version" is a plain build timestamp with no quotes etc. (see
+        // globals.h) - so it's embedded here directly as a JS string
+        // literal without escaping, same as in the JSON above.
+        html += "var pageVersion=\"" + String(version) + "\";";
         html += "function setStatusDot(id,state,title){var el=document.getElementById(id);if(!el)return;el.classList.toggle('ok',state==='ok');el.classList.toggle('syncing',state==='syncing');el.classList.toggle('na',state==='na');if(title){el.title=title;el.setAttribute('aria-label',title);}}";
-        // setPresent(): blendet einen Eintrag ohne aktiven Pruefweg (aktuell
-        // nur DCF77 - siehe dcfPresent-Kommentar in generateTopBar()) per
-        // natives 'hidden'-Attribut live ein, sobald der Server erstmals
-        // echte Aktivitaet bestaetigt - kein Seiten-Reload noetig.
-        // setPresent(): reveals an entry with no active probe path
-        // (currently only DCF77 - see the dcfPresent comment in
-        // generateTopBar()) live via the native 'hidden' attribute, the
-        // moment the server first confirms real activity - no page reload.
+        // setPresent(): blendet einen Eintrag (aktuell nur DCF77) live ein,
+        // sobald der Server echte Aktivitaet bestaetigt.
+        // setPresent(): reveals an entry (currently only DCF77) live once
+        // the server confirms real activity.
         html += "function setPresent(id,present){var el=document.getElementById(id);if(!el)return;el.hidden=!present;}";
-        // setValue(): aktualisiert eine Live-Wertanzeige (z.B. den
-        // Fotowiderstand-Helligkeitswert, siehe .statval oben) statt einer
-        // Punktfarbe - der Text kommt bereits fertig formatiert vom Server.
-        // setValue(): updates a live value reading (e.g. the photoresistor
-        // brightness value, see .statval above) instead of a dot color -
-        // the text arrives already formatted from the server.
+        // setValue(): aktualisiert eine Live-Wertanzeige statt einer Punktfarbe.
+        // setValue(): updates a live value reading instead of a dot color.
         html += "function setValue(id,text){var el=document.getElementById(id);if(!el)return;el.textContent=text;}";
-        html += "function setOnline(ok){var h=document.getElementById('topbar-offline-hint');if(h)h.classList.toggle('show',!ok);}";
+        // Bei Verbindungsverlust zeigen Licht/Zeit/Datum/RTC/DCF77 sonst
+        // eingefrorene, moeglicherweise laengst veraltete Werte - waehrend
+        // des Aussetzers daher lieber ganz ausblenden statt einen falschen
+        // Eindruck von Aktualitaet zu erwecken. Nach der Rueckkehr setzt
+        // setPresent() (siehe poll() unten) RTC/DCF77 sofort wieder auf
+        // ihren tatsaechlichen Anwesenheitsstatus zurueck.
+
+        // On connection loss, Light/Time/Date/RTC/DCF77 would otherwise
+        // keep showing frozen, potentially long-stale values - better to
+        // hide them entirely for the outage than give a false impression
+        // of freshness. Once back online, setPresent() (see poll() below)
+        // immediately restores RTC/DCF77 to their actual presence state.
+        html += "function setOnline(ok){var h=document.getElementById('topbar-offline-hint');if(h)h.classList.toggle('show',!ok);";
+        html += "['status-light','status-time','topbar-datetime','status-rtc','status-dcf77','status-rocrail'].forEach(function(id){var el=document.getElementById(id);if(el)el.hidden=!ok;});}";
         html += "var failCount=0;";
         html += "function poll(){fetch('/api/topbarStatus').then(function(r){return r.json();}).then(function(s){";
         html += "failCount=0;setOnline(true);";
+        html += "if(s.version&&pageVersion&&s.version!==pageVersion){location.reload();return;}";
         html += "setStatusDot('dot-time',s.time,s.timeTitle);";
         html += "setPresent('status-rtc',s.rtcPresent);setStatusDot('dot-rtc',s.rtc,s.rtcTitle);";
         html += "setPresent('status-dcf77',s.dcf77Present);setStatusDot('dot-dcf77',s.dcf77,s.dcf77Title);";
+        html += "setPresent('status-rocrail',s.rocrailEnabled);setStatusDot('dot-rocrail',s.rocrailConnected?'ok':'error',s.rocrailTitle);";
+        // Gleiches Feld wie oben (s.dcf77Present) treibt auch den
+        // Navigations-Eintrag - siehe Kommentar in generateNavigation().
+        // Same field as above (s.dcf77Present) also drives the navigation
+        // entry - see the comment in generateNavigation().
+        html += "setPresent('nav-dcf77',s.dcf77Present);";
         html += "setValue('value-light',s.lightValue);";
         html += "var dt=document.getElementById('topbar-datetime');if(dt)dt.textContent=s.datetime;";
         html += "}).catch(function(){failCount++;if(failCount>=2)setOnline(false);});}";
@@ -980,55 +612,15 @@
     }
 
 
-    // Kurze, uebersetzte Zeile mit dem LittleFS-Speicherplatzverbrauch -
-    // "used"/"total" werden vom Aufrufer uebergeben (viele Seiten haben sie
-    // ohnehin schon fuer eine eigene Pruefung berechnet, z.B. den
-    // Platzbedarf vor einem Upload) statt sie hier nochmal abzufragen.
-    // Liefert reinen Inline-Text OHNE umschliessendes Element - der Aufrufer
-    // entscheidet je nach Seitenlayout, ob er ihn in <p>...</p> (Dateiverwaltungs-
-    // seiten) oder <li>...</li> (Status-Listen) einbettet. Eingefuehrt, nachdem
-    // die alte Statusbox mit dieser Info (siehe generateTopBar()) komplett
-    // entfernt wurde und die Info seither auf mehreren Seiten fehlte.
+    // Kurze Zeile mit LittleFS-Speichernutzung, reiner Inline-Text ohne
+    // umschliessendes Element - der Aufrufer bettet ihn je nach Layout ein.
+    // forceEnglish: die Status-Seite ist immer Englisch (technische
+    // Diagnoseansicht), andere Aufrufer bleiben normal uebersetzt.
 
-    // Short LittleFS-Speichernutzungszeile - "used"/"total" werden vom
-    // Aufrufer uebergeben (viele Seiten berechnen sie ohnehin schon fuer
-    // eine eigene Pruefung, z.B. den Platzbedarf vor einem Upload) statt sie
-    // hier nochmal abzufragen. Liefert reinen Inline-Text OHNE umschliessendes
-    // Element - der Aufrufer entscheidet je nach Seitenlayout, ob er ihn in
-    // <p>...</p> (Dateiverwaltungsseiten) oder <li>...</li> (Status-Listen)
-    // einbettet. Eingefuehrt, nachdem die alte Statusbox mit dieser Info
-    // (siehe generateTopBar()) komplett entfernt wurde und die Info seither
-    // auf mehreren Seiten fehlte.
-    //
-    // forceEnglish: die Status-Seite/der Status-Tab (siehe panel-status) ist
-    // - wie das Logging (siehe globaler esp32-arduino-web-ui-statusbar Skill,
-    // Abschnitt "Log output language") - grundsaetzlich IMMER auf Englisch,
-    // unabhaengig von der UI-Sprache: eine technische Diagnoseansicht, keine
-    // lokalisierte Nutzeroberflaeche. Alle anderen Aufrufer dieser Funktion
-    // (Dateiverwaltungsseiten wie /listfilesFaces, /handsets) bleiben normal
-    // uebersetzt - deshalb ein Parameter statt die Funktion komplett
-    // umzustellen, der Default (false = uebersetzt) aendert das Verhalten
-    // fuer alle bestehenden Aufrufer nicht.
-
-    // Short, translated line with LittleFS storage usage - "used"/"total" are
-    // passed in by the caller (many pages already compute them anyway for
-    // their own check, e.g. how much room an upload needs) instead of
-    // querying them again here. Returns plain inline text with NO wrapping
-    // element - the caller decides, depending on that page's layout, whether
-    // to embed it in <p>...</p> (file-management pages) or <li>...</li>
-    // (status lists). Introduced after the old status box with this info
-    // (see generateTopBar()) was removed entirely and the info was then
-    // missing from several pages.
-    //
-    // forceEnglish: the status page/tab (see panel-status) is - like logging
-    // (see the global esp32-arduino-web-ui-statusbar skill, "Log output
-    // language" section) - always in English, regardless of the UI
-    // language: a technical diagnostic view, not a localized user interface.
-    // Every other caller of this function (file-management pages like
-    // /listfilesFaces, /handsets) stays normally translated - hence a
-    // parameter instead of converting the whole function, with a default
-    // (false = translated) that doesn't change behavior for any existing
-    // caller.
+    // Short line with LittleFS storage usage, plain inline text with no
+    // wrapping element - the caller embeds it depending on layout.
+    // forceEnglish: the status page is always English (technical diagnostic
+    // view), other callers stay normally translated.
 
     String generateStorageInfo(size_t used, size_t total, bool forceEnglish) {
         String usedLabel = forceEnglish ? "Storage used" : translate("Storage used");
@@ -1039,13 +631,8 @@
     }
 
 
-    // Einfache Hinweisseite (Erfolg/Fehler/Status) im dunklen Theme - fuer Seiten wie
-    // "Settings saved", "Rebooting..." oder Upload-Fehlermeldungen, die vorher eigene,
-    // unformatierte <body style='font-family:Arial'>-Seiten ohne Dark-Theme hatten.
-
-    // Simple message page (success/error/status) in dark theme - for pages like
-    // "Settings saved", "Rebooting..." or upload error messages that previously had
-    // their own unstyled <body style='font-family:Arial'> pages without dark theme.
+    // Einfache Hinweisseite (Erfolg/Fehler/Status) im Dark-Theme.
+    // Simple message page (success/error/status) in dark theme.
 
     String simpleMessagePage(String heading, String bodyHtml, String extraHead) {
         String html = generateHtmlHeader(extraHead);
@@ -1073,6 +660,16 @@
         nav += "a { text-decoration: underline; font-weight: bold; }";
         nav += "a:hover { text-decoration: underline; }";
         nav += ".navToggle { display: none; cursor: pointer; font-size: 1.8em; user-select: none; }";
+        // Ueberschreibt "display:block!important" der mobilen Regel unten
+        // fuer ausgeblendete Eintraege (z.B. DCF77 vor dcf77Confirmed) -
+        // hoehere Selektor-Spezifitaet reicht zwar theoretisch, aber explizit
+        // ist robuster gegen kuenftige Aenderungen an der mobilen Regel.
+
+        // Overrides the mobile rule's "display:block!important" below for
+        // hidden entries (e.g. DCF77 before dcf77Confirmed) - higher selector
+        // specificity would technically suffice, but being explicit is more
+        // robust against future changes to the mobile rule.
+        nav += ".navLinks a[hidden],.navLinks span[hidden]{display:none !important;}";
         nav += "@media (max-width: 600px) {";
         nav += "  .navToggle { display: inline-block; }";
         nav += "  .navLinks { display: none; }";
@@ -1090,37 +687,23 @@
             String confirmMessage; // Optional: Bestätigungsnachricht
                                    // optional: confirmation message
         } navItems[] = {
-            // WiFi/Zeit/Helligkeit/Status sind jetzt Tabs auf "/" (siehe dortiger
-            // Tab-Hub) und daher hier bewusst NICHT mehr gelistet - die Seiten
-            // selbst (/wifi, /timezone_form, /brightness, /status) bleiben aber
-            // als eigenstaendige Routen bestehen (Rueckwaertskompatibilitaet fuer
+            // WiFi/Zeit/Helligkeit/Status sind jetzt Tabs auf "/", daher hier
+            // nicht mehr gelistet - Routen bleiben fuer Lesezeichen bestehen.
 
-            // Lesezeichen/direkte Aufrufe).
-            // WiFi/time/brightness/status are now tabs on "/" (see the tab hub
-            // there) and are therefore deliberately no longer listed here - the
-            // pages themselves (/wifi, /timezone_form, /brightness, /status) still
-            // exist as standalone routes (backward compatibility for bookmarks/direct calls).
+            // WiFi/time/brightness/status are now tabs on "/", so no longer
+            // listed here - routes stay for bookmarks.
             {"/", translate("Main"), ""},
             {"/preview", translate("Preview"), ""},
             {"/presets", translate("Presets"), ""},
             {"/listfilesFaces", translate("Clock&nbsp;Face"), ""},
             {"/handsets", translate("Hand&nbsp;Set"), ""},
             {"/files", translate("File&nbsp;Manager"), ""},
-            // "/reboot" bewusst NICHT mehr gelistet - der Neustart-Knopf in
-            // der Topbar (siehe generateTopBar(), reset-btn) deckt das jetzt
-            // ab; die Route "/reboot" selbst bleibt bestehen (wird von
-            // diesem Knopf sowie fuer Lesezeichen/direkte Aufrufe weiter
-            // benoetigt).
-            // "/reboot" deliberately no longer listed - the restart button
-            // in the topbar (see generateTopBar(), reset-btn) covers this
-            // now; the "/reboot" route itself stays (still needed by that
-            // button, and for bookmarks/direct calls).
-            // "DCF77" bewusst unuebersetzt (Protokollname, siehe DCF77-Label
-            // in generateTopBar()/dotStatusText() weiter unten - dort ebenfalls
-            // unuebersetzt). Bewusst vor "Factory Reset".
-            // "DCF77" deliberately left untranslated (a protocol name, see the
-            // DCF77 label in generateTopBar()/dotStatusText() further below -
-            // also untranslated there). Deliberately placed before "Factory Reset".
+            // "/reboot" nicht mehr gelistet - der reset-btn in der Topbar
+            // deckt das ab, die Route bleibt fuer Lesezeichen bestehen.
+            // "/reboot" no longer listed - the topbar's reset-btn covers
+            // this, the route stays for bookmarks.
+            // "DCF77" bewusst unuebersetzt (Protokollname, wie in generateTopBar()).
+            // "DCF77" deliberately untranslated (a protocol name, as in generateTopBar()).
             {"/dcf77", "DCF77", ""},
             {"/factoryReset", translate("Factory&nbsp;Reset"), ""}
         };
@@ -1129,61 +712,53 @@
                                               // current path of the page
 
         for (const auto& item : navItems) {
-            // "/dcf77" nur anzeigen, wenn ueberhaupt ein DCF77-Empfaenger
-            // konfiguriert ist UND dieser bereits eine plausible Impulskette
-            // geliefert hat (dcf77Confirmed, siehe globals.h) - also
-            // dieselbe "gefunden"-Bedingung wie beim DCF77-Statuspunkt in
-            // der Topbar (siehe getDcf77Status()/dcfPresent in
-            // generateTopBar() oben). Anders als dort gibt es hier kein
-            // nachtraegliches Live-Einblenden per JS, da generateNavigation()
-            // nur einmal pro Seitenaufruf gerendert wird - der Link
-            // erscheint also je nach Zeitpunkt des Aufrufs erst ab dem
-            // naechsten Seitenwechsel/-neuladen nach dem ersten Impuls.
-            // Direktaufrufe von /dcf77 per Lesezeichen/URL funktionieren
-            // unabhaengig davon weiterhin (die Route selbst prueft das
-            // nicht), zeigen dann aber noch keine Daten an.
+            // "/dcf77" nur ganz weglassen, wenn keine DCF77-Hardware verbaut
+            // ist. Ist Hardware vorhanden, aber noch nicht dcf77Confirmed,
+            // wird der Eintrag trotzdem gerendert (nur per 'hidden'
+            // unsichtbar) und per Live-Poll eingeblendet, sobald DCF77
+            // waehrend der Laufzeit erkannt wird - siehe setPresent()
+            // in generateTopBar(), dieselbe Bedingung wie beim Topbar-Punkt.
 
-            // Only show "/dcf77" when a DCF77 receiver is configured at all
-            // AND it has already delivered a plausible pulse chain
-            // (dcf77Confirmed, see globals.h) - i.e. the same "found"
-            // condition as the DCF77 status dot in the topbar (see
-            // getDcf77Status()/dcfPresent in generateTopBar() above). Unlike
-            // there, there's no later live reveal via JS here, since
-            // generateNavigation() is only rendered once per page load - so
-            // depending on timing the link only appears from the next
-            // page change/reload after the first pulse. Direct calls to
-            // /dcf77 via bookmark/URL keep working regardless (the route
-            // itself doesn't check this), just without any data yet.
+            // Only omit "/dcf77" entirely when no DCF77 hardware is wired
+            // up. If hardware is present but not yet dcf77Confirmed, the
+            // entry is still rendered (just invisible via 'hidden') and
+            // gets revealed live once DCF77 is recognized at runtime - see
+            // setPresent() in generateTopBar(), the same condition as the
+            // topbar dot.
+            bool dcf77Hidden = false;
             if (item.path == "/dcf77") {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
-                if (!dcf77Confirmed) continue;
+                dcf77Hidden = !dcf77Confirmed;
 #else
                 continue;
 #endif
             }
 
+            // id nur fuer den DCF77-Eintrag, damit setPresent() ihn per
+            // Live-Poll gezielt ein-/ausblenden kann (siehe oben).
+
+            // id only for the DCF77 entry, so setPresent() can toggle its
+            // visibility via the live poll (see above).
+            String idAttr = (item.path == "/dcf77") ? " id='nav-dcf77'" : "";
+            String hiddenAttr = dcf77Hidden ? " hidden" : "";
+
             if (item.path == currentPath) {
                 // Wenn der aktuelle Pfad mit dem Navigationseintrag übereinstimmt, nur Text anzeigen
                 // If the current path matches the nav entry, show plain text only
-                nav += "<span style=\"margin-right:15px; font-weight:bold;\">" + item.label + "</span> ";
+                nav += "<span" + idAttr + hiddenAttr + " style=\"margin-right:15px; font-weight:bold;\">" + item.label + "</span> ";
             }
             else {
                 // Andernfalls als Link anzeigen
                 // Otherwise show as a link
-                nav += "<a href=\"" + item.path + "\" style=\"margin-right:15px;\"";
+                nav += "<a" + idAttr + hiddenAttr + " href=\"" + item.path + "\" style=\"margin-right:15px;\"";
                 if (!item.confirmMessage.isEmpty()) {
                     nav += " onclick=\"return confirm('" + item.confirmMessage + "')\"";
                 }
                 nav += ">" + item.label + "</a> ";
             }
 
-            // Zeilenumbruch nach "Status" zur thematischen Trennung (Status/Betrieb
-            // vs. Dateiverwaltung/Reset) - bewusst hier im Code statt in der
-            // Übersetzung, da es reine Layout-Struktur ist, keine Textinhalt.
-
-            // Line break after "Status" for thematic separation (status/operation
-            // vs. file management/reset) - deliberately in code, not in the
-            // translation, since it is pure layout structure, not text content.
+            // Zeilenumbruch zur thematischen Trennung, bewusst im Code statt in der Uebersetzung
+            // Line break for thematic separation, deliberately in code rather than the translation
             if (item.path == "/status") {
                 nav += "<br>";
             }
@@ -1193,6 +768,110 @@
                          // end .navLinks
         nav += "</div>";
            
+        return nav;
+    }
+
+
+    // Baut eine kompakte "Fingerabdruck"-Zeichenkette aus allen fuer die Web-
+    // Vorschau (/preview) sichtbaren Einstellungen: Zifferblatt, Zeigersatz,
+    // Nabenfarbe/-groesse, Sekundenzeiger-Sichtbarkeit. Aendert sich einer
+    // dieser Werte (z.B. Zifferblatt-Wechsel auf einer anderen Seite/einem
+    // anderen Geraet), erkennt das per 15s-Poll aus /api/currentTime
+    // geladene Skript in /preview die Aenderung und laedt die Seite neu,
+    // statt eine veraltete Kopie des Displays zu zeigen. Bewusst NICHT
+    // clockAssetGeneration (siehe globals.h/display.h) verwendet: die zaehlt
+    // auch bei jedem Helligkeits-Rampenschritt (loadHandSprites() in
+    // updateBrightness()) hoch, was hier staendige, unnoetige Neuladungen
+    // ausloesen wuerde, obwohl sich Zifferblatt/Zeigersatz/Nabe/Sekundenzeiger
+    // gar nicht geaendert haben.
+
+    // Builds a compact "fingerprint" string from every setting visible in
+    // the web preview (/preview): clock face, hand set, hub color/size,
+    // second-hand visibility. If any of these change (e.g. the face is
+    // switched on another page/device), the script loaded by /preview
+    // detects the change on its 15s poll of /api/currentTime and reloads
+    // the page, instead of showing a stale copy of the display.
+    // Deliberately NOT using clockAssetGeneration (see globals.h/display.h):
+    // that counter also increments on every brightness ramp step
+    // (loadHandSprites() in updateBrightness()), which would trigger
+    // constant, unnecessary reloads here even though the face/hand set/hub/
+    // second hand never actually changed.
+
+    String currentPreviewSignature() {
+        String sig = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
+        sig += "|" + preferences.getString(PK_HANDSET, "");
+        sig += "|" + String(hubColor);
+        sig += "|" + String(hubSize);
+        sig += "|" + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? 1 : 0);
+        return sig;
+    }
+
+
+    // Baut die Tab-Leiste der Einstellungen (WLAN, Uhr, Helligkeit, Zeit,
+    // Status, Log + Info) - EINE Funktion fuer beide Seiten, damit die Leiste
+    // ueberall gleich aussieht und ein neuer Tab nicht an einer Stelle fehlt.
+    //
+    // asLinks=false (Startseite): die sechs Tabs sind <label>-Elemente der
+    // CSS-Tab-Mechanik (kein Seitenwechsel), Info ist ein Link auf /info.
+    // asLinks=true (Info-Seite): dort gibt es die radio-Inputs/Panels nicht,
+    // also fuehren die sechs Eintraege als Links auf "/?tab=<key>" zurueck
+    // (Deep-Link-Skript der Startseite waehlt den Tab dann aus); Info selbst
+    // ist die aktuelle Seite und wird als <span class='active'> gezeigt -
+    // kein Selbstlink, wie in der Seitennavigation darueber.
+
+    // Builds the settings tab bar (WiFi, clock, brightness, time, status, log
+    // + info) - ONE function for both pages, so the bar looks the same
+    // everywhere and a new tab can't go missing in one place.
+    //
+    // asLinks=false (start page): the six tabs are <label> elements of the
+    // CSS tab mechanism (no page change), Info links to /info.
+    // asLinks=true (info page): the radio inputs/panels don't exist there, so
+    // the six entries link back to "/?tab=<key>" instead (the start page's
+    // deep-link script then selects the tab); Info itself is the current page
+    // and is rendered as <span class='active'> - no self-link, same
+    // convention as the page navigation above it.
+
+    String generateSettingsTabNav(bool asLinks) {
+        String nav = "<div class='tabnav'>";
+        for (size_t i = 0; i < SETTINGS_TAB_COUNT; i++) {
+            String key = String(SETTINGS_TAB_KEYS[i]);
+
+            // Rocrail-Tab nur anzeigen, wenn der Master-Schalter (Zifferblatt-
+            // Tab, siehe /applydisplaysettings) aktiv ist - synchron zur
+            // Renderzeit ausgewertet, kein Live-Nachladen noetig, da das
+            // Umlegen des Schalters ohnehin einen vollen Seitenneuaufbau
+            // ausloest.
+
+            // Only show the Rocrail tab when the master switch (Clock Setup
+            // tab, see /applydisplaysettings) is on - evaluated synchronously
+            // at render time, no live reload needed since flipping the
+            // switch already triggers a full page reload anyway.
+            if (key == "rocrail" && !rocrailEnabled) continue;
+
+            String label = translate(SETTINGS_TAB_LABELS[i]);
+            if (asLinks) {
+                nav += "<a href='/?tab=" + key + "'>" + label + "</a>";
+            }
+            else {
+                nav += "<label for='tab-" + key + "'>" + label + "</label>";
+            }
+        }
+
+        // Info: kein Tab, sondern eine eigene Seite mit der Projektbeschreibung
+        // in der aktuell eingestellten Sprache (siehe readme_text.h und die
+        // /info-Route weiter unten) - der Text ist zu gross fuer die Startseite.
+
+        // Info: not a tab but its own page with the project description in the
+        // currently selected language (see readme_text.h and the /info route
+        // further below) - the text is too large for the start page.
+        if (asLinks) {
+            nav += "<span class='active'>" + translate("Info") + "</span>";
+        }
+        else {
+            nav += "<a href='/info'>" + translate("Info") + "</a>";
+        }
+
+        nav += "</div>";
         return nav;
     }
 
@@ -1207,21 +886,77 @@
 
     String generateFlashMessage() {
         if (!webserver.hasArg("msg")) return "";
-        // escapeHtmlText(): der "msg"-Parameter kommt aus der URL (z.B. per
-        // Redirect-Link) und wird nach translate() (gibt bei unbekanntem
-        // Schluessel den Text unveraendert zurueck) direkt als HTML
-        // eingebettet - ohne Escaping ein reflektiertes-XSS-Einfallstor auf
-        // praktisch jeder Seite, die generateFlashMessage() einbindet.
-        // escapeHtmlText(): the "msg" parameter comes from the URL (e.g. via
-        // a redirect link) and, after translate() (returns the text unchanged
-        // on an unknown key), is embedded directly as HTML - without escaping
-        // a reflected-XSS entry point on practically every page that includes
-        // generateFlashMessage().
-        String message = escapeHtmlText(translate(webserver.arg("msg")));
+        String rawMsg = webserver.arg("msg");
+        String message = translate(rawMsg);
+
+        // escapeHtmlText() nur anwenden, wenn KEINE Uebersetzung stattfand
+        // (Englisch, oder ein unbekannter/manipulierter Schluessel) - "msg"
+        // kommt aus der URL, ohne Escaping ein reflektiertes-XSS-Einfallstor.
+        // Eine echte DE/FR-Uebersetzung enthaelt dagegen bewusst HTML-Entities
+        // (z.B. "&uuml;", siehe translation.h) - escapeHtmlText() wuerde deren
+        // "&" sonst zu "&amp;" escapen und "&uuml;" landete woertlich (statt
+        // als "ü") im Browser.
+
+        // Apply escapeHtmlText() only when NO translation happened (English,
+        // or an unknown/tampered-with key) - "msg" comes from the URL, and
+        // without escaping it is a reflected-XSS entry point. A genuine DE/FR
+        // translation, on the other hand, deliberately contains HTML entities
+        // (e.g. "&uuml;", see translation.h) - escapeHtmlText() would
+        // otherwise escape their "&" into "&amp;", leaving "&uuml;" showing
+        // up literally (instead of "ü") in the browser.
+        if (message == rawMsg) {
+            message = escapeHtmlText(message);
+        }
+        // Der WPS-Banner soll nicht nach einer festen Zeit verschwinden,
+        // sondern genau so lange sichtbar bleiben, wie WPS tatsaechlich
+        // aktiv ist (bis zu 2 Minuten, kann aber auch frueher per Erfolg/
+        // Fehlschlag enden) - dafuer per JS einmal pro Sekunde
+        // /api/wpsStatus abfragen (siehe dort) statt eines setTimeout().
+        // Eine Notabschaltung nach 3 Minuten faengt den Fall ab, dass das
+        // Polling selbst (z.B. nach einem WPS-Erfolg mit Neustart und neuer
+        // IP) nicht mehr durchkommt.
+
+        // The WPS banner should not disappear after a fixed time but stay
+        // visible for exactly as long as WPS is actually active (up to 2
+        // minutes, but can also end earlier via success/failure) - poll
+        // /api/wpsStatus once per second via JS for this (see there)
+        // instead of a setTimeout(). A 3-minute safety cutoff covers the
+        // case where the polling itself can no longer get through (e.g.
+        // after a WPS success with reboot and a new IP).
+        bool isWpsBanner = (rawMsg == "WPS active - press the WPS button on your router now. Connection to the clock may be lost for about 2 minutes while this happens");
+
         String html = "<div id='flashMsg' style='background:rgba(61,220,132,0.12);color:var(--ok);border:1px solid var(--ok);border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
         html += "&#9989; " + message;
         html += "</div>";
-        html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 4000);</script>";
+        if (isWpsBanner) {
+            // Waehrend WPS tatsaechlich laeuft, ist die Uhr fuer den Browser
+            // i.d.R. kurz gar nicht erreichbar (genau das, wovor der Banner
+            // warnt) - jeder fetch() schlaegt dann erwartungsgemaess fehl
+            // und wird ueber catch() eine Sekunde spaeter erneut versucht.
+            // Ohne eigenes Timeout kann ein fetch() bei einer "toten"
+            // Verbindung (keine Antwort statt Refuse) aber je nach Browser
+            // sehr lange haengen bleiben, bevor er ueberhaupt fehlschlaegt -
+            // AbortController begrenzt jeden einzelnen Versuch auf 3s, damit
+            // die Sekunden-Wiederholung nicht ausgehebelt wird und der
+            // Banner nach der tatsaechlichen Wiederverbindung zuegig
+            // verschwindet statt unnoetig lange stehen zu bleiben.
+
+            // While WPS is actually running, the browser usually can't
+            // reach the clock at all for a short time (exactly what the
+            // banner warns about) - every fetch() is then expected to fail
+            // and gets retried a second later via catch(). Without its own
+            // timeout, though, a fetch() against a "dead" connection (no
+            // response rather than a refusal) can hang for a long time
+            // depending on the browser before it even fails - AbortController
+            // caps each individual attempt at 3s so the once-per-second
+            // retry isn't undermined and the banner disappears promptly
+            // after the connection actually comes back, instead of lingering
+            // unnecessarily.
+            html += "<script>(function(){var e=document.getElementById('flashMsg');var startedAt=Date.now();function poll(){if(!e)return;if(Date.now()-startedAt>180000){e.style.display='none';return;}var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;var timer=ctrl?setTimeout(function(){ctrl.abort();},3000):null;fetch('/api/wpsStatus',ctrl?{signal:ctrl.signal}:{}).then(function(r){if(timer)clearTimeout(timer);return r.json();}).then(function(d){if(!d.pending){e.style.display='none';}else{setTimeout(poll,1000);}}).catch(function(){if(timer)clearTimeout(timer);setTimeout(poll,1000);});}poll();})();</script>";
+        }
+        else {
+            html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 4000);</script>";
+        }
         return html;
     }
 
@@ -1300,15 +1035,11 @@
     }
 
 
-    // Bereinigt eine Nutzereingabe zu einem gueltigen Hostnamen (RFC 952/1123):
-    // nur Buchstaben, Ziffern und Bindestriche; Leerzeichen/Unterstriche werden
-    // zu Bindestrichen, alle anderen ungueltigen Zeichen (Umlaute, Sonderzeichen,
-    // etc.) werden entfernt; darf nicht mit Bindestrich beginnen/enden; max. 30 Zeichen.
+    // Bereinigt eine Eingabe zu einem gueltigen Hostnamen (RFC 952/1123): nur
+    // Buchstaben/Ziffern/Bindestriche, kein Bindestrich am Rand, max. 30 Zeichen.
 
-    // Sanitizes user input into a valid hostname (RFC 952/1123): only letters,
-    // digits and hyphens; spaces/underscores become hyphens, all other invalid
-    // characters (umlauts, special characters, etc.) are removed; must not
-    // start/end with a hyphen; max. 30 characters.
+    // Sanitizes input into a valid hostname (RFC 952/1123): only
+    // letters/digits/hyphens, no hyphen at the edges, max. 30 characters.
 
     String sanitizeHostname(String input) {
         input.trim();
@@ -1344,15 +1075,8 @@
     }
 
 
-    // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header inkl.
-    // Topbar + Navigation) - Reihenfolge entspricht der bisherigen,
-    // wiederholten Aufrufkette. generateHtmlStatus() (Statusbox oben rechts)
-    // entfaellt seit deren vollstaendiger Entfernung, siehe generateTopBar().
-
-    // Generates the page start common to almost every page (header incl.
-    // topbar + navigation) - order matches the previous, repeated call
-    // chain. generateHtmlStatus() (status box top-right) is gone since it
-    // was removed entirely, see generateTopBar().
+    // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header inkl. Topbar + Navigation).
+    // Generates the page start common to almost every page (header incl. topbar + navigation).
 
     String beginPage() {
         String html = generateHtmlHeader();
@@ -1384,19 +1108,9 @@
     }
 
 
-    // Wandelt esp_reset_reason() in lesbaren Text um - fuer die Status-
-    // Anzeige, hilfreich um z.B. einen Watchdog-Reset oder Panic von
-    // einem normalen Neustart zu unterscheiden (siehe die WPS-Freeze-
-    // Diagnose weiter oben in wifi_manager.h). Als eigenstaendige Funktion
-    // (nicht verschachtelt in setupWebServer()) definiert, da C++ keine
-    // Funktionsdefinitionen innerhalb einer anderen Funktion erlaubt.
+    // Wandelt esp_reset_reason() in lesbaren Text um, fuer die Status-Anzeige.
 
-    // Converts esp_reset_reason() into readable text - for the status
-    // display, useful to distinguish e.g. a watchdog reset or panic from a
-    // normal restart (see the WPS freeze diagnosis further up in
-    // wifi_manager.h). Defined as a standalone function (not nested inside
-    // setupWebServer()), since C++ does not allow function definitions
-    // inside another function.
+    // Converts esp_reset_reason() into readable text, for the status display.
 
     String resetReasonToString(esp_reset_reason_t reason) {
         switch (reason) {
@@ -1446,22 +1160,13 @@
     }
 
 
-    // Baut den wiederverwendeten inneren Teil des Helligkeits-Formulars (Auto-
-    // Helligkeit-Checkboxen + alle Zahlenfelder) - war frueher an drei Stellen
-    // dupliziert (eigenstaendige /brightness-Seite per GET/POST sowie das
-    // Helligkeit-Tab-Panel auf "/"), was schon zu kleinen Inkonsistenzen
-    // gefuehrt hat (z.B. abweichender "%"-Hinweistext beim Schwellwert).
-    // Umschliessendes <form>/<div> und der Save-Button bleiben bewusst bei den
-    // Aufrufern, da sich Action-URL, "returnTo"-Feld und Wrapper-Div dort
-    // unterscheiden.
+    // Baut den wiederverwendeten inneren Teil des Helligkeits-Formulars -
+    // vermeidet die fruehere Duplizierung an mehreren Stellen. Umschliessendes
+    // <form>/<div> und Save-Button bleiben bei den Aufrufern.
 
-    // Builds the reused inner part of the brightness form (auto-brightness
-    // checkboxes + all number fields) - used to be duplicated in three places
-    // (standalone /brightness page via GET/POST, and the Brightness tab panel
-    // on "/"), which had already led to small inconsistencies (e.g. a
-    // differing "%" hint text on the threshold fields). The surrounding
-    // <form>/<div> and the Save button stay with the callers on purpose,
-    // since the action URL, "returnTo" field, and wrapper div differ there.
+    // Builds the reused inner part of the brightness form - avoids the
+    // previous duplication in several places. Surrounding <form>/<div> and
+    // the save button stay with the callers.
 
     String brightnessFormFieldsHtml() {
         String html = "";
@@ -1492,30 +1197,18 @@
     }
 
 
-    // Liest ein GET/POST-Formularfeld als int, mit echter Validierung: fehlt
-    // das Feld oder enthaelt es keine gueltige Ganzzahl (z.B. leer oder
-    // Buchstaben), wird defaultValue zurueckgegeben statt stillschweigend 0
-    // (so verhaelt sich String::toInt() bei ungueltiger Eingabe) - anschliessend
-    // wird das Ergebnis auf [minVal, maxVal] begrenzt, damit fehlerhafte/boese
-    // Werte (z.B. riesige oder negative Zahlen) nicht unbemerkt in Preferences
-    // landen oder bei der Zuweisung an kleinere Typen (uint8_t etc.) ueberlaufen.
+    // Liest ein GET/POST-Feld als int mit Validierung: fehlt/ungueltig ->
+    // defaultValue statt stillschweigend 0, Ergebnis auf [minVal, maxVal] geklemmt.
 
-    // Reads a GET/POST form field as an int, with real validation: if the
-    // field is missing or does not contain a valid integer (e.g. empty or
-    // letters), defaultValue is returned instead of silently 0 (which is
-    // String::toInt()'s behavior on invalid input) - the result is then
-    // clamped to [minVal, maxVal] so malformed/malicious values (e.g. huge or
-    // negative numbers) don't end up unnoticed in Preferences or overflow when
-    // assigned to smaller types (uint8_t etc.).
+    // Reads a GET/POST field as an int with validation: missing/invalid ->
+    // defaultValue instead of silent 0, result clamped to [minVal, maxVal].
 
     int argToIntClamped(const String& name, int defaultValue, int minVal, int maxVal) {
-        // defaultValue selbst wird ebenfalls begrenzt, damit ein Aufrufer nicht
-        // versehentlich einen Default ausserhalb von [minVal, maxVal] uebergeben
-        // und so die Begrenzung fuer den "Feld fehlt/ungueltig"-Fall aushebeln kann.
+        // defaultValue selbst wird ebenfalls geklemmt, sonst koennte ein Aufrufer
+        // die Begrenzung fuer den "Feld fehlt"-Fall umgehen.
 
-        // defaultValue itself is also clamped, so a caller can't accidentally
-        // pass a default outside [minVal, maxVal] and thereby bypass the bound
-        // for the "field missing/invalid" case.
+        // defaultValue itself is also clamped, otherwise a caller could bypass
+        // the bound for the "field missing" case.
         if (defaultValue < minVal) defaultValue = minVal;
         if (defaultValue > maxVal) defaultValue = maxVal;
 
@@ -1540,13 +1233,11 @@
 
     void setupWebServer() {
 
-        // Captive-Portal-Erkennung: Android/iOS/Windows fragen beim Verbinden diese
-        // bekannten URLs ab - Redirect (statt 404) auf die Konfigurationsseite oeffnet
-        // beim AP ("clock123") automatisch ein Browserfenster, wirkt mit dnsServer.processNextRequest() zusammen.
+        // Captive-Portal-Erkennung: bekannte OS-URLs auf die Konfigseite umleiten
+        // statt 404, damit sich am AP automatisch ein Browserfenster oeffnet.
 
-        // Captive portal detection: Android/iOS/Windows probe these known URLs
-        // when connecting - redirecting (instead of 404) to the config page opens
-        // a browser window automatically on the AP ("clock123"), works together with dnsServer.processNextRequest().
+        // Captive portal detection: redirect known OS URLs to the config page
+        // instead of 404, so a browser window opens automatically on the AP.
         auto captivePortalRedirect = []() {
             redirectTo("http://" + ipAddress + "/");
             };
@@ -1560,13 +1251,8 @@
                                                                                      // macOS (alternative)
         webserver.on("/ncsi.txt", HTTP_GET, captivePortalRedirect);           // Windows
         webserver.on("/connecttest.txt", HTTP_GET, captivePortalRedirect);    // Windows
-                                                                              // Catch-all fuer alle sonstigen, unbekannten Anfragen (z.B. Varianten
-        // der obigen URLs oder Domains, die nicht explizit registriert sind) -
-        // statt eines 404 lieber ebenfalls auf die Konfigurationsseite leiten.
-
-        // Catch-all for all other, unknown requests (e.g. variants of the URLs
-        // above or domains that are not explicitly registered) - redirect to the
-        // config page instead of a 404.
+                                                                              // Catch-all: alle sonstigen Anfragen ebenfalls auf die Konfigseite leiten
+        // Catch-all: redirect all other requests to the config page too
         webserver.onNotFound(captivePortalRedirect);
 
         // API zum Setzen von Zifferblatt, Zeigersatz, Zeitzone, Mittelpunkt-Groesse/-Farbe, Bahnhofsmodus, Rotation, Sekundenzeiger-Sichtbarkeit und sanftem Minutenzeiger
@@ -1639,82 +1325,76 @@
             webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
             DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
 
-            // preferences.end() nicht mehr hier, sondern in espReboot() selbst -
-            // sonst faellt der dort geloggte Reboot-Eintrag auf die falsche
-            // Logdatei zurueck (siehe Kommentar in espReboot()).
-
-            // preferences.end() no longer called here, but inside espReboot()
-            // itself - otherwise the reboot log entry logged there falls back
-            // to the wrong log file (see comment in espReboot()).
+            // preferences.end() erfolgt in espReboot(), siehe dort.
+            // preferences.end() happens in espReboot(), see there.
             delay(WAIT_1s);
             // Neustart des ESP
             // Restart the ESP
             espReboot();
             });
 
-        // Startet eine WPS-Anfrage per Web-Button, um ein neues WLAN hinzuzufuegen.
-        // Kehrt SOFORT zurueck (kein Blockieren des Webservers) - der eigentliche
-        // Verbindungsversuch und das Speichern der Zugangsdaten laeuft asynchron
-        // in loop() (siehe uhr3.ino), analog zur bestehenden WPS-Logik in setup().
-        // GET zusaetzlich zu POST registriert (analog zu /api/resetWiFi), damit
-        // die Route auch bei direkter Browser-Navigation erreichbar ist.
+        // Startet WPS per Web-Button, kehrt SOFORT zurueck - kein delay() hier:
+        // waehrend eines blockierenden delay() koennte der Webserver auch die
+        // Folge-GET-Anfrage des Browsers fuer die per Redirect aufgerufene
+        // Zielseite (mit dem Trennungs-Banner) nicht annehmen, die Meldung
+        // wuerde also gerade NICHT direkt erscheinen. startWPS() selbst laeuft
+        // daher zeitversetzt und nicht-blockierend in loop() (siehe dort,
+        // wpsStartRequested in globals.h). GET+POST registriert.
 
-        // Starts a WPS request via web button to add a new WiFi network. Returns
-        // IMMEDIATELY (does not block the webserver) - the actual connection attempt
-        // and saving credentials runs asynchronously in loop() (see uhr3.ino),
-        // like the existing WPS logic in setup(). Also registered for GET (like
-        // /api/resetWiFi) so the route is reachable via direct browser navigation.
+        // Starts WPS via web button, returns IMMEDIATELY - no delay() here:
+        // while a blocking delay() runs, the web server couldn't accept the
+        // browser's follow-up GET for the redirect's target page (with the
+        // disconnect banner) either, so the message would specifically NOT
+        // appear right away. startWPS() itself therefore runs deferred and
+        // non-blocking in loop() (see there, wpsStartRequested in globals.h).
+        // GET+POST registered.
         webserver.on("/api/startWPS", HTTP_GET, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
-            redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
-            // Erst NACH dem Senden der Antwort WPS starten - startWPS() stoerte
-            // sonst vermutlich die noch offene HTTP-Verbindung (Browser zeigte
-            // "Seite nicht erreichbar" statt die Weiterleitung zu erhalten).
-
-            // Only start WPS AFTER sending the response - startWPS() would otherwise
-            // probably disturb the still-open HTTP connection (browser showed
-            // "page not reachable" instead of receiving the redirect).
-            startWPS();
-            wpsPending = true;
-            wpsStartMillis = millis();
+            redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now.%20Connection%20to%20the%20clock%20may%20be%20lost%20for%20about%202%20minutes%20while%20this%20happens");
+            wpsStartRequested = true;
+            wpsStartRequestedAtMillis = millis();
             });
 
         webserver.on("/api/startWPS", HTTP_POST, []() {
             wpsPreviousSsid = WiFi.isConnected() ? WiFi.SSID() : "";
-            redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now%20(within%202%20minutes)");
-            startWPS();
-            wpsPending = true;
-            wpsStartMillis = millis();
+            redirectTo("/?tab=wlan&msg=WPS%20active%20-%20press%20the%20WPS%20button%20on%20your%20router%20now.%20Connection%20to%20the%20clock%20may%20be%20lost%20for%20about%202%20minutes%20while%20this%20happens");
+            wpsStartRequested = true;
+            wpsStartRequestedAtMillis = millis();
             });
 
-        // Speichert einen benutzerdefinierten Hostnamen (wird erst nach einem
-        // Neustart wirksam, da WiFi.setHostname()/MDNS.begin() nur einmalig
-        // beim Verbindungsaufbau in connectWiFi() aufgerufen werden).
-        // Bereinigt eine Nutzereingabe zu einem gueltigen Hostnamen (RFC 952/1123):
-        // nur Buchstaben, Ziffern und Bindestriche; Leerzeichen/Unterstriche werden
-        // zu Bindestrichen, alle anderen ungueltigen Zeichen (Umlaute, Sonderzeichen,
-        // etc.) werden entfernt; darf nicht mit Bindestrich beginnen/enden; max. 30 Zeichen.
+        // Liefert, ob WPS aktuell noch aktiv/wartend ist (wpsPending oder ein
+        // per Web-Button angefordeter, aber noch nicht gestarteter Versuch,
+        // siehe wpsStartRequested oben) - fuer das Banner-Polling in
+        // generateFlashMessage(), das den WPS-Hinweis genau so lange
+        // anzeigen soll, wie WPS tatsaechlich laeuft.
 
-        // Saves a custom hostname (only takes effect after a reboot, since
-        // WiFi.setHostname()/MDNS.begin() are only called once when connecting
-        // in connectWiFi()). Sanitizes user input into a valid hostname (RFC
-        // 952/1123): only letters, digits and hyphens; spaces/underscores become
-        // hyphens, other invalid characters are removed; max. 30 characters, no leading/trailing hyphen.
+        // Reports whether WPS is currently still active/waiting (wpsPending,
+        // or a web-button request not yet started, see wpsStartRequested
+        // above) - used by the banner polling in generateFlashMessage(),
+        // which should show the WPS notice for exactly as long as WPS is
+        // actually running.
+        webserver.on("/api/wpsStatus", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "no-store");
+            bool active = wpsPending || wpsStartRequested;
+            webserver.send(200, "application/json", String("{\"pending\":") + (active ? "true" : "false") + "}");
+            });
+
+        // Speichert einen Hostnamen (siehe sanitizeHostname()) - wirkt erst
+        // nach einem Neustart, da connectWiFi() das nur einmalig aufruft.
+
+        // Saves a hostname (see sanitizeHostname()) - only takes effect
+        // after a reboot, since connectWiFi() only calls this once.
 
         webserver.on("/sethostname", HTTP_POST, []() {
             if (webserver.hasArg("hostname")) {
                 String newHostname = sanitizeHostname(webserver.arg("hostname"));
 
                 if (newHostname.isEmpty()) {
-                    // Kein gueltiger Hostname aus der Eingabe extrahierbar - den
-                    // gespeicherten Override entfernen, damit beim naechsten Boot
-                    // wieder automatisch "clock_" + letzte MAC-Stellen generiert
-                    // wird (siehe connectWiFi() in wifi_manager.h).
+                    // Kein gueltiger Hostname extrahierbar - Override entfernen,
+                    // damit wieder der automatische Name generiert wird.
 
-                    // No valid hostname could be extracted from the input - remove the
-                    // stored override so that on the next boot "clock_" + the last MAC
-                    // digits is generated automatically again (see connectWiFi() in
-                    // wifi_manager.h).
+                    // No valid hostname could be extracted - remove the override
+                    // so the automatic name is generated again.
                     preferences.remove(PK_HOSTNAME);
                     redirectTo("/?tab=wlan&msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
                     return;
@@ -1806,31 +1486,16 @@
 
             if (webserver.hasArg("rotation")) {
                 String rotationArg = webserver.arg("rotation");
-                // Bugfix: hiess vorher ebenfalls "tftRotation" (heute tftRotation1)
-                // und ueberschattete damit die GLOBALE Variable - der
-                // Preferences-Wert wurde zwar korrekt gespeichert und die Drehung
-                // einmalig sofort angewendet, aber renderClockFrame() liest
-                // weiterhin die globale Variable und fiel beim naechsten Tick auf
-                // die alte Rotation zurueck.
+                // Bugfix: hiess vorher ebenfalls "tftRotation" und ueberschattete
+                // damit die globale Variable, die renderClockFrame() liest.
 
-                // Bugfix: this used to also be named "tftRotation" (today
-                // tftRotation1) and therefore shadowed the GLOBAL variable - the
-                // value was correctly saved to Preferences and the rotation
-                // applied immediately once, but renderClockFrame() still reads
-                // the global variable and fell back to the old rotation on the
-                // next tick.
-                // Als long fuehren, NICHT als uint8_t: toInt() liefert einen long,
-                // und eine Zuweisung an uint8_t haette den Wert vorher auf 8 Bit
-                // abgeschnitten - "rotation=256" wurde so zu 0 und "rotation=257"
-                // zu 1, beides hat die Pruefung unten klaglos passiert und wurde
-                // gespeichert. Die Validierung hat also Unsinn stillschweigend
-                // akzeptiert statt ihn abzulehnen.
+                // Bugfix: this used to also be named "tftRotation" and shadowed
+                // the global variable that renderClockFrame() reads.
+                // Als long fuehren, nicht als uint8_t: sonst wuerde z.B.
+                // "rotation=256" vor der Pruefung stillschweigend zu 0 abgeschnitten.
 
-                // Keep it as a long, NOT a uint8_t: toInt() returns a long, and
-                // assigning to uint8_t truncated the value to 8 bits beforehand -
-                // "rotation=256" became 0 and "rotation=257" became 1, both of which
-                // silently passed the check below and got saved. So the validation
-                // quietly accepted nonsense instead of rejecting it.
+                // Keep as long, not uint8_t: otherwise e.g. "rotation=256" would
+                // silently truncate to 0 before validation.
                 long requestedRotation = -1;
 
                 // Prüfe, ob der Wert in Grad angegeben ist
@@ -1855,24 +1520,19 @@
                     preferences.putUChar(PK_TFT_ROTATION1, newRotation);
                     tftRotation1 = newRotation; // globale Variable aktualisieren (siehe Bugfix-Kommentar oben)
                                                // update the global variable (see bugfix comment above)
-                    // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
-                    // sonst wuerde jedes Speichern der Haupteinstellungen (die
-                    // das Rotationsfeld immer mitsenden, auch unveraendert) die
-                    // Bahnhofsmodus-Wartephase am Sekundenzeiger neu starten.
+                    // firstRun nur bei tatsaechlicher Aenderung zuruecksetzen, sonst
+                    // startet jedes Speichern die Bahnhofsmodus-Wartephase neu.
 
-                    // Only reset firstRun on an ACTUAL change - otherwise every save of the
-                    // main settings (which always submit the rotation field, even unchanged)
-                    // would restart the station-mode wait phase on the second hand.
+                    // Only reset firstRun on an actual change, otherwise every save
+                    // restarts the station-mode wait phase.
                     if (tftRotation1 != previousRotation) {
                         firstRun = true;
                     }
                     if (!gc9d01SwRotation) {
-                        // Wie bei /applydisplaysettings: explizit auf Display 1 umschalten,
-                        // bevor die Rotation gesetzt wird - tft.setRotation() wirkt nur auf
+                        // Erst auf Display 1 umschalten - tft.setRotation() wirkt nur auf
                         // den aktuell selektierten Chip.
 
-                        // Same as in /applydisplaysettings: explicitly switch to Display 1
-                        // before applying the rotation - tft.setRotation() only affects the
+                        // Switch to Display 1 first - tft.setRotation() only affects the
                         // currently selected chip.
                         setCS1(LOW);
                         tft.setRotation(tftRotation1); // sofort anwenden
@@ -1969,13 +1629,11 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Nur die Anzeige-Reihenfolge sortieren (Array-Indizes bleiben unveraendert,
-            // damit Rename-/Delete-/Vorschau-Links stimmen) - Insertion-Sort wie bei
-            // naturalSortNames(), um keine <algorithm>-Abhaengigkeit zu benoetigen.
+            // Nur die Anzeige-Reihenfolge sortieren, Array-Indizes bleiben
+            // unveraendert, damit Rename-/Delete-Links stimmen.
 
-            // Only sort the display order (array indices stay unchanged so
-            // rename/delete/preview links remain correct) - insertion sort like
-            // naturalSortNames(), to avoid an <algorithm> dependency.
+            // Only sort the display order, array indices stay unchanged so
+            // rename/delete links remain correct.
             std::vector<int> sortedIndices;
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
@@ -2012,37 +1670,19 @@
                         }
                     }
                     displayUrl += "&source=preset";
-                    // Bugfix: hier stand vorher presets[i].name.replace(" ", "_") -
-                    // ein reiner GET-Request hat damit den GLOBALEN Preset-Zustand im RAM
-                    // veraendert. Folgen: switchToNextPreset() verglich den (aus NVS
-                    // gelesenen) Namen mit Leerzeichen gegen den mutierten Namen und fand
-                    // nie einen Treffer, und das naechste beliebige savePresets() (z.B.
-                    // ueber /deletepreset) hat die Mutation dauerhaft ins NVS geschrieben.
-                    // Der Aufruf war ohnehin ueberfluessig - der Block unten legt sich
-                    // fuer die URL bereits eine eigene lokale Kopie an (presetName).
+                    // Bugfix: presets[i].name.replace() direkt hier mutierte den
+                    // globalen Preset-Zustand bei einem reinen GET-Request. Nicht
+                    // mehr noetig - presetName unten ist eine lokale Kopie.
 
-                    // Bugfix: this used to be presets[i].name.replace(" ", "_") - a plain
-                    // GET request thus mutated the GLOBAL preset state in RAM.
-                    // Consequences: switchToNextPreset() compared the name read from NVS
-                    // (with spaces) against the mutated name and never found a match, and
-                    // the next arbitrary savePresets() (e.g. via /deletepreset) persisted
-                    // the mutation into NVS. It was redundant anyway - the block below
-                    // already makes its own local copy (presetName) for the URL.
+                    // Bugfix: presets[i].name.replace() directly here mutated the
+                    // global preset state on a plain GET request. No longer
+                    // needed - presetName below is a local copy.
 
-                    // presets[i].name kommt vom Nutzer (freier Name beim Anlegen
-                    // eines Presets, siehe /api/createPreset) und wurde hier an
-                    // mehreren Stellen ungeescaped in HTML-Text bzw. in
-                    // JS-String-Literale innerhalb von onclick-Attributen
-                    // eingebettet - potentiell gespeichertes XSS. Fuer reinen
-                    // Textinhalt escapeHtmlText(), fuer die onclick-JS-Strings
-                    // escapeForJsStringInAttr() (siehe Kommentar dort).
-                    // presets[i].name comes from the user (a free-form name
-                    // chosen when creating a preset, see /api/createPreset) and
-                    // was embedded here unescaped in several places, both as
-                    // HTML text and inside JS string literals within onclick
-                    // attributes - potentially stored XSS. escapeHtmlText() for
-                    // plain text content, escapeForJsStringInAttr() for the
-                    // onclick JS strings (see comment there).
+                    // presets[i].name kommt vom Nutzer - potentiell gespeichertes
+                    // XSS ohne Escaping (escapeHtmlText()/escapeForJsStringInAttr()).
+
+                    // presets[i].name comes from the user - potential stored XSS
+                    // without escaping (escapeHtmlText()/escapeForJsStringInAttr()).
                     String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
                     chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
@@ -2051,22 +1691,16 @@
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
                                                   // replace spaces with underscores
                     String ipLink = "http://" + ipAddress + "/api/setPreset?name=" + presetName;
-                    // onclick=\"...\" -> aeusseres Attribut ist doppelt gequotet,
-                    // der JS-String innen einfach ('...') - jsStringQuote='\''.
-                    // onclick=\"...\" -> the outer attribute is double-quoted,
-                    // the inner JS string is single-quoted ('...') - jsStringQuote='\''.
+                    // Aeusseres Attribut doppelt gequotet, JS-String innen einfach.
+                    // Outer attribute double-quoted, inner JS string single-quoted.
                     chunk += "<br><span onclick=\"copyPresetLink('" + escapeForJsStringInAttr(ipLink, '\'') + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
                     if (pingHostname) {
                         String hostLink = espHost + "/api/setPreset?name=" + presetName;
                         chunk += " <span onclick=\"copyPresetLink('" + escapeForJsStringInAttr(hostLink, '\'') + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + " (" + espHost + ")'>&#128203;</span>";
                     }
                     chunk += "<br><a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
-                    // onclick='...' -> aeusseres Attribut ist einfach gequotet,
-                    // der confirm()-String innen doppelt (\"...\") -
-                    // jsStringQuote='"'.
-                    // onclick='...' -> the outer attribute is single-quoted,
-                    // the confirm() string inside is double-quoted (\"...\") -
-                    // jsStringQuote='"'.
+                    // Aeusseres Attribut einfach gequotet, confirm()-String innen doppelt.
+                    // Outer attribute single-quoted, inner confirm() string double-quoted.
                     chunk += "<button type='button' onclick='if(confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(presets[i].name, '"') + "?\")){window.location.href=\"/deletepreset?index=" + String(i) + "\";}'>" + translate("Delete") + "</button>";
                     chunk += "</div>";
 
@@ -2084,15 +1718,11 @@
             chunk += "<button type='button' id='ghPresetBtn' onclick='loadPresetsFromGithub()'>" + translate("Load Presets from GitHub") + "</button>";
             chunk += "<div id='ghPresetStatus'></div>";
 
-            // Fuer den JS-Merge-Abgleich: bereits vorhandene Preset-Namen sowie
-            // vorhandene Zifferblatt-/Zeigersatz-Dateien bereitstellen, damit der
-            // GitHub-Download nur wirklich Neues hinzufuegt und automatisch die
-            // dafuer noch fehlenden Zifferblaetter/Zeigersaetze mitlaedt.
+            // Fuer den JS-Merge-Abgleich: vorhandene Preset-Namen und Dateien
+            // bereitstellen, damit der GitHub-Download nur Neues hinzufuegt.
 
-            // For the JS merge comparison: provide already existing preset names
-            // and existing clock-face/hand-set files, so the GitHub download only
-            // adds what is really new and automatically fetches the still-missing
-            // faces/hand sets needed for it.
+            // For the JS merge comparison: provide existing preset names and
+            // files, so the GitHub download only adds what's new.
             std::vector<String> existingPresetNamesForJs;
             for (int gi = 0; gi < MAX_PRESETS; gi++) {
                 if (!presets[gi].name.isEmpty() && !presets[gi].url.isEmpty()) {
@@ -2113,19 +1743,11 @@
             }
 
             chunk += "<script>";
-            // escapeForJsStringLiteral(): Preset-Namen (Nutzereingabe) und Datei-
-            // namen (aus Uploads, s. handleFileUpload() - dort nicht auf harmlose
-            // Zeichen eingeschraenkt) landen hier als JS-String-Literal direkt in
-            // einem <script>-Block. Ohne Escaping koennte ein "-Zeichen den String
-            // vorzeitig beenden bzw. eine "</script>"-Sequenz das ganze Element
-            // abschliessen und beliebiges HTML/JS einschleusen (gespeicherte XSS).
-            //
-            // escapeForJsStringLiteral(): preset names (user input) and filenames
-            // (from uploads, see handleFileUpload() - not restricted to harmless
-            // characters there) end up here as a JS string literal directly inside
-            // a <script> block. Without escaping, a '"' character could end the
-            // string early, or a "</script>" sequence could close the whole
-            // element and inject arbitrary HTML/JS (stored XSS).
+            // escapeForJsStringLiteral(): Preset-/Dateinamen (Nutzereingabe) landen
+            // hier als JS-String-Literal - ohne Escaping gespeichertes XSS moeglich.
+
+            // escapeForJsStringLiteral(): preset/file names (user input) end up
+            // here as a JS string literal - without escaping, stored XSS is possible.
             chunk += "var existingPresetNames = [";
             for (size_t gi = 0; gi < existingPresetNamesForJs.size(); gi++) {
                 if (gi > 0) chunk += ",";
@@ -2220,19 +1842,11 @@
             chunk += "</script>";
             chunk += "<hr>";
 
-            // Falls beim Laden der Seite keine Presets vorhanden sind, automatisch
-            // fragen, ob welche von GitHub geladen werden sollen - relevant z.B.
-            // nach einem Werksreset oder erstmaligem Einrichten. Prueft die
-            // Erreichbarkeit von GitHub mehrfach (mit kurzer Pause dazwischen),
-            // bevor gefragt wird, damit direkt nach einem Neustart (WLAN evtl.
-            // noch nicht ganz stabil) keine Nachfrage fuer eine dann sowieso
+            // Ohne vorhandene Presets automatisch fragen, ob welche von GitHub
+            // geladen werden sollen - prueft Erreichbarkeit vorher mehrfach.
 
-            // fehlschlagende Aktion erscheint.
-            // If no presets exist when the page loads, automatically ask whether
-            // some should be loaded from GitHub - relevant e.g. after a factory
-            // reset or initial setup. Checks GitHub reachability multiple times
-            // (with a short pause in between) before asking, so that right after a
-            // reboot (WiFi maybe not fully stable yet) there is no prompt for an action that would fail anyway.
+            // Without any presets, automatically ask whether to load some from
+            // GitHub - checks reachability multiple times first.
             if (rowCount == 0) {
                 chunk += "<script>";
                 chunk += "async function checkGithubReachable(retries) {";
@@ -2287,19 +1901,11 @@
             for (int i = 0; i < MAX_PRESETS; i++) {
                 if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
                     String exportUrl = presets[i].url;
-                    // Host-Teil (aktuelle IP dieses Geraets) durch einen Platzhalter
-                    // ersetzen: die Datei soll nicht wie eine feste Adresse fuer EIN
-                    // bestimmtes Geraet aussehen. Wird beim Laden/Import ohnehin
-                    // durch die dann aktuelle IP ersetzt (siehe loadPresets() und
-                    // savePresets() - beide schneiden alles zwischen "http://" und
-                    // dem naechsten "/" ab und setzen dort die aktuelle IP ein,
+                    // Host-Teil durch Platzhalter ersetzen - wird beim Import ohnehin
+                    // durch die dann aktuelle IP ersetzt (siehe loadPresets()).
 
-                    // unabhaengig davon, was zuvor dort stand).
-                    // Replace the host part (this device's current IP) with a placeholder:
-                    // the file should not look like a fixed address for ONE specific device.
-                    // It gets replaced by the then-current IP on load/import anyway (see
-                    // loadPresets() and savePresets() - both cut everything between
-                    // "http://" and the next "/" and insert the current IP there, regardless of what was there before).
+                    // Replace the host part with a placeholder - gets replaced by
+                    // the then-current IP on import anyway (see loadPresets()).
                     if (exportUrl.startsWith("http://")) {
                         int ipEnd = exportUrl.indexOf('/', 7);
                         if (ipEnd != -1) {
@@ -2557,14 +2163,8 @@
                 return;
             }
 
-            // escapeHtmlText(): "file" kommt aus der URL (GET-Parameter) und
-            // wurde vorher ungeescaped in zwei value='...'-Attribute
-            // eingebettet - ein praeparierter Link (z.B. .../rename_form?file=x'%3E%3Cscript%3E...)
-            // haette so reflektiertes XSS ausgeloest.
-            // escapeHtmlText(): "file" comes from the URL (GET parameter) and
-            // was previously embedded unescaped into two value='...'
-            // attributes - a crafted link (e.g. .../rename_form?file=x'%3E%3Cscript%3E...)
-            // would have triggered reflected XSS this way.
+            // escapeHtmlText(): "file" kommt aus der URL - ohne Escaping reflektiertes XSS.
+            // escapeHtmlText(): "file" comes from the URL - without escaping, reflected XSS.
             String oldName = escapeHtmlText(webserver.arg("file"));
             String html = beginPage();
             html.reserve(1024);  // Umbenennen-Formular: klein
@@ -2616,24 +2216,17 @@
                 }
 
                 if (LittleFS.exists(oldName)) {
-                    // Kollision mit einer bestehenden Datei ablehnen, statt sie
-                    // stillschweigend zu ueberschreiben (LittleFS.rename() tut
-                    // das sonst kommentarlos).
-                    // Reject a collision with an existing file instead of
-                    // silently overwriting it (LittleFS.rename() otherwise
-                    // does so without any warning).
+                    // Kollision ablehnen statt stillschweigend zu ueberschreiben.
+                    // Reject a collision instead of silently overwriting it.
                     if (newName != oldName && LittleFS.exists(newName)) {
                         webserver.send(409, "text/plain", "A file with the new name already exists");
                         return;
                     }
                     if (LittleFS.rename(oldName, newName)) {
-                        // Ist die umbenannte Datei gerade das aktive
-                        // Zifferblatt, die Preference mitziehen - sonst zeigt
-                        // sie danach auf eine nicht mehr existierende Datei.
-                        // If the renamed file is the currently active clock
-                        // face, update the preference along with it -
-                        // otherwise it would point at a file that no longer
-                        // exists.
+                        // Aktives Zifferblatt: Preference mitziehen, sonst zeigt
+                        // sie auf eine nicht mehr existierende Datei.
+                        // Active clock face: update the preference too,
+                        // otherwise it points at a file that no longer exists.
                         if (preferences.getString(PK_BACKGROUND, "") == oldName) {
                             preferences.putString(PK_BACKGROUND, newName);
                             selectedBackground = newName;
@@ -2746,29 +2339,13 @@
             loggingEnabled = webserver.hasArg("loggingEnabled");
             preferences.putBool(PK_LOGGING_ENABLED, loggingEnabled);
 
-            // DCF77-Sync-LED-Blinken speichern (siehe dcfSyncLedEnabled in
-            // globals.h, ausgewertet in uhr3.ino loop()) - nur auf Builds mit
-            // DCF77-Empfaenger UND nur, wenn dcf77Confirmed true ist. Beides
-            // aus demselben Grund: die Checkbox wird nur unter genau diesen
-            // Bedingungen ueberhaupt gerendert (siehe weiter oben in dieser
-            // Datei) - stuende sie NICHT im Formular (Hardware fehlt bzw.
-            // DCF77 noch nicht erkannt), waere sie folglich auch nie im POST
-            // enthalten. Ohne diese Absicherung wuerde JEDES Speichern dieser
-            // Einstellungsseite, bevor DCF77 je erkannt wurde, die
-            // gespeicherte Einstellung unbemerkt auf "aus" ueberschreiben -
-            // obwohl der Nutzer die Checkbox nie zu Gesicht bekommen, also
-            // auch nie etwas daran geaendert hat.
-            // Save DCF77 sync LED blink setting (see dcfSyncLedEnabled in
-            // globals.h, evaluated in uhr3.ino loop()) - only on builds with
-            // a DCF77 receiver AND only once dcf77Confirmed is true. Both for
-            // the same reason: the checkbox is only ever rendered under
-            // exactly these conditions (see further above in this file) - if
-            // it is NOT in the form (hardware missing, or DCF77 not yet
-            // recognized), it consequently was never in the POST either.
-            // Without this guard, EVERY save of this settings page before
-            // DCF77 was ever recognized would silently overwrite the stored
-            // setting to "off" - even though the user never even saw the
-            // checkbox, let alone changed it.
+            // DCF77-LED nur speichern, wenn die Checkbox ueberhaupt gerendert
+            // wurde (Hardware da + dcf77Confirmed) - sonst wuerde jedes Speichern
+            // vor Erstsync die Einstellung unbemerkt auf "aus" ueberschreiben.
+
+            // Only save the DCF77 LED setting when the checkbox was actually
+            // rendered (hardware present + dcf77Confirmed) - otherwise every
+            // save before first sync would silently overwrite it to "off".
 #if defined(DCF77_DATAPIN) && defined(DCF77_INTERRUPT)
             if (dcf77Confirmed) {
                 dcfSyncLedEnabled = webserver.hasArg("dcfSyncLed");
@@ -2779,58 +2356,59 @@
             wifiActive = webserver.hasArg("wifiActive");
             preferences.putBool(PK_WIFI_ACTIVE, wifiActive);
 
+            // Rocrail-Master-Schalter: schaltet Nutzung und Sichtbarkeit des
+            // Rocrail-Tabs frei (siehe generateSettingsTabNav()). Beim
+            // Deaktivieren eine evtl. offene Verbindung sofort trennen.
+
+            // Rocrail master switch: unlocks use and visibility of the
+            // Rocrail tab (see generateSettingsTabNav()). When disabling,
+            // immediately close any open connection.
+            rocrailEnabled = webserver.hasArg("rocrailEnabled");
+            preferences.putBool(PK_ROCRAIL_ENABLED, rocrailEnabled);
+            if (!rocrailEnabled) {
+                if (rocrailClient.connected()) rocrailClient.stop();
+                rocrailConnected = false;
+            }
+            else {
+                // Sofort versuchen statt bis zum naechsten regulaeren
+                // Zeitfenster zu warten (siehe triggerRocrailConnectNow()) -
+                // no-op, falls z.B. noch keine Serveradresse hinterlegt ist.
+                // Try immediately instead of waiting for the next regular
+                // window (see triggerRocrailConnectNow()) - a no-op if e.g.
+                // no server address is configured yet.
+                triggerRocrailConnectNow();
+            }
+
             preferences.putBool(PK_STATION_MODE, stationMode);
             preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
             preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
 
             if (webserver.hasArg("rotation")) {
 
-                // Erst validieren, DANN die globale Variable setzen: vorher wurde
-                // tftRotation1 unbedingt zugewiesen und blieb bei einem ungueltigen
-                // Wert (z.B. rotation=9) zur Laufzeit stehen, obwohl nichts
-                // gespeichert wurde. renderClockFrame() gibt sie jeden Tick weiter -
-                // bei aktiver Software-Rotation landete sie in rotatedAngle()
-                // (+9*90 Grad) und im switch von loadClockFace() (default = 270
-                // Grad), Zifferblatt und Zeiger standen dann bis zum Reboot 180 Grad
-                // gegeneinander verdreht. Zusaetzlich war ">= 0" bei einer uint8_t-
-                // Variablen immer wahr, die Pruefung also halb wirkungslos.
+                // Erst validieren, dann tftRotation1 setzen - sonst blieb bei einem
+                // ungueltigen Wert ein falscher Stand bis zum Reboot aktiv.
 
-                // Validate FIRST, then set the global variable: previously
-                // tftRotation1 was assigned unconditionally and kept an invalid value
-                // (e.g. rotation=9) at runtime even though nothing was saved.
-                // renderClockFrame() passes it on every tick - with software rotation
-                // active it ended up in rotatedAngle() (+9*90 degrees) and in
-                // loadClockFace()'s switch (default = 270 degrees), leaving clock face
-                // and hands 180 degrees apart until the next reboot. On top of that,
-                // ">= 0" on a uint8_t variable was always true, making the check
-                // half-useless.
+                // Validate first, then set tftRotation1 - otherwise an invalid
+                // value stayed active until the next reboot.
                 long requestedRotation = webserver.arg("rotation").toInt();
                 if (requestedRotation >= 0 && requestedRotation <= 3) {
                     tftRotation1 = (uint8_t)requestedRotation;
                     uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
                     preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
-                    // firstRun nur bei TATSAECHLICHER Aenderung zuruecksetzen -
-                    // sonst wuerde jedes Speichern dieser Seite (das Rotationsfeld
-                    // wird immer mitgesendet, auch unveraendert) die Bahnhofsmodus-
-                    // Wartephase am Sekundenzeiger unnoetig neu starten.
+                    // firstRun nur bei tatsaechlicher Aenderung zuruecksetzen, sonst
+                    // startet jedes Speichern die Bahnhofsmodus-Wartephase neu.
 
-                    // Only reset firstRun on an ACTUAL change - otherwise every save of
-                    // this page (rotation field is always submitted, even unchanged) would
-                    // needlessly restart the station-mode wait phase on the second hand.
+                    // Only reset firstRun on an actual change, otherwise every save
+                    // restarts the station-mode wait phase.
                     if (tftRotation1 != previousRotation) {
                         firstRun = true;
                     }
                     if (!gc9d01SwRotation) {
-                        // Explizit auf Display 1 umschalten, bevor die Rotation gesetzt wird -
-                        // tft.setRotation() wirkt nur auf den aktuell gewaehlten Chip.
-                        // updateClock() laesst nach jedem Tick zwar bereits Display 1 selektiert
-                        // zurueck, aber das hier nochmal sicherzustellen macht diesen Code
-                        // unabhaengig davon.
+                        // Erst auf Display 1 umschalten - tft.setRotation() wirkt nur
+                        // auf den aktuell gewaehlten Chip.
 
-                        // Explicitly switch to Display 1 before applying the rotation -
-                        // tft.setRotation() only affects the currently selected chip.
-                        // updateClock() already leaves Display 1 selected after every tick, but
-                        // making sure of it here too keeps this code independent of that.
+                        // Switch to Display 1 first - tft.setRotation() only affects
+                        // the currently selected chip.
                         setCS1(LOW);
                         tft.setRotation(tftRotation1); // sofort anwenden
                                                       // apply immediately
@@ -2857,27 +2435,18 @@
                     uint8_t previousRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
                     preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
 
-                    // firstRun2 nur bei TATSAECHLICHER Aenderung setzen (wie bei Display 1)
-                    // - sorgt dafuer, dass Display 2 sofort auf die neue Ausrichtung
-                    // "springt" statt sich erst dorthin einzupendeln.
-
-                    // Only set firstRun2 on an ACTUAL change (same as for Display 1) -
-                    // makes Display 2 "snap" to the new orientation immediately instead
-                    // of gradually easing into it.
+                    // firstRun2 nur bei tatsaechlicher Aenderung setzen (wie Display 1).
+                    // Only set firstRun2 on an actual change (same as Display 1).
                     if (tftRotation2 != previousRotation2) {
                         firstRun2 = true;
                     }
 
                     if (!gc9d01SwRotation) {
-                        // Hardware-Rotation: das MADCTL-Register muss explizit auf dem
-                        // Display-2-Chip gesetzt werden. Bei GC9D01-Software-Rotation
-                        // (gc9d01SwRotation) ist hier NICHTS zu tun - renderClockFrame()
-                        // liest tftRotation2 direkt und wendet es beim naechsten Tick an.
+                        // Hardware-Rotation: MADCTL-Register explizit auf Display 2 setzen.
+                        // Bei Software-Rotation liest renderClockFrame() tftRotation2 direkt.
 
-                        // Hardware rotation: the MADCTL register has to be explicitly set
-                        // on the Display 2 chip. With GC9D01 software rotation
-                        // (gc9d01SwRotation) there is NOTHING to do here - renderClockFrame()
-                        // reads tftRotation2 directly and applies it on the next tick.
+                        // Hardware rotation: explicitly set the MADCTL register on Display 2.
+                        // With software rotation, renderClockFrame() reads tftRotation2 directly.
                         setCS2(LOW);
                         tft.setRotation(tftRotation2); // sofort auf Display 2 anwenden
                                                        // apply immediately to Display 2
@@ -2929,7 +2498,14 @@
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
-                chunk += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
+                // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
+                // Variablennamen aus dem Sketch, keine uebersetzbaren Woerter
+                // (gleiche Begruendung wie bei den Achsentiteln weiter unten).
+
+                // "adc"/"targetBrightness" stay untranslated: these are the
+                // sketch's variable names, not translatable words (same
+                // reasoning as for the axis titles further below).
+                chunk += "<h2>" + translate("Gamma Correction") + ": adc &rarr; targetBrightness</h2>\n";
                 chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
                 chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
                 chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
@@ -2950,6 +2526,18 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
+                // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
+                // HTML-Entities dabei NICHT - "&uuml;" stuende sonst woertlich
+                // im Titel. Deshalb wie bei den WLAN-Labels weiter unten ueber
+                // decodeHtml() aufloesen (siehe auch Hinweis in translation.h).
+
+                // Plotly renders the chart title as SVG text and does NOT
+                // decode HTML entities - "&uuml;" would show up literally in
+                // the title. So resolve it via decodeHtml(), same as the WiFi
+                // labels further below (see also the note in translation.h).
+                chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
+                chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
+
                 chunk += "function plotGamma(gamma) {\n";
                 chunk += "  const y = computeBrightness(gamma);\n";
                 chunk += "  Plotly.newPlot('plot', [{\n";
@@ -2958,7 +2546,7 @@
                 chunk += "    mode: 'lines',\n";
                 chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
                 chunk += "  }], {\n";
-                chunk += "    title: 'Gamma-Korrektur-Kurve',\n";
+                chunk += "    title: gammaCurveTitle,\n";
                 chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
                 chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
                 chunk += "  });\n";
@@ -3021,7 +2609,14 @@
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
-                chunk += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
+                // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
+                // Variablennamen aus dem Sketch, keine uebersetzbaren Woerter
+                // (gleiche Begruendung wie bei den Achsentiteln weiter unten).
+
+                // "adc"/"targetBrightness" stay untranslated: these are the
+                // sketch's variable names, not translatable words (same
+                // reasoning as for the axis titles further below).
+                chunk += "<h2>" + translate("Gamma Correction") + ": adc &rarr; targetBrightness</h2>\n";
                 chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
                 chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
                 chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
@@ -3042,6 +2637,18 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
+                // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
+                // HTML-Entities dabei NICHT - "&uuml;" stuende sonst woertlich
+                // im Titel. Deshalb wie bei den WLAN-Labels weiter unten ueber
+                // decodeHtml() aufloesen (siehe auch Hinweis in translation.h).
+
+                // Plotly renders the chart title as SVG text and does NOT
+                // decode HTML entities - "&uuml;" would show up literally in
+                // the title. So resolve it via decodeHtml(), same as the WiFi
+                // labels further below (see also the note in translation.h).
+                chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
+                chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
+
                 chunk += "function plotGamma(gamma) {\n";
                 chunk += "  const y = computeBrightness(gamma);\n";
                 chunk += "  Plotly.newPlot('plot', [{\n";
@@ -3050,7 +2657,7 @@
                 chunk += "    mode: 'lines',\n";
                 chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
                 chunk += "  }], {\n";
-                chunk += "    title: 'Gamma-Korrektur-Kurve',\n";
+                chunk += "    title: gammaCurveTitle,\n";
                 chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
                 chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
                 chunk += "  });\n";
@@ -3113,41 +2720,232 @@
             preferences.putUChar(PK_BRIGHT_START_HOUR, brightStartHour);
             preferences.putUChar(PK_BRIGHT_END_HOUR, brightEndHour);
 
-            // Nach dem Speichern zur Seite zurueckkehren, von der aus
-            // abgeschickt wurde (Helligkeit-Tab auf "/" oder die eigenstaendige
-            // /brightness-Seite) - statt immer fest zum Tab-Hub umzuleiten.
-            // Das Formular der eigenstaendigen Seite sendet dafuer ein
-            // verstecktes "returnTo"-Feld mit; das Tab-Panel sendet keines und
-            // faellt daher weiterhin auf den Tab-Hub zurueck.
+            // Nach dem Speichern zur aufrufenden Seite zurueckkehren (returnTo)
+            // statt immer zum Tab-Hub. returnTo kommt als POST-Parameter an -
+            // nur lokale Pfade akzeptieren, sonst waere ein offener Redirect moeglich.
 
-            // After saving, return to the page the form was submitted from
-            // (the Brightness tab on "/" or the standalone /brightness page)
-            // instead of always redirecting to the tab hub. The standalone
-            // page's form sends a hidden "returnTo" field for this; the tab
-            // panel doesn't send one and therefore still falls back to the
-            // tab hub.
-            // "returnTo" wird normalerweise nur ueber ein verstecktes
-            // Formularfeld mit festem Wert mitgeschickt, kommt aber technisch
-            // trotzdem als gewoehnlicher POST-Parameter an - ohne Pruefung
-            // haette ein praeparierter POST (z.B. per CSRF-artigem externen
-            // Formular) mit z.B. returnTo=http://evil.example.com einen
-            // offenen Redirect auf eine beliebige externe Seite ausgeloest.
-            // Nur einen lokalen, mit "/" beginnenden Pfad ohne "://"
-            // akzeptieren, sonst auf den Default zurueckfallen.
-            // "returnTo" is normally only ever submitted via a hidden form
-            // field with a fixed value, but technically still arrives as an
-            // ordinary POST parameter - without validation, a crafted POST
-            // (e.g. via a CSRF-like external form) with e.g.
-            // returnTo=http://evil.example.com would have triggered an open
-            // redirect to an arbitrary external site. Only accept a local
-            // path starting with "/" and containing no "://", otherwise fall
-            // back to the default.
+            // After saving, return to the calling page (returnTo) instead of
+            // always the tab hub. returnTo arrives as a POST parameter - only
+            // accept local paths, otherwise an open redirect would be possible.
             String returnTo = webserver.hasArg("returnTo") ? webserver.arg("returnTo") : "/?tab=helligkeit";
             if (!returnTo.startsWith("/") || returnTo.indexOf("://") >= 0) {
                 returnTo = "/?tab=helligkeit";
             }
             String sep = (returnTo.indexOf('?') >= 0) ? "&" : "?";
             redirectTo(returnTo + sep + "msg=Settings%20saved");
+            });
+
+
+        // Rocrail-Modellzeit: Liste moeglicher Server (bis zu MAX_WLAN,
+        // siehe globals.h) speichern. Analog zu updateNtpServersFromRequest()/
+        // /set_timezone: erst alle eingereichten Host/Port-Paare uebernehmen,
+        // dann leere Zwischenraeume herausziehen ("reorganisieren" - nicht
+        // befuellte Eintraege ruecken auf), das Ergebnis in die Preferences
+        // schreiben und schliesslich den per Haekchen ausgewaehlten Eintrag
+        // als aktuell aktiven Server (rocrailServerHost/-Port) uebernehmen.
+        // Eine Aenderung des aktiven Servers soll sofort wirken (nicht erst
+        // nach einem Neustart) - daher zusaetzlich zu preferences.put*() auch
+        // die laufenden Globals setzen und den Reconnect-Zustand
+        // zuruecksetzen, damit ein geaenderter Server nicht erst nach Ablauf
+        // der alten Wartezeit (ROCRAIL_RECONNECT_INTERVAL_MS) angegangen wird.
+
+        // Rocrail model time: save the list of possible servers (up to
+        // MAX_WLAN, see globals.h). Analogous to
+        // updateNtpServersFromRequest()/set_timezone: first take over all
+        // submitted host/port pairs, then pull out any empty gaps
+        // ("reorganize" - non-empty entries move up), write the result to
+        // preferences, and finally take over the entry selected via the
+        // checkmark as the currently active server (rocrailServerHost/-Port).
+        // A change to the active server should take effect immediately (not
+        // only after a reboot) - so besides preferences.put*(), also set the
+        // live globals and reset the reconnect state, so a changed server
+        // isn't tried only after the old wait time
+        // (ROCRAIL_RECONNECT_INTERVAL_MS) has elapsed.
+
+        webserver.on("/save_rocrail", HTTP_POST, []() {
+            // Eingereichte Werte uebernehmen (nur veraenderte Felder werden
+            // ueberhaupt gesendet, siehe Formular - hasArg() deckt trotzdem
+            // beide Faelle ab).
+            // Take over submitted values (only changed fields are actually
+            // sent, see the form - hasArg() covers both cases regardless).
+            for (int i = 0; i < MAX_WLAN; i++) {
+                String hostArg = pkRocrailServerHost(i);
+                if (webserver.hasArg(hostArg)) {
+                    String host = webserver.arg(hostArg);
+                    host.trim();
+                    strncpy(rocrailServerList[i], host.c_str(), sizeof(rocrailServerList[i]) - 1);
+                    rocrailServerList[i][sizeof(rocrailServerList[i]) - 1] = '\0';
+                }
+                String portArg = pkRocrailServerPort(i);
+                if (webserver.hasArg(portArg)) {
+                    rocrailServerPortList[i] = (uint16_t)argToIntClamped(portArg, ROCRAIL_DEFAULT_PORT, 1, 65535);
+                }
+                // Anlagenname: frei editierbar (siehe rocrailServerNameList[]
+                // in globals.h) - ein vom Nutzer hier geleertes Feld schaltet
+                // die automatische RCP-Uebernahme fuer diesen Server wieder
+                // frei (processRocrailPlanTag() in rocrail_client.h).
+                // Layout name: freely editable (see rocrailServerNameList[]
+                // in globals.h) - a field cleared here by the user re-enables
+                // automatic RCP takeover for that server
+                // (processRocrailPlanTag() in rocrail_client.h).
+                String nameArg = pkRocrailServerName(i);
+                if (webserver.hasArg(nameArg)) {
+                    String name = webserver.arg(nameArg);
+                    name.trim();
+                    strncpy(rocrailServerNameList[i], name.c_str(), sizeof(rocrailServerNameList[i]) - 1);
+                    rocrailServerNameList[i][sizeof(rocrailServerNameList[i]) - 1] = '\0';
+                }
+            }
+
+            // Welcher Eintrag wurde angehakt? (Radio-Button "activeServer" -
+            // pro Definition hoechstens einer gleichzeitig ausgewaehlt.)
+            // Which entry was checked? (Radio button "activeServer" - by
+            // definition at most one selected at a time.)
+            int requestedActive = -1;
+            if (webserver.hasArg("activeServer")) {
+                requestedActive = webserver.arg("activeServer").toInt();
+                if (requestedActive < 0 || requestedActive >= MAX_WLAN) requestedActive = -1;
+            }
+
+            // Reorganisieren: nicht-leere Eintraege nach vorn ruecken lassen,
+            // dabei verfolgen, an welchem neuen Platz der angehakte Eintrag
+            // landet (falls er verschoben wurde).
+            // Reorganize: let non-empty entries move to the front, tracking
+            // which new slot the checked entry ends up at (if it moved).
+            int writeIndex = 0;
+            int newActiveIndex = -1;
+            for (int readIndex = 0; readIndex < MAX_WLAN; readIndex++) {
+                if (strlen(rocrailServerList[readIndex]) > 0) {
+                    if (writeIndex != readIndex) {
+                        strncpy(rocrailServerList[writeIndex], rocrailServerList[readIndex], sizeof(rocrailServerList[writeIndex]) - 1);
+                        rocrailServerList[writeIndex][sizeof(rocrailServerList[writeIndex]) - 1] = '\0';
+                        rocrailServerPortList[writeIndex] = rocrailServerPortList[readIndex];
+                        strncpy(rocrailServerNameList[writeIndex], rocrailServerNameList[readIndex], sizeof(rocrailServerNameList[writeIndex]) - 1);
+                        rocrailServerNameList[writeIndex][sizeof(rocrailServerNameList[writeIndex]) - 1] = '\0';
+                        memset(rocrailServerList[readIndex], 0, sizeof(rocrailServerList[readIndex]));
+                        rocrailServerPortList[readIndex] = ROCRAIL_DEFAULT_PORT;
+                        memset(rocrailServerNameList[readIndex], 0, sizeof(rocrailServerNameList[readIndex]));
+                    }
+                    if (readIndex == requestedActive) newActiveIndex = writeIndex;
+                    writeIndex++;
+                }
+            }
+            for (int i = writeIndex; i < MAX_WLAN; i++) {
+                memset(rocrailServerList[i], 0, sizeof(rocrailServerList[i]));
+                rocrailServerPortList[i] = ROCRAIL_DEFAULT_PORT;
+                memset(rocrailServerNameList[i], 0, sizeof(rocrailServerNameList[i]));
+            }
+            rocrailActiveServerIndex = newActiveIndex;
+
+            // In den Preferences sichern - nur bei tatsaechlicher Aenderung
+            // schreiben, wie bei updateNtpServersFromRequest().
+            // Persist to preferences - only write on an actual change, as in
+            // updateNtpServersFromRequest().
+            for (int i = 0; i < MAX_WLAN; i++) {
+                String hostKey = pkRocrailServerHost(i);
+                if (preferences.getString(hostKey.c_str(), "") != String(rocrailServerList[i])) {
+                    preferences.putString(hostKey.c_str(), rocrailServerList[i]);
+                }
+                String portKey = pkRocrailServerPort(i);
+                if (preferences.getUShort(portKey.c_str(), ROCRAIL_DEFAULT_PORT) != rocrailServerPortList[i]) {
+                    preferences.putUShort(portKey.c_str(), rocrailServerPortList[i]);
+                }
+                String nameKey = pkRocrailServerName(i);
+                if (preferences.getString(nameKey.c_str(), "") != String(rocrailServerNameList[i])) {
+                    preferences.putString(nameKey.c_str(), rocrailServerNameList[i]);
+                }
+            }
+            if (preferences.getInt(PK_ROCRAIL_ACTIVE_SRV, -1) != rocrailActiveServerIndex) {
+                preferences.putInt(PK_ROCRAIL_ACTIVE_SRV, rocrailActiveServerIndex);
+            }
+
+            // Angehakten Eintrag als aktuell aktiven Server uebernehmen -
+            // rocrail_client.h kennt die Liste selbst nicht und liest
+            // weiterhin nur rocrailServerHost/-Port.
+            // Take over the checked entry as the currently active server -
+            // rocrail_client.h doesn't know about the list itself and
+            // continues to read only rocrailServerHost/-Port.
+            String newServer = (rocrailActiveServerIndex >= 0) ? String(rocrailServerList[rocrailActiveServerIndex]) : "";
+            uint16_t newServerPort = (rocrailActiveServerIndex >= 0) ? rocrailServerPortList[rocrailActiveServerIndex] : ROCRAIL_DEFAULT_PORT;
+
+            bool serverChanged = (newServer != rocrailServerHost) || (newServerPort != rocrailServerPort);
+
+            rocrailServerHost = newServer;
+            rocrailServerPort = newServerPort;
+
+            preferences.putString(PK_ROCRAIL_SERVER, rocrailServerHost);
+            preferences.putUShort(PK_ROCRAIL_SRV_PORT, rocrailServerPort);
+
+            if (serverChanged) {
+                // Eine bestehende Verbindung galt dem alten Server -
+                // sofort trennen, damit connectRocrailClient() beim naechsten
+                // pollRocrailClient() ohne Wartezeit den neuen versucht. Der
+                // Anlagenname muss hier NICHT geleert werden: er haengt jetzt
+                // je Listenplatz und nicht mehr am (globalen) aktiven Server
+                // (siehe rocrailServerNameList[] in globals.h) - jeder
+                // Server behaelt seinen eigenen, zuletzt bekannten Namen.
+
+                // An existing connection was to the old server - disconnect
+                // immediately, so connectRocrailClient() tries the new one
+                // on the next pollRocrailClient() without a delay. The
+                // layout name does NOT need clearing here: it now lives per
+                // list slot instead of on the (global) active server (see
+                // rocrailServerNameList[] in globals.h) - each server keeps
+                // its own, last known name.
+                if (rocrailClient.connected()) rocrailClient.stop();
+                rocrailConnected = false;
+                rocrailLastConnectAttemptMillis = 0;
+            }
+
+            // Sofort versuchen statt auf das naechste reguläre Zeitfenster zu
+            // warten (siehe triggerRocrailConnectNow()) - no-op, falls Rocrail
+            // nicht aktiv ist oder bereits verbunden (z.B. unveraenderter
+            // Server erneut gespeichert).
+            // Try immediately instead of waiting for the next regular window
+            // (see triggerRocrailConnectNow()) - a no-op if Rocrail isn't
+            // enabled or already connected (e.g. an unchanged server saved again).
+            triggerRocrailConnectNow();
+
+            redirectTo("/?tab=rocrail&msg=Settings%20saved");
+            });
+
+
+        // Live-Status fuer den Rocrail-Tab: pollt alle paar Sekunden per JS
+        // (siehe panel-rocrail) - dieselbe Herangehensweise wie /api/topbarStatus.
+
+        // Live status for the Rocrail tab: polled every few seconds via JS
+        // (see panel-rocrail) - the same approach as /api/topbarStatus.
+
+        webserver.on("/api/rocrailStatus", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "no-store");
+
+            // "-" bis das erste <clock>-Update tatsaechlich eingetroffen ist
+            // (rocrailLastClockMillis != 0) - vorher waeren Modellzeit UND
+            // Divider nur der Default-Wert, nicht vom Server bestaetigt.
+
+            // "-" until the first <clock> update has actually arrived
+            // (rocrailLastClockMillis != 0) - before that, both the model
+            // time AND the divider would just be the default value, not
+            // confirmed by the server.
+            char modelTimeBuf[9] = "-";
+            String dividerStr = "-";
+            if (rocrailEnabled && rocrailLastClockMillis != 0) {
+                snprintf(modelTimeBuf, sizeof(modelTimeBuf), "%02d:%02d:%02d",
+                         rocrailTimeinfo.tm_hour, rocrailTimeinfo.tm_min, rocrailTimeinfo.tm_sec);
+                dividerStr = String(rocrailDivider);
+            }
+
+            String json = "{";
+            json += "\"enabled\":" + String(rocrailEnabled ? "true" : "false") + ",";
+            json += "\"connected\":" + String(rocrailConnected ? "true" : "false") + ",";
+            json += "\"frozen\":" + String(rocrailFrozen ? "true" : "false") + ",";
+            json += "\"host\":\"" + escapeJsonText(rocrailServerHost) + "\",";
+            json += "\"port\":" + String(rocrailServerPort) + ",";
+            json += "\"divider\":\"" + dividerStr + "\",";
+            json += "\"modelTime\":\"" + String(modelTimeBuf) + "\"";
+            json += "}";
+
+            webserver.send(200, "application/json", json);
             });
 
 
@@ -3233,11 +3031,8 @@
                 if (!path.startsWith("/")) path = "/" + path;
 
                 if (LittleFS.exists(path)) {
-                    // Pruefen, ob RLE-komprimierte face_*.bmp - falls ja, vor dem Download
-                    // zu einem echten Standard-BMP dekodieren (nutzbar ausserhalb der Uhr).
-
-                    // Check whether it is an RLE-compressed face_*.bmp - if so, decode it to
-                    // a real standard BMP before download (usable outside the clock).
+                    // RLE-komprimierte face_*.bmp vor dem Download zu Standard-BMP dekodieren.
+                    // Decode an RLE-compressed face_*.bmp to a standard BMP before download.
                     bool isRle = false;
                     if (path.endsWith(".bmp")) {
                         File probe = LittleFS.open(path, "r");
@@ -3255,40 +3050,22 @@
                         if (streamRleFaceAsStandardBmp(path, "application/octet-stream")) {
                             return;
                         }
-                        // Streaming fehlgeschlagen (z.B. Lesefehler) - Header ggf. schon
-                        // gesendet, daher kein sauberer 500-Code mehr moeglich.
+                        // Streaming fehlgeschlagen - Header evtl. schon gesendet, kein
+                        // sauberer 500-Code mehr moeglich.
 
-                        // Streaming failed (e.g. read error) - headers may already have been
-                        // sent, so a clean 500 status is no longer possible.
+                        // Streaming failed - headers may already be sent, a clean
+                        // 500 status is no longer possible.
                         DEBUG_PRINTLN("[DOWNLOAD] RLE streaming failed for " + path);
                         return;
                     }
 
                     File file = LittleFS.open(path, "r");
 
-                    // Beide Pruefungen fehlten hier bisher: (1) open() kann
-                    // trotz vorherigem exists()-Check fehlschlagen, wenn die
-                    // Datei zwischen beiden Aufrufen von einem parallelen
-                    // Request (z.B. /delete, /rename) geloescht/umbenannt
-                    // wurde - file.name() auf einem ungueltigen File-Objekt
-                    // waere dann undefiniert. (2) LittleFS.exists() liefert
-                    // fuer Verzeichnisse ebenfalls true; ohne isDirectory()-
-                    // Check haette ein Verzeichnisname als "file" eine
-                    // sinnlose "Download"-Antwort erzeugt statt eines
-                    // sauberen Fehlercodes (an anderer Stelle in dieser Datei,
-                    // z.B. /listfilesFaces, wird isDirectory() bereits korrekt
-                    // geprueft).
-                    // Both checks were previously missing here: (1) open()
-                    // can fail despite the earlier exists() check if the file
-                    // was deleted/renamed by a concurrent request (e.g.
-                    // /delete, /rename) between the two calls - file.name() on
-                    // an invalid File object would then be undefined. (2)
-                    // LittleFS.exists() also returns true for directories;
-                    // without an isDirectory() check, a directory name passed
-                    // as "file" would have produced a meaningless "download"
-                    // response instead of a clean error code (isDirectory()
-                    // is already correctly checked elsewhere in this file,
-                    // e.g. /listfilesFaces).
+                    // open() kann trotz exists() fehlschlagen (Race mit /delete,
+                    // /rename), und exists() ist bei Verzeichnissen ebenfalls true.
+
+                    // open() can fail despite exists() (race with /delete,
+                    // /rename), and exists() is also true for directories.
                     if (!file || file.isDirectory()) {
                         if (file) file.close();
                         webserver.send(404, "text/plain", "File not found");
@@ -3385,19 +3162,11 @@
             chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
             chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li>";
 
-            // Eigener NTP-Server: zeigt, ob die Uhr gerade tatsaechlich als
-            // Zeitquelle fuer andere Geraete erreichbar ist. Der Zustand kommt
-            // aus dem echten Rueckgabewert von udp.begin() (siehe
-            // startNtpServer() in time_sync.h) - vorher wurde der Start nur
-            // blind geloggt, und ob der Socket nach einem Reconnect noch
-            // gebunden war, liess sich von aussen gar nicht feststellen.
+            // ntpServerRunning kommt vom echten Rueckgabewert von udp.begin()
+            // (siehe startNtpServer()), nicht nur aus einem blinden Log.
 
-            // Own NTP server: shows whether the clock is currently actually
-            // reachable as a time source for other devices. The state comes
-            // from the real return value of udp.begin() (see startNtpServer()
-            // in time_sync.h) - previously the start was merely logged blindly,
-            // and whether the socket was still bound after a reconnect could
-            // not be determined from the outside at all.
+            // ntpServerRunning comes from udp.begin()'s real return value
+            // (see startNtpServer()), not just a blind log entry.
             chunk += "<li>NTP Server (own): " + String(ntpServerRunning ? "running on port " + String(NTP_PORT) : "not running") +
                      " - requests: " + String(ntpRequestsReceived) + ", answered: " + String(ntpRepliesSent) + "</li><br>";
 
@@ -3421,17 +3190,11 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Explizite Erkennung zusaetzlich zu Groesse/Frei: ohne PSRAM stehen
-            // beide Werte auf 0, was sich nicht von "PSRAM da, aber voll"
-            // unterscheiden laesst. Der Wert entscheidet beim GC9D01 ausserdem
-            // darueber, ob die Software-Rotation aktiv ist (siehe "rotation mode"
-            // weiter unten und gc9d01SwRotation in uhr3.ino).
+            // Explizite Erkennung, da ohne PSRAM Groesse/Frei beide 0 waeren
+            // (nicht unterscheidbar von "PSRAM da, aber voll").
 
-            // Explicit detection in addition to size/free: without PSRAM both
-            // values read 0, which is indistinguishable from "PSRAM present but
-            // full". On the GC9D01 this value also decides whether software
-            // rotation is active (see "rotation mode" further below and
-            // gc9d01SwRotation in uhr3.ino).
+            // Explicit detection, since without PSRAM size/free would both
+            // read 0 (indistinguishable from "PSRAM present but full").
             chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
             chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
             chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
@@ -3460,7 +3223,7 @@
 
 
             chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
-            //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";  
+            //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";
             chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
             chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
                                                                      // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
@@ -3576,46 +3339,31 @@
             chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
             chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-            // Bugfix: getUInt() auf einen Key, der ueberall mit putLong() geschrieben wird -
-            // NVS meldet dabei ESP_ERR_NVS_TYPE_MISMATCH und Preferences liefert
-            // kommentarlos den Default zurueck. Die Statusseite zeigte deshalb nie die
-            // echte Nabenfarbe. Ausserdem stimmte das Label nicht: gespeichert wird
-            // 24-Bit RGB888, nicht RGB565.
-            // Bugfix: getUInt() on a key that is written with putLong() everywhere -
-            // NVS reports ESP_ERR_NVS_TYPE_MISMATCH and Preferences silently returns
-            // the default. So the status page never showed the real hub color. The
-            // label was wrong too: what is stored is 24-bit RGB888, not RGB565.
+            // Bugfix: getUInt() auf einem mit putLong() geschriebenen Key liefert
+            // wegen NVS-Typkonflikt stillschweigend den Default. Ausserdem war das
+            // Label falsch: gespeichert wird RGB888, nicht RGB565.
+
+            // Bugfix: getUInt() on a key written with putLong() silently returns
+            // the default due to an NVS type mismatch. The label was also wrong:
+            // what's stored is RGB888, not RGB565.
             chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
             uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             chunk += "<li><b>tftRotation1</b>: " + String(rotationLabels[rotation]) + "</li>";
-            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen -
-            // Display 2 ist fest aktiviert, daher immer sichtbar.
-
-            // Directly under tftRotation1, so both rotation values are listed one below
-            // the other - Display 2 is permanently enabled, so this is always shown.
             {
                 uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
                 chunk += "<li><b>tftRotation2</b>: " + String(rotationLabels[rotation2]) + "</li>";
             }
 
-            // Rotationsmodus: macht sichtbar, WIE die beiden Rotationswerte oben
-            // ueberhaupt angewendet werden - das war von aussen bisher nicht
-            // erkennbar. Beim GC9D01 wird der GC9A01-Treiber wiederverwendet,
-            // dessen Hardware-Rotation dort wirkungslos bleibt; nur mit genuegend
-            // PSRAM wird deshalb auf Software-Rotation umgeschaltet (siehe
-            // gc9d01SwRotation in uhr3.ino sowie rotatedAngle()/loadClockFace()
-            // und beginStatusDraw()/endStatusDraw() in display.h).
+            // Rotationsmodus zeigt, WIE die Werte angewendet werden: beim GC9D01
+            // ist Hardware-Rotation wirkungslos, nur mit PSRAM wird auf
+            // Software-Rotation umgeschaltet (siehe gc9d01SwRotation in uhr3.ino).
 
-            // Rotation mode: makes visible HOW the two rotation values above are
-            // actually applied - which could not be told from the outside before.
-            // On the GC9D01 the GC9A01 driver is reused, whose hardware rotation
-            // has no effect there; only with enough PSRAM does it switch to
-            // software rotation (see gc9d01SwRotation in uhr3.ino as well as
-            // rotatedAngle()/loadClockFace() and beginStatusDraw()/
-            // endStatusDraw() in display.h).
+            // Rotation mode shows HOW the values are applied: on the GC9D01
+            // hardware rotation has no effect, only with PSRAM does it switch to
+            // software rotation (see gc9d01SwRotation in uhr3.ino).
             chunk += "<li><b>rotation mode</b>: ";
             if (gc9d01SwRotation) {
                 chunk += "software (pixel remap, GC9D01 with PSRAM)";
@@ -3656,6 +3404,11 @@
             if (preferences.getBool(PK_USE_TOUCH, false)) {
                 chunk += "<li><b>use Touch</b>: " + String(preferences.getBool(PK_USE_TOUCH, false) ? "true" : "false") + "</li>";
             }
+            if (preferences.getBool(PK_ROCRAIL_ENABLED, false)) {
+                chunk += "<li><b>rocrailEnabled</b>: " + String(preferences.getBool(PK_ROCRAIL_ENABLED, false) ? "true" : "false") + "</li>";
+                chunk += "<li><b>rocrailServer</b>: " + preferences.getString(PK_ROCRAIL_SERVER, "") + "</li>";
+                chunk += "<li><b>rocrailServerPort</b>: " + String(preferences.getUShort(PK_ROCRAIL_SRV_PORT, ROCRAIL_DEFAULT_PORT)) + "</li>";
+            }
             chunk += "</ul>";
             chunk += "</br>";
             chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
@@ -3688,53 +3441,21 @@
             }
             });
 
-        // Erzeugt ein Vorschaubild aus den GERADE AKTIVEN Einstellungen (kein Parameter
-        // noetig) - wird auf jeder Seite oben links eingeblendet (generateNavigation())
-        // und zeigt so nach jeder Aenderung, sobald die Seite neu laedt, den aktuellen Stand.
-        // Liefert nur das aktuell aktive Zifferblatt (ohne Zeiger) als BMP - fuer
-        // das Live-Zeiger-Widget auf der Startseite als Hintergrundbild, damit
-        // nicht bei jedem Seitenaufruf ~150 KB Bilddaten inline eingebettet werden
-        // muessen (wie es bei einem direkt einkodierten Base64-String der Fall
-        // waere). clockFaceBuffer enthaelt die rohen Zifferblatt-Pixel ohne
-        // Helligkeitsanpassung und ohne eingezeichnete Zeiger.
-        // Liefert die tatsaechliche, aktuelle Uhrzeit des ESP32 (nicht die des
-        // PCs/Browsers) - wird vom Live-Zeiger-Widget einmalig beim Laden der
-        // Seite abgerufen, danach laeuft die Anzeige lokal im Browser weiter
-        // (per performance.now()-Differenz), damit kein staendiges Nachfragen
-        // noetig ist. So zeigt die Web-Vorschau exakt das, was die echte Uhr
-        // gerade anzeigt, auch wenn PC und ESP32 unterschiedlich gehen sollten.
+        // Vorschaubild aus den aktuell aktiven Einstellungen, ohne Zeiger, als BMP -
+        // Hintergrund fuer das Live-Zeiger-Widget, spart ~150 KB Base64-Inline-Daten.
 
-        // Generates a preview image from the CURRENTLY ACTIVE settings (no
-        // parameter needed) - shown top-left on every page (generateNavigation())
-        // so it reflects the current state after every change once the page reloads.
-        // Returns only the currently active clock face (without hands) as a BMP -
-        // used as the background image for the live hand widget on the home page,
-        // so ~150 KB of image data does not have to be embedded inline on every
-        // page load (as would happen with a directly encoded base64 string).
-        // clockFaceBuffer holds the raw face pixels without brightness adjustment
-        // and without drawn-in hands.
-        // Returns the ESP32's actual current time (not the PC's/browser's) -
-        // fetched once by the live hand widget when the page loads; afterwards
-        // the display keeps running locally in the browser (via performance.now()
-        // differences), so no constant polling is needed. This way the web preview
-        // shows exactly what the real clock is currently displaying, even if the
-        // PC and ESP32 clocks should drift apart.
-        // Liefert ein winziges, inline erzeugtes SVG-Uhr-Icon (im Marken-Akzent-
-        // farbton, siehe --accent in generateHtmlHeader()) als Favicon - vorher
-        // gab es hier keine Route, jeder Browser fragte also bei jedem Seiten-
-        // aufruf zusaetzlich "/favicon.ico" an, was unbeantwortet in einer
-        // eigenen 404-Seite landete (siehe webserver.onNotFound()). Moderne
-        // Browser akzeptieren SVG unter diesem Pfad direkt, ein eingebettetes
-        // Asset auf LittleFS ist dafuer nicht noetig. Lange Cache-Zeit, da sich
-        // das Icon zur Laufzeit nie aendert.
-        // Returns a tiny, inline-generated SVG clock icon (in the brand accent
-        // color, see --accent in generateHtmlHeader()) as the favicon -
-        // previously there was no route here, so every browser additionally
-        // requested "/favicon.ico" on every page load, which went unanswered
-        // into its own 404 page (see webserver.onNotFound()). Modern browsers
-        // accept SVG directly at this path, no embedded asset on LittleFS is
-        // needed for it. Long cache lifetime, since the icon never changes at
-        // runtime.
+        // Preview image from the currently active settings, without hands, as a
+        // BMP - background for the live hand widget, avoids ~150 KB inline base64.
+        // Liefert die tatsaechliche ESP32-Zeit, danach laeuft die Anzeige lokal
+        // im Browser weiter (performance.now()), ohne staendiges Nachfragen.
+
+        // Returns the ESP32's actual time, afterwards the display keeps running
+        // locally in the browser (performance.now()), without constant polling.
+        // Inline erzeugtes SVG-Icon als Favicon, damit kein extra 404 fuer
+        // "/favicon.ico" anfaellt. Lange Cache-Zeit, da es sich nie aendert.
+
+        // Inline-generated SVG icon as favicon, so "/favicon.ico" no longer
+        // causes an extra 404. Long cache lifetime, since it never changes.
         webserver.on("/favicon.ico", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "public, max-age=86400");
             String svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>"
@@ -3747,88 +3468,40 @@
 
         webserver.on("/api/currentTime", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
-            String json = "{\"hour\":" + String(timeinfo.tm_hour) +
-                          ",\"minute\":" + String(timeinfo.tm_min) +
-                          ",\"second\":" + String(timeinfo.tm_sec) + "}";
+
+            // Dieselbe Bedingung wie rocrailTimeReady in renderClockFrame()
+            // (display.h) - die Web-Vorschau soll exakt dieselbe Quelle
+            // anzeigen wie die Zeiger auf dem Display selbst.
+
+            // Same condition as rocrailTimeReady in renderClockFrame()
+            // (display.h) - the web preview should show exactly the same
+            // source as the hands on the display itself.
+            bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
+                                     (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
+            const struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
+
+            String json = "{\"hour\":" + String(t.tm_hour) +
+                          ",\"minute\":" + String(t.tm_min) +
+                          ",\"second\":" + String(t.tm_sec) +
+                          ",\"rocrail\":" + String(rocrailTimeReady ? "true" : "false") +
+                          ",\"divider\":" + String(rocrailTimeReady ? rocrailDivider : 1) +
+                          ",\"frozen\":" + String((rocrailTimeReady && rocrailFrozen) ? "true" : "false") +
+                          ",\"previewSig\":\"" + escapeJsonText(currentPreviewSignature()) + "\"}";
             webserver.send(200, "application/json", json);
             });
 
-        // Liefert den aktuellen Zustand der drei Topbar-Status-Punkte (Zeit/
-        // RTC/DCF77) als JSON - wird vom Live-Status-Skript in
-        // generateTopBar() periodisch abgefragt, damit die Punktfarbe auch
-        // waehrend des Betriebs wechselt, wenn etwas ausfaellt oder nicht
-        // mehr erreichbar ist (z.B. RTC/DCF77 verliert Sync), OHNE die ganze
-        // Seite neu zu laden. Dieselben Bedingungen wie in generateTopBar() -
-        // bei einer Aenderung dort auch hier anpassen. rtc/dcf77 werden immer
-        // mitgeschickt (auch ohne die jeweilige Hardware) - das Skript
-        // ignoriert sie einfach, wenn der zugehoerige Punkt gar nicht im DOM
-        // existiert (kein #if noetig, vereinfacht den Handler).
+        // Liefert den Zustand der Topbar-Status-Punkte als JSON, gepollt vom
+        // Live-Status-Skript in generateTopBar() - dieselben Bedingungen wie
+        // dort, bei Aenderung dort auch hier anpassen.
 
-        // Returns the current state of the topbar (the three status dots
-        // time/RTC/DCF77, plus the current date/time text) as JSON - polled
-        // periodically by the live-status script in generateTopBar() so both
-        // the dot colors AND the displayed time keep updating during
-        // operation, WITHOUT reloading the whole page. Same conditions/
-        // formatting as in generateTopBar() - keep both in sync if one
-        // changes. rtc/dcf77 are always included (even without that
-        // hardware) - the script simply ignores them if the corresponding
-        // dot doesn't exist in the DOM at all (no #if needed, keeps this
-        // handler simple).
-        // time/rtc/dcf77 sind jetzt ALLE drei ein STRING
-        // ("ok"/"syncing"/"bad"/"na", siehe dotStatusText()-Kommentar bei
-        // getTimeStatus()/getRtcStatus()/getDcf77Status() oben) statt einem
-        // Bool - "na" (grau) zeigt "Feature grundsaetzlich nicht verfuegbar"
-        // (z.B. RTC nie gefunden), getrennt von "bad" (rot, echter Fehler).
-        // Nutzt dieselben Helper wie generateTopBar()'s Erstladen, damit
-        // beide nie auseinanderlaufen - siehe dortigen Kommentar. *Title-
-        // Felder: uebersetzter Tooltip-/aria-label-Text (siehe dotStatusText()
-        // oben), vom Live-Status-Skript in generateTopBar() bei jedem Poll
-        // auf die Punkte uebertragen, damit Text und Punktfarbe nie
-        // auseinanderlaufen.
-        // time/rtc/dcf77 are now ALL THREE a STRING
-        // ("ok"/"syncing"/"bad"/"na", see the dotStatusText() comment at
-        // getTimeStatus()/getRtcStatus()/getDcf77Status() above) rather than
-        // a bool - "na" (gray) means "feature fundamentally unavailable"
-        // (e.g. RTC never found), distinct from "bad" (red, genuine error).
-        // Uses the exact same helpers as generateTopBar()'s initial render,
-        // so the two can never drift apart - see the comment there. *Title
-        // fields: translated tooltip/aria-label text (see dotStatusText()
-        // above), applied to the dots by the live-status script in
-        // generateTopBar() on every poll, so the text and the dot color never
-        // drift apart.
-        // rtcPresent: siehe rtcPresent-Kommentar in generateTopBar() - false
-        // nur solange rtcOk == RTC_NOT_AVAILABLE ist. Toggelt live das
-        // 'hidden'-Attribut auf dem #status-rtc-Wrapper via setPresent() im
-        // Live-Status-Skript.
-        // dcf77Present: siehe dcf77Confirmed-Kommentar in generateTopBar() -
-        // true erst, sobald eine PLAUSIBLE KETTE aus mehreren aufeinander-
-        // folgenden Impulsen beobachtet wurde (siehe DCF77_PRESENCE_MIN_STREAK
-        // in config.h - ein einzelner, z.B. durch Rauschen ausgeloester
-        // Impuls reicht NICHT), danach dauerhaft true. Toggelt live das
-        // 'hidden'-Attribut auf dem #status-dcf77-Wrapper via setPresent() im
-        // Live-Status-Skript.
-        // lightValue: fertig formatierter Helligkeitswert des Fotowiderstands
-        // (Prozent, siehe currentLightPercent in display.h) - analog zu
-        // datetimeStr bereits serverseitig fertig formatiert, damit das
-        // Frontend nichts selbst formatieren muss. Wird immer mitgeschickt
-        // (auch ohne Fotowiderstand) - #value-light existiert dann einfach
-        // nicht im DOM, siehe setValue() im Live-Status-Skript.
-        // rtcPresent: see the rtcPresent comment in generateTopBar() - false
-        // only for as long as rtcOk == RTC_NOT_AVAILABLE. Live-toggles the
-        // 'hidden' attribute on the #status-rtc wrapper via setPresent() in
-        // the live-status script.
-        // dcf77Present: see the dcf77Confirmed comment in generateTopBar() -
-        // true only once a PLAUSIBLE CHAIN of several consecutive pulses has
-        // been observed (see DCF77_PRESENCE_MIN_STREAK in config.h - a
-        // single pulse, e.g. triggered by noise, is NOT enough), permanently
-        // true afterwards. Live-toggles the 'hidden' attribute on the
-        // #status-dcf77 wrapper via setPresent() in the live-status script.
-        // lightValue: the photoresistor's brightness reading, already
-        // formatted (percent, see currentLightPercent in display.h) - like
-        // datetimeStr, formatted server-side so the frontend never has to
-        // format anything itself. Always included (even without a
-        // photoresistor) - #value-light simply doesn't exist in the DOM
-        // then, see setValue() in the live-status script.
+        // Returns the topbar status dots' state as JSON, polled by the
+        // live-status script in generateTopBar() - same conditions as there,
+        // keep both in sync if one changes.
+        // rtcPresent/dcf77Present/lightValue: siehe jeweilige Kommentare in
+        // generateTopBar() - togglen live per setPresent()/setValue().
+
+        // rtcPresent/dcf77Present/lightValue: see the respective comments in
+        // generateTopBar() - toggled live via setPresent()/setValue().
         webserver.on("/api/topbarStatus", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
             String timeState = getTimeStatus();
@@ -3852,16 +3525,34 @@
             String timeTitle = dotStatusText(translate("Time"), timeState);
             String rtcTitle = dotStatusText("RTC", rtcState);
             String dcf77Title = dotStatusText("DCF77", dcfState);
+            String rocrailTitle = dotStatusText("Rocrail", rocrailConnected ? "ok" : "error");
+            // "version" mitschicken, damit das Topbar-Polling erkennen kann,
+            // ob seit dem Laden der Seite eine neue Firmware-Version aktiv
+            // wurde (z.B. nach OTA-Update oder WPS-Neustart) und die Seite
+            // dann komplett neu laedt (siehe pageVersion-Vergleich unten in
+            // generateTopBar()) - "version" ist ein reiner Build-Zeitstempel
+            // ohne Anfuehrungszeichen o.ae., daher ohne JSON-Escaping sicher.
+
+            // Include "version" so the topbar polling can detect whether a
+            // new firmware version became active since the page was loaded
+            // (e.g. after an OTA update or a WPS reboot) and then fully
+            // reload the page (see the pageVersion comparison below in
+            // generateTopBar()) - "version" is a plain build timestamp with
+            // no quotes etc., so it's safe without JSON escaping.
             String json = "{\"time\":\"" + timeState + "\"" +
                           ",\"rtc\":\"" + rtcState + "\"" +
                           ",\"rtcPresent\":" + String(rtcPresent ? "true" : "false") +
                           ",\"dcf77\":\"" + dcfState + "\"" +
                           ",\"dcf77Present\":" + String(dcf77Present ? "true" : "false") +
+                          ",\"rocrailEnabled\":" + String(rocrailEnabled ? "true" : "false") +
+                          ",\"rocrailConnected\":" + String(rocrailConnected ? "true" : "false") +
+                          ",\"rocrailTitle\":\"" + rocrailTitle + "\"" +
                           ",\"lightValue\":\"" + lightValue + "\"" +
                           ",\"datetime\":\"" + datetimeStr + "\"" +
                           ",\"timeTitle\":\"" + timeTitle + "\"" +
                           ",\"rtcTitle\":\"" + rtcTitle + "\"" +
-                          ",\"dcf77Title\":\"" + dcf77Title + "\"}";
+                          ",\"dcf77Title\":\"" + dcf77Title + "\"" +
+                          ",\"version\":\"" + String(version) + "\"}";
             webserver.send(200, "application/json", json);
             });
 
@@ -3997,14 +3688,10 @@
                 return;
             }
             String logFileName = getCurrentLogFileName();
-            // X-Log-File: Custom-Header, damit das JS im Log-Tab die Anzeige
-            // #logFileName bei jedem Poll aktualisieren kann - auch wenn sich
-            // die aktive Datei durch Rotation seit dem letzten Aufruf
-            // geaendert hat (siehe panel-log im "/" Handler).
-            // Custom header so the JS in the Log tab can update the
-            // #logFileName display on every poll - even if the active file
-            // has changed due to rotation since the last call (see panel-log
-            // in the "/" handler).
+            // X-Log-File: Custom-Header, damit JS #logFileName aktualisieren
+            // kann, auch wenn sich die Datei durch Rotation geaendert hat.
+            // X-Log-File: custom header so JS can update #logFileName, even
+            // if the file changed due to rotation.
             webserver.sendHeader("X-Log-File", logFileName);
             if (!LittleFS.exists(logFileName)) {
                 webserver.send(200, "text/plain; charset=utf-8", translate("No log entries yet."));
@@ -4019,13 +3706,15 @@
             logFile.close();
             });
 
-        // Zeigt die Live-Zeiger-Uhr in voller Aufloesung (400x400) als eigene
-        // Seite - nutzt dieselbe Zeiger-Lade-/Kodierlogik wie das kleine Eck-
-        // Widget in generateNavigation(), nur groesser skaliert.
+        // Zeigt die Live-Zeiger-Uhr als eigene Seite. Server-seitig wird bei
+        // previewSize (Basisgroesse) gerendert; ein Schieberegler skaliert
+        // die fertige Uhr per CSS transform:scale() clientseitig weiter
+        // hoch/runter, ganz ohne Neuladen der Seite (siehe Skript unten).
 
-        // Shows the live hand clock at full resolution (400x400) as its own
-        // page - uses the same hand loading/encoding logic as the small corner
-        // widget in generateNavigation(), just scaled up.
+        // Shows the live hand clock as its own page. Server-side rendering
+        // happens at previewSize (base size); a slider then scales the
+        // finished clock further up/down client-side via CSS
+        // transform:scale(), with no page reload (see the script below).
         webserver.on("/preview", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -4034,9 +3723,24 @@
             chunk.reserve(2048);
             chunk += "<h2>" + translate("Preview") + "</h2>";
 
-            const int previewSize = 400;
+            // Zuletzt per Schieberegler gewaehlte Groesse aus den Preferences
+            // laden (persistiert ueber /api/setPreviewSize) - so bleibt die
+            // Groesse auch nach einem Refresh/Neuladen der Seite erhalten,
+            // statt bei jedem Laden wieder auf PREVIEW_SIZE_DEFAULT zu springen.
+            // constrain() faengt einen aus irgendeinem Grund ausserhalb des
+            // gueltigen Bereichs liegenden gespeicherten Wert ab.
+
+            // Load the size last chosen via the slider from preferences
+            // (persisted via /api/setPreviewSize) - this keeps the size
+            // across a page refresh/reload, instead of jumping back to
+            // PREVIEW_SIZE_DEFAULT on every load. constrain() catches a
+            // stored value that ends up outside the valid range for
+            // whatever reason.
+            int previewSize = preferences.getInt(PK_PREVIEW_SIZE, PREVIEW_SIZE_DEFAULT);
+            previewSize = constrain(previewSize, PREVIEW_SIZE_MIN, PREVIEW_SIZE_MAX);
 
             String activeHandSet = preferences.getString(PK_HANDSET, "");
+            String previewSig = currentPreviewSignature();
             uint16_t* previewHour = nullptr;
             uint16_t* previewMinute = nullptr;
             uint16_t* previewSecond = nullptr;
@@ -4103,21 +3807,54 @@
             int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
             int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
             int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
-            // hubSize ist ein RADIUS (wie bei fillCircle() auf dem echten Display,
-            // siehe display.h, und bei generatePresetPreviewBmp()) - fuer den CSS-
-            // Kreis unten wird aber der DURCHMESSER (width/height) gebraucht, daher
-            // hier verdoppeln. Vorher fehlte die Verdopplung, wodurch der Punkt in
-            // dieser Live-Vorschau nur halb so gross wie auf dem echten Display war.
+            // hubSize ist ein Radius, der CSS-Kreis braucht aber den Durchmesser -
+            // Bugfix: fehlende Verdopplung liess den Punkt halb so gross wirken.
 
-            // hubSize is a RADIUS (like fillCircle() on the real display, see
-            // display.h, and generatePresetPreviewBmp()) - but the CSS circle
-            // below needs the DIAMETER (width/height), hence doubled here.
-            // Previously missing this doubling made the hub in this live
-            // preview only half as large as on the real display.
+            // hubSize is a radius, but the CSS circle needs the diameter -
+            // bugfix: the missing doubling made the hub look half as large.
             int scaledHubSize = (int)(hubSize * 2 * scaleFactor + 0.5);
             if (scaledHubSize < 4) scaledHubSize = 4;
 
-            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;margin:20px auto;box-sizing:border-box;border:3px solid #333;border-radius:50%;background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
+            // Versteckt per Default - JS blendet ihn ein, sobald /api/currentTime
+            // meldet, dass gerade die Rocrail-Modellzeit angezeigt wird (siehe
+            // unten). Gleicher Banner-Stil wie der Rocrail-Hinweis im
+            // Helligkeit-Tab. max-width bewusst fest (nicht an previewSize
+            // gekoppelt) - der Text soll beim Skalieren der Uhr lesbar bleiben.
+
+            // Hidden by default - JS reveals it once /api/currentTime reports
+            // that the Rocrail model time is currently shown (see below). Same
+            // banner style as the Rocrail hint in the Brightness tab. max-width
+            // deliberately fixed (not tied to previewSize) - the text should
+            // stay readable while the clock itself is resized.
+            chunk += "<div id='rocrailPreviewHint' hidden style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:6px;padding:8px 12px;margin:0 auto 10px;max-width:400px;text-align:center;'></div>";
+
+            // Groessenregler: skaliert die fertige Uhr client-seitig per CSS
+            // transform:scale() (siehe Skript unten) - kein erneuter Server-
+            // Request, kein Neuaufbau der Base64-Zeigerbilder noetig.
+
+            // Size slider: scales the finished clock client-side via CSS
+            // transform:scale() (see the script below) - no extra server
+            // request, no need to rebuild the base64 hand images.
+            chunk += "<div style='display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;'>";
+            chunk += "<label for='previewSizeSlider'>" + translate("Preview Size") + ":</label>";
+            chunk += "<input type='range' id='previewSizeSlider' min='" + String(PREVIEW_SIZE_MIN) + "' max='" + String(PREVIEW_SIZE_MAX) + "' step='10' value='" + String(previewSize) + "' style='width:200px;'>";
+            chunk += "<span id='previewSizeValue'>" + String(previewSize) + "</span>&nbsp;px";
+            chunk += "</div>";
+
+            // previewSizer traegt die tatsaechliche Boxgroesse (fuer den
+            // Seitenfluss drumherum), previewInner bleibt fest bei previewSize
+            // und wird nur per transform:scale() vom Skript unten skaliert -
+            // die inneren Pixel-Offsets der Zeiger (weiter oben berechnet)
+            // muessen dadurch nicht neu ermittelt werden.
+
+            // previewSizer carries the actual box size (for the surrounding
+            // page flow), previewInner stays fixed at previewSize and is only
+            // scaled via transform:scale() by the script below - the hands'
+            // inner pixel offsets (computed further above) therefore never
+            // need to be recalculated.
+            chunk += "<div id='previewSizer' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;margin:20px auto;'>";
+            chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;transform-origin:top left;'>";
+            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;border:3px solid #333;border-radius:50%;background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
             chunk += "<img id='liveHourHandFull' src='data:image/png;base64," + hourB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
             chunk += "<img id='liveMinuteHandFull' src='data:image/png;base64," + minuteB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
@@ -4125,24 +3862,124 @@
                 chunk += "<img id='liveSecondHandFull' src='data:image/png;base64," + secondB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
             }
             chunk += "<div style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
-            chunk += "</div></div>";
+            chunk += "</div>"; // Ende Zifferblatt-Kreis
+                               // end clock-face circle
+            chunk += "</div>"; // Ende previewInner
+                               // end previewInner
+            chunk += "</div>"; // Ende previewSizer
+                               // end previewSizer
 
             chunk += "<script>";
             chunk += "(function() {";
+            chunk += "  var sizer = document.getElementById('previewSizer');";
+            chunk += "  var inner = document.getElementById('previewInner');";
+            chunk += "  var sizeSlider = document.getElementById('previewSizeSlider');";
+            chunk += "  var sizeValueEl = document.getElementById('previewSizeValue');";
+            chunk += "  var baseSize = " + String(previewSize) + ";"; // Basisgroesse, bei der previewInner serverseitig gerendert wurde
+                                                                       // base size previewInner was rendered at server-side
+            // Skaliert previewInner per CSS transform statt die Zeigerbilder
+            // neu zu laden/zu positionieren - transform-origin:top left, damit
+            // die Box oben links verankert bleibt, waehrend previewSizer (der
+            // Platz im Seitenfluss) auf die Zielgroesse mitwaechst/-schrumpft.
+
+            // Scales previewInner via CSS transform instead of reloading/
+            // repositioning the hand images - transform-origin:top left keeps
+            // the box anchored at the top-left while previewSizer (the space
+            // reserved in the page flow) grows/shrinks to the target size.
+            chunk += "  function applySize(px) {";
+            chunk += "    var scale = px / baseSize;";
+            chunk += "    sizer.style.width = px + 'px';";
+            chunk += "    sizer.style.height = px + 'px';";
+            chunk += "    inner.style.transform = 'scale(' + scale + ')';";
+            chunk += "    if (sizeValueEl) sizeValueEl.textContent = px;";
+            chunk += "  }";
+            chunk += "  if (sizeSlider) sizeSlider.addEventListener('input', function() { applySize(parseInt(sizeSlider.value, 10)); });";
+            // Nur beim Loslassen speichern (change), nicht bei jedem Zwischen-
+            // wert waehrend des Ziehens (input) - siehe /api/setPreviewSize.
+            // Save only on release (change), not on every intermediate value
+            // while dragging (input) - see /api/setPreviewSize.
+            chunk += "  if (sizeSlider) sizeSlider.addEventListener('change', function() { fetch('/api/setPreviewSize?size=' + sizeSlider.value, {cache:'no-store'}).catch(function() {}); });";
             chunk += "  var hourEl = document.getElementById('liveHourHandFull');";
             chunk += "  var minuteEl = document.getElementById('liveMinuteHandFull');";
             chunk += "  var secondEl = document.getElementById('liveSecondHandFull');";
+            chunk += "  var hintEl = document.getElementById('rocrailPreviewHint');";
             chunk += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
             chunk += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
             chunk += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";";
+            chunk += "  var rocrailHintTpl = '" + translate("Showing Rocrail model time ({divider}&times; speed)") + "';";
             chunk += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
-            chunk += "  fetch('/api/currentTime').then(function(r) { return r.json(); }).then(function(t) {";
-            chunk += "    baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
-            chunk += "  }).catch(function() {});";
+            chunk += "  var rocrailDivider = 1, rocrailFrozen = false;";
+            // Beim Laden serverseitig eingebetteter Fingerabdruck (siehe
+            // currentPreviewSignature()) - jeder 15s-Poll vergleicht den
+            // aktuellen Wert dagegen und laedt bei Abweichung die Seite neu
+            // (siehe applyCurrentTime() unten).
+
+            // Fingerprint embedded server-side on load (see
+            // currentPreviewSignature()) - every 15s poll compares the
+            // current value against it and reloads the page on a mismatch
+            // (see applyCurrentTime() below).
+            chunk += "  var lastPreviewSig = '" + escapeForJsStringLiteral(previewSig, '\'') + "';";
+            chunk += "  var pollTimer = null;";
+            // Holt Basis-Uhrzeit + Rocrail-Status alle 15s neu (nicht nur
+            // einmal beim Laden) - so schaltet die Vorschau live um, sobald
+            // sich rocrailConnected (z.B. Verbindungsaufbau/-abbruch),
+            // rocrailDivider oder rocrailFrozen auf dem Geraet aendern,
+            // ohne dass die Seite neu geladen werden muss.
+
+            // Re-fetches the base time + Rocrail status every 15s (not just
+            // once on load) - so the preview switches live as soon as
+            // rocrailConnected (e.g. a connect/disconnect), rocrailDivider or
+            // rocrailFrozen change on the device, without needing a page reload.
+            chunk += "  function applyCurrentTime() {";
+            chunk += "    fetch('/api/currentTime', {cache:'no-store'}).then(function(r) { return r.json(); }).then(function(t) {";
+            // Zifferblatt/Zeigersatz/Nabe/Sekundenzeiger-Sichtbarkeit haben
+            // sich seit dem Laden geaendert (z.B. auf einer anderen Seite
+            // oder von einem anderen Geraet aus) - Seite neu laden, damit die
+            // Vorschau wieder eine aktuelle Kopie des Displays zeigt, statt
+            // nur die Uhrzeit/den Rocrail-Status zu aktualisieren.
+
+            // Clock face/hand set/hub/second-hand visibility have changed
+            // since the page loaded (e.g. from another page or another
+            // device) - reload so the preview shows an up to date copy of
+            // the display again, instead of only updating the time/Rocrail
+            // status.
+            chunk += "      if (t.previewSig !== lastPreviewSig) { location.reload(); return; }";
+            chunk += "      baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
+            // rocrailDivider/-Frozen: siehe /api/currentTime - dieselbe
+            // rocrailTimeReady-Bedingung wie in renderClockFrame() (display.h).
+            // Ohne aktive Rocrail-Zeit bleibt divider=1 (kein Effekt auf die
+            // Rechnung unten) und frozen=false.
+
+            // rocrailDivider/-Frozen: see /api/currentTime - the same
+            // rocrailTimeReady condition as in renderClockFrame() (display.h).
+            // Without an active Rocrail time, divider stays 1 (no effect on
+            // the math below) and frozen stays false.
+            chunk += "      rocrailDivider = t.rocrail ? t.divider : 1;";
+            chunk += "      rocrailFrozen = t.rocrail && t.frozen;";
+            chunk += "      if (hintEl) { hintEl.hidden = !t.rocrail; if (t.rocrail) hintEl.innerHTML = rocrailHintTpl.replace('{divider}', rocrailDivider); }";
+            chunk += "    }).catch(function() {});";
+            chunk += "  }";
+            // Pausiert das Pollen, waehrend der Tab nicht sichtbar ist -
+            // gleiches Muster wie die DCF77-Live-Seite (siehe dort).
+            // Pauses polling while the tab isn't visible - same pattern as
+            // the DCF77 live page (see there).
+            chunk += "  function startPoll() { if (pollTimer) return; applyCurrentTime(); pollTimer = setInterval(applyCurrentTime, 15000); }";
+            chunk += "  function stopPoll() { if (!pollTimer) return; clearInterval(pollTimer); pollTimer = null; }";
+            chunk += "  document.addEventListener('visibilitychange', function() { if (document.hidden) stopPoll(); else startPoll(); });";
+            chunk += "  if (!document.hidden) startPoll();";
             chunk += "  function tick() {";
             chunk += "    var h, m, s, ms;";
             chunk += "    if (haveBase) {";
-            chunk += "      var elapsed = (performance.now() - baseAt) / 1000;";
+            // Bei angehaltener Rocrail-Modellzeit (frozen) bleiben die Zeiger
+            // auf dem zuletzt geholten Stand stehen, statt weiterzulaufen -
+            // wie advanceRocrailTime() (rocrail_client.h), das bei
+            // rocrailFrozen ebenfalls nicht weiterschreibt.
+
+            // While the Rocrail model time is paused (frozen), the hands stay
+            // at the last fetched reading instead of advancing - like
+            // advanceRocrailTime() (rocrail_client.h), which also doesn't
+            // advance further while rocrailFrozen is set.
+            chunk += "      var elapsed = rocrailFrozen ? 0 : ((performance.now() - baseAt) / 1000) * rocrailDivider;";
             chunk += "      var totalSec = baseH * 3600 + baseM * 60 + baseS + elapsed;";
             chunk += "      h = Math.floor(totalSec / 3600) % 12;";
             chunk += "      m = Math.floor(totalSec / 60) % 60;";
@@ -4157,15 +3994,54 @@
             chunk += "    var secDeg;";
             chunk += "    if (stationMode) {";
             chunk += "      var elapsedMs = (s + ms / 1000) * 1000;";
-            chunk += "      var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
-            chunk += "      var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
-            // Wie in der Navigations-Vorschau weiter oben und in
-            // renderClockFrame() (display.h).
-            // As in the navigation preview above and in renderClockFrame()
-            // (display.h).
-            chunk += "      var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
-            chunk += "      var smoothSec = Math.min(tickIndex + eased, 60);";
-            chunk += "      secDeg = smoothSec * 6;";
+            // Bugfix: fastSecondMs wurde hier zusaetzlich durch rocrailDivider
+            // geteilt, obwohl elapsedMs (aus s/ms) bereits ueber "elapsed"
+            // weiter oben mit demselben Divider beschleunigt ist - der Divider
+            // wirkte dadurch doppelt (bei divider 2 lief der Sekundenzeiger
+            // 4x statt 2x so schnell). Jetzt wie renderClockFrame() (display.h):
+            // zwei getrennte Zweige statt einer gemeinsamen Formel mit
+            // zusaetzlicher Division.
+            //
+            // Ohne Beschleunigung (rocrailDivider <= 1, d.h. keine aktive
+            // Rocrail-Zeit oder divider genau 1): der gewohnte tickende,
+            // pro Schritt gebremste/beschleunigte Sweep (easeInOutSine()),
+            // kalibriert auf die reale FAST_SECOND.
+            //
+            // Mit Rocrail-Beschleunigung (rocrailDivider > 1): glatt statt
+            // tickend, wie renderClockFrame()'s "smoothPos"-Zweig - elapsedMs
+            // (bereits divider-beschleunigt) einfach durch die unveraenderte
+            // FAST_SECOND geteilt, kein zusaetzlicher Divider-Faktor noetig,
+            // kein per-Schritt-Easing.
+
+            // Bugfix: fastSecondMs used to be additionally divided by
+            // rocrailDivider here, even though elapsedMs (from s/ms) is
+            // already accelerated by that same divider via "elapsed" above -
+            // the divider was therefore applied twice (at divider 2 the
+            // second hand ran 4x instead of 2x as fast). Now matches
+            // renderClockFrame() (display.h): two separate branches instead
+            // of one shared formula with an extra division.
+            //
+            // Without acceleration (rocrailDivider <= 1, i.e. no active
+            // Rocrail time, or divider exactly 1): the usual ticking sweep
+            // that eases per step (easeInOutSine()), calibrated to the real
+            // FAST_SECOND.
+            //
+            // With Rocrail acceleration (rocrailDivider > 1): smooth instead
+            // of ticking, like renderClockFrame()'s "smoothPos" branch -
+            // elapsedMs (already divider-accelerated) is simply divided by
+            // the unchanged FAST_SECOND, no extra divider factor needed, no
+            // per-step easing.
+            chunk += "      if (rocrailDivider > 1) {";
+            chunk += "        var smoothPos = elapsedMs / fastSecondMs;";
+            chunk += "        if (smoothPos > 60) smoothPos = 60;";
+            chunk += "        secDeg = smoothPos * 6;";
+            chunk += "      } else {";
+            chunk += "        var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
+            chunk += "        var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
+            chunk += "        var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
+            chunk += "        var smoothSec = Math.min(tickIndex + eased, 60);";
+            chunk += "        secDeg = smoothSec * 6;";
+            chunk += "      }";
             chunk += "    } else {";
             chunk += "      secDeg = s * 6;";
             chunk += "    }";
@@ -4183,42 +4059,31 @@
             webserver.sendContent("");
             });
 
-        // --- DCF77-Live-Seite: Bit-Fortschritt der laufenden Minute
-        // (Sekunde 0-58) plus das zuletzt vollstaendig dekodierte Telegramm,
-        // sekuendlich per Poll aktualisiert (siehe /api/dcf77status weiter
-        // unten). Zeigt live genau die Dekodierung, die inzwischen auch die
-        // tatsaechliche Zeituebernahme speist (siehe
-        // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - die
-        // Original-Bibliothek (dcf.getUTCTime()) wird dafuer nicht mehr
-        // benutzt (siehe dortiger Kommentar zur Umstellung).
-        //
-        // Die Bit-Tooltips sowie die Legende sind bewusst Englisch
-        // (Diagnose-/Debuginhalt, wie beim Status-Tab - siehe
-        // generateStorageInfo()/forceEnglish weiter unten und die dortige
-        // Konvention), waehrend die Feldbezeichnungen der Tabelle (Minute,
-        // Stunde, ...) wie der Rest der Seite uebersetzt sind.
-        //
-        // Ueber das Untermenue verlinkt (navItems in generateNavigation()
-        // weiter oben, dort nur sichtbar wenn dcf77Confirmed) - kein Tab auf
-        // "/", eine eigenstaendige Seite.
+        // Speichert die per Schieberegler gewaehlte Groesse der Web-Vorschau
+        // (/preview) in den Preferences, damit sie einen Refresh/Neuladen der
+        // Seite ueberlebt (siehe currentPreviewSize-Ladelogik dort). Wird nur
+        // beim "change"-Event des Reglers aufgerufen (Loslassen), nicht bei
+        // jedem "input" (waehrend des Ziehens) - sonst wuerde bei jeder
+        // Reglerbewegung ein NVS-Schreibvorgang ausgeloest.
 
-        // --- DCF77 live page: bit progress of the running minute (second
-        // 0-58) plus the last fully decoded telegram, polled every second
-        // (see /api/dcf77status further below). Shows live exactly the
-        // decode that, by now, also feeds the actual time takeover (see
-        // applyDcf77DecodedTime()/updateDcf77Status() in time_sync.h) - the
-        // original library (dcf.getUTCTime()) is no longer used for that
-        // (see the comment there about the switch).
-        //
-        // The per-bit tooltips and the legend are deliberately English
-        // (diagnostic/debug content, like the Status tab - see
-        // generateStorageInfo()/forceEnglish further below and the
-        // convention there), while the table's field labels (Minute, Hour,
-        // ...) are translated like the rest of the page.
-        //
-        // Linked from the submenu (navItems in generateNavigation() further
-        // above, shown there only when dcf77Confirmed) - not a tab on "/", a
-        // standalone page.
+        // Saves the size chosen via the /preview slider to preferences, so it
+        // survives a page refresh/reload (see the loading logic there).
+        // Called only on the slider's "change" event (on release), not on
+        // every "input" (while dragging) - otherwise every slider movement
+        // would trigger an NVS write.
+        webserver.on("/api/setPreviewSize", HTTP_GET, []() {
+            int size = argToIntClamped("size", PREVIEW_SIZE_DEFAULT, PREVIEW_SIZE_MIN, PREVIEW_SIZE_MAX);
+            preferences.putInt(PK_PREVIEW_SIZE, size);
+            webserver.send(200, "text/plain", "OK");
+            });
+
+        // DCF77-Live-Seite: Bit-Fortschritt der laufenden Minute plus letztes
+        // dekodiertes Telegramm, sekuendlich gepollt (/api/dcf77status).
+        // Bit-Tooltips/Legende bewusst Englisch (Diagnoseinhalt).
+
+        // DCF77 live page: bit progress of the running minute plus the last
+        // decoded telegram, polled every second (/api/dcf77status). Bit
+        // tooltips/legend deliberately English (diagnostic content).
         webserver.on("/dcf77", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -4234,41 +4099,35 @@
                                                                      // 900px: wide enough to fit all 59 bit boxes in a compact grid without unnecessary line wraps on a desktop screen
             chunk += "<h3>" + translate("Bit progress") + "</h3>";
 
-            // Hinweis fuer die Suchphase: bis die Minutenmarke gefunden ist,
-            // zeigen die Kaestchen die rohen Rasterpositionen, nicht die
-            // Bitnummern des Telegramms (siehe /api/dcf77status oben) - ohne
-            // diesen Hinweis waere die Beschriftung in dieser Zeit
-            // irrefuehrend. Wird vom Poll-Skript ein-/ausgeblendet.
-            // Note for the search phase: until the minute marker is found, the
-            // boxes show raw grid positions, not the telegram's bit numbers
-            // (see /api/dcf77status above) - without this note the labels
-            // would be misleading during that time. Shown/hidden by the poll
-            // script.
+            // Vor gefundener Minutenmarke zeigen die Kaestchen rohe Rasterpositionen,
+            // nicht Bitnummern - dieser Hinweis wird vom Poll-Skript ein-/ausgeblendet.
+            // Before the minute marker is found, boxes show raw grid positions,
+            // not bit numbers - this note is shown/hidden by the poll script.
             chunk += "<div id='dcfRawNote' hidden style='margin-bottom:.6rem;padding:.4rem .6rem;border-radius:.3rem;"
                      "border:1px solid var(--panel-border);color:var(--muted);font-size:.75rem;'>"
-                     "Minute marker not identified yet - the boxes show raw grid positions, not telegram bit numbers.</div>";
+                     + translate("Minute marker not identified yet - the boxes show raw grid positions, not telegram bit numbers.") + "</div>";
             chunk += "<div id='dcfBitGrid' style='display:flex;flex-wrap:wrap;gap:3px;justify-content:center;font-family:var(--mono);font-size:.7rem;'>";
 
             for (int i = 0; i < DCF77_TELEGRAM_BITS; i++) {
                 String desc;
-                if (i == 0) desc = "Start of minute (always 0)";
-                else if (i >= 1 && i <= 14) desc = "Weather broadcast / special function (unused)";
-                else if (i == 15) desc = "Call bit";
-                else if (i == 16) desc = "DST change announcement";
-                else if (i == 17) desc = "Summer time (CEST) in effect";
-                else if (i == 18) desc = "Winter time (CET) in effect";
-                else if (i == 19) desc = "Leap second announcement";
-                else if (i == 20) desc = "Start of time (always 1)";
-                else if (i >= 21 && i <= 27) desc = "Minute BCD bit " + String(i - 20);
-                else if (i == 28) desc = "Minute parity";
-                else if (i >= 29 && i <= 34) desc = "Hour BCD bit " + String(i - 28);
-                else if (i == 35) desc = "Hour parity";
-                else if (i >= 36 && i <= 41) desc = "Day of month BCD bit " + String(i - 35);
-                else if (i >= 42 && i <= 44) desc = "Day of week BCD bit " + String(i - 41);
-                else if (i >= 45 && i <= 49) desc = "Month BCD bit " + String(i - 44);
-                else if (i >= 50 && i <= 57) desc = "Year BCD bit " + String(i - 49);
-                else desc = "Date parity (day+weekday+month+year)";
-                chunk += "<div id='bit-" + String(i) + "' title='Bit " + String(i) + ": " + desc +
+                if (i == 0) desc = translate("Start of minute (always 0)");
+                else if (i >= 1 && i <= 14) desc = translate("Weather broadcast / special function (unused)");
+                else if (i == 15) desc = translate("Call bit");
+                else if (i == 16) desc = translate("DST change announcement");
+                else if (i == 17) desc = translate("Summer time (CEST) in effect");
+                else if (i == 18) desc = translate("Winter time (CET) in effect");
+                else if (i == 19) desc = translate("Leap second announcement");
+                else if (i == 20) desc = translate("Start of time (always 1)");
+                else if (i >= 21 && i <= 27) desc = translate("Minute BCD bit") + " " + String(i - 20);
+                else if (i == 28) desc = translate("Minute parity");
+                else if (i >= 29 && i <= 34) desc = translate("Hour BCD bit") + " " + String(i - 28);
+                else if (i == 35) desc = translate("Hour parity");
+                else if (i >= 36 && i <= 41) desc = translate("Day of month BCD bit") + " " + String(i - 35);
+                else if (i >= 42 && i <= 44) desc = translate("Day of week BCD bit") + " " + String(i - 41);
+                else if (i >= 45 && i <= 49) desc = translate("Month BCD bit") + " " + String(i - 44);
+                else if (i >= 50 && i <= 57) desc = translate("Year BCD bit") + " " + String(i - 49);
+                else desc = translate("Date parity (day+weekday+month+year)");
+                chunk += "<div id='bit-" + String(i) + "' title='" + translate("Bit") + " " + String(i) + ": " + desc +
                          "' style='width:1.7rem;height:1.7rem;line-height:1.7rem;display:inline-block;text-align:center;border-radius:.25rem;border:1px solid var(--panel-border);color:var(--muted);'>" +
                          String(i) + "</div>";
             }
@@ -4276,104 +4135,70 @@
             chunk += "<p style='color:var(--muted);font-size:.75rem;'>"
                      "<span style='display:inline-block;width:.8rem;height:.8rem;background:var(--accent);border-radius:.2rem;vertical-align:middle;'></span> = 1 &nbsp; "
                      "<span style='display:inline-block;width:.8rem;height:.8rem;border:1px solid var(--panel-border);border-radius:.2rem;vertical-align:middle;'></span> = 0 &nbsp; "
-                     "<i class='dot syncing' style='display:inline-block;position:static;'></i> = next &nbsp; "
-                     "<span style='display:inline-block;width:.8rem;height:.8rem;border:1px dashed var(--muted);border-radius:.2rem;vertical-align:middle;'></span> = lost</p>";
-            // Diagnosewert: Anzahl der wegen vollem Ringpuffer verworfenen
-            // Flanken seit dem letzten Neustart (siehe dcf77EdgeDropped in
-            // globals.h, isr() in time_sync.h) - hilft zu unterscheiden, ob
-            // Aussetzer/uebersprungene Bits an einem ueberlaufenden Puffer
-            // liegen (dieser Wert steigt) oder an tatsaechlich schwachem
-            // Empfang bzw. Stoerungen (Wert bleibt bei 0). Bewusst englisch,
-            // wie die Bit-Tooltips oben (Diagnoseinhalt).
-            // Diagnostic value: number of edges dropped due to a full ring
-            // buffer since the last restart (see dcf77EdgeDropped in
-            // globals.h, isr() in time_sync.h) - helps tell whether
-            // dropouts/skipped bits are caused by a buffer overflow (this
-            // value rises) or by genuinely weak reception/interference
-            // (value stays at 0). Deliberately English, like the bit
-            // tooltips above (diagnostic content).
-            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Dropped edges (buffer overflow): <span id='dcfEdgeDropped'>-</span></p>";
+                     "<i class='dot syncing' style='display:inline-block;position:static;'></i> = " + translate("next") + " &nbsp; "
+                     "<span style='display:inline-block;width:.8rem;height:.8rem;border:1px dashed var(--muted);border-radius:.2rem;vertical-align:middle;'></span> = " + translate("lost") + "</p>";
+            // dcf77EdgeDropped (globals.h): steigt bei vollem Ringpuffer, hilft
+            // das von schwachem Empfang zu unterscheiden.
+            // dcf77EdgeDropped (globals.h): rises on a full ring buffer, helps
+            // tell that apart from weak reception.
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>" + translate("Dropped edges (buffer overflow)") + ": <span id='dcfEdgeDropped'>-</span></p>";
 
-            // Zweiter Diagnosewert: weiss der Dekoder gerade, an welcher
-            // Sekunde des Telegramms er steht? "no" heisst, dass er auf die
-            // naechste Minutenmarke wartet (nach einem Aussetzer oder direkt
-            // nach dem Einschalten) - in dieser Phase werden bewusst keine
-            // Bits eingetragen, das Raster oben bleibt also leer, ohne dass
-            // deshalb etwas defekt waere (siehe dcf77Synced in globals.h und
-            // processDcf77Bits() in time_sync.h). Bewusst englisch wie die
-            // uebrigen Diagnoseangaben auf dieser Seite.
+            // dcf77Synced: "no" waehrend der Decoder auf die naechste Minutenmarke
+            // wartet - das Raster bleibt dann bewusst leer, nichts ist defekt.
 
-            // Second diagnostic value: does the decoder currently know which
-            // second of the telegram it is at? "no" means it is waiting for
-            // the next minute marker (after a dropout or right after power-on)
-            // - during that phase no bits are entered on purpose, so the grid
-            // above stays empty without anything being broken (see dcf77Synced
-            // in globals.h and processDcf77Bits() in time_sync.h). Deliberately
-            // English like the other diagnostics on this page.
-            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Telegram sync: <span id='dcfSynced'>-</span></p>";
+            // dcf77Synced: "no" while the decoder waits for the next minute
+            // marker - the grid stays empty on purpose, nothing is broken.
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>" + translate("Telegram sync") + ": <span id='dcfSynced'>-</span></p>";
 
-            // Rohdaten des Empfaengers: die zuletzt erkannten Impulse mit
-            // Dauer und Abstand, dazu die Zaehler fuer erkannte/fehlende
-            // Impulse und fuer verlorene Sekundenraster. Diese Zeilen
-            // beantworten die Frage, die sich sonst nur mit einem Oszilloskop
-            // klaeren laesst: liefert das Modul ein sauberes Signal, oder
-            // fehlen schlicht Impulse?
+            // Rohdaten des Empfaengers: beantwortet ohne Oszilloskop, ob das
+            // Modul ein sauberes Signal liefert oder Impulse fehlen.
 
-            // The receiver's raw data: the most recently detected pulses with
-            // width and distance, plus the counters for detected/missing
-            // pulses and for lost second grids. These lines answer the
-            // question that otherwise needs an oscilloscope: does the module
-            // deliver a clean signal, or are pulses simply missing?
-            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Pulses seen / missed / grid losses: "
+            // Receiver raw data: answers without an oscilloscope whether the
+            // module delivers a clean signal or pulses are missing.
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>" + translate("Pulses seen / missed / grid losses") + ": "
                      "<span id='dcfSeen'>-</span> / <span id='dcfMissed'>-</span> / <span id='dcfBreaks'>-</span></p>";
-            chunk += "<p style='color:var(--muted);font-size:.7rem;'>Last pulses (width / gap in ms, expected ~100 or ~200 / ~n&times;1000):<br>"
+            chunk += "<p style='color:var(--muted);font-size:.7rem;'>" + translate("Last pulses (width / gap in ms, expected ~100 or ~200 / ~n&times;1000)") + ":<br>"
                      "<span id='dcfPulses' style='font-family:var(--mono);'>-</span></p>";
             chunk += "</div>";
 
-            // Dekodiertes Telegramm: Server rendert die uebersetzten
-            // Feldbezeichnungen sowie leere Platzhalter-<span>s mit stabilen
-            // IDs; das Poll-Skript unten befuellt NUR die reinen Datenwerte
-            // (Zahlen, ein Umschalten von "hidden" zwischen zwei bereits
-            // uebersetzten <span>s fuer Sommer-/Winterzeit) - so muss kein
-            // uebersetzter Text aus translate() in einen JS-String-Literal
-            // eingebettet werden (Gefahr durch Anfuehrungszeichen in einer
-            // Uebersetzung, siehe z.B. franzoesische Apostrophe im Rest
-            // dieser Datei).
+            // JS-Vorlagen fuer den Sync-Status (per .textContent gesetzt, siehe
+            // poll() unten) - ASCII-only Uebersetzungen ohne HTML-Entities,
+            // {pos} wird per JS ersetzt (siehe Hinweis in translation.h).
 
-            // Decoded telegram: the server renders the translated field
-            // labels plus empty placeholder <span>s with stable IDs; the
-            // poll script below only fills in the raw data values (numbers,
-            // toggling "hidden" between two already-translated <span>s for
-            // summer/winter time) - this way no translate() text ever has
-            // to be embedded inside a JS string literal (risk from quote
-            // characters inside a translation, see e.g. the French
-            // apostrophes elsewhere in this file).
+            // JS templates for the sync status (set via .textContent, see
+            // poll() below) - ASCII-only translations without HTML entities,
+            // {pos} is substituted in JS (see note in translation.h).
+            String dcfSyncYesTpl = translate("yes (marker at grid position {pos})");
+            String dcfSyncNoTpl = translate("no (collecting - the minute marker needs a few minutes)");
+
+            // Server rendert uebersetzte Labels + leere Platzhalter-<span>s;
+            // das Poll-Skript befuellt nur Rohdaten (Ausnahme: SYNC_YES/NO
+            // oben, als ASCII-Vorlage aus translate() ins JS gereicht).
+
+            // Server renders translated labels + empty placeholder <span>s;
+            // the poll script only fills raw data (exception: SYNC_YES/NO
+            // above, passed into JS as an ASCII template from translate()).
             chunk += "<div class='card' id='dcfDecodedCard'>";
             chunk += "<h3>" + translate("Decoded telegram") + "</h3>";
             chunk += "<div id='dcfWaitingMsg'>" + translate("Waiting for first complete telegram") + "</div>";
             chunk += "<table id='dcfDecodedTable' hidden>";
             chunk += "<tr><td>" + translate("Day") + "/" + translate("Month") + "/" + translate("Year") + "</td><td><span id='dcfDate'>-</span></td></tr>";
             chunk += "<tr><td>" + translate("Hour") + "/" + translate("Minute") + "</td><td><span id='dcfTime'>-</span></td></tr>";
-            chunk += "<tr><td>" + translate("Weekday") + "</td><td><span id='dcfWeekday'>-</span> <small>(DCF77: 1=Mon..7=Sun)</small></td></tr>";
+            chunk += "<tr><td>" + translate("Weekday") + "</td><td><span id='dcfWeekday'>-</span> <small>" + translate("(DCF77: 1=Mon..7=Sun)") + "</small></td></tr>";
             chunk += "<tr><td>" + translate("Summer time") + " / " + translate("Winter time") + "</td><td><span id='dcfDstOn' hidden>" + translate("Summer time") + "</span><span id='dcfDstOff' hidden>" + translate("Winter time") + "</span></td></tr>";
             chunk += "<tr><td>" + translate("Call bit") + "</td><td><span id='dcfCall'>-</span></td></tr>";
             chunk += "<tr><td>" + translate("Parity") + " (" + translate("Minute") + "/" + translate("Hour") + "/" + translate("Day") + ")</td><td><span id='dcfParityMin'>-</span> / <span id='dcfParityHour'>-</span> / <span id='dcfParityDate'>-</span></td></tr>";
             chunk += "<tr><td>" + translate("Last decoded") + "</td><td><span id='dcfAge'>-</span> s</td></tr>";
-            // Anzahl der Bits, die nicht empfangen, sondern aus der Paritaet
-            // bzw. den Festwerten rekonstruiert wurden (siehe
-            // decodeDcf77Telegram() in time_sync.h) - 0 heisst "vollstaendig
-            // empfangen". Bewusst englisch wie die uebrigen Diagnoseangaben.
-            // Number of bits that were not received but reconstructed from
-            // parity resp. fixed values (see decodeDcf77Telegram() in
-            // time_sync.h) - 0 means "fully received". Deliberately English
-            // like the other diagnostics.
-            chunk += "<tr><td>Reconstructed bits</td><td><span id='dcfRepaired'>-</span></td></tr>";
+            // Bits aus Paritaet/Festwerten rekonstruiert statt empfangen; 0 = vollstaendig empfangen.
+            // Bits reconstructed from parity/fixed values instead of received; 0 = fully received.
+            chunk += "<tr><td>" + translate("Reconstructed bits") + "</td><td><span id='dcfRepaired'>-</span></td></tr>";
             chunk += "</table>";
             chunk += "</div>";
 
             chunk += "<script>";
             chunk += "(function(){";
             chunk += "var TOTAL=" + String(DCF77_TELEGRAM_BITS) + ";";
+            chunk += "var SYNC_YES='" + dcfSyncYesTpl + "';var SYNC_NO='" + dcfSyncNoTpl + "';";
             chunk += "function pad(n){return (n<10?'0':'')+n;}";
             chunk += "function paintBits(bitIndex,bits){";
             chunk += "for(var i=0;i<TOTAL;i++){";
@@ -4382,15 +4207,10 @@
             chunk += "el.style.borderStyle='solid';";
             chunk += "if(i<bitIndex){";
             chunk += "if(bits.charAt(i)==='1'){el.style.background='var(--accent)';el.style.borderColor='var(--accent)';el.style.color='#1a1200';}";
-            // '?' vor dem aktuellen Index = Sekunde zu schwach empfangen und
-            // uebersprungen (Luecke). Gestrichelter Rahmen, damit sie sich von
-            // einer tatsaechlich empfangenen 0 unterscheidet - vorher sahen
-            // beide identisch aus, eine Luecke war auf der Seite also nicht zu
-            // erkennen (siehe processDcf77Bits() in time_sync.h).
-            // '?' before the current index = second received too weakly and
-            // skipped (a hole). Dashed border so it differs from an actually
-            // received 0 - previously both looked identical, so a hole was
-            // invisible on this page (see processDcf77Bits() in time_sync.h).
+            // '?' = uebersprungene Sekunde (Luecke), gestrichelter Rahmen zur
+            // Unterscheidung von einer echten 0.
+            // '?' = skipped second (a hole), dashed border to distinguish
+            // it from an actually received 0.
             chunk += "else if(bits.charAt(i)==='?'){el.style.background='';el.style.borderColor='var(--muted)';el.style.borderStyle='dashed';el.style.color='var(--muted)';}";
             chunk += "else{el.style.background='';el.style.borderColor='var(--panel-border)';el.style.color='var(--muted)';}";
             chunk += "}else if(i===bitIndex){";
@@ -4415,7 +4235,7 @@
             chunk += "var rp=document.getElementById('dcfRepaired');if(rp)rp.textContent=(d.repaired?d.repaired:0);";
             chunk += "}";
             chunk += "var timer=null;";
-            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;var rn=document.getElementById('dcfRawNote');if(rn)rn.hidden=!!s.synced;var sy=document.getElementById('dcfSynced');if(sy)sy.textContent=s.synced?('yes (marker at grid position '+s.markerPos+')'):'no (collecting - the minute marker needs a few minutes)';var se=document.getElementById('dcfSeen');if(se)se.textContent=s.pulsesSeen;var mi=document.getElementById('dcfMissed');if(mi)mi.textContent=s.pulsesMissed;var br=document.getElementById('dcfBreaks');if(br)br.textContent=s.phaseBreaks;var pu=document.getElementById('dcfPulses');if(pu){if(!s.pulses||!s.pulses.length){pu.textContent='-';}else{pu.textContent=s.pulses.map(function(p){return p[0]+'/'+p[1];}).join('  ');}}}).catch(function(){});}";
+            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;var rn=document.getElementById('dcfRawNote');if(rn)rn.hidden=!!s.synced;var sy=document.getElementById('dcfSynced');if(sy)sy.textContent=s.synced?SYNC_YES.replace('{pos}',s.markerPos):SYNC_NO;var se=document.getElementById('dcfSeen');if(se)se.textContent=s.pulsesSeen;var mi=document.getElementById('dcfMissed');if(mi)mi.textContent=s.pulsesMissed;var br=document.getElementById('dcfBreaks');if(br)br.textContent=s.phaseBreaks;var pu=document.getElementById('dcfPulses');if(pu){if(!s.pulses||!s.pulses.length){pu.textContent='-';}else{pu.textContent=s.pulses.map(function(p){return p[0]+'/'+p[1];}).join('  ');}}}).catch(function(){});}";
             chunk += "function start(){if(timer)return;poll();timer=setInterval(poll,1000);}";
             chunk += "function stop(){if(!timer)return;clearInterval(timer);timer=null;}";
             chunk += "document.addEventListener('visibilitychange',function(){if(document.hidden)stop();else start();});";
@@ -4429,31 +4249,60 @@
             webserver.sendContent("");
             });
 
-        // --- Info-Seite: Projektbeschreibung in der eingestellten Sprache ---
-        //
-        // Der Text kommt aus readme_text.h und liegt dort als flash-residente
-        // Zeichenkette. Er wird in Bloecken direkt aus dem Flash gesendet und
-        // NICHT vorher in einen String kopiert: rund 10 KB am Stueck im Heap
-        // waeren auf dem ESP32-S2 (fragmentierter interner RAM) eine
-        // unnoetige Belastung, obwohl der Inhalt statisch ist.
+        // Info-Seite: Text aus readme_text.h (flash-resident), in Bloecken
+        // direkt aus dem Flash gesendet statt in einen String kopiert.
 
-        // --- Info page: project description in the selected language ---
-        //
-        // The text comes from readme_text.h and lives there as a
-        // flash-resident string. It is sent in blocks straight from flash and
-        // NOT copied into a String first: around 10 KB in one piece on the
-        // heap would be a needless burden on the ESP32-S2 (fragmented internal
-        // RAM), given the content is static.
+        // Info page: text from readme_text.h (flash-resident), sent in
+        // blocks straight from flash instead of copied into a String.
         webserver.on("/info", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
             String chunk = beginPage();
-            chunk += "<h2>" + translate("Info") + "</h2>";
+
+            // Sprachselektor bleibt auch auf der Info-Seite stehen, genau wie
+            // auf den anderen Tabs (Startseite, siehe dort) - sonst waere die
+            // Sprache dort nicht umschaltbar, ohne erst zurueck zu navigieren.
+
+            // The language selector stays visible on the Info page too, just
+            // like on the other tabs (start page, see there) - otherwise the
+            // language couldn't be switched there without navigating back first.
+            chunk += generateLanguageSelector();
+
+            // Tab-Leiste der Einstellungen bleibt auch hier stehen (als Links
+            // zurueck auf "/?tab=<key>", Info als aktiver Eintrag) - /info wird
+            // ueber genau diese Leiste erreicht, und der Nutzer erwartet sie
+            // danach an derselben Stelle wie bei jedem anderen Tab.
+
+            // The settings tab bar stays visible here too (as links back to
+            // "/?tab=<key>", with Info as the active entry) - /info is reached
+            // through exactly this bar, and one expects it to stay where it
+            // was, like for every other tab.
+            chunk += generateSettingsTabNav(true);
+
+            // Anordnung wie im Log-Tab: schmale Kopfkarte mit den Eckdaten,
+            // darunter ein eigenes, scrollbares Textfenster. Vorher wuchs die
+            // Karte ueber die ganze Seitenlaenge, sodass die Seite selbst
+            // scrollte statt des Textes - Topbar und Navigation wanderten
+            // dabei mit, anders als auf allen uebrigen Seiten.
+
+            // Same layout as the Log tab: a slim header card with the key
+            // facts, and a separate scrollable text window below it. Before,
+            // the card grew over the full page length, so the page itself
+            // scrolled instead of the text - which moved the topbar and
+            // navigation along, unlike on every other page.
             chunk += "<div class='card' style='max-width:900px;'>";
-            chunk += "<p style='color:var(--muted);font-size:.8rem;'>" + translate("Version") + ": " + String(version) +
+            chunk += "<p style='color:var(--muted);font-size:.8rem;margin:0;'>" + translate("Version") + ": " + String(version) +
                      " &nbsp;&middot;&nbsp; <a href='" + String(GITHUB_REPO_URL) + "' target='_blank' rel='noopener'>" +
                      String(GITHUB_REPO_NAME) + "</a></p>";
+            chunk += "</div>";
+
+            // Hoehe wie das Log-Fenster (INFO_LOG_WINDOW_HEIGHT_CSS in
+            // config.h) - beide Fenster bleiben so gleich hoch.
+
+            // Height as for the log window (INFO_LOG_WINDOW_HEIGHT_CSS in
+            // config.h) - this keeps both windows the same size.
+            chunk += "<div class='card' id='infoContent' style='max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;'>";
             webserver.sendContent(chunk);
             chunk = "";
 
@@ -4466,18 +4315,11 @@
 
             chunk = "</div>";
 
-            // Projekt- und Kontaktangaben: alle Adressen kommen aus den
-            // zentralen Makros in config.h, damit sie bei einem Fork oder
-            // Umzug des Repositorys nur dort gepflegt werden muessen.
-            // Externe Links mit rel='noopener', target='_blank' setzt sonst
-            // window.opener auf die Uhr - ausserdem soll die Weboberflaeche
-            // beim Nachschlagen nicht verlorengehen.
+            // Alle Adressen aus zentralen Makros in config.h. rel='noopener',
+            // sonst haengt target='_blank' window.opener an die Uhr.
 
-            // Project and contact details: all addresses come from the central
-            // macros in config.h, so a fork or a move of the repository only
-            // needs maintaining there. External links with rel='noopener' -
-            // otherwise target='_blank' hands window.opener to the clock - and
-            // the web interface should not be lost while looking something up.
+            // All addresses from central macros in config.h. rel='noopener',
+            // otherwise target='_blank' hands window.opener to the clock.
             chunk += "<h2>" + translate("Project and Contact") + "</h2>";
             chunk += "<div class='card' style='max-width:900px;'><ul>";
             chunk += "<li>" + translate("Project repository") + ": <a href='" + String(GITHUB_REPO_URL) +
@@ -4592,16 +4434,10 @@
             const int dataSize = rowSize * outH;
             const int fileSize = headerSize + dataSize;
 
-            // Null-Check ergaenzt: ~19 KB Allokation, direkt gefolgt von memset und
-            // den Header-Schreibzugriffen. Ohne Pruefung endete eine fehlgeschlagene
-            // Allokation (der ESP32-S2-Heap ist knapp, und /listfilesFaces laedt
-            // mehrere Vorschauen parallel) in einem Panic-Reset statt in einer
-            // sauberen Fehlerantwort - die Nachbar-Handler machen das bereits richtig.
-            // Null check added: ~19 KB allocation, immediately followed by memset and
-            // the header writes. Without the check, a failed allocation (the ESP32-S2
-            // heap is tight, and /listfilesFaces loads several previews in parallel)
-            // ended in a panic reset instead of a clean error response - the
-            // neighbouring handlers already do this correctly.
+            // Null-Check: ohne ihn endete eine fehlgeschlagene ~19 KB Allokation
+            // in einem Panic-Reset statt einer sauberen Fehlerantwort.
+            // Null check: without it a failed ~19 KB allocation ended in a
+            // panic reset instead of a clean error response.
             uint8_t* bmpData = new (std::nothrow) uint8_t[fileSize];
             if (!bmpData) {
                 DEBUG_PRINTLN("[Preview] Error: couldnt allocate preview buffer for /preview_defaultface");
@@ -4726,21 +4562,10 @@
                 if (displayName.endsWith(".bmp")) displayName = displayName.substring(0, displayName.length() - 4);
                 String normalizedName = name.startsWith("/") ? name : "/" + name;
                 bool isActive = (normalizedName == activeBackground);
-                // escapeHtmlText() ergaenzt: "name"/"shortName" stammen aus
-                // dem tatsaechlichen Dateinamen auf LittleFS - handleFileUpload()
-                // prueft beim Hochladen nur Praefix ("face_") und Suffix
-                // (".bmp"), der mittlere Teil ist frei waehlbar. Ausserdem
-                // fehlten hier bisher die Anfuehrungszeichen um das href-
-                // Attribut komplett (href=http://... statt href='http://...'),
-                // wodurch ein Leerzeichen/Sonderzeichen im Dateinamen den Link
-                // kaputt gemacht haette.
-                // escapeHtmlText() added: "name"/"shortName" come from the
-                // actual filename on LittleFS - handleFileUpload() only
-                // checks the prefix ("face_") and suffix (".bmp") on upload,
-                // the middle part is freely chosen. Also, the href attribute
-                // was previously missing its quotes entirely (href=http://...
-                // instead of href='http://...'), so a space/special character
-                // in the filename would have broken the link.
+                // escapeHtmlText(): Dateiname ist frei waehlbar (handleFileUpload()
+                // prueft nur Praefix/Suffix), daher unbedingt escapen.
+                // escapeHtmlText(): the filename is freely chosen (handleFileUpload()
+                // only checks prefix/suffix), so it must be escaped.
                 String safeName = escapeHtmlText(name);
                 String safeShortName = escapeHtmlText(shortName);
                 chunk += "<div style='text-align:center;width:100px;'>";
@@ -4766,16 +4591,11 @@
             if (!anyFile) chunk += "<p>" + translate("No BMP files found in /") + "</p>";
             chunk += "</div><hr>";
 
-            // Automatischer Download neuer Zifferblaetter direkt im Browser: der
-            // Browser laedt (per CORS, von GitHub offiziell fuer api.github.com
-            // und raw.githubusercontent.com unterstuetzt) die Dateien per HTTPS
-            // herunter und laedt sie dann per normalem lokalem HTTP ueber /upload
-            // hoch - die Uhr selbst muss dabei nie eine HTTPS-Verbindung aufbauen.
+            // Browser laedt neue Faces per HTTPS von GitHub und laedt sie per
+            // lokalem HTTP zu /upload hoch - die Uhr braucht nie HTTPS.
 
-            // Automatic download of new clock faces directly in the browser: the
-            // browser downloads the files via HTTPS (via CORS, officially supported
-            // by GitHub for api.github.com and raw.githubusercontent.com) and then
-            // uploads them via normal local HTTP through /upload - the clock itself never needs to open an HTTPS connection.
+            // Browser downloads new faces via HTTPS from GitHub and uploads
+            // them via local HTTP to /upload - the clock never needs HTTPS.
             chunk += "<h3>" + translate("Download Additional Clock Faces from GitHub") + "</h3>";
             chunk += "<button type='button' id='ghFaceBtn' onclick='loadFacesFromGithub()'>" + translate("Download Additional Clock Faces from GitHub") + "</button>";
             chunk += "<div id='ghFaceStatus'></div>";
@@ -4886,26 +4706,13 @@
         // Main page - WiFi settings
         webserver.on("/", HTTP_GET, []() {
 
-            // Status-LED kurz aufblitzen lassen, waehrend die Hauptseite
-            // aufgebaut/gestreamt wird (setLedOff() ganz am Ende dieses
-            // Handlers, siehe dort) - sichtbares Lebenszeichen bei jedem
-            // Aufruf von "/", analog zum bestehenden Muster bei Uploads
-            // (setLedOn()/setLedOff() rahmen dort den gesamten Vorgang ein,
-            // siehe z.B. weiter unten bei "/file"). Kein zusaetzliches
-            // delay() noetig - der Seitenaufbau selbst (mehrere
-            // sendContent()-Chunks) dauert lang genug, um sichtbar zu sein.
-            // War schon einmal vorhanden, ist bei einer frueheren
-            // Ueberarbeitung verlorengegangen.
+            // Status-LED kurz aufblitzen lassen (setLedOff() am Ende dieses
+            // Handlers) - Lebenszeichen wie beim Upload-Pattern, kein
+            // zusaetzliches delay() noetig, der Seitenaufbau dauert selbst lang genug.
 
-            // Briefly flash the status LED while the main page is being
-            // built/streamed (setLedOff() right at the end of this handler,
-            // see there) - a visible sign of life on every "/" request,
-            // mirroring the existing pattern used for uploads (setLedOn()/
-            // setLedOff() bracket the whole operation there, see e.g.
-            // "/file" further below). No extra delay() needed - building the
-            // page itself (several sendContent() chunks) already takes long
-            // enough to be visible. This used to be in place, but got lost
-            // in an earlier rework.
+            // Briefly flash the status LED (setLedOff() at the end of this
+            // handler) - a sign of life like the upload pattern, no extra
+            // delay() needed since building the page itself takes long enough.
             setLedOn();
 
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -4920,81 +4727,54 @@
 
             bool apMode = (WiFi.getMode() != WIFI_STA);
 
-            // --- CSS-only Tabs: die 6 radio-Inputs (siehe Tab-CSS in
-            // generateHtmlHeader()) - muessen direkte Geschwister von .tabnav
-            // und allen .panel-* Divs weiter unten sein. Reihenfolge der
-            // Labels weiter unten bestimmt die sichtbare Tab-Reihenfolge -
-            // Status bewusst ganz nach rechts (ans Ende), direkt gefolgt von
-            // Log (Log-Tab soll immer direkt NACH Status stehen), die
-            // anderen zuerst. Beim Aufruf wird immer der erste Tab (WLAN)
-            // vorausgewaehlt, unabhaengig vom Verbindungsstatus - das deckt
-            // automatisch auch das Captive-Portal-Popup ab (das auf "/"
-            // verweist, siehe captivePortalRedirect oben).
+            // CSS-only Tabs: radio-Inputs muessen direkte Geschwister von
+            // .tabnav/.panel-* sein. WLAN ist immer vorausgewaehlt - deckt
+            // auch das Captive-Portal-Popup ab.
 
-            // --- CSS-only tabs: the 6 radio inputs (see tab CSS in
-            // generateHtmlHeader()) - must be direct siblings of .tabnav and
-            // all .panel-* divs further below. Order of the labels below
-            // determines the visible tab order - Status is deliberately
-            // moved to the far right, immediately followed by Log (the Log
-            // tab must always sit right after Status), the others come
-            // first. The first tab (WiFi) is always preselected on load,
-            // regardless of connection status - this also automatically
-            // covers the captive portal popup (which points to "/", see
-            // captivePortalRedirect above).
-            chunk += "<input type='radio' name='tabs' id='tab-wlan' class='tabctrl' checked>";
-            chunk += "<input type='radio' name='tabs' id='tab-zifferblatt' class='tabctrl'>";
-            chunk += "<input type='radio' name='tabs' id='tab-helligkeit' class='tabctrl'>";
-            chunk += "<input type='radio' name='tabs' id='tab-zeit' class='tabctrl'>";
-            chunk += "<input type='radio' name='tabs' id='tab-status' class='tabctrl'>";
-            chunk += "<input type='radio' name='tabs' id='tab-log' class='tabctrl'>";
+            // CSS-only tabs: radio inputs must be direct siblings of
+            // .tabnav/.panel-*. WiFi is always preselected - also covers
+            // the captive portal popup.
+            // Der ERSTE Tab bekommt "checked", damit immer einer vorausgewaehlt
+            // ist (siehe Begruendung oben). Reihenfolge aus SETTINGS_TAB_KEYS.
 
-            chunk += "<div class='tabnav'>";
-            chunk += "<label for='tab-wlan'>" + translate("WiFi Settings") + "</label>";
-            chunk += "<label for='tab-zifferblatt'>" + translate("Clock Setup") + "</label>";
-            chunk += "<label for='tab-helligkeit'>" + translate("Brightness") + "</label>";
-            chunk += "<label for='tab-zeit'>" + translate("NTP&nbsp;Timezone") + "</label>";
-            chunk += "<label for='tab-status'>" + translate("Status") + "</label>";
-            chunk += "<label for='tab-log'>" + translate("Log") + "</label>";
-            // Info: kein Tab, sondern ein Link auf /info mit der
-            // Projektbeschreibung in der aktuell eingestellten Sprache
-            // (siehe readme_text.h und die /info-Route weiter unten).
-            // Info: not a tab but a link to /info with the project description
-            // in the currently selected language (see readme_text.h and the
-            // /info route further below).
-            chunk += "<a href='/info'>" + translate("Info") + "</a>";
-            chunk += "</div>";
+            // The FIRST tab gets "checked", so one is always preselected (see
+            // the reasoning above). Order from SETTINGS_TAB_KEYS.
+            for (size_t i = 0; i < SETTINGS_TAB_COUNT; i++) {
+                // Rocrail-Radio nur rendern, wenn der Tab auch sichtbar ist
+                // (siehe generateSettingsTabNav()) - ein verwaistes, nie
+                // anklickbares Radio waere sonst nutzlos.
+                // Only render the Rocrail radio when the tab is also
+                // visible (see generateSettingsTabNav()) - an orphaned,
+                // never-clickable radio would otherwise be pointless.
+                if (String(SETTINGS_TAB_KEYS[i]) == "rocrail" && !rocrailEnabled) continue;
+
+                chunk += "<input type='radio' name='tabs' id='tab-" + String(SETTINGS_TAB_KEYS[i]) +
+                         "' class='tabctrl'" + (i == 0 ? " checked" : "") + ">";
+            }
+
+            chunk += generateSettingsTabNav(false);
 
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: Status (read-only Systeminfos - unveraendert aus der
-            // bisherigen eigenstaendigen /status-Seite uebernommen)
-            // #####################################################################
+            // Panel Status: identisch zur bisherigen /status-Seite, in eine
+            // .card gepackt (900px breit, zentriert, scrollbar) statt volle
+            // Seitenbreite - siehe Kommentar an der Kartenoeffnung unten.
 
-            // #####################################################################
-            // Panel: status (read-only system info - identisch zur bisherigen
-            // eigenstaendigen /status-Seite, inklusive "Actual Preferences" -
-            // es gibt bewusst nur noch EINE Status-Ansicht mit vollem Umfang,
-            // nicht mehr eine gekuerzte Tab-Version plus separate volle Seite.
-
-            // Panel: status (read-only system info - identical to the previous
-            // standalone /status page, including "Actual Preferences" -
-            // deliberately only ONE full-detail status view now, not a
-            // shortened tab version plus a separate full page)
-            // #####################################################################
-            // In eine .card gepackt (mittelbreite, zentrierte Box - wie die
-            // anderen Tabs), statt die Liste ueber die volle Seitenbreite
-            // laufen zu lassen - .card setzt bereits text-align:left, der
-            // Inhalt bleibt also linksbuendig, nur der umgebende Rahmen wird
-            // schmaler und zentriert.
-            // Wrapped in a .card (medium-width, centered box - like the
-            // other tabs), instead of letting the list run the full page
-            // width - .card already sets text-align:left, so the content
-            // stays left-aligned, only the surrounding box becomes narrower
-            // and centered.
+            // Status panel: identical to the previous /status page, wrapped
+            // in a .card (900px wide, centered, scrollable) instead of full
+            // page width - see the comment at the card's opening below.
             chunk += "<div class='tabpanel panel-status'>";
-            chunk += "<div class='card'>";
+            // Scrollbares Fenster wie beim Log- und Info-Tab (gleiche Hoehe
+            // ueber INFO_LOG_WINDOW_HEIGHT_CSS, gleiche 900px-Breite) - vorher
+            // wuchs diese Karte ueber die ganze Seitenlaenge, sodass die Seite
+            // selbst scrollte statt nur der Inhalt (siehe Kommentar im Info-Tab).
+
+            // Scrollable window like the Log and Info tabs (same height via
+            // INFO_LOG_WINDOW_HEIGHT_CSS, same 900px width) - before, this card
+            // grew over the full page length, so the page itself scrolled
+            // instead of just the content (see the comment in the Info tab).
+            chunk += "<div class='card' id='statusContent' style='max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;'>";
             chunk += "<ul>";
             chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
 
@@ -5074,17 +4854,8 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Explizite Erkennung zusaetzlich zu Groesse/Frei: ohne PSRAM stehen
-            // beide Werte auf 0, was sich nicht von "PSRAM da, aber voll"
-            // unterscheiden laesst. Der Wert entscheidet beim GC9D01 ausserdem
-            // darueber, ob die Software-Rotation aktiv ist (siehe "rotation mode"
-            // weiter unten und gc9d01SwRotation in uhr3.ino).
-
-            // Explicit detection in addition to size/free: without PSRAM both
-            // values read 0, which is indistinguishable from "PSRAM present but
-            // full". On the GC9D01 this value also decides whether software
-            // rotation is active (see "rotation mode" further below and
-            // gc9d01SwRotation in uhr3.ino).
+            // PSRAM-Erkennung, siehe Kommentar oben in /status.
+            // PSRAM detection, see the comment above in /status.
             chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
             chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
             chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
@@ -5218,46 +4989,18 @@
             chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
             chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-            // Bugfix: getUInt() auf einen Key, der ueberall mit putLong() geschrieben wird -
-            // NVS meldet dabei ESP_ERR_NVS_TYPE_MISMATCH und Preferences liefert
-            // kommentarlos den Default zurueck. Die Statusseite zeigte deshalb nie die
-            // echte Nabenfarbe. Ausserdem stimmte das Label nicht: gespeichert wird
-            // 24-Bit RGB888, nicht RGB565.
-            // Bugfix: getUInt() on a key that is written with putLong() everywhere -
-            // NVS reports ESP_ERR_NVS_TYPE_MISMATCH and Preferences silently returns
-            // the default. So the status page never showed the real hub color. The
-            // label was wrong too: what is stored is 24-bit RGB888, not RGB565.
+            // centerColor/rotation mode: siehe Kommentare oben in /status.
+            // centerColor/rotation mode: see the comments above in /status.
             chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
             uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
             const char* statusRotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             chunk += "<li><b>tftRotation1</b>: " + String(statusRotationLabels[rotation]) + "</li>";
-            // Direkt unter tftRotation1, damit beide Rotationswerte untereinander stehen -
-            // Display 2 ist fest aktiviert, daher immer sichtbar.
-
-            // Directly under tftRotation1, so both rotation values are listed one below
-            // the other - Display 2 is permanently enabled, so this is always shown.
             {
                 uint8_t rotation2Panel = preferences.getUChar(PK_TFT_ROTATION2, 0);
                 chunk += "<li><b>tftRotation2</b>: " + String(statusRotationLabels[rotation2Panel]) + "</li>";
             }
-
-            // Rotationsmodus: macht sichtbar, WIE die beiden Rotationswerte oben
-            // ueberhaupt angewendet werden - das war von aussen bisher nicht
-            // erkennbar. Beim GC9D01 wird der GC9A01-Treiber wiederverwendet,
-            // dessen Hardware-Rotation dort wirkungslos bleibt; nur mit genuegend
-            // PSRAM wird deshalb auf Software-Rotation umgeschaltet (siehe
-            // gc9d01SwRotation in uhr3.ino sowie rotatedAngle()/loadClockFace()
-            // und beginStatusDraw()/endStatusDraw() in display.h).
-
-            // Rotation mode: makes visible HOW the two rotation values above are
-            // actually applied - which could not be told from the outside before.
-            // On the GC9D01 the GC9A01 driver is reused, whose hardware rotation
-            // has no effect there; only with enough PSRAM does it switch to
-            // software rotation (see gc9d01SwRotation in uhr3.ino as well as
-            // rotatedAngle()/loadClockFace() and beginStatusDraw()/
-            // endStatusDraw() in display.h).
             chunk += "<li><b>rotation mode</b>: ";
             if (gc9d01SwRotation) {
                 chunk += "software (pixel remap, GC9D01 with PSRAM)";
@@ -5298,6 +5041,11 @@
             if (preferences.getBool(PK_USE_TOUCH, false)) {
                 chunk += "<li><b>use Touch</b>: " + String(preferences.getBool(PK_USE_TOUCH, false) ? "true" : "false") + "</li>";
             }
+            if (preferences.getBool(PK_ROCRAIL_ENABLED, false)) {
+                chunk += "<li><b>rocrailEnabled</b>: " + String(preferences.getBool(PK_ROCRAIL_ENABLED, false) ? "true" : "false") + "</li>";
+                chunk += "<li><b>rocrailServer</b>: " + preferences.getString(PK_ROCRAIL_SERVER, "") + "</li>";
+                chunk += "<li><b>rocrailServerPort</b>: " + String(preferences.getUShort(PK_ROCRAIL_SRV_PORT, ROCRAIL_DEFAULT_PORT)) + "</li>";
+            }
             chunk += "</ul>";
             chunk += "</br>";
             chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
@@ -5311,71 +5059,33 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: Log - zeigt immer den Inhalt der aktuell aktiven Logdatei
-            // (siehe getCurrentLogFileName() in system_utils.h - loest die
-            // Datei bei JEDEM Aufruf/Refresh frisch auf, damit eine Rotation
-            // waehrend des Betrachtens automatisch beruecksichtigt wird).
-            // Enthaelt eine per Checkbox abschaltbare 10-Sekunden-Auto-Refresh
-            // (Zustand in localStorage gemerkt, Default: aus) sowie einen
-            // manuellen "Jetzt aktualisieren"-Button, ueber den /api/currentLog
-            // Endpunkt weiter unten. Der eigentliche Loginhalt wird bewusst
-            // NICHT serverseitig mitgerendert (nur ein Platzhalter), sondern
-            // per JS gleich beim Laden aus /api/currentLog nachgeladen - siehe
-            // Kommentar bei "Lazy-Load" weiter unten fuer die Begruendung.
-            // Bewusst NACH Status platziert (siehe Tab-Reihenfolge weiter
-            // oben).
-            // #####################################################################
+            // Panel Log: zeigt die aktuell aktive Logdatei, mit abschaltbarem
+            // 10s-Auto-Refresh und manuellem Button ueber /api/currentLog.
+            // Inhalt wird per JS lazy-geladen statt serverseitig mitgerendert.
 
-            // #####################################################################
-            // Panel: Log - always shows the content of the currently active
-            // log file (see getCurrentLogFileName() in system_utils.h -
-            // resolved fresh on EVERY call/refresh, so a rotation while the
-            // tab is open is picked up automatically). Includes a togglable
-            // 10-second auto-refresh (state remembered in localStorage,
-            // default: off) as well as a manual "Refresh now" button, via the
-            // /api/currentLog endpoint further below. The actual log content
-            // is deliberately NOT rendered server-side (just a placeholder) -
-            // instead it's lazy-loaded via JS right on page load from
-            // /api/currentLog, see the "lazy load" comment further below for
-            // the reasoning. Deliberately placed AFTER Status (see tab order
-            // further above).
-            // #####################################################################
+            // Log panel: shows the currently active log file, with a
+            // togglable 10s auto-refresh and a manual button via
+            // /api/currentLog. Content is lazy-loaded via JS, not server-rendered.
             chunk += "<div class='tabpanel panel-log'>";
 
-            // Aktueller Log-Dateiname wird fuer die Anzeige aufgeloest - das
-            // ist NUR ein Preferences-Zugriff (siehe getCurrentLogFileName()
-            // in system_utils.h), kein Datei-Lesevorgang, also unproblematisch
-            // bei jedem Seitenaufruf. Der JS-Refresh unten aktualisiert
-            // #logFileName danach eigenstaendig ueber den X-Log-File Header
-            // von /api/currentLog, damit eine Rotation waehrend des
-            // Betrachtens sichtbar wird.
+            // Nur ein Preferences-Zugriff, kein Datei-Lesevorgang - unproblematisch
+            // bei jedem Seitenaufruf. JS-Refresh haelt #logFileName aktuell.
 
-            // The current log filename is resolved for display - this is
-            // ONLY a Preferences lookup (see getCurrentLogFileName() in
-            // system_utils.h), not a file read, so it's unproblematic on
-            // every page load. The JS refresh below then keeps #logFileName
-            // up to date independently via the X-Log-File header of
-            // /api/currentLog, so a rotation while the tab is open becomes
-            // visible.
+            // Just a Preferences lookup, not a file read - unproblematic on
+            // every page load. The JS refresh keeps #logFileName up to date.
             String currentLogFileName = loggingEnabled ? getCurrentLogFileName() : "-";
 
-            // Breite bewusst auf 900px angehoben (Standard-.card waere nur
-            // 500px) - sonst stuende diese schmalere Karte optisch versetzt
-            // ueber dem breiteren <pre>-Logfenster darunter, das ebenfalls
-            // 900px breit ist (siehe dort).
-            // Width deliberately widened to 900px (the default .card would
-            // be only 500px) - otherwise this narrower card would sit
-            // visually offset above the wider <pre> log window below, which
-            // is also 900px wide (see there).
-            // disabledAttr: ist Logging deaktiviert, liefert /api/currentLog
-            // ohnehin dauerhaft nur "Logging ist deaktiviert" - Checkbox und
-            // Button werden dann deaktiviert (statt einen Klick zu erlauben,
-            // der sichtbar nichts bewirkt).
-            // disabledAttr: if logging is disabled, /api/currentLog would
-            // permanently just return "Logging is disabled" anyway - the
-            // checkbox and button are then disabled (instead of allowing a
-            // click that visibly does nothing).
+            // 900px statt Standard-.card (500px), damit sie mit dem gleich
+            // breiten <pre>-Logfenster darunter fluchtet.
+
+            // 900px instead of the default .card (500px), so it aligns with
+            // the equally wide <pre> log window below.
+
+            // disabledAttr: bei deaktiviertem Logging haette ein Klick ohnehin
+            // keinen sichtbaren Effekt.
+
+            // disabledAttr: with logging disabled, a click would have no
+            // visible effect anyway.
             String disabledAttr = loggingEnabled ? "" : " disabled";
 
             chunk += "<div class='card' style='max-width:900px;'>";
@@ -5385,106 +5095,32 @@
             chunk += "<input type='checkbox' id='logAutoRefresh' style='width:auto;margin:0;'" + disabledAttr + ">";
             chunk += translate("Auto-refresh (10s)");
             chunk += "</label>";
-            // Bewusst NICHT die vorhandene .reset-btn Klasse (Neustart-Button
-            // oben in der Topbar) wiederverwendet: deren Hover-/Focus-Zustand
-            // ist fest auf var(--bad) (rot) eingefaerbt, um vor der
-            // Gefahren-Aktion "Neustart" zu warnen - fuer ein harmloses
-            // "Jetzt aktualisieren" waere das irrefuehrend. Eigene, neutrale
-            // Farbgebung analog zu .tabnav label.
-            // Deliberately NOT reusing the existing .reset-btn class (the
-            // reboot button up in the topbar): its hover/focus state is
-            // hard-coded to var(--bad) (red) to warn about the dangerous
-            // "reboot" action - misleading for a harmless "refresh now".
-            // Own, neutral styling mirroring .tabnav label instead.
+            // Nicht .reset-btn wiederverwendet - dessen rote Warnfarbe waere
+            // fuer ein harmloses "Jetzt aktualisieren" irrefuehrend.
+
+            // Not reusing .reset-btn - its red warning color would be
+            // misleading for a harmless "refresh now".
             chunk += "<button type='button' id='logRefreshNow' style='background:var(--panel);border:1px solid var(--panel-border);color:var(--text);border-radius:.4rem;padding:4px 12px;font-size:.8rem;cursor:pointer;'" + disabledAttr + ">" + translate("Refresh now") + "</button>";
             chunk += "<span id='logErrorHint' class='offline-hint'>&#9888; " + translate("Refresh failed - showing last known content") + "</span>";
             chunk += "</div>";
             chunk += "</div>";
 
-            // Kein serverseitiges Vorab-Lesen der Logdatei mehr (frueher hier
-            // per LittleFS.open()/readString() bis zu 10 KB pro Seitenaufruf,
-            // siehe "Lazy-Load"-Kommentar unten) - nur ein Platzhalter, der
-            // Inhalt kommt gleich beim Laden per JS von /api/currentLog.
+            // Kein serverseitiges Vorlesen mehr - nur ein Platzhalter, Inhalt
+            // kommt per JS von /api/currentLog (siehe "Lazy-Load" unten).
 
-            // No more server-side pre-reading of the log file (previously up
-            // to 10 KB per page load via LittleFS.open()/readString(), see
-            // the "lazy load" comment below) - just a placeholder, the actual
-            // content arrives right on load via JS from /api/currentLog.
-            chunk += "<pre id='logContent' style='background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:900px;height:400px;overflow-y:auto;margin:15px auto;padding:12px 16px;text-align:left;white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:.85rem;'>";
+            // No more server-side pre-reading - just a placeholder, content
+            // arrives via JS from /api/currentLog (see "lazy load" below).
+            chunk += "<pre id='logContent' style='background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;margin:15px auto;padding:12px 16px;text-align:left;white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:.85rem;'>";
             chunk += loggingEnabled ? translate("Loading&hellip;") : translate("Logging is disabled.");
             chunk += "</pre>";
 
-            // Auto-Refresh: Checkbox-Zustand in localStorage gemerkt (Default
-            // aus, falls noch nichts gespeichert ist). Bei aktivem Refresh
-            // wird alle 10s /api/currentLog gepollt und der <pre>-Inhalt
-            // ersetzt; bei deaktiviertem Refresh passiert kein Polling mehr,
-            // nur der "Jetzt aktualisieren"-Button oder das Einschalten der
-            // Checkbox loesen dann noch einen Abruf aus. Pausiert zusaetzlich
-            // per visibilitychange, waehrend der Browser-Tab im Hintergrund
-            // ist - analog zum Live-Status-Skript der Topbar weiter oben
-            // (siehe Kommentar dort: "unnoetige Anfragen an den ESP32
-            // sparen") - und holt beim Zurueckkehren sofort den aktuellen
-            // Stand nach, statt bis zu 10s auf den naechsten Intervall-Tick
-            // zu warten.
-            //
-            // Lazy-Load: der initiale Loginhalt wird NICHT mehr serverseitig
-            // mitgerendert (siehe Platzhalter oben), sondern hier per fetch()
-            // direkt beim Laden nachgeladen - die CSS-only-Tabs rendern ALLE
-            // Panels bei JEDEM Aufruf von "/" mit, auch wenn der Log-Tab nie
-            // geoeffnet wird; ein serverseitiges Lesen von bis zu 10 KB aus
-            // LittleFS bei jedem Seitenaufruf (WLAN, Helligkeit, ...) waere
-            // unnoetiger Heap-/CPU-Verbrauch auf dem speicherknappen ESP32.
-            // Ist Logging deaktiviert wird der Platzhalter-Text stehen
-            // gelassen und gar nicht erst gepollt - da /api/currentLog dann
-            // ohnehin nur "Logging ist deaktiviert" liefern wuerde.
-            //
-            // Fehleranzeige: schlaegt ein Abruf fehl (z.B. WLAN kurz weg),
-            // bleibt der zuletzt bekannte Inhalt sichtbar, statt ihn
-            // stillschweigend zu verwerfen - #logErrorHint (analog zu
-            // "#topbar-offline-hint" oben) macht das sichtbar; verschwindet
-            // automatisch beim naechsten erfolgreichen Abruf.
-            //
-            // Scroll-Verhalten: JEDER Log-Refresh (Timer-Tick, Checkbox
-            // einschalten, "Jetzt aktualisieren"-Button, Rueckkehr aus dem
-            // Hintergrund) scrollt IMMER ans Ende - klassisches "tail -f"-
-            // Verhalten. Eine fruehere Fassung scrollte bei automatischen
-            // Hintergrund-Refreshs nur, wenn man schon (nahe) am Ende war,
-            // um die Ansicht beim Lesen aelterer Zeilen nicht wegzureissen -
-            // das wurde auf ausdruecklichen Wunsch durch dieses einfachere
-            // "immer ans Ende" ersetzt: wer Auto-Refresh aktiviert hat, will
-            // dem Live-Log folgen.
+            // Auto-Refresh: Checkbox-Status in localStorage, pollt alle 10s
+            // per fetch() (Lazy-Load, da CSS-only-Tabs immer mitrendern).
+            // Scrollt bei jedem Refresh ans Ende (tail -f).
 
-            // Also pauses via visibilitychange while the browser tab is in
-            // the background - mirroring the topbar's live-status script
-            // further above (see the comment there: "saves pointless
-            // requests to the ESP32") - and immediately catches up on
-            // return instead of waiting up to 10s for the next interval tick.
-            //
-            // Lazy load: the initial log content is no longer rendered
-            // server-side (see the placeholder above) - instead it's fetched
-            // here right on load. The CSS-only tabs render ALL panels on
-            // EVERY "/" request, even if the Log tab is never opened; a
-            // server-side read of up to 10 KB from LittleFS on every page
-            // load (WiFi, brightness, ...) would be pointless heap/CPU usage
-            // on the memory-constrained ESP32. If logging is disabled, the
-            // placeholder text is left as-is and never polled at all - since
-            // /api/currentLog would just return "Logging is disabled." anyway.
-            //
-            // Error display: if a fetch fails (e.g. WiFi briefly drops), the
-            // last known content stays visible instead of being silently
-            // discarded - #logErrorHint (mirroring "#topbar-offline-hint"
-            // above) makes that visible; disappears automatically on the
-            // next successful fetch.
-            //
-            // Scroll behavior: EVERY log refresh (timer tick, enabling the
-            // checkbox, the "Refresh now" button, returning from the
-            // background) ALWAYS scrolls to the bottom - classic "tail -f"
-            // behavior. An earlier version only auto-scrolled a background
-            // refresh if the view was already (near) the bottom, to avoid
-            // yanking the view away while reading older lines - replaced, on
-            // explicit request, by this simpler "always scroll to the
-            // bottom": enabling Auto-Refresh means you want to follow the
-            // live log.
+            // Auto-refresh: checkbox state in localStorage, polls
+            // via fetch() every 10s (lazy load, since CSS-only tabs always
+            // render). Scrolls to bottom on every refresh (tail -f).
             chunk += "<script>";
             chunk += "(function() {";
             chunk += "  var cb = document.getElementById('logAutoRefresh');";
@@ -5537,18 +5173,14 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: WLAN (unveraendert aus der bisherigen eigenstaendigen
-            // /wifi-Seite uebernommen - Hostname-Formular, WPS/Rescan, WLAN-Slots)
-            // #####################################################################
+            // Panel: WLAN, uebernommen aus der frueheren eigenstaendigen
+            // /wifi-Seite (Hostname-Formular, WPS/Rescan, WLAN-Slots).
 
-            // #####################################################################
-            // Panel: WiFi (unchanged, taken over from the previous standalone
-            // /wifi page - hostname form, WPS/rescan, WiFi slots)
-            // #####################################################################
+            // Panel: WiFi, taken over from the former standalone /wifi
+            // page (hostname form, WPS/rescan, WiFi slots).
             chunk += "<div class='tabpanel panel-wlan'>";
 
-            if (webserver.arg("msg") == "WPS active - press the WPS button on your router now (within 2 minutes)") {
+            if (webserver.arg("msg") == "WPS active - press the WPS button on your router now. Connection to the clock may be lost for about 2 minutes while this happens") {
                 String hostnameTargetJs = pingHostname ? ("'http://" + String(hostname) + ".local/'") : "null";
                 chunk += "<script>";
                 chunk += "(function() {";
@@ -5606,23 +5238,12 @@
             chunk += "<form method='POST' action='/sethostname'>";
             chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;'>";
             chunk += "<label>" + translate("Hostname") + ":</label>";
-            // HINWEIS: hostname wird hier bewusst NICHT escapeHtmlText()-behandelt -
-            // title ist mit "'" begrenzt, ein "'" im Hostnamen wuerde also
-            // trotzdem ausbrechen koennen (Hostname stammt aus /sethostname,
-            // s. Kommentar oben beim value-Attribut). Deshalb hier zusaetzlich escapen.
-            // NOTE: hostname is deliberately NOT left unescaped here either -
-            // title is delimited with "'", so a "'" in the hostname could still
-            // break out (hostname comes from /sethostname, see the comment
-            // above at the value attribute). So escape it here too.
+            // hostname kommt unfiltriert aus /sethostname - ohne escapeHtmlText()
+            // koennte ein "'" darin dieses title-Attribut aufbrechen.
+
+            // hostname comes unfiltered from /sethostname - without
+            // escapeHtmlText(), a "'" in it could break out of this title attribute.
             chunk += "<span title='" + translate("The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.") + " http://" + escapeHtmlText(String(hostname)) + ".local. " + translate("A restart is required for a changed hostname to take effect. Not all routers support hostname resolution") + ".' style='cursor:help;'>&#9432;</span>";
-            // escapeHtmlText(): hostname wird vom Nutzer selbst gesetzt
-            // (/sethostname) und ohne Zeichenfilterung gespeichert - ohne
-            // Escaping haette ein "'" darin dieses value-Attribut aufbrechen
-            // und beliebiges HTML/Attribute einschleusen koennen.
-            // escapeHtmlText(): hostname is set by the user themselves
-            // (/sethostname) and stored without character filtering -
-            // without escaping, a "'" in it could have broken this value
-            // attribute and injected arbitrary HTML/attributes.
             chunk += "<input name='hostname' maxlength='30' value='" + escapeHtmlText(String(hostname)) + "' style='width:170px;'>";
             chunk += "<button type='submit' style='width:140px;'>" + translate("Save") + "</button>";
             chunk += "</div>";
@@ -5635,7 +5256,7 @@
             chunk += "<form method='POST' action='/api/startWPS' style='margin:0;'>";
             chunk += "<button type='submit' style='width:170px;'>" + translate("Add Network via WPS") + "</button>";
             chunk += "</form>";
-            chunk += "<span title='" + translate("Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 3 minutes while this happens") + ".' style='cursor:help;'>&#9432;</span>";
+            chunk += "<span title='" + translate("Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 2 minutes while this happens") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "<button id='rescanBtn' type='button' style='width:170px;'>" + translate("Rescan Networks") + "</button>";
             chunk += "<span title='" + translate("Scans for available WiFi networks again and refreshes the dropdown lists below") + ".' style='cursor:help;'>&#9432;</span>";
             chunk += "</div><br>";
@@ -5673,32 +5294,18 @@
                 chunk += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
                 chunk += "<select id='" + ssidSelectId + "' onchange=\"document.getElementById('" + ssidKey + "').value=this.value\" style='max-width:180px;'>";
                 chunk += "</select>";
-                // escapeHtmlText(): wifiSsid[i] stammt aus gespeicherten Preferences,
-                // die urspruenglich aus einem WLAN-Scan oder einer Nutzereingabe (/savewifi)
-                // stammen - ein SSID-Name mit "'" darin wuerde sonst dieses value-Attribut
-                // aufbrechen koennen (gespeicherte/stored XSS ueber SSID-Namen).
-                // escapeHtmlText(): wifiSsid[i] comes from stored preferences, originally
-                // populated from a WiFi scan or user input (/savewifi) - an SSID name
-                // containing "'" could otherwise break out of this value attribute
-                // (stored XSS via SSID name).
+                // wifiSsid[i] stammt aus WLAN-Scan/Nutzereingabe (/savewifi) -
+                // ohne escapeHtmlText() koennte ein "'" im SSID-Namen dieses
+                // value-Attribut aufbrechen (stored XSS).
+
+                // wifiSsid[i] comes from a WiFi scan/user input (/savewifi) -
+                // without escapeHtmlText(), a "'" in the SSID name could break
+                // out of this value attribute (stored XSS).
                 chunk += "<input name='" + ssidKey + "' id='" + ssidKey + "' placeholder='" + ssidKey + "' value='" + escapeHtmlText(wifiSsid[i]) + "' style='width:110px;'>";
                 chunk += "<input name='" + passKey + "' id='" + passKey + "' placeholder='Password' type='password' value='' style='width:110px;'>";
                 if (wifiSsid[i] != "") {
-                    // "Verbinden"-Button nur anzeigen, wenn mehr als ein Netzwerk
-                    // gespeichert ist - bei nur einem Eintrag ist er bereits
-                    // (oder wird beim Speichern) die aktive Verbindung.
-
-                    // Only show the "Connect" button when more than one network
-                    // is saved - with just one entry it's already (or will
-                    // become, once saved) the active connection anyway.
-                    // escapeForJsStringInAttr(..., '"'): outer HTML-Attribut nutzt "'" (per
-                    // HTML-Entity zu escapen), das innere JS-String-Literal in confirm(...)
-                    // nutzt '"' (per Backslash zu escapen) - siehe Erklaerung bei der Definition
-                    // von escapeForJsStringInAttr() weiter oben in dieser Datei.
-                    // escapeForJsStringInAttr(..., '"'): the outer HTML attribute uses "'"
-                    // (escape via HTML entity), the inner JS string literal in confirm(...)
-                    // uses '"' (escape via backslash) - see the explanation at
-                    // escapeForJsStringInAttr()'s definition earlier in this file.
+                    // "Verbinden"-Button nur bei mehr als einem gespeicherten Netzwerk.
+                    // "Connect" button only when more than one network is saved.
                     if (savedWifiCount > 1) {
                         chunk += " <a href='/api/connectWifi?index=" + String(i) + "' onclick='return confirm(\"" + translate("Connect") + " " + escapeForJsStringInAttr(wifiSsid[i], '"') + "?\")'>" + translate("Connect") + "</a>";
                     }
@@ -5761,7 +5368,7 @@
                 chunk += "  var " + select + " = document.getElementById('" + ssidSelectId + "');";
                 chunk += "  var " + input + " = document.getElementById('" + ssidKey + "');";
                 chunk += "  var " + current + " = " + input + ".value;";
-                chunk += "  " + select + ".innerHTML = \"<option>WLAN scan in progress...</option>\";";
+                chunk += "  " + select + ".innerHTML = \"<option>" + translate("WLAN scan in progress") + "...</option>\";";
                 chunk += "  fetch('/api/scanwifi')";
                 chunk += "    .then(response => response.json())";
                 chunk += "    .then(data => {";
@@ -5775,7 +5382,7 @@
                 chunk += "        " + select + ".appendChild(opt);";
                 chunk += "      });";
                 chunk += "    })";
-                chunk += "    .catch(() => { " + select + ".innerHTML = \"<option>Scan failed</option>\"; });";
+                chunk += "    .catch(() => { " + select + ".innerHTML = \"<option>" + translate("Scan failed") + "</option>\"; });";
 
                 if (i % 3 == 2) {
                     webserver.sendContent(chunk);
@@ -5794,15 +5401,8 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: Zifferblatt (Anzeige-Einstellungen - unveraendert aus der
-            // bisherigen "/"-Seite uebernommen)
-            // #####################################################################
-
-            // #####################################################################
-            // Panel: clock face (display settings - unchanged, taken over from the
-            // previous "/" page)
-            // #####################################################################
+            // Panel Zifferblatt: Anzeige-Einstellungen.
+            // Clock face panel: display settings.
             chunk += "<div class='tabpanel panel-zifferblatt'>";
             chunk += "<form action='/applydisplaysettings' method='POST'>";
             chunk += "<div class='card'>";
@@ -5818,21 +5418,10 @@
             chunk += " <span title='" + translate("Shows or hides the second hand on the clock face") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothMinute' value='1' ";
-            // Default false, wie ueberall sonst (siehe Kommentar bei
-            // smoothMinuteActive weiter oben in dieser Datei) - hier stand
-            // abweichend "true": direkt nach einem Werkreset zeigte diese
-            // Checkbox faelschlich "aktiviert", obwohl der Minutenzeiger
-            // tatsaechlich in 1-Minuten-Schritten sprang. Speicherte man das
-            // Formular unveraendert (z.B. weil nur eine andere Einstellung
-            // geaendert werden sollte), wurde "Smooth Minute Hand" dadurch
-            // ungewollt aktiviert.
-            // Default false, matching everywhere else (see the comment at
-            // smoothMinuteActive further above in this file) - this used to
-            // say "true": right after a factory reset this checkbox falsely
-            // showed as "enabled", even though the minute hand actually
-            // jumped in 1-minute steps. Saving the form unchanged (e.g.
-            // because only some other setting was meant to change) would
-            // then unintentionally enable "Smooth Minute Hand".
+            // Bugfix: Default muss false sein, sonst zeigte die Checkbox nach
+            // einem Werksreset faelschlich "aktiviert".
+            // Bugfix: default must be false, otherwise the checkbox falsely
+            // showed "enabled" after a factory reset.
             chunk += preferences.getBool(PK_SMOOTH_MINUTE, false) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
             chunk += " <span title='" + translate("The minute hand moves smoothly instead of jumping in 1-minute steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
@@ -5842,35 +5431,25 @@
             chunk += " style='width:auto;margin:0;'>" + translate("Reconnect WiFi");
             chunk += " <span title='" + translate("Automatically tries to reconnect if the WiFi connection is lost") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
+            // Default aus - schaltet Nutzung und Sichtbarkeit des separaten
+            // Rocrail-Tabs frei (siehe generateSettingsTabNav()).
+            // Default off - unlocks use and visibility of the separate
+            // Rocrail tab (see generateSettingsTabNav()).
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='rocrailEnabled' value='1' ";
+            chunk += rocrailEnabled ? "checked" : "";
+            chunk += " style='width:auto;margin:0;'>" + translate("Rocrail");
+            chunk += " <span title='" + translate("Take over the model time from a Rocrail server (model railroad control software) for the hands - unlocks the Rocrail tab, where the server address can then be entered") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='loggingEnabled' value='1' ";
             chunk += loggingEnabled ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Enable Logging");
             chunk += " <span title='" + translate("Writes up to 9 log files to LittleFS for troubleshooting") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            // Nur auf Builds mit angeschlossenem DCF77-Empfaenger UND erst,
-            // sobald DCF77 auch tatsaechlich erkannt wurde (dcf77Confirmed,
-            // siehe globals.h/checkDcf77Health() - mehrere aufeinanderfolgende,
-            // plausibel getaktete Pegelwechsel, derselbe Massstab wie fuer den
-            // Nav-Link/Topbar-Punkt). Vorher stand hier bewusst KEINE Kopplung
-            // an dcf77Confirmed, mit der Begruendung, dass die LED gerade in
-            // der Phase davor am haeufigsten blinkt und man sie dann nicht
-            // abschalten koennte. Auf ausdruecklichen Wunsch geaendert: ohne
-            // jemals erkanntes DCF77-Signal (z.B. kein Empfaenger angeschlossen
-            // oder Antenne/Kabel defekt) soll die Option gar nicht erst
-            // auftauchen, statt eine Einstellung fuer eine Funktion anzubieten,
-            // die erkennbar nicht funktioniert.
-            //
-            // Only visible on builds with a DCF77 receiver wired up AND only
-            // once DCF77 has actually been recognized (dcf77Confirmed, see
-            // globals.h/checkDcf77Health() - several consecutive, plausibly
-            // timed level changes, the same yardstick used for the nav
-            // link/topbar dot). This used to be deliberately NOT tied to
-            // dcf77Confirmed, reasoning that the LED blinks most often in
-            // exactly the phase before that and couldn't then be turned off.
-            // Changed on explicit request: without a DCF77 signal ever having
-            // been recognized (e.g. no receiver wired up, or a broken
-            // antenna/cable), the option should not appear at all instead of
-            // offering a setting for a feature that is visibly not working.
+            // Nur sichtbar mit DCF77-Hardware UND dcf77Confirmed - ohne je
+            // erkanntes Signal soll die Option gar nicht erst auftauchen.
+
+            // Only visible with DCF77 hardware AND dcf77Confirmed - without a
+            // signal ever recognized, the option should not appear at all.
 #if defined(DCF77_DATAPIN) && defined(DCF77_INTERRUPT)
             if (dcf77Confirmed) {
                 chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='dcfSyncLed' value='1' ";
@@ -5902,6 +5481,21 @@
             }
             chunk += "</select></div>";
 
+            // Hinweis: bei nur einem tatsaechlich verbauten Display sollten
+            // beide Rotationswerte gleich stehen - dann liefert Display 2
+            // (siehe updateClock() in display.h: ohne Software-Rotation wird
+            // fuer Display 2 kein eigener Frame berechnet, sondern derselbe
+            // Frame wie fuer Display 1 einfach erneut gesendet) ein
+            // konsistentes Bild statt eines mit falscher Rotation.
+
+            // Hint: with only one display physically present, both rotation
+            // values should be set equal - then Display 2 (see updateClock()
+            // in display.h: without software rotation, no separate frame is
+            // computed for Display 2, the same frame built for Display 1 is
+            // simply re-sent) shows a consistent image instead of one with
+            // the wrong rotation.
+            chunk += "<small>" + translate("If only one display is physically connected, set both rotations to the same value") + ".</small><br><br>";
+
             chunk += "</div>";
             chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
             chunk += "</form>";
@@ -5911,16 +5505,29 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: Helligkeit (unveraendert aus der bisherigen /brightness-Seite
-            // uebernommen, inkl. optionalem Plotly-Gamma-Chart)
-            // #####################################################################
+            // Panel: Helligkeit, uebernommen aus der frueheren /brightness-Seite
+            // (inkl. optionalem Plotly-Gamma-Chart).
 
-            // #####################################################################
-            // Panel: brightness (unchanged, taken over from the previous
-            // /brightness page, incl. optional Plotly gamma chart)
-            // #####################################################################
+            // Panel: brightness, taken over from the former /brightness
+            // page (incl. optional Plotly gamma chart).
             chunk += "<div class='tabpanel panel-helligkeit'>";
+
+            // Hinweis: solange Rocrail verbunden ist und mindestens einmal
+            // einen bri-Wert gemeldet hat, uebernimmt es die Helligkeit
+            // komplett (siehe updateBrightness() in display.h) - dieselbe
+            // Bedingung wie dort, hier nur zur Anzeige nochmal ausgewertet.
+
+            // Hint: as long as Rocrail is connected and has reported at
+            // least one bri value, it fully takes over the brightness (see
+            // updateBrightness() in display.h) - same condition as there,
+            // just re-evaluated here for display purposes.
+            bool rocrailBrightnessActiveForDisplay = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
+                                                      (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
+            if (rocrailBrightnessActiveForDisplay) {
+                chunk += "<div style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>" +
+                    translate("Brightness is currently taken over from Rocrail - the photoresistor and time-window settings below are inactive while connected") + ".</div><br>";
+            }
+
             chunk += "<form method='POST' action='/save_brightness'>";
 
             chunk += "<div class='card'>";
@@ -5937,18 +5544,11 @@
                 chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
                 chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
                 chunk += "<br>";
-                // Bei einem GET-Formular ersetzt der Browser die Query-String
-                // des "action"-Attributs durch die serialisierten Formularfelder -
-                // "?tab=helligkeit" in der Action-URL ginge also beim Abschicken
-                // verloren (Seite landete danach auf dem Standard-Tab statt auf
-                // Helligkeit). Daher als verstecktes Feld mitschicken, statt es
-                // nur in der Action-URL zu haben.
+                // Bei GET-Formularen ersetzt der Browser den Query-String der
+                // Action-URL durch die Formularfelder - "tab" daher als verstecktes Feld.
 
-                // With a GET form, the browser replaces the "action" attribute's
-                // query string with the serialized form fields - "?tab=helligkeit"
-                // in the action URL would therefore be lost on submit (page ended
-                // up on the default tab instead of Brightness). So send it as a
-                // hidden field instead of only having it in the action URL.
+                // With GET forms the browser replaces the action URL's query
+                // string with the form fields - so "tab" goes as a hidden field.
                 chunk += "<form method='GET' action='/'><input type='hidden' name='tab' value='helligkeit'><button type='submit'>" + translate("Refresh") + "</button></form>";
                 chunk += "<br>";
 
@@ -5957,7 +5557,14 @@
 
 #if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
-                chunk += "<h2>Gamma-Korrektur: adc -> targetBrightness</h2>\n";
+                // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
+                // Variablennamen aus dem Sketch, keine uebersetzbaren Woerter
+                // (gleiche Begruendung wie bei den Achsentiteln weiter unten).
+
+                // "adc"/"targetBrightness" stay untranslated: these are the
+                // sketch's variable names, not translatable words (same
+                // reasoning as for the axis titles further below).
+                chunk += "<h2>" + translate("Gamma Correction") + ": adc &rarr; targetBrightness</h2>\n";
                 chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
                 chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
                 chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
@@ -5978,6 +5585,18 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
+                // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
+                // HTML-Entities dabei NICHT - "&uuml;" stuende sonst woertlich
+                // im Titel. Deshalb wie bei den WLAN-Labels weiter unten ueber
+                // decodeHtml() aufloesen (siehe auch Hinweis in translation.h).
+
+                // Plotly renders the chart title as SVG text and does NOT
+                // decode HTML entities - "&uuml;" would show up literally in
+                // the title. So resolve it via decodeHtml(), same as the WiFi
+                // labels further below (see also the note in translation.h).
+                chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
+                chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
+
                 chunk += "function plotGamma(gamma) {\n";
                 chunk += "  const y = computeBrightness(gamma);\n";
                 chunk += "  Plotly.newPlot('plot', [{\n";
@@ -5986,7 +5605,7 @@
                 chunk += "    mode: 'lines',\n";
                 chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
                 chunk += "  }], {\n";
-                chunk += "    title: 'Gamma-Korrektur-Kurve',\n";
+                chunk += "    title: gammaCurveTitle,\n";
                 chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
                 chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
                 chunk += "  });\n";
@@ -6001,16 +5620,13 @@
                 chunk += "  plotGamma(gamma);\n";
                 chunk += "});\n\n";
 
-                // WICHTIG: Plotly kann in ein per CSS verstecktes (display:none)
-                // Panel nicht sinnvoll zeichnen (Container hat dort Breite/Hoehe 0).
-                // Daher hier NICHT sofort beim Laden zeichnen, sondern erst wenn
-                // der Helligkeit-Tab tatsaechlich aktiviert wird (bzw. sofort, falls
-                // er schon beim Laden aktiv ist).
+                // Plotly kann in ein per CSS verstecktes Panel nicht zeichnen
+                // (Breite/Hoehe 0) - daher erst beim Aktivieren des Tabs zeichnen
+                // (bzw. sofort, falls er schon aktiv ist).
 
-                // IMPORTANT: Plotly cannot meaningfully draw into a panel hidden via CSS
-                // (display:none) (the container has width/height 0 there). So do not
-                // draw immediately on load here, only once the brightness tab is
-                // actually activated (or immediately, if it is already active on load).
+                // Plotly cannot draw into a panel hidden via CSS (width/height 0) -
+                // so draw only once the tab is activated (or immediately, if it
+                // is already active).
                 chunk += "var gammaTab = document.getElementById('tab-helligkeit');\n";
                 chunk += "function drawGammaIfVisible() { if (gammaTab.checked) plotGamma(parseFloat(slider.value)); }\n";
                 chunk += "gammaTab.addEventListener('change', drawGammaIfVisible);\n";
@@ -6025,15 +5641,11 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: Zeit / NTP / Timezone (unveraendert aus der bisherigen
-            // /timezone_form-Seite uebernommen)
-            // #####################################################################
+            // Panel: Zeit/NTP/Timezone, uebernommen aus der frueheren
+            // /timezone_form-Seite.
 
-            // #####################################################################
-            // Panel: time / NTP / timezone (unchanged, taken over from the previous
-            // /timezone_form page)
-            // #####################################################################
+            // Panel: time/NTP/timezone, taken over from the former
+            // /timezone_form page.
             chunk += "<div class='tabpanel panel-zeit'>";
             {
                 String timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
@@ -6078,7 +5690,14 @@
 
                 for (int i = 0; i < MAX_WLAN; i++) {
                     chunk += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
-                    chunk += "NTP Server" + String(i + 1) + " : <input type = 'text' id='ntpServerInput" + String(i + 1) + "' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "' style='width:180px;'>";
+                    // Nummer getrennt angehaengt statt eigener Schluessel je Slot:
+                    // die Liste laeuft bis MAX_WLAN, dafuer gaebe es sonst 15
+                    // Tabelleneintraege ("NTP Server 1".."NTP Server 15").
+
+                    // Number appended separately instead of a key per slot: the
+                    // list runs up to MAX_WLAN, which would otherwise need 15
+                    // table entries ("NTP Server 1".."NTP Server 15").
+                    chunk += translate("NTP Server") + " " + String(i + 1) + " : <input type = 'text' id='ntpServerInput" + String(i + 1) + "' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "' style='width:180px;'>";
                     chunk += "<button type='button' onclick='testNtp(" + String(i + 1) + ")' style='width:180px;'>" + translate("Test") + "</button>";
                     chunk += "</div>";
                     chunk += "<div id='ntpTestResult" + String(i + 1) + "'></div>";
@@ -6128,24 +5747,135 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // #####################################################################
-            // Panel: System (Reboot, Verwaltung, Factory Reset - neu, verweist auf
-            // die weiterhin eigenstaendigen Seiten fuer die komplexeren, Datei-
-            // lastigen Bereiche statt sie hier nochmal nachzubauen)
+            // Panel Rocrail: Liste moeglicher Serveradressen (nur sichtbar,
+            // wenn der Master-Schalter auf dem Zeit-Tab aktiv ist) - wie bei
+            // den NTP-Servern immer ein leerer Platz nach dem letzten
+            // befuellten Eintrag (siehe updateNtpServersFromRequest()).
+            // Radio-Button je Eintrag waehlt den aktuell aktiven Server aus
+            // (per Definition hoechstens einer). Darunter ein per JS live
+            // gepollter Status (verbunden/verbindet, Divider, Anlagenname,
+            // aktuelle Modellzeit) - siehe /api/rocrailStatus und
+            // pollRocrailClient() in rocrail_client.h.
 
-            // #####################################################################
-            // #####################################################################
-            // Panel: system (reboot, management, factory reset - new, links to the
-            // still-standalone pages for the more complex, file-heavy areas instead of rebuilding them here)
-            // #####################################################################
-            // Erlaubt gezieltes Anspringen eines Tabs per ?tab=... (z.B. nach
-            // einem POST-Redirect von /save, /sethostname, /save_brightness,
-            // /set_timezone etc.) - rein clientseitig, da die Tab-Auswahl selbst
-            // per CSS-radio erfolgt und serverseitig kein Zustand dafuer noetig ist.
+            // Rocrail panel: list of possible server addresses (only visible
+            // when the master switch on the Time tab is on) - like the NTP
+            // servers, always one empty slot after the last filled entry
+            // (see updateNtpServersFromRequest()). A radio button per entry
+            // selects the currently active server (at most one by
+            // definition). Below it, a status polled live via JS (connected/
+            // connecting, divider, plan name, current model time) - see
+            // /api/rocrailStatus and pollRocrailClient() in rocrail_client.h.
+            chunk += "<div class='tabpanel panel-rocrail'>";
+            chunk += "<div class='card' style='max-width:900px;'>";
+            chunk += "<form method='POST' action='/save_rocrail'>";
 
-            // Allows jumping directly to a tab via ?tab=... (e.g. after a POST
-            // redirect from /save, /sethostname, /save_brightness, /set_timezone
-            // etc.) - purely client-side, since tab selection itself works via CSS radio and needs no server-side state.
+            for (int i = 0; i < MAX_WLAN; i++) {
+                chunk += "<div style='display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;'>";
+                chunk += "<input type='radio' name='activeServer' value='" + String(i) + "'" +
+                         String(i == rocrailActiveServerIndex ? " checked" : "") +
+                         " title='" + translate("Use this server") + "'>";
+                chunk += "<label>" + translate("Server") + " " + String(i + 1) + ":</label>";
+                chunk += "<input type='text' name='" + pkRocrailServerHost(i) + "' placeholder='" + translate("IP address or hostname") + "' style='width:180px;' value='" +
+                         escapeHtmlText(String(rocrailServerList[i])) + "'>";
+                chunk += "<label>" + translate("Port") + ":</label>";
+                chunk += "<input type='number' name='" + pkRocrailServerPort(i) + "' min='1' max='65535' style='width:90px;' value='" +
+                         String(rocrailServerPortList[i]) + "'>";
+                chunk += "<label>" + translate("Layout name") + ": <span title='" +
+                         translate("Filled in automatically from Rocrail once connected, as long as this field is left empty - edit it yourself to keep your own name, or clear it to let Rocrail fill it in again") +
+                         ".' style='cursor:help;'>&#9432;</span></label>";
+                chunk += "<input type='text' name='" + pkRocrailServerName(i) + "' placeholder='" + translate("optional") + "' style='width:150px;' value='" +
+                         escapeHtmlText(String(rocrailServerNameList[i])) + "'>";
+                chunk += "</div>";
+                if (trim(String(rocrailServerList[i])) == "") break;
+            }
+
+            chunk += "<small>" + translate("Rocrail model time can run much faster than real time (the divider) - the station-clock second-hand animation speeds up by the same factor instead of switching off, so it stays in sync with the model minutes") +
+                     ". " + translate("Above a divider of") + " " + String(ROCRAIL_HIDE_DETAILS_DIVIDER) + " " + translate("it is hidden entirely, since it would no longer be meaningfully readable") + ".</small><br><br>";
+            chunk += "<button type='submit'>" + translate("Save Settings") + "</button>";
+            chunk += "</form>";
+            chunk += "</div>";
+
+            chunk += "<div class='card' id='rocrailStatusCard' style='max-width:900px;'>";
+            chunk += "<div>" + translate("Status") + ": <span class='dot" +
+                     String(rocrailEnabled ? (rocrailConnected ? " ok" : " syncing") : " na") +
+                     "' id='dot-rocrail'></span> ";
+            // Drei vorgerenderte, uebersetzte Text-Spans statt JS textContent -
+            // wie beim ".status[hidden]"-Muster der Topbar-Punkte
+            // (generateTopBar()) entkommt/dekodiert der Browser Entities in
+            // normalem Element-Inhalt korrekt; JS blendet nur per "hidden"
+            // um, statt Uebersetzungstext selbst zusammenzubauen (siehe
+            // Hinweis bei "Not available" oben zum Entity-Problem in JS-textContent).
+
+            // Three pre-rendered, translated text spans instead of JS
+            // textContent - like the ".status[hidden]" pattern of the
+            // topbar dots (generateTopBar()), the browser correctly
+            // escapes/decodes entities in normal element content; JS only
+            // toggles "hidden" instead of assembling translated text itself
+            // (see the note at "Not available" above about the entity
+            // problem in JS textContent).
+            chunk += "<span id='rocrailStatusOff'" + String(rocrailEnabled ? " hidden" : "") + ">" + translate("Disabled") + "</span>";
+            chunk += "<span id='rocrailStatusSearching'" + String((rocrailEnabled && !rocrailConnected) ? "" : " hidden") + ">" + translate("Connecting") + "...</span>";
+            chunk += "<span id='rocrailStatusConnected'" + String((rocrailEnabled && rocrailConnected) ? "" : " hidden") + ">" + translate("Connected") + "</span>";
+            chunk += "</div>";
+            chunk += "<div id='rocrailDetails'" + String(rocrailEnabled ? "" : " hidden") + ">";
+            chunk += "<div>" + translate("Server") + ": <code id='rocrailHost'>-</code></div>";
+            chunk += "<div>" + translate("Divider") + ": <code id='rocrailDivider'>-</code></div>";
+            chunk += "<div>" + translate("Model time") + ": <code id='rocrailModelTime'>-</code>";
+            // Vorgerenderter Span statt JS textContent - gleicher Grund wie
+            // bei rocrailStatusOff/-Searching/-Connected oben (Entities in
+            // Uebersetzungen wuerden sonst doppelt escaped).
+            // Pre-rendered span instead of JS textContent - same reason as
+            // rocrailStatusOff/-Searching/-Connected above (entities in
+            // translations would otherwise be double-escaped).
+            chunk += " <span id='rocrailFrozenHint'" + String((rocrailEnabled && rocrailConnected && rocrailFrozen) ? "" : " hidden") + ">(" + translate("paused") + ")</span>";
+            chunk += "</div>";
+            chunk += "</div>";
+            chunk += "</div>";
+
+            // Live-Poll alle 3s, solange der Tab sichtbar ist - kein eigener
+            // Sichtbarkeits-/Pause-Mechanismus wie beim Log-Tab noetig, da
+            // die Antwort winzig ist (im Gegensatz zum ganzen Logfile).
+
+            // Live poll every 3s while the tab is visible - no dedicated
+            // visibility/pause mechanism like the Log tab needs, since the
+            // response is tiny (unlike the whole log file).
+            chunk += "<script>";
+            chunk += "(function() {";
+            chunk += "  var dot = document.getElementById('dot-rocrail');";
+            chunk += "  var off = document.getElementById('rocrailStatusOff');";
+            chunk += "  var searching = document.getElementById('rocrailStatusSearching');";
+            chunk += "  var connected = document.getElementById('rocrailStatusConnected');";
+            chunk += "  var details = document.getElementById('rocrailDetails');";
+            chunk += "  var frozenHint = document.getElementById('rocrailFrozenHint');";
+            chunk += "  function poll() {";
+            chunk += "    fetch('/api/rocrailStatus', {cache:'no-store'}).then(function(r){return r.json();}).then(function(s){";
+            chunk += "      off.hidden = s.enabled; details.hidden = !s.enabled;";
+            chunk += "      searching.hidden = !s.enabled || s.connected;";
+            chunk += "      connected.hidden = !s.enabled || !s.connected;";
+            chunk += "      if (!s.enabled) { dot.className='dot na'; return; }";
+            chunk += "      dot.className = s.connected ? 'dot ok' : 'dot syncing';";
+            chunk += "      document.getElementById('rocrailHost').textContent = s.host ? (s.host + ':' + s.port) : '-';";
+            chunk += "      document.getElementById('rocrailDivider').textContent = s.divider;";
+            chunk += "      document.getElementById('rocrailModelTime').textContent = s.modelTime;";
+            chunk += "      frozenHint.hidden = !s.connected || !s.frozen;";
+            chunk += "    }).catch(function(){});";
+            chunk += "  }";
+            chunk += "  poll();";
+            chunk += "  setInterval(poll, 3000);";
+            chunk += "})();";
+            chunk += "</script>";
+
+            chunk += "</div>"; // Ende panel-rocrail
+                               // end panel-rocrail
+
+            webserver.sendContent(chunk);
+            chunk = "";
+
+            // ?tab=... springt direkt zu einem Tab (z.B. nach einem POST-Redirect) -
+            // rein clientseitig, Tab-Auswahl laeuft ueber CSS-radio.
+
+            // ?tab=... jumps directly to a tab (e.g. after a POST redirect) -
+            // purely client-side, tab selection works via CSS radio.
             chunk += "<script>";
             chunk += "(function() {";
             chunk += "  var m = location.search.match(/[?&]tab=([a-zA-Z]+)/);";
@@ -6167,13 +5897,11 @@
                 int idx = webserver.arg("index").toInt();
                 if (idx >= 0 && idx < MAX_WLAN) {
 
-                    // Merkt sich vor dem Loeschen, ob es sich um das gerade aktiv
-                    // verbundene Netzwerk handelt - wird nach dem Umsortieren der
-                    // Liste (Indizes verschieben sich) fuer den Neustart gebraucht.
+                    // Vor dem Loeschen merken, ob es das aktiv verbundene Netzwerk
+                    // ist - gebraucht nach dem Umsortieren fuer den Neustart.
 
-                    // Remembers, before deleting, whether this is the network the
-                    // clock is currently actively connected to - needed after the
-                    // list is reindexed (indices shift) to decide on a reboot.
+                    // Before deleting, remember whether this is the actively
+                    // connected network - needed after reindexing to decide on a reboot.
                     bool deletingActiveNetwork = (WiFi.status() == WL_CONNECTED && wifiSsid[idx] != "" && WiFi.SSID() == wifiSsid[idx]);
 
                     putStringVerified(pkSsid(idx).c_str(), "");
@@ -6203,31 +5931,17 @@
 
                     if (deletingActiveNetwork) {
 
-                        // Das aktuell verbundene Netzwerk wurde geloescht - PK_LAST_WLAN
-                        // wird komplett entfernt (statt auf einen Index gesetzt), damit
-                        // beim Neustart kein veralteter/falscher Index verwendet wird.
-                        // getInt() faellt dann auf den Default-Wert 0 zurueck und die
-                        // Uhr versucht ueber die normale Boot-Sequenz ein anderes
-                        // gespeichertes WLAN (oder startet den Access-Point-Modus,
-                        // falls kein Eintrag mehr uebrig ist).
+                        // PK_LAST_WLAN komplett entfernen statt auf einen Index zu
+                        // setzen, damit kein veralteter Index nach dem Neustart bleibt.
 
-                        // The currently connected network was deleted - PK_LAST_WLAN is
-                        // removed entirely (instead of set to an index), so a stale/wrong
-                        // index isn't used after reboot. getInt() then falls back to its
-                        // default value 0, and the clock tries a different saved WiFi
-                        // network via the normal boot sequence (or starts access point
-                        // mode if no entry remains).
+                        // Remove PK_LAST_WLAN entirely rather than set it to an
+                        // index, so no stale index remains after the reboot.
                         DEBUG_PRINTLN("[WiFi] Active network was deleted via Web UI - rebooting to connect to a different saved network");
                         preferences.remove(PK_LAST_WLAN);
                         redirectTo("/?tab=wlan&msg=Network%20deleted%2C%20reconnecting...");
 
-                        // preferences.end() nicht mehr hier, sondern in espReboot() selbst -
-                        // sonst faellt der dort geloggte Reboot-Eintrag auf die falsche
-                        // Logdatei zurueck (siehe Kommentar in espReboot()).
-
-                        // preferences.end() no longer called here, but inside espReboot()
-                        // itself - otherwise the reboot log entry logged there falls back
-                        // to the wrong log file (see comment in espReboot()).
+                        // preferences.end() erfolgt in espReboot(), siehe dort.
+                        // preferences.end() happens in espReboot(), see there.
                         delay(WAIT_1s);
                         // Neustart des ESP
                         // Restart the ESP
@@ -6241,19 +5955,11 @@
             }
             });
 
-        // Verbindet die Uhr sofort mit einem bestimmten gespeicherten WLAN-Netzwerk
-        // (Button "Verbinden" in der WLAN-Uebersicht). connectWiFi() selbst blockiert
-        // bis zu 30s und wuerde daher den Webserver waehrend der Antwort blockieren -
-        // stattdessen wird PK_LAST_WLAN gesetzt (einzige Quelle der Wahrheit fuer das
-        // beim Boot verwendete Netzwerk, siehe wifi_manager.h) und die Uhr neu
-        // gestartet, die dann ueber die normale Boot-Sequenz sauber verbindet.
+        // Verbindet sofort mit einem gespeicherten WLAN. connectWiFi() blockiert
+        // bis zu 30s, daher stattdessen PK_LAST_WLAN setzen und neu starten.
 
-        // Connects the clock immediately to a specific saved WiFi network (the
-        // "Connect" button in the WLAN overview). connectWiFi() itself blocks for
-        // up to 30s, which would block the webserver while the response is being
-        // sent - instead PK_LAST_WLAN is set (single source of truth for which
-        // network is used at boot, see wifi_manager.h) and the clock reboots,
-        // connecting cleanly via the normal boot sequence.
+        // Connects immediately to a saved WiFi network. connectWiFi() blocks
+        // for up to 30s, so instead set PK_LAST_WLAN and reboot.
         webserver.on("/api/connectWifi", HTTP_GET, []() {
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
@@ -6262,13 +5968,8 @@
                     preferences.putInt(PK_LAST_WLAN, idx);
                     redirectTo("/?tab=wlan&msg=Connecting...");
 
-                    // preferences.end() nicht mehr hier, sondern in espReboot() selbst -
-                    // sonst faellt der dort geloggte Reboot-Eintrag auf die falsche
-                    // Logdatei zurueck (siehe Kommentar in espReboot()).
-
-                    // preferences.end() no longer called here, but inside espReboot()
-                    // itself - otherwise the reboot log entry logged there falls back
-                    // to the wrong log file (see comment in espReboot()).
+                    // preferences.end() erfolgt in espReboot(), siehe dort.
+                    // preferences.end() happens in espReboot(), see there.
                     delay(WAIT_1s);
                     // Neustart des ESP
                     // Restart the ESP
@@ -6465,19 +6166,11 @@
                 }
             }
             else {
-                // Ohne diesen Zweig blieb ein "GET /delete" ganz ohne Parameter
-                // unbeantwortet: der ESP32-WebServer erzeugt fuer eine bereits
-                // gematchte Route kein automatisches 404, die Verbindung lief also
-                // bis zum Client-Timeout und hat den single-threaded Handler-Loop
-                // solange blockiert. Alle vergleichbaren Routen (/download, /file,
-                // /rename, /deletewifi) haben diesen Zweig bereits.
+                // Ohne diesen Zweig bliebe ein parameterloser Request unbeantwortet
+                // und wuerde den single-threaded Handler-Loop bis zum Timeout blockieren.
 
-                // Without this branch a "GET /delete" with no parameter at all went
-                // unanswered: the ESP32 WebServer does not generate an automatic 404
-                // for an already-matched route, so the connection stayed open until
-                // the client timed out and blocked the single-threaded handler loop
-                // for that long. All comparable routes (/download, /file, /rename,
-                // /deletewifi) already have this branch.
+                // Without this branch a parameterless request would go unanswered
+                // and block the single-threaded handler loop until timeout.
                 webserver.send(400, "text/plain", "Missing parameter: file");
             }
             });
@@ -6706,22 +6399,13 @@
             // Send each found hand set IMMEDIATELY instead of collecting them - so
             // never more than one hand set is in memory at a time.
             auto renderSetRow = [&](const String& setId) {
-                // setId wird aus hochgeladenen Dateinamen extrahiert (siehe handleFileUpload()) -
-                // dort wird nur ein "/hand_set"-Praefix und ".bmp"-Suffix erzwungen, der Teil
-                // dazwischen (also setId) ist NICHT auf harmlose Zeichen eingeschraenkt. Ein
-                // praeparierter Upload-Dateiname koennte daher HTML/JS-Metazeichen enthalten
-                // (gespeicherte/stored XSS) - deshalb hier ueberall escapen, bevor setId in HTML
-                // bzw. in den confirm()-JS-String eingebettet wird. Fuer die Dateisystem-Pfade
-                // (LittleFS.exists()/-Zugriff) wird weiterhin die unescapte Rohvariante benutzt,
-                // da diese exakt dem echten Dateinamen entsprechen muss.
-                //
-                // setId is extracted from uploaded filenames (see handleFileUpload()) - there,
-                // only a "/hand_set" prefix and ".bmp" suffix are enforced, the part in between
-                // (i.e. setId) is NOT restricted to harmless characters. A crafted upload
-                // filename could therefore contain HTML/JS metacharacters (stored XSS) - so
-                // escape it everywhere before embedding it into HTML or into the confirm() JS
-                // string. The filesystem paths (LittleFS.exists()/access) still use the raw,
-                // unescaped variant, since that must exactly match the real filename.
+                // setId kommt aus Upload-Dateinamen und ist nicht auf harmlose Zeichen
+                // eingeschraenkt (stored XSS) - daher ueberall escapen, ausser fuer
+                // Dateisystem-Pfade, die den echten Namen brauchen.
+
+                // setId comes from upload filenames and isn't restricted to harmless
+                // characters (stored XSS) - so escape it everywhere except for
+                // filesystem paths, which need the real name.
                 String safeSetId = escapeHtmlText(setId);
                 chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
                 String hourPath = "/hand_set" + setId + "_hour.bmp";
@@ -7052,28 +6736,13 @@
                 return;
             }
 
-            // Zusaetzlich auf ein sicheres Zeichen-Set beschraenken (analog zur
-            // gleichartigen Pruefung bei /rename oben): bisher wurde der Teil
-            // zwischen Praefix und ".bmp" ungeprueft uebernommen. Aus diesem
-            // Dateinamen wird spaeter u.a. der "setId"-Teil extrahiert und in
-            // /handsets sowie im GitHub-Merge-Skript ungeescaped in HTML-
-            // Attribute, onclick-Strings bzw. JS-String-Literale in <script>-
-            // Bloecken eingebettet (siehe escapeHtmlText()/escapeForJsStringInAttr()/
-            // escapeForJsStringLiteral()-Aufrufe dort) - ohne diese Einschraenkung
-            // waere ein praeparierter Upload-Dateiname (z.B. mit "</script>" oder
-            // "..") ein Weg zu gespeichertem XSS bzw. potenziell zu Pfad-Traversal.
-            //
-            // Additionally restrict to a safe character set (mirroring the same
-            // kind of check at /rename above): until now, the part between the
-            // prefix and ".bmp" was accepted unchecked. This filename is later
-            // used to extract the "setId" part among other things and gets
-            // embedded, unescaped without this restriction, into HTML attributes,
-            // onclick strings and JS string literals inside <script> blocks in
-            // /handsets and the GitHub merge script (see the escapeHtmlText()/
-            // escapeForJsStringInAttr()/escapeForJsStringLiteral() calls there) -
-            // without this restriction, a crafted upload filename (e.g.
-            // containing "</script>" or "..") would be a path to stored XSS or
-            // potentially path traversal.
+            // Zeichen-Set beschraenken (wie bei /rename): der Name wird spaeter
+            // in /handsets in HTML/JS eingebettet - ohne diese Pruefung waere ein
+            // praeparierter Dateiname ein Weg zu stored XSS/Pfad-Traversal.
+
+            // Restrict the character set (like /rename): the name is later
+            // embedded in HTML/JS in /handsets - without this check a crafted
+            // filename would be a path to stored XSS/path traversal.
             {
                 bool uploadNameValid = true;
                 for (size_t ni = 1; uploadNameValid && ni < uploadFilePath.length(); ni++) {
@@ -7183,17 +6852,11 @@
     }
 
 
-    // Verarbeitet den Datei-Upload fuer /importpresets: schreibt die Datei temporaer,
-    // liest sie zeilenweise ein (Format "Name<TAB>URL", wie von /exportpresets erzeugt)
-    // und fuegt nur NEUE Presets in freie Slots ein. Bestehende Presets werden NICHT
-    // geloescht - auch nicht, wenn eine Zeile aus der Importdatei denselben Namen
-    // traegt (der bestehende Eintrag bleibt dann einfach unangetastet erhalten).
+    // Upload fuer /importpresets: liest "Name<TAB>URL"-Zeilen und fuegt nur
+    // NEUE Presets in freie Slots ein - bestehende bleiben unangetastet.
 
-    // Processes the file upload for /importpresets: writes the file
-    // temporarily, reads it line by line (format "Name<TAB>URL", as produced
-    // by /exportpresets) and inserts only NEW presets into free slots.
-    // Existing presets are NOT deleted - not even if a line from the import
-    // file has the same name (the existing entry is simply left untouched).
+    // Upload for /importpresets: reads "Name<TAB>URL" lines and inserts only
+    // NEW presets into free slots - existing ones stay untouched.
 
     void handlePresetImportUpload() {
         HTTPUpload& upload = webserver.upload();
@@ -7323,17 +6986,11 @@
     }
 
 
-    // Aehnlich wie handlePresetImportUpload() - fuegt nur neue Presets in freie Slots
-    // ein, bestehende bleiben erhalten. Wird vom GitHub-Download-Button auf /presets
-    // genutzt: das Herausfiltern bereits vorhandener Namen erledigt hier schon die
-    // aufrufende JavaScript-Funktion, bevor die Datei hier ankommt (daher KEINE
-    // serverseitige Namens-Dopplungspruefung wie in handlePresetImportUpload()).
+    // Wie handlePresetImportUpload(), aber ohne Namens-Dopplungspruefung -
+    // der aufrufende JS-Code filtert vorhandene Namen bereits vorher heraus.
 
-    // Similar to handlePresetImportUpload() - only inserts new presets into
-    // free slots, existing ones are kept. Used by the GitHub download button
-    // on /presets: filtering out already-existing names is already done by
-    // the calling JavaScript function before the file arrives here (so
-    // there is NO server-side name-duplicate check like in handlePresetImportUpload()).
+    // Like handlePresetImportUpload(), but without a name-duplicate check -
+    // the calling JS code already filters out existing names beforehand.
 
     void handlePresetMergeUpload() {
         HTTPUpload& upload = webserver.upload();

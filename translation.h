@@ -2,24 +2,19 @@
 #define TRANSLATION_H
 
 
-    // Uebersetzungen: liegen als 'static const' Tabelle (translationTable) direkt im Flash - der ESP32 liest Flash ueber den Cache wie normalen
-    // Speicher, kein PROGMEM/Umkopieren noetig. translate() sucht direkt darin, ohne Sprachwechsel-Aufbau - fruehere Initialisierungsliste in
-    // std::map<String,String> verursachte einen Stack-Overflow-Absturz.
+    // Uebersetzungen liegen als 'static const' Tabelle direkt im Flash statt in einer std::map -
+    // eine fruehere std::map<String,String>-Initialisierungsliste verursachte einen Stack-Overflow.
 
-    // English: Translations live in a 'static const' table (translationTable) directly in flash - the ESP32 reads
-    // flash via the cache like normal memory, no PROGMEM/copying needed. translate() searches it directly, no
-    // language-switch setup - an earlier std::map<String,String> init list caused a stack overflow crash.
+    // Translations live as a 'static const' table directly in flash instead of a std::map -
+    // an earlier std::map<String,String> init list caused a stack overflow crash.
 
-    // Bekannte Sprachen (fuer die Validierung in /setLanguage) - bewusst NUR
-    // die Sprachcodes, nicht die vollen Uebersetzungstabellen.
-
-    // English: known languages (for validation in /setLanguage) - deliberately
-    // only the language codes, not the full translation tables.
+    // Bekannte Sprachen fuer die Validierung in /setLanguage - bewusst nur die Codes, nicht die Tabellen
+    // Known languages for validation in /setLanguage - deliberately just the codes, not the tables
     const std::set<String> availableLanguages = {"de", "fr"};
 
 
-    // Uebersetzungstabelle (Erklaerung siehe Kommentar am Dateianfang)
-    // English: translation table (see comment at top of file for explanation)
+    // Uebersetzungstabelle (Erklaerung siehe Dateianfang)
+    // Translation table (see top of file for explanation)
     struct TranslationEntry {
         const char* key;
         const char* de;
@@ -100,7 +95,15 @@
         { "Rotation Display 1", "Rotation Display 1", "Rotation &eacute;cran 1" },
         { "Rotation Display 2", "Rotation Display 2", "Rotation &eacute;cran 2" },
         { "Rotates Display 2's (CS2) clock face independently of Display 1", "Dreht das Zifferblatt von Display 2 (CS2) unabh&auml;ngig von Display 1", "Fait pivoter le cadran de l&#39;&eacute;cran 2 (CS2) ind&eacute;pendamment de l&#39;&eacute;cran 1" },
-        { "Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 3 minutes while this happens", "F&uuml;gt ein neues Netzwerk per WPS hinzu - dr&uuml;cken Sie bei Aufforderung die WPS-Taste an Ihrem Router. Die Verbindung zur Uhr kann dabei f&uuml;r ca. 3 Minuten verloren gehen", "Ajoute un nouveau r&eacute;seau via WPS - appuyez sur le bouton WPS de votre routeur lorsque vous y &ecirc;tes invit&eacute;. La connexion &agrave; l&#39;horloge peut &ecirc;tre interrompue pendant environ 3 minutes" },
+        { "If only one display is physically connected, set both rotations to the same value", "Ist nur ein Display tats&auml;chlich angeschlossen, sollten beide Rotationswerte auf denselben Wert gestellt werden", "Si un seul &eacute;cran est r&eacute;ellement raccord&eacute;, r&eacute;glez les deux rotations sur la m&ecirc;me valeur" },
+        // "2 Minuten" statt vormals "3 Minuten": muss zum tatsaechlichen WPS-
+        // Timeout passen (2 * WAIT_1m in startAP()/loop(), siehe uhr3.ino/
+        // wifi_manager.h) - der Text war seit dessen Aenderung veraltet.
+
+        // "2 minutes" instead of the former "3 minutes": must match the actual
+        // WPS timeout (2 * WAIT_1m in startAP()/loop(), see uhr3.ino/
+        // wifi_manager.h) - the text was stale since that value was changed.
+        { "Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 2 minutes while this happens", "F&uuml;gt ein neues Netzwerk per WPS hinzu - dr&uuml;cken Sie bei Aufforderung die WPS-Taste an Ihrem Router. Die Verbindung zur Uhr kann dabei f&uuml;r ca. 2 Minuten verloren gehen", "Ajoute un nouveau r&eacute;seau via WPS - appuyez sur le bouton WPS de votre routeur lorsque vous y &ecirc;tes invit&eacute;. La connexion &agrave; l&#39;horloge peut &ecirc;tre interrompue pendant environ 2 minutes" },
         { "Scans for available WiFi networks again and refreshes the dropdown lists below", "Sucht erneut nach verf&uuml;gbaren WLAN-Netzwerken und aktualisiert die Auswahllisten darunter", "Recherche &agrave; nouveau les r&eacute;seaux WiFi disponibles et actualise les listes d&eacute;roulantes ci-dessous" },
         { "The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.", "Die Uhr ist statt &uuml;ber die IP-Adresse auch &uuml;ber http://&quot;hostname&quot;.local erreichbar, z.B.", "L&#39;horloge est &eacute;galement accessible via http://&quot;hostname&quot;.local au lieu de son adresse IP, par ex." },
         { "Up to", "Bis zu", "Jusqu&#39;&agrave;" },
@@ -121,6 +124,14 @@
         { "Brightness", "Helligkeit", "Luminosit&eacute;" },
         { "Language", "Sprache", "Langue" },
         { "Time Settings", "Zeiteinstellungen", "Param&egrave;tres de l&#39;heure" },
+        // Ohne Nummer: der Zeit-Tab listet bis zu MAX_WLAN Server und haengt
+        // die Nummer im Code an (siehe panel-zeit in webserver_routes.h) -
+        // die beiden nummerierten Eintraege darunter nutzen andere Seiten.
+
+        // Without a number: the time tab lists up to MAX_WLAN servers and
+        // appends the number in code (see panel-zeit in webserver_routes.h) -
+        // the two numbered entries below are used by other pages.
+        { "NTP Server", "NTP Server", "Serveur NTP" },
         { "NTP Server 1", "NTP Server 1", "Serveur NTP 1" },
         { "NTP Server 2", "NTP Server 2", "Serveur NTP 2" },
         { "Timezone", "Zeitzone", "Fuseau horaire" },
@@ -192,6 +203,13 @@
         { "Password is hidden. Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten", "Le mot de passe est masqu&eacute;. Laissez le champ vide pour conserver le mot de passe actuel" },
         { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben", "Vous pouvez aussi saisir un SSID manuellement" },
         { "No WiFi networks found", "Keine WLAN Netzwerke gefunden", "Aucun r&eacute;seau WiFi trouv&eacute;" },
+        // Platzhalter in den SSID-Auswahllisten, solange /api/scanwifi laeuft
+        // bzw. wenn die Abfrage fehlschlaegt (siehe panel-wlan).
+
+        // Placeholders in the SSID dropdowns while /api/scanwifi is running
+        // resp. when the request fails (see panel-wlan).
+        { "WLAN scan in progress", "WLAN-Scan l&auml;uft", "Balayage WiFi en cours" },
+        { "Scan failed", "Scan fehlgeschlagen", "&Eacute;chec du balayage" },
         { "Save WiFi settings", "WLAN Einstellungen speichern", "Enregistrer les param&egrave;tres WiFi" },
         { "Train Station Mode", "Bahnhof Modus", "Mode gare" },
         { "Show Seconds", "Sekundenzeiger anzeigen", "Afficher la trotteuse" },
@@ -240,6 +258,7 @@
         { "Current ADC Value", "aktueller ADC Wert", "Valeur ADC actuelle" },
         { "Current Brightness", "aktuelle Helligkeit", "Luminosit&eacute; actuelle" },
         { "Light (for Threshold)", "Licht (f&uuml;r Helligkeitsschwelle)", "Luminosit&eacute; (pour le seuil)" },
+        { "Brightness is currently taken over from Rocrail - the photoresistor and time-window settings below are inactive while connected", "Die Helligkeit wird derzeit von Rocrail &uuml;bernommen - die Fotowiderstand- und Zeitfenster-Einstellungen unten sind w&auml;hrend der Verbindung inaktiv", "La luminosit&eacute; est actuellement reprise par Rocrail - les param&egrave;tres de photor&eacute;sistance et de plage horaire ci-dessous sont inactifs tant que la connexion est &eacute;tablie" },
         { "Brightness Settings", "Helligkeit Einstellungen", "Param&egrave;tres de luminosit&eacute;" },
         { "Enable Auto Brightness", "automatische Einstellung", "Activer la luminosit&eacute; automatique" },
         { "Invert ADC Reading", "invertiere ADC Werte", "Inverser la lecture ADC" },
@@ -247,6 +266,7 @@
         { "Scale and Save BMP", "skaliere und speichere das BMP", "Redimensionner et enregistrer le BMP" },
         { "Filename", "Dateiname", "Nom du fichier" },
         { "Preview", "Vorschau", "Aper&ccedil;u" },
+        { "Preview Size", "Vorschaugr&ouml;&szlig;e", "Taille de l&#39;aper&ccedil;u" },
         { "No BMP files found in /", "Keine BMP-Dateien im Dateisystem gefunden", "Aucun fichier BMP trouv&eacute; dans le syst&egrave;me de fichiers" },
         { "Size(bytes)", "Gr&ouml;&szlig;e (Bytes)", "Taille (octets)" },
         { "Action", "Aktion", "Action" },
@@ -339,13 +359,32 @@
         { "Download", "Herunterladen", "T&eacute;l&eacute;charger" },
         { "Failed to scale BMP", "Skalierung des BMP fehlgeschlagen", "&Eacute;chec du redimensionnement du BMP" },
         { "Gamma Correction", "Gamma-Korrektur", "Correction gamma" },
+        // Diagrammtitel der Gamma-Kurve - wird per decodeHtml() an Plotly
+        // uebergeben, Entities sind hier also erlaubt (siehe plotGamma()).
+
+        // Chart title of the gamma curve - passed to Plotly via decodeHtml(),
+        // so entities are fine here (see plotGamma()).
+        { "Gamma correction curve", "Gamma-Korrektur-Kurve", "Courbe de correction gamma" },
         { "Hostname", "Hostname", "Nom d&#39;h&ocirc;te" },
         { "Hostname saved - requires a reboot to take effect", "Hostname gespeichert - Neustart erforderlich, damit die &Auml;nderung wirksam wird", "Nom d&#39;h&ocirc;te enregistr&eacute; - un red&eacute;marrage est n&eacute;cessaire pour appliquer le changement" },
         { "No valid hostname could be derived from the input - falling back to the automatic name based on the MAC address", "Aus der Eingabe konnte kein g&uuml;ltiger Hostname gebildet werden - R&uuml;ckfall auf den automatischen, aus der MAC-Adresse gebildeten Namen", "Aucun nom d&#39;h&ocirc;te valide n&#39;a pu &ecirc;tre form&eacute; &agrave; partir de la saisie - retour au nom automatique bas&eacute; sur l&#39;adresse MAC" },
         { "Ping Server", "Ping-Server", "Serveur de ping" },
         { "Reset Saved Networks", "Gespeicherte Netzwerke zur&uuml;cksetzen", "R&eacute;initialiser les r&eacute;seaux enregistr&eacute;s" },
         { "Add Network via WPS", "Netzwerk per WPS hinzuf&uuml;gen", "Ajouter un r&eacute;seau via WPS" },
-        { "WPS active - press the WPS button on your router now (within 2 minutes)", "WPS aktiv - jetzt die WPS-Taste am Router dr&uuml;cken (innerhalb von 2 Minuten)", "WPS actif - appuyez maintenant sur le bouton WPS de votre routeur (dans les 2 minutes)" },
+        // Erweitert um den Trennungshinweis (vorher nur im Tooltip des Buttons,
+        // also leicht zu uebersehen) - erscheint jetzt direkt als Flash-Meldung
+        // beim Start von WPS. Der englische Schluessel wird zusaetzlich als
+        // exakter String-Vergleich in webserver_routes.h genutzt (erkennt, ob
+        // gerade WPS gestartet wurde, um das Reconnect-Poll-Skript einzubetten)
+        // - bei einer Aenderung dieses Textes MUSS die Vergleichsstelle dort mitgeaendert werden.
+
+        // Extended with the disconnect notice (previously only in the button's
+        // tooltip, easy to miss) - now shown directly as a flash message when
+        // WPS starts. The English key is also used as an exact string
+        // comparison in webserver_routes.h (detects that WPS was just started,
+        // to embed the reconnect-poll script) - if this text changes, the
+        // comparison there MUST be updated too.
+        { "WPS active - press the WPS button on your router now. Connection to the clock may be lost for about 2 minutes while this happens", "WPS aktiv - jetzt die WPS-Taste am Router dr&uuml;cken. Die Verbindung zur Uhr kann dabei f&uuml;r ca. 2 Minuten unterbrochen werden", "WPS actif - appuyez maintenant sur le bouton WPS de votre routeur. La connexion &agrave; l&#39;horloge peut &ecirc;tre interrompue pendant environ 2 minutes" },
         { "Reset WLan...", "WLAN zur&uuml;cksetzen...", "R&eacute;initialisation du WiFi..." },
         { "Saved as", "Gespeichert als", "Enregistr&eacute; sous" },
         { "Scaling successful", "Skalierung erfolgreich", "Redimensionnement r&eacute;ussi" },
@@ -374,6 +413,52 @@
         { "Call bit", "Anrufbit", "Bit d&#39;appel" },
         { "Parity", "Parit&auml;t", "Parit&eacute;" },
         { "Last decoded", "Zuletzt dekodiert", "Dernier d&eacute;codage" },
+        { "Reconstructed bits", "Rekonstruierte Bits", "Bits reconstruits" },
+        { "Dropped edges (buffer overflow)", "Verlorene Flanken (Puffer&uuml;berlauf)", "Fronts perdus (d&eacute;bordement du tampon)" },
+        { "Telegram sync", "Telegramm-Synchronisation", "Synchronisation du t&eacute;l&eacute;gramme" },
+        { "Pulses seen / missed / grid losses", "Impulse gesehen / fehlend / Rasterverluste", "Impulsions vues / manquantes / pertes de grille" },
+        { "Last pulses (width / gap in ms, expected ~100 or ~200 / ~n&times;1000)", "Letzte Impulse (Breite / Abstand in ms, erwartet ~100 oder ~200 / ~n&times;1000)", "Derni&egrave;res impulsions (largeur / &eacute;cart en ms, attendu ~100 ou ~200 / ~n&times;1000)" },
+        { "Minute marker not identified yet - the boxes show raw grid positions, not telegram bit numbers.", "Minutenmarke noch nicht erkannt - die K&auml;stchen zeigen rohe Rasterpositionen, keine Telegramm-Bitnummern.", "Rep&egrave;re de minute pas encore identifi&eacute; - les cases affichent des positions de grille brutes, pas des num&eacute;ros de bits." },
+        { "(DCF77: 1=Mon..7=Sun)", "(DCF77: 1=Mo..7=So)", "(DCF77: 1=Lun..7=Dim)" },
+        { "next", "n&auml;chstes", "suivant" },
+        { "lost", "verloren", "perdu" },
+
+        // Bit-Tooltips im /dcf77-Bitraster (title-Attribut je Kaestchen) -
+        // Bit-Kennzahlen (BCD-Bit N, Paritaeten) werden im Code an den
+        // uebersetzten Text angehaengt, nicht Teil des Schluessels.
+
+        // Bit tooltips in the /dcf77 bit grid (title attribute per box) - bit
+        // numbers (BCD bit N, parities) are appended to the translated text
+        // in code, not part of the key.
+        { "Bit", "Bit", "Bit" },
+        { "Start of minute (always 0)", "Minutenanfang (immer 0)", "D&eacute;but de minute (toujours 0)" },
+        { "Weather broadcast / special function (unused)", "Wetterdurchsage / Sonderfunktion (ungenutzt)", "Bulletin m&eacute;t&eacute;o / fonction sp&eacute;ciale (inutilis&eacute;)" },
+        { "DST change announcement", "Ank&uuml;ndigung Zeitumstellung", "Annonce de changement d&#39;heure" },
+        { "Summer time (CEST) in effect", "Sommerzeit (MESZ) aktiv", "Heure d&#39;&eacute;t&eacute; (CEST) active" },
+        { "Winter time (CET) in effect", "Winterzeit (MEZ) aktiv", "Heure d&#39;hiver (CET) active" },
+        { "Leap second announcement", "Ank&uuml;ndigung Schaltsekunde", "Annonce de seconde intercalaire" },
+        { "Start of time (always 1)", "Zeitanfang (immer 1)", "D&eacute;but de l&#39;heure (toujours 1)" },
+        { "Minute BCD bit", "Minuten-BCD-Bit", "Bit BCD minute" },
+        { "Minute parity", "Minuten-Parit&auml;t", "Parit&eacute; minute" },
+        { "Hour BCD bit", "Stunden-BCD-Bit", "Bit BCD heure" },
+        { "Hour parity", "Stunden-Parit&auml;t", "Parit&eacute; heure" },
+        { "Day of month BCD bit", "Tag-BCD-Bit", "Bit BCD jour" },
+        { "Day of week BCD bit", "Wochentag-BCD-Bit", "Bit BCD jour de semaine" },
+        { "Month BCD bit", "Monats-BCD-Bit", "Bit BCD mois" },
+        { "Year BCD bit", "Jahres-BCD-Bit", "Bit BCD ann&eacute;e" },
+        { "Date parity (day+weekday+month+year)", "Datums-Parit&auml;t (Tag+Wochentag+Monat+Jahr)", "Parit&eacute; date (jour+jour de semaine+mois+ann&eacute;e)" },
+
+        // ASCII-only, OHNE HTML-Entities: werden per JS direkt als
+        // .textContent gesetzt (dcfSynced-Anzeige) statt als HTML geparst -
+        // Entities wuerden dort woertlich erscheinen (siehe Hinweis oben bei
+        // "Not available"/Umlaut-Problem). {pos} wird per JS ersetzt.
+
+        // ASCII-only, WITHOUT HTML entities: set via JS directly as
+        // .textContent (dcfSynced display) instead of parsed as HTML -
+        // entities would show up literally there (see note above at
+        // "Not available"/umlaut issue). {pos} is substituted in JS.
+        { "yes (marker at grid position {pos})", "ja (Marke bei Rasterposition {pos})", "oui (marqueur a la position de grille {pos})" },
+        { "no (collecting - the minute marker needs a few minutes)", "nein (sammle - die Minutenmarke braucht ein paar Minuten)", "non (collecte en cours - le repere de minute prend quelques minutes)" },
 
         // Neu fuer die Info-Seite (/info, siehe webserver_routes.h und
         // readme_text.h) - Projektlinks und Kontakt
@@ -385,6 +470,37 @@
         { "Clock faces and hand sets", "Zifferbl&auml;tter und Zeigers&auml;tze", "Cadrans et jeux d&#39;aiguilles" },
         { "Circuit diagram / PCB", "Schaltplan / Platine", "Sch&eacute;ma / circuit imprim&eacute;" },
         { "Contact", "Kontakt", "Contact" },
+
+        // Neu fuer den Rocrail-Tab (siehe webserver_routes.h und
+        // rocrail_client.h) - Modellzeit-Anbindung an einen Rocrail-Server
+        // New for the Rocrail tab (see webserver_routes.h and
+        // rocrail_client.h) - model time connection to a Rocrail server
+        { "Use Rocrail model time for the hands", "Rocrail-Modellzeit f&uuml;r die Zeiger verwenden", "Utiliser l&#39;heure du mod&egrave;le Rocrail pour les aiguilles" },
+        { "empty = search automatically (R2RNet), or host:port", "leer = automatisch suchen (R2RNet), oder host:port", "vide = recherche automatique (R2RNet), ou host:port" },
+        { "Rocrail model time can run much faster than real time (the divider) - the station-clock second-hand animation speeds up by the same factor instead of switching off, so it stays in sync with the model minutes", "Rocrails Modellzeit kann viel schneller laufen als die reale Zeit (der Divider) - die Bahnhofsuhr-Sekundenzeiger-Animation wird dabei um denselben Faktor beschleunigt statt abgeschaltet, damit sie mit den Modell-Minuten synchron bleibt", "L&#39;heure du mod&egrave;le Rocrail peut s&#39;&eacute;couler bien plus vite que le temps r&eacute;el (le diviseur) - l&#39;animation de la trotteuse de l&#39;horloge de gare acc&eacute;l&egrave;re alors du m&ecirc;me facteur au lieu de se d&eacute;sactiver, afin de rester synchronis&eacute;e avec les minutes du mod&egrave;le" },
+        { "Above a divider of", "Ab einem Divider von", "&Agrave; partir d&#39;un diviseur de" },
+        { "it is hidden entirely, since it would no longer be meaningfully readable", "wird er ganz ausgeblendet, da er ohnehin nicht mehr sinnvoll ablesbar w&auml;re", "elle est compl&egrave;tement masqu&eacute;e, car elle ne serait plus lisible de mani&egrave;re significative" },
+        { "Showing Rocrail model time ({divider}&times; speed)", "Zeigt die Rocrail-Modellzeit ({divider}-fache Geschwindigkeit)", "Affiche l&#39;heure mod&egrave;le de Rocrail (vitesse &times;{divider})" },
+        { "Server", "Server", "Serveur" },
+        { "Use this server", "Diesen Server verwenden", "Utiliser ce serveur" },
+        { "host or host:port", "Host oder Host:Port", "h&ocirc;te ou h&ocirc;te:port" },
+        { "IP address or hostname", "IP-Adresse oder Hostname", "adresse IP ou nom d&#39;h&ocirc;te" },
+        { "Take over the model time from a Rocrail server (model railroad control software) for the hands - unlocks the Rocrail tab, where the server address can then be entered", "Modellzeit von einem Rocrail-Server (Modelleisenbahn-Steuerungssoftware) f&uuml;r die Zeiger &uuml;bernehmen - schaltet den Rocrail-Tab frei, in dem dann die Serveradresse eingetragen werden kann", "Reprendre l&#39;heure du mod&egrave;le d&#39;un serveur Rocrail (logiciel de commande de train miniature) pour les aiguilles - d&eacute;verrouille l&#39;onglet Rocrail, o&ugrave; l&#39;adresse du serveur peut ensuite &ecirc;tre saisie" },
+        { "Plan", "Anlage", "Plan" },
+        { "Layout name", "Anlagenname", "Nom du r&eacute;seau" },
+        { "Filled in automatically from Rocrail once connected, as long as this field is left empty - edit it yourself to keep your own name, or clear it to let Rocrail fill it in again", "Wird automatisch von Rocrail eingetragen, sobald verbunden - solange dieses Feld leer bleibt. Selbst editieren, um einen eigenen Namen zu behalten, oder leeren, damit Rocrail ihn wieder eintr&auml;gt", "Rempli automatiquement par Rocrail une fois connect&eacute;, tant que ce champ reste vide - modifiez-le vous-m&ecirc;me pour garder votre propre nom, ou videz-le pour laisser Rocrail le remplir &agrave; nouveau" },
+        { "optional", "optional", "optionnel" },
+        { "Divider", "Divider", "Diviseur" },
+        { "Model time", "Modellzeit", "Heure du mod&egrave;le" },
+        { "Disabled", "Deaktiviert", "D&eacute;sactiv&eacute;" },
+        { "Searching for server", "Suche nach Server", "Recherche du serveur" },
+        { "Connecting", "Verbindung wird aufgebaut", "Connexion en cours" },
+        { "Connected", "Verbunden", "Connect&eacute;" },
+        { "paused", "angehalten", "en pause" },
+        { "Advanced: R2RNet discovery address", "Erweitert: R2RNet-Discovery-Adresse", "Avanc&eacute;: adresse de d&eacute;couverte R2RNet" },
+        { "Multicast address", "Multicast-Adresse", "Adresse multicast" },
+        { "Port", "Port", "Port" },
+        { "Only needed if the Rocrail server's R2RNet multicast was configured with non-default values - otherwise leave as is", "Nur noetig, wenn der R2RNet-Multicast des Rocrail-Servers von den Standardwerten abweichend konfiguriert wurde - sonst unveraendert lassen", "Seulement n&eacute;cessaire si le multicast R2RNet du serveur Rocrail a &eacute;t&eacute; configur&eacute; avec des valeurs diff&eacute;rentes des valeurs par d&eacute;faut - sinon laisser tel quel" },
     };
     static const size_t translationTableSize = sizeof(translationTable) / sizeof(translationTable[0]);
 

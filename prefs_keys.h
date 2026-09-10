@@ -1,14 +1,12 @@
 #pragma once
-    // ### Zentrale Preferences-Keys ######################################
-    // ### Central Preferences Keys #######################################
-    // Alle NVS/Preferences-Keys an EINER Stelle statt als verstreute String-Literale -
-    // verhindert Tippfehler-Bugs (z.B. "lastWlan" vs "lastWLan"), da sie zu Compile-Fehlern statt stillen Laufzeit-Bugs werden.
+    // Alle NVS/Preferences-Keys an EINER Stelle statt verstreuter String-Literale -
+    // verhindert Tippfehler-Bugs, die sonst zu stillen Laufzeitfehlern statt Compile-Fehlern wuerden.
 
     // All NVS/Preferences keys in ONE place instead of scattered string literals -
-    // turns typo bugs (e.g. "lastWlan" vs "lastWLan") into compile errors instead of silent runtime bugs.
+    // turns typo bugs into compile errors instead of silent runtime bugs.
 
-    // --- Allgemein / System ---
-    // --- General / System ---
+    // Allgemein / System
+    // General / System
     constexpr const char* PK_VERSION           = "version";
     constexpr const char* PK_FIRST_START       = "firstStart";
     constexpr const char* PK_MIGRATIONS_DONE   = "migrDone"; // Flag: RLE-Migration + Eckenmaskierung bereits abgeschlossen (siehe setup())
@@ -16,32 +14,30 @@
     constexpr const char* PK_LANGUAGE          = "language";
     constexpr const char* PK_LOGGING_ENABLED   = "loggingEnabled";
     constexpr const char* PK_LOG_FILE_NUMBER   = "logFileNumber";
+    constexpr const char* PK_PREVIEW_SIZE      = "previewSize"; // Groesse der Web-Vorschau (/preview) in px,
+                                                                // vom Nutzer per Schieberegler eingestellt (siehe webserver_routes.h)
+                                                                // size of the web preview (/preview) in px, set by the
+                                                                // user via a slider (see webserver_routes.h)
 
-    // --- WLAN ---
-    // --- WiFi ---
+    // WLAN
+    // WiFi
     constexpr const char* PK_WIFI_ACTIVE       = "wifiActive";
     constexpr const char* PK_LAST_WLAN         = "lastWLan";   // <- einzige Quelle der Wahrheit
                                                                // <- single source of truth
     constexpr const char* PK_PING_SERVER       = "pingServer";
 
-    // --- Zeit / NTP ---
-    // --- Time / NTP ---
+    // Zeit / NTP
+    // Time / NTP
     constexpr const char* PK_TIMEZONE          = "timezone";
-    constexpr const char* PK_DCF_SYNC_LED      = "dcfSyncLed"; // Aufblitzen der LED pro empfangenem DCF77-Impuls waehrend der Sync-Phase (!dcfTimeFound) - Default true, siehe toggleLED()-Aufruf in uhr3.ino loop()
-                                                               // LED flash per received DCF77 pulse during the sync phase (!dcfTimeFound) - default true, see the toggleLED() call in uhr3.ino loop()
+    constexpr const char* PK_DCF_SYNC_LED      = "dcfSyncLed"; // LED blitzt pro DCF77-Impuls waehrend der Sync-Phase (Default true)
+                                                               // LED flashes per DCF77 pulse during the sync phase (default true)
 
-    // --- Zifferblatt / Darstellung ---
-    // --- Clock Face / Display ---
-    constexpr const char* PK_TFT_ROTATION1     = "tftRotation1"; // Rotation von Display 1 - hiess bis Version mit Display-2-Unterstuetzung
-                                                                 // schlicht "tftRotation" (siehe PK_TFT_ROTATION_LEGACY/Migration in uhr3.ino)
-
-                                                                 // rotation of Display 1 - was simply called "tftRotation" before
-                                                                 // Display 2 support was added (see PK_TFT_ROTATION_LEGACY/migration in uhr3.ino)
-    constexpr const char* PK_TFT_ROTATION_LEGACY = "tftRotation"; // Alter Key-Name (vor Display-2-Unterstuetzung) - NUR fuer die einmalige
-                                                                   // Migration auf PK_TFT_ROTATION1 in uhr3.ino verwenden, sonst nirgends.
-
-                                                                   // Old key name (before Display 2 support) - use ONLY for the one-time
-                                                                   // migration to PK_TFT_ROTATION1 in uhr3.ino, nowhere else.
+    // Zifferblatt / Darstellung
+    // Clock Face / Display
+    constexpr const char* PK_TFT_ROTATION1     = "tftRotation1"; // Rotation Display 1 - hiess vor Display-2-Support "tftRotation" (siehe LEGACY unten)
+                                                                 // rotation of Display 1 - was called "tftRotation" before Display 2 support (see LEGACY below)
+    constexpr const char* PK_TFT_ROTATION_LEGACY = "tftRotation"; // Alter Key-Name - NUR fuer die einmalige Migration in uhr3.ino verwenden
+                                                                   // old key name - use ONLY for the one-time migration in uhr3.ino
     constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2) - Display 2 ist fest aktiviert
                                                                  // rotation of Display 2 (CS2) - Display 2 is permanently enabled
     constexpr const char* PK_HOSTNAME          = "hostname"; // leer = automatisch aus MAC-Adresse generiert
@@ -62,8 +58,8 @@
     constexpr const char* PK_CENTER_SIZE       = "centerSize";
     constexpr const char* PK_CURRENT_PRESET    = "currentPreset";
 
-    // --- Helligkeit ---
-    // --- Brightness ---
+    // Helligkeit
+    // Brightness
     constexpr const char* PK_MIN_BRIGHTNESS    = "minBrightness";
     constexpr const char* PK_MAX_BRIGHTNESS    = "maxBrightness";
     constexpr const char* PK_GAMMA_BRIGHTNESS  = "gammaBrightness";
@@ -74,16 +70,69 @@
     constexpr const char* PK_BRIGHT_START_HOUR = "brightStart";
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
 
-    // --- Touch ---
-    // --- Touch ---
+    // Touch
+    // Touch
     constexpr const char* PK_USE_TOUCH         = "useTouch";
 
-    // --- Wartung ---
-    // --- Maintenance ---
+    // Rocrail-Modellzeit (siehe rocrail_client.h)
+    // Rocrail model time (see rocrail_client.h)
+    constexpr const char* PK_ROCRAIL_ENABLED   = "rocrailEnabled";
+
+    // PK_ROCRAIL_SERVER/PK_ROCRAIL_SRV_PORT: der aktuell aktive Server -
+    // wird beim Speichern in /save_rocrail aus der Liste unten (dem per
+    // Haekchen ausgewaehlten Eintrag) uebernommen. rocrail_client.h liest
+    // weiterhin nur diese beiden Werte, kennt die Liste selbst nicht.
+    // Frueher der einzige, manuell eingetragene Server - daher der Name
+    // ohne Index.
+
+    // PK_ROCRAIL_SERVER/PK_ROCRAIL_SRV_PORT: the currently active server -
+    // taken over from the list below (the entry selected via the checkmark)
+    // when saving in /save_rocrail. rocrail_client.h continues to read only
+    // these two values, it doesn't know about the list itself. Formerly the
+    // single, manually entered server - hence the name has no index.
+    constexpr const char* PK_ROCRAIL_SERVER    = "rocrailServer";
+    constexpr const char* PK_ROCRAIL_SRV_PORT  = "rocrailSrvPort";
+
+    // Liste moeglicher Rocrail-Server (bis zu MAX_WLAN Eintraege, siehe
+    // globals.h) - wie bei den NTP-Servern (pkNtpServer()) immer ein leerer
+    // Platz nach dem letzten befuellten (siehe panel-rocrail in
+    // webserver_routes.h). PK_ROCRAIL_ACTIVE_SRV haelt den 0-basierten Index
+    // des per Haekchen ausgewaehlten Eintrags, -1 = keiner ausgewaehlt.
+
+    // List of possible Rocrail servers (up to MAX_WLAN entries, see
+    // globals.h) - like the NTP servers (pkNtpServer()), always one empty
+    // slot after the last filled one (see panel-rocrail in
+    // webserver_routes.h). PK_ROCRAIL_ACTIVE_SRV holds the 0-based index of
+    // the entry selected via the checkmark, -1 = none selected.
+    constexpr const char* PK_ROCRAIL_ACTIVE_SRV = "rocSrvActive";
+
+    // Liefert den Preferences-Key fuer den Hostnamen/die IP des Rocrail-Server-Eintrags an Index i
+    // Returns the preferences key for the hostname/IP of the Rocrail server entry at index i
+
+    inline String pkRocrailServerHost(int i) { return "rocSrvH" + String(i + 1); }
+
+
+    // Liefert den Preferences-Key fuer den Port des Rocrail-Server-Eintrags an Index i
+    // Returns the preferences key for the port of the Rocrail server entry at index i
+
+    inline String pkRocrailServerPort(int i) { return "rocSrvP" + String(i + 1); }
+
+
+    // Liefert den Preferences-Key fuer den (vom Nutzer editierbaren, siehe
+    // rocrailServerNameList[] in globals.h) Anlagennamen des Rocrail-Server-
+    // Eintrags an Index i
+    // Returns the preferences key for the (user-editable, see
+    // rocrailServerNameList[] in globals.h) layout name of the Rocrail
+    // server entry at index i
+
+    inline String pkRocrailServerName(int i) { return "rocSrvN" + String(i + 1); }
+
+    // Wartung
+    // Maintenance
     constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
 
-    // ### Bekannte Default-Wert-Inkonsistenzen (im Original-Sketch) ######
-    // ### Known Default-Value Inconsistencies (in the original sketch) ###
+    // Bekannte Default-Wert-Inkonsistenzen (im Original-Sketch)
+    // Known Default-Value Inconsistencies (in the original sketch)
     // PK_STATION_MODE: Default ueberall `true`, ausser einer Webserver-Handler-Stelle mit `false` (beim Zentralisieren einheitlich auf `true` setzen).
     // PK_STATION_MODE: default is `true` everywhere except one webserver handler using `false` (unify to `true` when centralizing).
     // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt bei fehlendem Wert 8/20 - rein kosmetisch, sollte vereinheitlicht werden.
@@ -101,13 +150,11 @@
     // already set) - the clock then falls back to the wrong (non-backlight) value instead of the one actually intended for that display.
 
 
-    // ### Indizierte Keys (WLAN-Slots, NTP-Server, Presets) ##############
-    // ### Indexed Keys (WiFi Slots, NTP Servers, Presets) #################
-    // Statt "ssid" + String(i+1) ueberall von Hand zu bauen, zentrale Helper
-    // verwenden - Rueckgabe als String, .c_str() direkt an preferences.get/putString() uebergebbar.
+    // Indizierte Keys (WLAN-Slots, NTP-Server, Presets)
+    // Statt "ssid" + String(i+1) ueberall von Hand zu bauen, zentrale Helper verwenden.
 
-    // Instead of building "ssid" + String(i+1) by hand everywhere, use these
-    // central helpers - return as String, .c_str() can be passed directly to preferences.get/putString().
+    // Indexed Keys (WiFi Slots, NTP Servers, Presets)
+    // Instead of building "ssid" + String(i+1) by hand everywhere, use these central helpers.
 
 
     // Liefert den Preferences-Key fuer das WLAN-SSID-Feld an Index i

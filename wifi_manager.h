@@ -1,11 +1,11 @@
 #pragma once
-    // ### WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect ##########
-    // ### WiFi: connection setup, access point, scan, reconnect ##########
-    // Benoetigt globals.h, config.h, prefs_keys.h und declarations.h (werden
-    // zentral in uhr3.ino VOR dieser Datei eingebunden).
+    // WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect. Benoetigt
+    // globals.h, config.h, prefs_keys.h, declarations.h (vor dieser Datei
+    // in uhr3.ino eingebunden).
 
-    // Requires globals.h, config.h, prefs_keys.h and declarations.h
-    // (included centrally in uhr3.ino BEFORE this file).
+    // WiFi: connection setup, access point, scan, reconnect. Requires
+    // globals.h, config.h, prefs_keys.h, declarations.h (included in
+    // uhr3.ino before this file).
 
     // WPS-Typ definieren (Push-Button-Methode)
     // Define WPS type (push-button method)
@@ -34,24 +34,13 @@
     }
 
 
-    // ### Verifiziertes Preferences-Schreiben #############################
-    // ### Verified preferences write #############################
-    // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
-    // um einen (z.B. durch vollen NVS-Namespace) fehlgeschlagenen Schreibvorgang
-    // zu erkennen, statt ihn erst nach einem Neustart als "Eintrag verschwunden"
-    // zu bemerken. Gibt true zurueck, wenn der zurueckgelesene Wert dem
-    // geschriebenen Wert entspricht.
-    // (Hier statt in prefs_keys.h implementiert, da dort weder "preferences"
-    // aus globals.h noch das Makro DEBUG_PRINTLN aus config.h bekannt sind -
-    // prefs_keys.h wird in uhr3.ino vor beiden eingebunden.)
+    // Schreibt String und liest ihn sofort zur Verifikation zurueck (erkennt
+    // fehlgeschlagene NVS-Schreibvorgaenge). Hier statt in prefs_keys.h, da
+    // dort DEBUG_PRINTLN/preferences noch nicht bekannt sind.
 
-    // Writes a string to preferences and immediately reads it back to detect a
-    // failed write (e.g. full NVS namespace) instead of only noticing a
-    // "missing entry" after a reboot. Returns true if the value read back
-    // matches the value written.
-    // (Implemented here instead of in prefs_keys.h, since neither "preferences"
-    // from globals.h nor the DEBUG_PRINTLN macro from config.h are known there -
-    // prefs_keys.h is included in uhr3.ino before both.)
+    // Writes a string and reads it back immediately to verify (catches
+    // failed NVS writes). Implemented here instead of prefs_keys.h since
+    // DEBUG_PRINTLN/preferences aren't known there yet.
 
     bool putStringVerified(const char* key, const String& value) {
         preferences.putString(key, value);
@@ -64,39 +53,13 @@
     }
 
 
-    // Uebernimmt die Ergebnisse eines abgeschlossenen WLAN-Scans in
-    // availableNetworks[] und behaelt dabei die STAERKSTEN MAX_WLAN Netze,
-    // anschliessend absteigend nach Signalstaerke sortiert.
-    //
-    // Vorher schnitten alle drei Scan-Auswertungen die Liste einfach nach
-    // MAX_WLAN Eintraegen ab und uebernahmen sie in der Reihenfolge, in der der
-    // Treiber sie liefert - die ist NICHT nach Signalstaerke sortiert, trotz
-    // gegenteiliger Logzeile. In einer Wohngegend sind schnell 20 bis 40 Netze
-    // in der Luft; lag das eigene Netz nicht unter den ersten 15, fehlte es in
-    // availableNetworks[] komplett. Der Boot-Code schloss daraus, es sei nicht
-    // erreichbar, und ging in den Access-Point-/WPS-Modus, obwohl der Router die
-    // ganze Zeit da war. Da es davon abhing, wie viele Nachbarnetze gerade
-    // senden, trat das unregelmaessig auf.
-    //
-    // 'totalFound' ist die vollstaendige Trefferzahl des Scans, NICHT bereits
-    // auf MAX_WLAN begrenzt - sonst waere der Sinn der Auswahl dahin.
+    // Uebernimmt Scan-Ergebnisse in availableNetworks[], behaelt die MAX_WLAN
+    // staerksten (absteigend sortiert) - Treiber-Ergebnisse sind NICHT nach
+    // Signalstaerke sortiert. 'totalFound' ist die volle Trefferzahl.
 
-    // Takes the results of a completed WiFi scan into availableNetworks[],
-    // keeping the STRONGEST MAX_WLAN networks, then sorted by signal strength in
-    // descending order.
-    //
-    // Previously all three scan evaluations simply truncated the list after
-    // MAX_WLAN entries and took them in the order the driver returns them -
-    // which is NOT sorted by signal strength, despite a log line claiming
-    // otherwise. In a residential area 20 to 40 networks are quickly on air; if
-    // the clock's own network was not among the first 15, it was missing from
-    // availableNetworks[] entirely. The boot code concluded it was unreachable
-    // and went into access point/WPS mode even though the router had been there
-    // the whole time. Since it depended on how many neighbouring networks
-    // happened to be transmitting, this occurred irregularly.
-    //
-    // 'totalFound' is the scan's complete hit count, NOT already capped to
-    // MAX_WLAN - otherwise the selection would be pointless.
+    // Takes scan results into availableNetworks[], keeping the MAX_WLAN
+    // strongest (sorted descending) - driver results are NOT sorted by
+    // signal strength. 'totalFound' is the full hit count.
 
     void collectStrongestNetworks(int totalFound) {
         for (int i = 0; i < MAX_WLAN; i++) {
@@ -104,8 +67,8 @@
             availableNetworks[i].rssi = 0;
             availableNetworks[i].enc = 0;
         }
-        foundNetworkCount = 0; // WICHTIG: zuruecksetzen, sonst summiert sich der Zaehler ueber mehrere Scans auf und /api/scanwifi liest ueber das availableNetworks[MAX_WLAN]-Array hinaus (Absturz/leere Anzeige)
-                               // IMPORTANT: reset here, otherwise the counter accumulates across scans and /api/scanwifi reads past the availableNetworks[MAX_WLAN] array (crash/empty display)
+        foundNetworkCount = 0; // wichtig: sonst akkumuliert der Zaehler ueber Scans, Array-Overflow
+                               // important: otherwise counter accumulates across scans, array overflow
 
         if (totalFound < 0) totalFound = 0;
 
@@ -119,10 +82,8 @@
                 slot = foundNetworkCount++;
             }
             else {
-                // Schwaechsten bisher behaltenen Eintrag suchen und nur
-                // ersetzen, wenn der neue staerker ist.
-                // Find the weakest entry kept so far and only replace it if the
-                // new one is stronger.
+                // schwaechsten Eintrag finden, nur ersetzen wenn staerker
+                // find weakest entry, replace only if new one is stronger
                 int weakest = 0;
                 for (int k = 1; k < MAX_WLAN; k++) {
                     if (availableNetworks[k].rssi < availableNetworks[weakest].rssi) weakest = k;
@@ -137,14 +98,8 @@
             availableNetworks[slot].enc = scanEnc;
         }
 
-        // Absteigend nach Signalstaerke sortieren - Einfuegesortierung wie an
-        // anderen Stellen im Projekt, bei hoechstens MAX_WLAN Eintraegen
-        // ausreichend. Damit steht das staerkste Netz auch in der Netzwerkliste
-        // der Weboberflaeche oben.
-        // Sort by signal strength, descending - insertion sort as elsewhere in
-        // this project, sufficient for at most MAX_WLAN entries. This also puts
-        // the strongest network at the top of the network list in the web
-        // interface.
+        // Einfuegesortierung reicht fuer maximal MAX_WLAN Eintraege
+        // insertion sort is sufficient for at most MAX_WLAN entries
         for (int i = 1; i < foundNetworkCount; i++) {
             WifiNetwork key = availableNetworks[i];
             int j = i - 1;
@@ -174,20 +129,13 @@
         static bool firstAttempt = true; // siehe Kommentar unten
                                          // see comment below
 
-        // Ohne firstAttempt war "millis() - 0 < WAIT_1h" in der ersten Stunde
-        // nach dem Boot immer wahr - die Funktion kehrte sofort mit true
-        // ("Verbindung OK") zurueck, ohne ueberhaupt einen Verbindungsversuch
-        // zu unternehmen, obwohl loop() sie ausschliesslich im getrennten
-        // Zustand aufruft. Ein Router-Neustart kurz nach dem Einschalten (z.B.
-        // nach einem Stromausfall, wo beide Geraete gleichzeitig hochfahren)
-        // hat die Uhr so bis zu 60 Minuten offline gelassen.
+        // Ohne firstAttempt gilt die Bedingung in der ersten Stunde nach Boot
+        // immer als "Verbindung OK", ohne je zu verbinden - ein Router-Neustart
+        // direkt nach Stromausfall liess die Uhr so bis zu 60 Min offline.
 
-        // Without firstAttempt, "millis() - 0 < WAIT_1h" was always true during
-        // the first hour after boot - the function returned true ("connection
-        // OK") immediately without even attempting to connect, even though
-        // loop() only calls it while disconnected. A router restart shortly
-        // after power-on (e.g. after a power cut, where both devices boot at
-        // the same time) thus left the clock offline for up to 60 minutes.
+        // Without firstAttempt the condition is always "connection OK" during
+        // the first hour after boot, without ever connecting - a router
+        // restart right after a power cut left the clock offline for 60 min.
         unsigned long now = millis();
         if (!firstAttempt && (now - lastAttempt < WAIT_1h)) return true;
         firstAttempt = false;
@@ -217,44 +165,22 @@
     }
 
 
-    // Startet einen WLAN-Access-Point mit der festen SSID aus AP_SSID und einem
-    // aus der MAC-Adresse abgeleiteten, geraetespezifischen Passwort und zeigt
-    // beides zusammen mit der IP auf dem Display an.
-    // Speichert die aktuell per WPS verbundenen Zugangsdaten (SSID/Passwort) in
-    // einem freien oder passenden Slot. Wird von der asynchronen Web-Button-WPS-
-    // Anfrage genutzt (siehe /api/startWPS und loop() in uhr3.ino) - eigenstaendig,
-    // um den bestehenden Boot-Zeit-WPS-Code in setup() nicht anzufassen.
-    // WiFi-Event-Callback fuer die per Web-Button gestartete WPS-Anfrage. Laeuft
-    // laut Arduino-ESP32-Doku in einem ANDEREN Kontext/Thread als loop() - daher
-    // hier NUR einfache Flags/Variablen setzen, keine schwereren Operationen wie
-    // Preferences-Zugriffe oder Reconnects (die passieren in loop()).
+    // WiFi-Event-Callback fuer die per Web-Button gestartete WPS-Anfrage.
+    // Laeuft in einem anderen Thread als loop() - nur Flags setzen, keine
+    // Preferences-Zugriffe oder Reconnects hier.
 
-    // Starts a WiFi access point with the fixed SSID from AP_SSID and a
-    // device-specific password derived from the MAC address, and shows both
-    // together with the IP on the display.
-    // Saves the credentials (SSID/password) just connected via WPS into a free
-    // or matching slot. Used by the asynchronous web-button WPS request (see
-    // /api/startWPS and loop() in uhr3.ino) - standalone, so the existing
-    // boot-time WPS code in setup() stays untouched.
-    // WiFi event callback for the WPS request started via the web button. Per
-    // the Arduino-ESP32 docs it runs in a DIFFERENT context/thread than loop() -
-    // so only set simple flags/variables here, no heavier operations like
-    // preferences access or reconnects (those happen in loop()).
+    // WiFi event callback for the web-button WPS request. Runs in a
+    // different thread than loop() - only set flags here, no preferences
+    // access or reconnects.
 
     void onWpsEvent(WiFiEvent_t event) {
-        // Weder WiFi.SSID()/WiFi.psk() noch esp_wifi_get_config() liefern an
-        // dieser Stelle zuverlaessig die neuen Zugangsdaten (bestaetigter
-        // ESP-IDF-Bug, siehe espressif/esp-idf#10339, sowie fehlendes memcpy
-        // fuer WPS_ER_SUCCESS im aktuellen arduino-esp32-Core). Nur ein Flag
-        // setzen - die eigentliche Verbindung (und das zuverlaessige Auslesen
-        // von SSID/Passwort NACH erfolgreicher Verbindung) passiert in loop().
+        // WiFi.SSID()/psk() liefern hier unzuverlaessig die neuen Zugangsdaten
+        // (ESP-IDF-Bug #10339) - daher nur Flag setzen, Zugangsdaten werden
+        // nach erfolgreicher Verbindung in loop() ausgelesen.
 
-        // Neither WiFi.SSID()/WiFi.psk() nor esp_wifi_get_config() reliably
-        // return the new credentials at this point (confirmed ESP-IDF bug, see
-        // espressif/esp-idf#10339, plus a missing memcpy for WPS_ER_SUCCESS in
-        // the current arduino-esp32 core). Just set a flag - the actual
-        // connection (and reliably reading SSID/password AFTER a successful
-        // connection) happens in loop().
+        // WiFi.SSID()/psk() unreliably return the new credentials here
+        // (ESP-IDF bug #10339) - so just set a flag, credentials are read
+        // in loop() after a successful connection.
         if (event == ARDUINO_EVENT_WPS_ER_SUCCESS) {
             wpsSuccessEvent = true;
         }
@@ -286,19 +212,13 @@
 
 
     int saveWpsCredentials(const String& ssid, const String& pass) {
-        // Bewusst frisch aus den Preferences lesen statt dem In-Memory-Array
-        // wifiSsid[] zu vertrauen: dieses wird nur beim Booten befuellt und
-        // koennte zum Zeitpunkt eines WPS-Erfolgs (Geraet laeuft ggf. schon
-        // laenger) nicht mehr exakt mit den tatsaechlich gespeicherten
-        // Netzwerken uebereinstimmen - das koennte sonst dazu fuehren, dass
-        // ein bereits belegter Slot faelschlich als frei erkannt und
-        // ueberschrieben wird.
+        // Bewusst frisch aus Preferences lesen statt wifiSsid[]: das Array wird
+        // nur beim Booten befuellt und koennte bei spaetem WPS-Erfolg nicht mehr
+        // aktuell sein - ein belegter Slot koennte faelschlich ueberschrieben werden.
 
-        // Deliberately read fresh from preferences instead of trusting the
-        // in-memory array wifiSsid[]: it's only filled at boot and might no
-        // longer match the actually stored networks by the time WPS succeeds
-        // (device may have been running for a while) - otherwise an already
-        // used slot could be wrongly detected as free and overwritten.
+        // Deliberately read fresh from preferences instead of wifiSsid[]: it's
+        // only filled at boot and may be stale by the time WPS succeeds - an
+        // occupied slot could be wrongly overwritten.
         for (int i = 0; i < MAX_WLAN; i++) {
             String storedSsid = preferences.getString(pkSsid(i).c_str(), "");
             if (storedSsid == ssid) {
@@ -313,26 +233,18 @@
                 }
                 wifiSsid[i] = ssid; // In-Memory-Array synchron halten
                                     // keep in-memory array in sync
-                // PK_LAST_WLAN bewusst NICHT setzen: diese Funktion soll das
-                // Netzwerk nur speichern/aktualisieren, nicht als naechstes
-                // beim Boot bevorzugt versucht werden lassen (siehe /api/startWPS
-                // in webserver_routes.h - nur ein Eintrag hinzufuegen, nicht
-                // automatisch dorthin wechseln).
+                // PK_LAST_WLAN bewusst NICHT setzen: nur speichern/aktualisieren,
+                // nicht automatisch als naechstes beim Boot bevorzugen.
 
-                // Deliberately NOT setting PK_LAST_WLAN: this function should only
-                // save/update the network, not make it the preferred one tried
-                // next at boot (see /api/startWPS in webserver_routes.h - only
-                // add an entry, don't switch to it automatically).
+                // Deliberately NOT setting PK_LAST_WLAN: only save/update,
+                // don't make it preferred at next boot.
                 DEBUG_PRINTLN("[WPS] SSID " + ssid + " already known, using slot " + String(i + 1));
                 return i;
             }
         }
 
-        // Neue SSID: ersten WIRKLICH freien Slot suchen (frisch aus den
-        // Preferences gelesen), sonst letzten Slot ueberschreiben.
-
-        // New SSID: look for the first REALLY free slot (read fresh from
-        // preferences), otherwise overwrite the last slot.
+        // neue SSID: ersten wirklich freien Slot suchen, sonst letzten ueberschreiben
+        // new SSID: find first really free slot, otherwise overwrite the last one
         int freeIdx = -1;
         for (int i = 0; i < MAX_WLAN; i++) {
             if (preferences.getString(pkSsid(i).c_str(), "") == "") { freeIdx = i; break; }
@@ -356,13 +268,11 @@
 #endif
 
 
-        // WLAN im Station-Modus starten, aber NICHT verbinden - ein
-        // gleichzeitiger Verbindungsversuch (WiFi.begin()) kann die WPS-
-        // Aushandlung stoeren/verzoegern, da beide sich den Funk teilen.
+        // Station-Modus starten, aber NICHT verbinden - ein gleichzeitiger
+        // WiFi.begin() wuerde die WPS-Aushandlung stoeren (geteilter Funk).
 
-        // Start WiFi in station mode, but do NOT connect - a concurrent
-        // connection attempt (WiFi.begin()) can interfere with/delay the
-        // WPS negotiation, since both compete for the radio.
+        // Start station mode, but do NOT connect - a concurrent WiFi.begin()
+        // would interfere with WPS negotiation (shared radio).
         WiFi.mode(WIFI_MODE_STA);
         WiFi.disconnect();
 
@@ -414,19 +324,13 @@
         unsigned long wpsTimeoutMs = 2 * WAIT_1m;
         long wpsWaitMillis = millis();
 
-        // WICHTIG: WiFi.status() wechselt bei erfolgreichem WPS in aktuellen
-        // arduino-esp32-Versionen NICHT automatisch auf WL_CONNECTED (bestaetigte
-        // Regression, siehe espressif/arduino-esp32#11705) - der Kern verbindet
-        // nach dem WPS_ER_SUCCESS-Event nicht mehr von selbst. Deshalb hier auf
-        // das von onWpsEvent() gesetzte Flag reagieren statt auf WiFi.status()
-        // zu pollen (identisches Prinzip wie im Web-Button-WPS-Weg in loop()).
+        // WICHTIG: WiFi.status() springt bei WPS-Erfolg in aktuellen
+        // arduino-esp32-Versionen NICHT automatisch auf WL_CONNECTED (Regression,
+        // siehe arduino-esp32#11705) - daher auf das onWpsEvent()-Flag reagieren.
 
-        // IMPORTANT: WiFi.status() does NOT automatically switch to WL_CONNECTED
-        // on WPS success in current arduino-esp32 versions (confirmed regression,
-        // see espressif/arduino-esp32#11705) - the core no longer auto-connects
-        // after the WPS_ER_SUCCESS event. So react to the flag set by onWpsEvent()
-        // instead of polling WiFi.status() (same principle as the web-button WPS
-        // path in loop()).
+        // IMPORTANT: WiFi.status() does NOT auto-switch to WL_CONNECTED on WPS
+        // success in current arduino-esp32 versions (regression, see
+        // arduino-esp32#11705) - so react to the flag set by onWpsEvent().
         while (!wpsSuccessEvent && !wpsFailedEvent && (millis() - wpsWaitMillis) <= wpsTimeoutMs) {
             int secondsLeft = (wpsTimeoutMs - (millis() - wpsWaitMillis)) / 1000;
             if (secondsLeft != lastSecondsShown) {
@@ -446,13 +350,11 @@
         if (wpsSuccessEvent) {
             wpsSuccessEvent = false;
 
-            // WiFi.SSID()/WiFi.psk() liefern an dieser Stelle unzuverlaessig die
-            // neuen Zugangsdaten (ESP-IDF#10339) - stattdessen wie im Web-Button-
-            // Weg mehrfach per esp_wifi_get_config() versuchen.
+            // WiFi.SSID()/psk() sind hier unzuverlaessig (ESP-IDF#10339, siehe
+            // onWpsEvent()) - stattdessen per esp_wifi_get_config() mehrfach lesen.
 
-            // WiFi.SSID()/WiFi.psk() unreliably return the new credentials here
-            // (ESP-IDF#10339) - instead, retry via esp_wifi_get_config() several
-            // times, same as the web-button path.
+            // WiFi.SSID()/psk() are unreliable here (ESP-IDF#10339, see
+            // onWpsEvent()) - read via esp_wifi_get_config() with retries instead.
             String newSsid = "";
             String newPass = "";
             for (int wpsReadAttempt = 0; wpsReadAttempt < 20 && newSsid == ""; wpsReadAttempt++) {
@@ -513,40 +415,22 @@
         // Start the access point first, so the clock becomes reachable via
         // WPS retry or the web interface in any case (even if the scan
         // below hangs/fails).
-        // MAC-Adresse hier selbst holen: startAP() kann erreicht werden, ohne
-        // dass connectWiFi() je gelaufen ist (kein gespeichertes Netz, siehe
-        // connectWiFiAtBoot() in uhr3.ino) - und NUR dort wurde mac[] bisher
-        // befuellt. Ohne diesen Aufruf waere das Array in genau dem Fall, in dem
-        // der AP am haeufigsten gebraucht wird, noch komplett 0 und jede Uhr
-        // bekaeme dasselbe Passwort.
+        // MAC hier selbst holen: startAP() kann erreicht werden, ohne dass
+        // connectWiFi() je lief (kein gespeichertes Netz) - nur dort wurde
+        // mac[] bisher befuellt, sonst waere das Passwort auf jeder Uhr gleich.
 
-        // Fetch the MAC address here: startAP() can be reached without
-        // connectWiFi() ever having run (no stored network, see
-        // connectWiFiAtBoot() in uhr3.ino) - and that was the ONLY place filling
-        // mac[] so far. Without this call the array would still be all zeros in
-        // exactly the case where the AP is needed most, and every clock would
-        // get the same password.
+        // Fetch the MAC here: startAP() can be reached without connectWiFi()
+        // ever running (no stored network) - that was the only place filling
+        // mac[], otherwise every clock would get the same password.
         WiFi.macAddress(mac);
 
-        // Passwort aus den letzten VIER MAC-Bytes: pro Geraet verschieden und
-        // ohne Notizzettel reproduzierbar. Vier Bytes, weil WPA2 mindestens acht
-        // Zeichen verlangt - als Hex ergeben vier Bytes genau acht. Die letzten
-        // drei Bytes (wie beim Hostnamen clock_XXXXXX) waeren mit sechs Zeichen
-        // zu kurz, der ESP32 wuerde den AP dann ablehnen bzw. offen starten.
-        //
-        // Die SSID bleibt bewusst fest (AP_SSID in config.h) - danach sucht der
-        // Nutzer. Vorher war das Passwort mit der SSID identisch und damit auf
-        // jeder Uhr gleich und allgemein bekannt.
+        // Passwort aus den letzten 4 MAC-Bytes (als Hex = 8 Zeichen, WPA2-Minimum)
+        // - pro Geraet verschieden. SSID bleibt fest (AP_SSID); Passwort war
+        // frueher mit ihr identisch und damit auf jeder Uhr gleich/bekannt.
 
-        // Password from the last FOUR MAC bytes: different per device and
-        // reproducible without a note. Four bytes because WPA2 requires at least
-        // eight characters - four bytes as hex give exactly eight. The last three
-        // bytes (as used for the hostname clock_XXXXXX) would be six characters
-        // and thus too short; the ESP32 would reject the AP or start it open.
-        //
-        // The SSID deliberately stays fixed (AP_SSID in config.h) - that is what
-        // the user looks for. Previously the password was identical to the SSID
-        // and therefore the same on every clock and publicly known.
+        // Password from the last 4 MAC bytes (hex = 8 chars, WPA2 minimum) -
+        // different per device. SSID stays fixed (AP_SSID); the password used
+        // to be identical to it and thus the same/known on every clock.
         // Kleinbuchstaben (%02x): auf dem Display und beim Abtippen am Handy
         // eindeutiger zu lesen. Der Hostname weiter unten in connectWiFi()
         // bleibt bewusst bei Grossbuchstaben, der ist ein anderer Bezeichner.
@@ -635,23 +519,13 @@
 
     int connectWiFi(int number, bool verboseMode) {
 
-        // Bereichspruefung direkt an der Quelle: 'number' wird gleich als Index
-        // in wifiSsid[MAX_WLAN]/wifiPass[MAX_WLAN] benutzt. Mindestens ein
-        // Aufrufer reicht den Wert ungeprueft aus dem NVS durch
-        // (checkWiFiReconnect() weiter oben, preferences.getInt(PK_LAST_WLAN)) -
-        // ein beschaedigter oder aus einer aelteren Version stammender Eintrag
-        // haette hier hinter das Array-Ende gegriffen, und zwar auf
-        // String-Objekte, also mit unbestimmtem Ergebnis statt eines sauberen
-        // Absturzes. Die Pruefung hier deckt alle Aufrufer auf einmal ab.
+        // Bereichspruefung: 'number' indiziert wifiSsid[]/wifiPass[] direkt,
+        // und mind. ein Aufrufer reicht ihn ungeprueft aus dem NVS durch -
+        // ein beschaedigter Wert wuerde sonst hinter das Array-Ende greifen.
 
-        // Range check right at the source: 'number' is used as an index into
-        // wifiSsid[MAX_WLAN]/wifiPass[MAX_WLAN] straight away. At least one
-        // caller passes the value through unchecked from NVS
-        // (checkWiFiReconnect() further above, preferences.getInt(PK_LAST_WLAN))
-        // - a corrupted entry, or one left over from an older version, would
-        // have reached past the end of the array here, and on String objects at
-        // that, so with undefined results rather than a clean crash. This check
-        // covers all callers at once.
+        // Range check: 'number' indexes wifiSsid[]/wifiPass[] directly, and at
+        // least one caller passes it through unchecked from NVS - a corrupted
+        // value would otherwise reach past the end of the array.
         if (number < 0 || number >= MAX_WLAN) {
             DEBUG_PRINTLN("[WiFi] connectWiFi: index out of range (" + String(number) + ")");
             return NOT_CONNECTED;
@@ -762,77 +636,34 @@
 
         if (WiFi.status() == WL_CONNECTED) {
 
-            // PK_LAST_WLAN (die "einzige Quelle der Wahrheit" fuer das zuletzt
-            // verbundene Netz, siehe prefs_keys.h) muss allein vom WLAN-
-            // Verbindungserfolg abhaengen - NICHT von der optionalen Internet-
-            // Erreichbarkeit weiter unten. Stand vorher NACH den beiden
-            // Ping-bedingten early returns, wurde PK_LAST_WLAN bei fehlendem
-            // Ping-Server (Standardfall) oder kurzzeitig nicht erreichbarem
-            // Ping-Server NIE aktualisiert, obwohl die WLAN-Verbindung selbst
-            // laengst zu einem anderen Slot gewechselt war - checkWiFiReconnect()
-            // versuchte bei einer spaeteren Trennung dadurch weiterhin den
-            // FALSCHEN (alten) Slot erneut zu verbinden.
+            // PK_LAST_WLAN muss allein vom Verbindungserfolg abhaengen, nicht von
+            // der optionalen Ping-Pruefung unten - sonst bleibt bei fehlendem/
+            // kurzzeitig nicht erreichbarem Pingserver der falsche Slot gespeichert.
 
-            // PK_LAST_WLAN (the "single source of truth" for the last
-            // connected network, see prefs_keys.h) must depend only on the
-            // WiFi connection succeeding - NOT on the optional internet
-            // reachability check further below. Previously placed AFTER both
-            // ping-related early returns, PK_LAST_WLAN was NEVER updated when
-            // no ping server was configured (the default case) or the ping
-            // server was briefly unreachable, even though the WiFi connection
-            // itself had long since switched to a different slot -
-            // checkWiFiReconnect() would then keep retrying the WRONG (stale)
-            // slot on a later disconnect.
+            // PK_LAST_WLAN must depend only on connection success, not on the
+            // optional ping check below - otherwise the wrong slot stays saved
+            // when no ping server is set or it's briefly unreachable.
             if (preferences.getInt(PK_LAST_WLAN, -1) != number) {
                 preferences.putInt(PK_LAST_WLAN, number);
                 DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
             }
 
-            // mDNS initialisieren.
-            //
-            // MDNS.end() davor: connectWiFi() laeuft nicht nur beim Booten,
-            // sondern auch bei jedem Reconnect (siehe checkWiFiReconnect()
-            // weiter oben) und nach einem WPS-Versuch. Ein zweites
-            // MDNS.begin() ohne vorheriges end() schlaegt im arduino-esp32-Core
-            // fehl bzw. haengt den HTTP-Dienst ein zweites Mal ein - nach dem
-            // ersten Verbindungsverlust war die Uhr dann fuer den Rest der
-            // Laufzeit nicht mehr unter "hostname.local" erreichbar, obwohl
-            // die WLAN-Verbindung wieder stand. end() auf einer nie
-            // gestarteten Instanz ist unproblematisch.
+            // MDNS.end() zuerst: connectWiFi() laeuft bei jedem Reconnect erneut,
+            // ein zweites MDNS.begin() ohne vorheriges end() schlaegt fehl bzw.
+            // haengt den HTTP-Dienst doppelt ein. end() auf ungestartetem ist ok.
 
-            // Initialize mDNS.
-            //
-            // MDNS.end() beforehand: connectWiFi() runs not only at boot but
-            // also on every reconnect (see checkWiFiReconnect() further above)
-            // and after a WPS attempt. A second MDNS.begin() without a
-            // preceding end() fails in the arduino-esp32 core resp. registers
-            // the HTTP service a second time - after the first connection loss
-            // the clock was then no longer reachable at "hostname.local" for
-            // the rest of its runtime, even though the WiFi connection was back
-            // up. Calling end() on an instance that was never started is
-            // harmless.
+            // MDNS.end() first: connectWiFi() runs again on every reconnect, a
+            // second MDNS.begin() without a prior end() fails resp. registers
+            // the HTTP service twice. end() on a never-started instance is fine.
             MDNS.end();
 
-            // Ergebnis von MDNS.begin() merken, statt pingHostname
-            // bedingungslos auf true zu setzen: pingHostname entscheidet an
-            // mehreren Stellen, ob der Link auf "hostname.local" ueberhaupt
-            // angeboten wird (Topbar und Statusseite in webserver_routes.h,
-            // Anzeige auf dem Display in showWlanCredentials()). Fest auf true
-            // gesetzt, wurde der Link auch dann angezeigt, wenn mDNS gar nicht
-            // gestartet werden konnte - er fuehrte dann ins Leere.
-            // (Der Name stammt aus einem frueheren Ping-Test auf den
-            // mDNS-Namen, der hier auskommentiert war und ersatzlos entfaellt;
-            // MDNS.begin() selbst ist die verlaesslichere Auskunft.)
+            // Ergebnis von MDNS.begin() merken statt pingHostname fest auf true:
+            // es steuert, ob der "hostname.local"-Link ueberhaupt angezeigt wird
+            // (Topbar, Statusseite, Display) - sonst fuehrte er ggf. ins Leere.
 
-            // Remember the result of MDNS.begin() instead of setting
-            // pingHostname to true unconditionally: pingHostname decides in
-            // several places whether the link to "hostname.local" is offered at
-            // all (topbar and status page in webserver_routes.h, display output
-            // in showWlanCredentials()). Hard-set to true, the link was shown
-            // even when mDNS could not be started at all - and then led
-            // nowhere. (The name comes from an earlier ping test against the
-            // mDNS name, which was commented out here and is dropped entirely;
-            // MDNS.begin() itself is the more reliable answer.)
+            // Remember MDNS.begin()'s result instead of hard-coding pingHostname
+            // true: it controls whether the "hostname.local" link is shown at
+            // all (topbar, status page, display) - otherwise it could lead nowhere.
             pingHostname = MDNS.begin(hostname);
             if (pingHostname) {
                 MDNS.addService("http", "tcp", 80); // HTTP-Dienst auf Port 80 bekanntgeben
@@ -843,21 +674,13 @@
                 DEBUG_PRINTLN("[mDNS] Error starting mDNS - only the IP address will be offered");
             }
 
-            // Eigenen NTP-Server neu an Port 123 binden: der WLAN-Stack wurde
-            // weiter oben in dieser Funktion komplett heruntergefahren
-            // (WiFi.mode(WIFI_MODE_NULL)), der in setup() gebundene Socket hat
-            // dabei sein Netzwerk-Interface verloren. Ohne dieses erneute
-            // Binden blieb der NTP-Server der Uhr nach dem ersten Reconnect
-            // stumm - udp.parsePacket() liefert dann einfach dauerhaft 0,
-            // ohne Fehlermeldung (siehe startNtpServer() in time_sync.h).
+            // NTP-Server neu an Port 123 binden: WiFi.mode(WIFI_MODE_NULL) oben
+            // hat den WLAN-Stack heruntergefahren, der in setup() gebundene Socket
+            // verlor sein Interface - sonst bleibt der NTP-Server nach Reconnect stumm.
 
-            // Rebind the own NTP server to port 123: the WiFi stack was shut
-            // down completely further up in this function
-            // (WiFi.mode(WIFI_MODE_NULL)), and the socket bound in setup() lost
-            // its network interface in the process. Without this rebind the
-            // clock's NTP server stayed silent after the first reconnect -
-            // udp.parsePacket() then simply keeps returning 0, with no error
-            // (see startNtpServer() in time_sync.h).
+            // Rebind the NTP server to port 123: WiFi.mode(WIFI_MODE_NULL) above
+            // shut down the WiFi stack, the socket bound in setup() lost its
+            // interface - otherwise the NTP server stays silent after a reconnect.
             startNtpServer();
 
             DEBUG_PRINTLN("[WiFi] Connected to: " + wifiSsid[number]);
@@ -922,18 +745,11 @@
     }
 
 
-    // Animation während Verbindungsversuchen
-    // Animation during connection attempts
+    // Animation waehrend Verbindungsversuchen. Kein 'tft'-Parameter, da
+    // DRAW_ON_BOTH_DISPLAYS() es intern selbst umbiegt.
 
-    // Parameter 'tft' entfernt: DRAW_ON_BOTH_DISPLAYS() biegt 'tft' innerhalb
-    // seines Blocks ohnehin auf das jeweils richtige Zeichenziel um (siehe
-    // config.h/display.h), der uebergebene Parameter wurde dadurch verschattet
-    // und war faktisch tot - irrefuehrend und eine Compiler-Warnung wert.
-
-    // Parameter 'tft' removed: DRAW_ON_BOTH_DISPLAYS() shadows 'tft' inside its
-    // block with the correct drawing target anyway (see config.h/display.h), so
-    // the passed parameter was shadowed and effectively dead - misleading and
-    // worth a compiler warning.
+    // Animation during connection attempts. No 'tft' parameter, since
+    // DRAW_ON_BOTH_DISPLAYS() redirects it internally itself.
 
     void animateCursor(int x, int y, int delayMs) {
         const char* frames[] = { "/", "-", "\\", "-" };
@@ -951,11 +767,6 @@
     // Display WiFi parameters on the TFT
 
     void showWlanCredentials(String wlan) {
-        // Preprocessor-Bedingung vorab in eine Variable aufloesen - #if/#else
-        // duerfen nicht innerhalb der Argumentliste von DRAW_ON_BOTH_DISPLAYS() stehen.
-
-        // Resolve the preprocessor condition into a variable beforehand - #if/#else
-        // are not allowed inside DRAW_ON_BOTH_DISPLAYS()'s argument list.
 #if defined(GC9D01)
         int versionCursorX = 20;
 #else
@@ -994,8 +805,8 @@
     }
 
 
-    // --- Funktion: Löscht die gespeicherten WiFi-Konfigurationen ---
-    // --- Function: deletes the saved WiFi configurations ---
+    // Loescht gespeicherte WLAN-Zugangsdaten
+    // Deletes saved WiFi credentials
 
     void eraseWiFiConfig() {
         // WLAN trennen und komplett deaktivieren
@@ -1016,36 +827,18 @@
             preferences.remove(passKey.c_str());
         }
 
-        // Entfernt: hier stand zusaetzlich ein manuelles nvs_open("wifi", ...) +
-        // nvs_erase_all() "zur Sicherheit" - im ganzen Projekt wird Preferences
-        // aber ausschliesslich unter dem Namespace "clock" geoeffnet
-        // (preferences.begin("clock", false), siehe system_utils.h/uhr3.ino).
-        // Der Namespace "wifi" existierte nie, das Loeschen traf also
-        // garantiert nie echte Daten - trotz der Erfolgsmeldung im Log. Die
-        // eigentliche Loeschung passiert bereits vollstaendig und korrekt oben
-        // ueber preferences.remove(ssidKey/passKey) im richtigen Namespace.
-        // Ein Umbiegen auf "clock" waere KEIN gleichwertiger Ersatz gewesen:
-        // das haette den kompletten Namespace geleert, also z.B. auch
-        // Helligkeits-/Zeitzonen-/Preset-Einstellungen mit geloescht, obwohl
-        // nur die WLAN-Zugangsdaten zurueckgesetzt werden sollen.
+        // Kein zusaetzliches nvs_erase_all("wifi") noetig: dieser Namespace wird
+        // nirgends verwendet (alles laeuft unter "clock") - ein Aufraeumen dort
+        // wuerde faelschlich den kompletten "clock"-Namespace treffen.
 
-        // Removed: this used to additionally open nvs_open("wifi", ...) and
-        // call nvs_erase_all() "for extra safety" - throughout the project,
-        // Preferences is only ever opened under the "clock" namespace
-        // (preferences.begin("clock", false), see system_utils.h/uhr3.ino).
-        // The "wifi" namespace never existed, so this erase was guaranteed to
-        // never touch real data - despite the log line claiming success. The
-        // actual erasure already happens completely and correctly above via
-        // preferences.remove(ssidKey/passKey) in the correct namespace.
-        // Repointing this at "clock" would NOT have been an equivalent fix:
-        // that would wipe the entire namespace, e.g. also brightness/
-        // timezone/preset settings, even though only the WiFi credentials are
-        // meant to be reset here.
+        // No extra nvs_erase_all("wifi") needed: that namespace is unused
+        // (everything runs under "clock") - cleaning it up there would wrongly
+        // wipe the entire "clock" namespace.
     }
 
 
-    // --- Funktion: Startet einen asynchronen WiFi-Scan ---
-    // --- Function: starts an asynchronous WiFi scan ---
+    // Startet asynchronen WiFi-Scan
+    // Starts an asynchronous WiFi scan
 
     void startWiFiScan() {
         if (!isScanning) {
@@ -1063,8 +856,8 @@
     }
 
 
-    // --- Funktion: Überprüft den Status des WiFi-Scans und verarbeitet die Ergebnisse ---
-    // --- Function: checks the WiFi scan status and processes the results ---
+    // Prüft Scan-Status und verarbeitet Ergebnisse
+    // Checks scan status and processes results
 
     void checkWiFiScan() {
         if (isScanning) {
@@ -1116,8 +909,8 @@
     }
 
 
-    // --- Funktion: Scannt verfügbare WLANs und speichert sie im Cache ---
-    // --- Function: scans available WiFi networks and caches them ---
+    // Scannt WLANs und cached Ergebnisse
+    // Scans WiFi networks and caches results
 
     void scanAndCacheNetworks() {
 
@@ -1141,8 +934,7 @@
 
         collectStrongestNetworks(networkCount);
 
-        WiFi.scanDelete(); // Ergebnisse löschen
-                           // clear results
+        WiFi.scanDelete();
         DEBUG_PRINTLN("[WiFi] done");
 
     }

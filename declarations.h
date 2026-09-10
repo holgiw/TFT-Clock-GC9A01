@@ -1,20 +1,19 @@
 #pragma once
-    // ### Forward-Deklarationen aller Funktionen #########################
-    // ### Forward declarations of all functions #########################
-    // Ersetzt die automatische Prototyp-Generierung der Arduino-IDE (scannt nur die .ino), da der Sketch auf mehrere .h-Dateien aufgeteilt ist -
-    // stellt sicher, dass jede Funktion unabhaengig von der #include-Reihenfolge aufrufbar ist. Sortiert wie die jeweilige .h-Datei.
+    // Forward-Deklarationen aller Funktionen - ersetzt Arduino IDEs automatische Prototyp-Generierung
+    // (scannt nur die .ino), da der Sketch auf mehrere .h-Dateien aufgeteilt ist.
 
-    // Replaces the Arduino IDE's automatic prototype generation (which only scans the .ino), since the sketch is split across multiple .h files -
-    // ensures every function is callable regardless of #include order. Sorted like the respective .h file.
+    // Forward declarations of all functions - replaces the Arduino IDE's automatic prototype generation
+    // (which only scans the .ino), since the sketch is split across multiple .h files.
 
 
-    // --- wifi_manager.h: WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect ---
-    // --- wifi_manager.h: WiFi: connection setup, access point, scan, reconnect ---
+    // wifi_manager.h: WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect
+    // wifi_manager.h: WiFi: connection setup, access point, scan, reconnect
 
     void startWPS() ;
     bool checkWiFiReconnect() ;
     int saveWpsCredentials(const String& ssid, const String& pass) ;
     void onWpsEvent(WiFiEvent_t event) ;
+    void restorePreviousWpsConnection() ;
     void startAP() ;
     int connectWiFi(int number, bool verboseMode) ;
     bool isInternetReachable(String pingServer) ;
@@ -33,8 +32,8 @@
     void connectWiFiAtBoot() ;
 
 
-    // --- time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone ---
-    // --- time_sync.h: Time: RTC, DCF77, NTP client & server, timezone ---
+    // time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone
+    // time_sync.h: Time: RTC, DCF77, NTP client & server, timezone
 
     void IRAM_ATTR isr() ;
     void loadTimeFromRTC() ;
@@ -58,8 +57,8 @@
     void createNtpResponse(byte* packet, const struct timeval& receivedAt) ;
 
 
-    // --- display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch ---
-    // --- display.h: Display: clock face, hands, sprites, brightness, touch ---
+    // display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch
+    // display.h: Display: clock face, hands, sprites, brightness, touch
 
     void* preferPsramMalloc(size_t size) ;
     void setCS1(bool state) ;
@@ -124,8 +123,31 @@
     void disableTouch() ;
 
 
-    // --- presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen ---
-    // --- presets_manager.h: Presets: load/save/switch predefined display configurations ---
+    // rocrail_client.h: Rocrail-Modellzeit: TCP-Verbindung (Serveradresse
+    // verpflichtend), XML-Auswertung des <clock/>-Events, Fortschreiben der
+    // (ggf. beschleunigten) Modellzeit zwischen zwei Server-Updates.
+
+    // rocrail_client.h: Rocrail model time: TCP connection (server address
+    // mandatory), XML parsing of the <clock/> event, advancing the
+    // (possibly accelerated) model time between two server updates.
+
+    void pollRocrailClient() ;
+    void connectRocrailClient() ;
+    void triggerRocrailConnectNow() ;
+    void startRocrailConnectTask() ;
+    void loadRocrailServerList() ;
+    void rocrailConnectTaskFunc(void* param) ;
+    void pollRocrailConnectTask() ;
+    void processRocrailBuffer() ;
+    void processRocrailPlanTag() ;
+    void processRocrailClockPayload(const String& payload) ;
+    void advanceRocrailTime() ;
+    int rocrailXmlAttrInt(const String& tag, const char* attr, int fallback) ;
+    String rocrailXmlAttrString(const String& tag, const char* attr) ;
+
+
+    // presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
+    // presets_manager.h: Presets: load/save/switch predefined display configurations
 
     String stripRotationParam(const String& url) ;
     void loadPresets() ;
@@ -137,8 +159,8 @@
     void switchToNextPreset() ;
 
 
-    // --- prefs_keys.h / wifi_manager.h: verifiziertes Preferences-Schreiben ---
-    // --- prefs_keys.h / wifi_manager.h: verified Preferences writing ---
+    // prefs_keys.h / wifi_manager.h: verifiziertes Preferences-Schreiben
+    // prefs_keys.h / wifi_manager.h: verified Preferences writing
     // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
     // um einen fehlgeschlagenen Schreibvorgang (z.B. durch vollen NVS-Namespace) zu erkennen,
     // statt ihn erst nach einem Neustart als "Eintrag verschwunden" zu bemerken.
@@ -150,8 +172,8 @@
     bool putStringVerified(const char* key, const String& value) ;
 
 
-    // --- webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung ---
-    // --- webserver_routes.h: Web interface: all HTTP routes & HTML generation ---
+    // webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung
+    // webserver_routes.h: Web interface: all HTTP routes & HTML generation
 
     String generateHtmlHeader(String extraHead = "") ;
     String simpleMessagePage(String heading, String bodyHtml, String extraHead = "") ;
@@ -161,9 +183,13 @@
     String getDcf77Status() ;
     String dotStatusText(const String& label, const String& state) ;
     String escapeHtmlText(const String& text) ;
+    String escapeJsonText(const String& text) ;
     String generateStorageInfo(size_t used, size_t total, bool forceEnglish = false) ;
     String generateFlashMessage() ;
     String generateNavigation() ;
+    String currentPreviewSignature() ;
+    String generateSettingsTabNav(bool asLinks) ; // asLinks=true: Tabs als Links zurueck auf "/?tab=<key>" (Info-Seite), sonst <label> der CSS-Tab-Mechanik (Startseite)
+                                                  // asLinks=true: tabs as links back to "/?tab=<key>" (info page), otherwise <label> elements of the CSS tab mechanism (start page)
     String generateLanguageSelector() ;
     String resetReasonToString(esp_reset_reason_t reason) ;
     String rtcStatusToString(int status) ;
@@ -181,8 +207,8 @@
     void handlePresetMergeUpload() ;
 
 
-    // --- system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen ---
-    // --- system_utils.h: System functions: buttons, logging, reset, restart, helper functions ---
+    // system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
+    // system_utils.h: System functions: buttons, logging, reset, restart, helper functions
 
     void checkButton() ;
     void checkWeeklyRestart() ;
@@ -196,7 +222,7 @@
     String trim(const String& str) ;
 
 
-    // --- uhr3.ino: setup() & loop() ---
+    // uhr3.ino: setup() & loop()
 
     void setup() ;
     void loop() ;
