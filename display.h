@@ -15,6 +15,7 @@
 
     // Fuer "new (std::nothrow)" unten: garantiert nullptr statt
     // implementierungsabhaengigem Verhalten bei fehlgeschlagener Allokation.
+
     // For "new (std::nothrow)" below: guarantees nullptr instead of
     // implementation-defined behavior on failed allocation.
 #include <new>
@@ -100,6 +101,7 @@
         // Bewusst KEIN sprite.setRotation() (siehe Kommentar oben) - das
         // Sprite bleibt immer in seiner unrotierten 0-Grad-Ausgangslage,
         // die Drehung erfolgt erst in endStatusDraw().
+
         // Deliberately NO sprite.setRotation() (see comment above) - the
         // sprite always stays in its unrotated 0-degree starting state,
         // rotation happens only in endStatusDraw().
@@ -119,6 +121,7 @@
         // Auch das fehlgeschlagene Sprite-Anlegen abfangen (siehe
         // beginStatusDraw()): dann wurde bereits direkt auf den Chip gezeichnet
         // und es gibt nichts zu uebertragen.
+
         // Also catch a failed sprite allocation (see beginStatusDraw()): in that
         // case drawing already went straight to the chip and there is nothing to
         // transfer.
@@ -162,6 +165,7 @@
 
         // Zustand zuruecksetzen - 'tft' wird an anderer Stelle (Text ueber
         // Hardware-Rotation, updateClock() usw.) mit swapBytes=false erwartet.
+
         // Reset the state - 'tft' is expected to have swapBytes=false
         // elsewhere (text via hardware rotation, updateClock(), etc.).
         tft.setSwapBytes(false);
@@ -422,6 +426,7 @@
                 // Rueckgabewert pruefen: bei unvollstaendiger Zeile false liefern,
                 // sonst enthaelt dest teils uninitialisierten Speicher, obwohl der
                 // Aufrufer es als vollstaendig geladen behandelt.
+
                 // Check the return value: return false on an incomplete row,
                 // otherwise dest partly holds uninitialized memory while the
                 // caller treats it as fully loaded.
@@ -464,6 +469,7 @@
             else {
                 // String(bufSize) explizit: "..." + bufSize waere Zeigerarithmetik
                 // auf dem String-Literal statt Verkettung und liest wild aus dem Speicher.
+
                 // String(bufSize) explicitly: "..." + bufSize would be pointer
                 // arithmetic on the literal instead of concatenation, reading wild memory.
                 DEBUG_PRINTLN("allocate ram: " + String(bufSize));
@@ -520,6 +526,7 @@
                 // Ohne Cache muss der Aufrufer Pixel fuer Pixel selbst rechnen
                 // (funktionsfaehig, nur ohne die Optimierung) - siehe
                 // loadClockFace() weiter unten.
+
                 // Without the cache the caller has to do the per-pixel work
                 // itself (works, just without the optimization) - see
                 // loadClockFace() further below.
@@ -563,6 +570,7 @@
 
     // Software-Ausrichtung fuer DIESES Display. Bei Hardware-Rotation (alle
     // Boards ausser GC9D01) uebernimmt MADCTL die Drehung, hier bleibt es bei 0.
+
     // Software orientation for THIS display. With hardware rotation (every
     // board except GC9D01) MADCTL does the rotation, so this stays 0.
 
@@ -611,6 +619,7 @@
 
     // Zeichnet das Zifferblatt ins backgroundSprite - unveraendertes Verhalten
     // fuer alle bisherigen Aufrufer.
+
     // Draws the clock face into backgroundSprite - unchanged behaviour for all
     // existing callers.
 
@@ -622,6 +631,7 @@
             // Kein Helligkeits-Cache verfuegbar: Pixel fuer Pixel rechnen,
             // Rotation wird dabei beruecksichtigt (sonst bliebe das Zifferblatt
             // bei Software-Rotation ungedreht, waehrend die Zeiger sich drehen).
+
             // No brightness cache available: compute pixel by pixel, taking
             // rotation into account (otherwise the face would stay unrotated
             // under software rotation while the hands rotate).
@@ -876,6 +886,7 @@
     void loadHandSprites() {
         // Zwischenbilder ungueltig machen: sie enthalten die alten Zeigerbilder
         // (anderer Zeigersatz oder andere Helligkeit).
+
         // Invalidate the composite images: they contain the old hand images
         // (different hand set or different brightness).
         clockAssetGeneration++;
@@ -924,11 +935,13 @@
                     // Zeilenweise statt in einem Rutsch, damit der mittige
                     // Zuschnitt fuer schmalere Sprites greift (siehe
                     // pushHandRowCentered()).
+
                     // Row by row instead of in one go, so the centre cropping for
                     // narrower sprites applies (see pushHandRowCentered()).
                     for (int y = 0; y < HAND_HEIGHT; y++) {
                         // setPixelBrightness() wie im Zweig oben: sonst bliebe ein per
                         // Fallback gezeichneter Zeiger bei Helligkeitswechseln heller.
+
                         // setPixelBrightness() as in the branch above: otherwise a hand
                         // drawn from the fallback would stay brighter on brightness changes.
                         for (int x = 0; x < HAND_WIDTH; x++) {
@@ -1052,6 +1065,7 @@
                 // Bei Lesefehler false zurueckgeben statt nur die Schleife zu
                 // verlassen - sonst merkt loadHandSprites() den Fehler nie und
                 // faellt nicht auf den Standard-Zeiger zurueck.
+
                 // Return false on a read error instead of just leaving the loop -
                 // otherwise loadHandSprites() never notices and won't fall
                 // back to the default hand.
@@ -1142,6 +1156,7 @@
 
         // Zeigerpixel einmal in einen flachen Puffer kopieren - readPixel() pro
         // Subsample (bis zu neun je Zielpixel) waere deutlich zu teuer.
+
         // Copy the hand pixels into a flat buffer once - readPixel() per
         // subsample (up to nine per destination pixel) would be far too costly.
         if (!handPixelScratch) {
@@ -1176,6 +1191,7 @@
         // Enges Huellrechteck aus den vier gedrehten Ecken statt eines
         // Umkreises - spart bei einem 13x86 grossen Zeiger je nach Winkel den
         // groessten Teil der Zielflaeche.
+
         // Tight bounding box from the four rotated corners instead of a
         // circumscribed circle - depending on the angle this saves most of the
         // destination area for a 13x86 hand.
@@ -1209,6 +1225,7 @@
         // Versatz der Unterpunkte innerhalb eines Zielpixels, bereits mit
         // Sinus/Kosinus verrechnet - so bleibt die innere Schleife reine
         // Ganzzahl-Addition.
+
         // Offsets of the sub-points inside a destination pixel, pre-multiplied
         // with sine/cosine - this keeps the inner loop pure integer addition.
         int32_t subCos[SUPERSAMPLE], subSin[SUPERSAMPLE];
@@ -1262,6 +1279,7 @@
                 // Teilweise gedeckt: Zeigerfarbe anteilig gegen den Hintergrund
                 // blenden. sumX ist bereits die Summe ueber die Treffer, der
                 // Hintergrund steuert die restlichen (SUBS - hits) Anteile bei.
+
                 // Partially covered: blend the hand colour proportionally
                 // against the background. sumX is already the sum over the hits,
                 // the background contributes the remaining (SUBS - hits) shares.
@@ -1280,6 +1298,7 @@
 
     // Baut das Zwischenbild fuer ein Display neu auf: gedrehtes Zifferblatt,
     // darauf Stunden- und Minutenzeiger kantengeglaettet.
+
     // Rebuilds the composite image for one display: rotated clock face with the
     // anti-aliased hour and minute hands on top.
 
@@ -1300,6 +1319,7 @@
             if (!comp.buffer) {
                 // Einmal melden und danach dauerhaft den bisherigen Weg nutzen,
                 // statt bei jedem Tick erneut zu versuchen.
+
                 // Report once and then permanently use the previous path instead
                 // of retrying on every tick.
                 DEBUG_PRINTLN("[Display] couldnt allocate hand composite buffer - falling back to per-tick rendering");
@@ -1358,6 +1378,7 @@
             // Nur ohne Backlight faerbt die Helligkeit Pixel ein (sonst No-Op) -
             // mit Backlight wuerde jeder Rampenschritt sonst einen wirkungslosen
             // Neuaufbau ausloesen.
+
             // Only without a backlight does brightness tint pixels (otherwise
             // a no-op) - with a backlight every ramp step would otherwise
             // trigger a pointless rebuild.
@@ -1382,69 +1403,35 @@
 
         int orientation = rotation;
 
-        // Rocrail-Modus: Zeiger folgen der (ggf. beschleunigten) Modellzeit
-        // aus rocrailTimeinfo statt der echten Systemzeit - aber erst, sobald
-        // tatsaechlich ein <clock>-Signal per RCP angekommen ist
-        // (rocrailLastClockMillis != 0, siehe advanceRocrailTime()/
-        // processRocrailClockPayload() in rocrail_client.h), UND nur solange
-        // die TCP-Verbindung aktuell steht (rocrailConnected - der
-        // "Port-Ping" in connectRocrailClient() ist ein direkter TCP-
-        // Connect, dessen Fehlschlag also sofort erkennbar ist, ohne auf
-        // ROCRAIL_STALE_TIMEOUT_MS zu warten) UND das letzte Signal nicht
-        // laenger als ROCRAIL_STALE_TIMEOUT_MS her ist (siehe config.h,
-        // zusaetzliches Sicherheitsnetz fuer den Fall, dass die Verbindung
-        // zwar noch offen ist, aber keine <clock>-Updates mehr kommen).
-        // Trifft eine der Bedingungen nicht mehr zu, faellt die Uhr auf die
-        // echte Zeit zurueck, statt eine moeglicherweise stark abgedriftete
-        // Extrapolation unbegrenzt weiterzuzeigen. Referenz statt Kopie:
-        // der Rest der Funktion bleibt unveraendert und liest "t.tm_*".
+        // Rocrail-Modus: Zeiger folgen der Modellzeit statt der echten Zeit -
+        // nur solange ein <clock>-Signal angekommen ist, die Verbindung
+        // steht und das letzte Signal nicht laenger als ROCRAIL_STALE_TIMEOUT_MS her ist, sonst faellt die Uhr auf die echte Zeit zurueck.
 
-        // Rocrail mode: hands follow the (possibly accelerated) model time
-        // from rocrailTimeinfo instead of the real system time - but only
-        // once a <clock> signal has actually arrived via RCP
-        // (rocrailLastClockMillis != 0, see advanceRocrailTime()/
-        // processRocrailClockPayload() in rocrail_client.h), AND only while
-        // the TCP connection is currently up (rocrailConnected - the "port
-        // ping" in connectRocrailClient() is a direct TCP connect, so its
-        // failure is detected immediately, without waiting for
-        // ROCRAIL_STALE_TIMEOUT_MS) AND the last signal isn't older than
-        // ROCRAIL_STALE_TIMEOUT_MS (see config.h, an extra safety net for
-        // the case where the connection is still open but no more <clock>
-        // updates are coming in). If either condition no longer holds, the
-        // clock falls back to the real time instead of indefinitely
-        // showing a possibly badly drifted extrapolation. A reference, not
-        // a copy: the rest of the function stays unchanged and reads
-        // "t.tm_*".
+        // Rocrail mode: hands follow model time instead of real time - only
+        // while a <clock> signal has arrived, the connection is up, and the
+        // last signal isn't older than ROCRAIL_STALE_TIMEOUT_MS, otherwise the clock falls back to real time.
         bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
                                  (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
         struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
 
-        // Die Bahnhofsuhr-Zeigerschritt-Animation (60 Schritte je Umlauf,
-        // siehe unten) ist auf FAST_SECOND (975ms/Schritt, 58,5s-Umlauf)
-        // kalibriert - im Rocrail-Modus wird die Schrittdauer weiter unten
-        // (stationStepMs) durch rocrailDivider geteilt, damit der Umlauf
-        // genauso viel schneller laeuft, wie die Modellzeit selbst
-        // beschleunigt ist. So bleibt der Zeiger bei jedem Divider mit den
-        // tatsaechlichen Minutenwechseln der Modellzeit synchron und wartet
-        // kurz auf der "0", bevor die naechste (Modell-)Minute beginnt.
+        // Die Bahnhofsuhr-Schrittanimation ist auf FAST_SECOND kalibriert -
+        // im Rocrail-Modus wird die Schrittdauer weiter unten (stationStepMs)
+        // durch rocrailDivider geteilt, damit der Umlauf genauso viel schneller laeuft wie die Modellzeit selbst.
 
-        // The station-clock stepping animation (60 steps per lap, see
-        // below) is calibrated to FAST_SECOND (975ms/step, 58.5s per lap) -
-        // in Rocrail mode, the step duration further below (stationStepMs)
-        // is divided by rocrailDivider, so the lap runs exactly as much
-        // faster as the model time itself is accelerated. This keeps the
-        // hand in sync with the model time's actual minute changes at any
-        // divider, and it waits briefly at "0" before the next (model)
-        // minute begins.
+        // The station-clock stepping animation is calibrated to
+        // FAST_SECOND - in Rocrail mode the step duration further below
+        // (stationStepMs) is divided by rocrailDivider, so the lap runs exactly as much faster as the model time itself.
         bool useStationSweep = stationMode;
 
         // Schrittdauer fuer die Sweep-Animation: im Rocrail-Modus durch den
         // Divider geteilt (siehe Kommentar oben), sonst die reale FAST_SECOND.
+
         // float statt der #define-Konstante direkt, da sie sich pro Frame
         // aendern kann (Divider-Aenderungen kommen per <clock>-Update).
 
         // Step duration for the sweep animation: divided by the divider in
         // Rocrail mode (see comment above), otherwise the real FAST_SECOND.
+
         // A float instead of using the #define constant directly, since it
         // can change per frame (divider changes arrive via <clock> updates).
         float stationStepMs = (rocrailTimeReady && rocrailDivider > 1)
@@ -1454,6 +1441,7 @@
         // Ab ROCRAIL_HIDE_DETAILS_DIVIDER (siehe config.h) Sekundenzeiger UND
         // Nabe ganz ausblenden - bei so hoher Beschleunigung waere ihre
         // Bewegung/Sichtbarkeit ohnehin kaum noch sinnvoll.
+
         // From ROCRAIL_HIDE_DETAILS_DIVIDER (see config.h) onwards, hide the
         // second hand AND the hub entirely - at such high acceleration
         // their movement/visibility wouldn't be meaningfully useful anyway.
@@ -1502,6 +1490,7 @@
                 stationWaiting = false;
                 // Anfang des angebrochenen Schritts so zurueckdatieren, dass
                 // auch der Bruchteil stimmt.
+
                 // Back-date the start of the current step so the fractional
                 // part is correct too.
                 stationLastMillis = millis() - (unsigned long)((sweepPosition - (float)stationTick) * stationStepMs);
@@ -1524,11 +1513,13 @@
 
         // Bahnhofsuhr-Modus: Sekundenzeiger schreitet in 60 Schritten je
         // stationStepMs (siehe easeInOutSine()), erreicht nach ~58,5s
+
         // (bzw. ~58,5s/divider im Rocrail-Modus) die 12 und wartet dort,
         // bis die (Modell-)Minute wechselt (Pause ~1,5s bzw. ~1,5s/divider).
 
         // Station clock mode: second hand steps in 60 steps of
         // stationStepMs each (see easeInOutSine()), reaches the top after
+
         // ~58.5s (or ~58.5s/divider in Rocrail mode) and waits there until
         // the (model) minute changes (pause ~1.5s, or ~1.5s/divider).
         if (useStationSweep) {
@@ -1536,6 +1527,7 @@
             // Bei divider 1 (keine Beschleunigung) laeuft die Uhr mit dem
             // gewohnten schwingenden Bahnhofsuhr-Sekundenzeiger (else-Zweig
             // unten) - die reale Kalibrierung passt dort exakt, da die
+
             // Modellzeit 1:1 mit der realen Zeit fortschreitet. Erst ab
             // divider > 1 wird glatt statt tickend dargestellt (siehe
             // Kommentar im if-Zweig).
@@ -1543,30 +1535,18 @@
             // At divider 1 (no acceleration), the clock runs with the usual
             // swinging station-clock second hand (else branch below) - the
             // real calibration matches exactly there, since the model time
+
             // advances 1:1 with real time. Only from divider > 1 onwards is
             // it rendered smoothly instead of ticking (see comment in the
             // if branch).
             if (rocrailTimeReady && rocrailDivider > 1) {
                 // Rocrail: glatt statt tickend - kein easeInOutSine() pro
-                // Schritt, kein stationTick/stationWaiting-Zustand noetig.
-                // Nur das Timing (schneller je Divider, kurze Pause auf der
-                // "0") bleibt wie beim Bahnhofsuhr-Sweep: rocrailSecFrac
-                // (siehe advanceRocrailTime()) traegt die Nachkommastellen,
-                // dieselbe divider-unabhaengige Positions-Formel wie
-                // sweepPosition/expectedPosition oben deckelt bei 60 - der
-                // Zeiger laeuft so kontinuierlich bis zur "0" durch und
-                // wartet dort, bis rocrailSecFrac beim Minutenwechsel auf 0
-                // zurueckspringt.
+                // Schritt noetig. rocrailSecFrac (advanceRocrailTime()) traegt
+                // die Nachkommastellen, dieselbe Positions-Formel wie oben deckelt bei 60.
 
                 // Rocrail: smooth instead of ticking - no per-step
-                // easeInOutSine(), no stationTick/stationWaiting state
-                // needed. Only the timing (faster per divider, brief pause
-                // at "0") matches the station-clock sweep: rocrailSecFrac
-                // (see advanceRocrailTime()) carries the fractional part,
-                // the same divider-independent position formula as
-                // sweepPosition/expectedPosition above caps at 60 - the
-                // hand thus sweeps continuously up to "0" and waits there
-                // until rocrailSecFrac snaps back to 0 on the minute change.
+                // easeInOutSine() needed. rocrailSecFrac (advanceRocrailTime())
+                // carries the fractional part, the same position formula as above caps at 60.
                 float smoothPos = (rocrailSecFrac * 1000.0f) / FAST_SECOND;
                 if (smoothPos > 60.0f) smoothPos = 60.0f;
 
@@ -1594,6 +1574,7 @@
                 // Wake up on a minute change instead of exactly "second 0": a
                 // blocking loadClockFace() call can cause updateClock() to miss
                 // exactly second 0, but a minute change stays detectable after.
+
                 // Sollposition, die die Uhrzeit gerade verlangt.
                 // Position the current time is asking for.
                 float expectedPosition = ((float)t.tm_sec * 1000.0f) / FAST_SECOND;
@@ -1619,6 +1600,7 @@
                     if (expectedPosition >= 60.0f) {
                         // Nur moeglich, wenn der Minutenwechsel mit noch alter
                         // Sekundenanzeige gemeldet wurde - dann von vorn beginnen.
+
                         // Only possible if the minute change was reported while the
                         // seconds still read the old value - then start from the top.
                         expectedPosition = 0.0f;
@@ -1708,8 +1690,10 @@
         if (fabs(hourAngleDiff) > 0.05f) {
             lastHourAngleRef += hourAngleDiff * 0.1f;  // Glättungsfaktor
                                                        // smoothing factor
+
             // In [0,360) zurueckholen wie bei lastMinuteAngleRef - sonst waechst
             // der Wert bei sehr langer Laufzeit unbegrenzt und kostet Float-Praezision.
+
             // Fold back into [0,360) like lastMinuteAngleRef - otherwise the
             // value grows unbounded over very long runtime, costing float precision.
             if (lastHourAngleRef < 0.0f) lastHourAngleRef += 360.0f;
@@ -1741,6 +1725,7 @@
 
         // Nabe (hub) - ab ROCRAIL_HIDE_DETAILS_DIVIDER ebenfalls ausgeblendet
         // (siehe hideDetailsForRocrail oben)
+
         // hub - also hidden from ROCRAIL_HIDE_DETAILS_DIVIDER onwards (see
         // hideDetailsForRocrail above)
         if (hubSize > 0 && !hideDetailsForRocrail) {
@@ -1752,22 +1737,12 @@
 
 
     // Liest Zeit/RTC einmal, dann ein renderClockFrame() pro Display. Bei
-    // Hardware-Rotation genuegt fuer Display 2 immer ein erneutes Senden
-    // (MADCTL dreht); bei GC9D01-Software-Rotation wird Display 2 nur dann
-    // komplett neu berechnet, wenn tftRotation2 tatsaechlich von tftRotation1
-    // abweicht - stehen beide auf demselben Wert (z.B. weil nur ein
-    // physisches Display angeschlossen ist, siehe Hinweis im Zifferblatt-Tab),
-    // waere der Frame ohnehin identisch, also genuegt auch dort ein erneutes
-    // Senden des fuer Display 1 bereits fertigen Frames.
+    // Hardware-Rotation genuegt fuer Display 2 immer erneutes Senden; bei
+    // GC9D01 nur, wenn tftRotation2 tatsaechlich von tftRotation1 abweicht.
 
     // Reads time/RTC once, then one renderClockFrame() per display. With
-    // hardware rotation, re-sending always suffices for Display 2 (MADCTL
-    // rotates); with GC9D01 software rotation, Display 2 is only fully
-    // recomputed when tftRotation2 actually differs from tftRotation1 - if
-    // both are set to the same value (e.g. because only one physical display
-    // is connected, see the hint in the clock-face tab), the frame would be
-    // identical anyway, so a re-send of Display 1's already-finished frame
-    // suffices there too.
+    // hardware rotation, re-sending always suffices for Display 2; with
+    // GC9D01, only if tftRotation2 actually differs from tftRotation1.
 
     void updateClock() {
        // struct tm timeinfo;
@@ -1791,6 +1766,7 @@
 
         // Modellzeit unabhaengig von obigem real-zeit-basiertem Block
         // fortschreiben - laeuft nur an, wenn rocrailEnabled (siehe dort).
+
         // Advance the model time independent of the real-time-based block
         // above - only does anything when rocrailEnabled (see there).
         advanceRocrailTime();
@@ -1808,6 +1784,7 @@
             // firstRun2 bewusst auf true halten: rastet tftRotation2 spaeter
             // (per Einstellungsaenderung zur Laufzeit) wieder von tftRotation1
             // ab, soll der naechste eigenstaendige Frame fuer Display 2 sofort
+
             // an der korrekten Winkelposition einrasten, statt sich aus einem
             // waehrend dieser Zeit nie aktualisierten (also veralteten)
             // lastHourAngle2/lastMinuteAngle2 heranzutasten.
@@ -1815,6 +1792,7 @@
             // Deliberately keep firstRun2 at true: if tftRotation2 later
             // diverges again from tftRotation1 (via a runtime settings
             // change), the next standalone frame for Display 2 should snap
+
             // straight to the correct angle instead of easing in from a
             // lastHourAngle2/lastMinuteAngle2 that was never updated (and so
             // went stale) during this time.
@@ -1838,6 +1816,7 @@
 
         // Eigene Vergleichsvariable fuer die Zeiger: lastAppliedBrightness wird
         // von loadClockFace() selbst gepflegt, das Zifferblatt braucht hier keinen Aufruf.
+
         // Its own comparison variable for the hands: lastAppliedBrightness is
         // maintained by loadClockFace() itself, the clock face needs no call here.
 
@@ -1881,6 +1860,7 @@
         // Fotowiderstand-Rohwert IMMER aktualisieren, unabhaengig vom
         // Tagesfenster - dient auch als Live-Anzeige (Topbar); die
         // Helligkeits-ENTSCHEIDUNG haengt weiterhin vom Zeitfenster ab.
+
         // Always update the raw photoresistor reading, independent of the
         // daytime window - also serves as a live display (topbar); the
         // brightness DECISION still depends on the time window.
@@ -1909,27 +1889,13 @@
         }
 #endif
 
-        // Rocrail-Helligkeit hat Vorrang vor Zeitfenster UND Fotowiderstand:
-        // sobald verbunden und mindestens ein bri-Wert empfangen wurde,
-        // uebernimmt der Server komplett die Helligkeits-ENTSCHEIDUNG (siehe
-        // processRocrailClockPayload() in rocrail_client.h). Dieselbe
-        // Stale-Pruefung wie bei rocrailTimeReady (renderClockFrame()):
-        // haengt die Verbindung nur noch offen ohne neue <clock>-Updates,
-        // faellt die Uhr nach ROCRAIL_STALE_TIMEOUT_MS auf die lokale
-        // Steuerung zurueck, statt dauerhaft auf einem alten bri-Wert zu
-        // verharren. Fehlt bri in diesem Rocrail-Setup ganz (rocrailBrightnessKnown
-        // bleibt false), bleibt die lokale Steuerung ohnehin permanent aktiv.
+        // Rocrail-Helligkeit hat Vorrang vor Zeitfenster UND Fotowiderstand,
+        // sobald verbunden und ein bri-Wert bekannt ist - dieselbe Stale-
+        // Pruefung wie rocrailTimeReady faellt sonst nach ROCRAIL_STALE_TIMEOUT_MS auf lokale Steuerung zurueck.
 
-        // Rocrail brightness takes priority over BOTH the time window AND the
-        // photoresistor: once connected and at least one bri value has been
-        // received, the server fully takes over the brightness DECISION (see
-        // processRocrailClockPayload() in rocrail_client.h). Same staleness
-        // check as rocrailTimeReady (renderClockFrame()): if the connection
-        // is merely still open without fresh <clock> updates, the clock
-        // falls back to local control after ROCRAIL_STALE_TIMEOUT_MS instead
-        // of permanently sticking to a stale bri value. If this particular
-        // Rocrail setup never sends bri at all (rocrailBrightnessKnown stays
-        // false), local control simply stays active permanently anyway.
+        // Rocrail brightness takes priority over both the time window and
+        // the photoresistor, once connected and a bri value is known - the
+        // same staleness check as rocrailTimeReady falls back to local control after ROCRAIL_STALE_TIMEOUT_MS otherwise.
         bool rocrailBrightnessActive = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
                                         (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
 
@@ -1938,6 +1904,7 @@
 #ifdef TFT_Backlight
             // sanfte Anpassung wie beim Zeitfenster/ADC unten, statt eines
             // harten Sprungs bei jeder Server-Aenderung.
+
             // smooth adjustment like the time window/ADC below, instead of a
             // hard jump on every server-side change.
             if (currentBrightness < targetBrightness) currentBrightness++;
@@ -1968,6 +1935,7 @@
                 // currentAdcAvg/currentLightPercent wurden oben bereits fuer
                 // diesen Durchlauf aktualisiert - hier nur noch die
                 // Helligkeits-ENTSCHEIDUNG anhand der frischen Werte.
+
                 // currentAdcAvg/currentLightPercent were already updated
                 // above for this pass - only the brightness DECISION based
                 // on those fresh values happens here.
@@ -2035,9 +2003,11 @@
         // Bildet die Sekundenzeiger-Bewegung im Bahnhofsuhr-Modus (siehe
         // renderClockFrame()); als JavaScript in der Web-Vorschau gespiegelt
         // (webserver_routes.h) - Aenderungen hier dort nachziehen.
+
         // Shapes the second hand's movement in station clock mode (see
         // renderClockFrame()); mirrored as JavaScript in the web preview
         // (webserver_routes.h) - keep changes here in sync there.
+
         // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
         // Intensity controls the curve: 1.0 = default, >1.0 = steeper, <1.0 = flatter
         float intensity = 0.5f;
@@ -2526,6 +2496,7 @@
                 // Rueckgabewert pruefen: sonst enthielte rowBuf bei einer
                 // beschaedigten Datei unbemerkt die vorherige Zeile und wuerde
                 // trotzdem als vermeintlich gueltig gespeichert.
+
                 // Check the return value: otherwise rowBuf would silently keep
                 // the previous row on a corrupted file and still get saved
                 // as an apparently valid result.
@@ -3037,6 +3008,7 @@
                 // Null-Check ergaenzt: die Nachbarallokation (outBmp weiter oben)
                 // wird geprueft, diese nicht - bei knappem Heap wurde direkt
                 // danach hineingeschrieben.
+
                 // Null check added: the neighbouring allocation (outBmp further
                 // above) is checked, this one was not - with a tight heap it was
                 // written to right afterwards.
@@ -3249,6 +3221,7 @@
 
         // Antwort laeuft schon chunked, ein 500er ist also nicht mehr moeglich -
         // stattdessen Uebertragung sauber beenden und false zurueckgeben.
+
         // The response is already streaming chunked, so a 500 is no longer
         // possible - instead terminate the transfer cleanly and return false.
         uint8_t* rowBuf = new (std::nothrow) uint8_t[rowSize];
@@ -3587,6 +3560,7 @@
 
         // DEBUG_PRINTLN("Touch read: " + String(var));
         //DEBUG_PRINTLN("Touch state: " + String(state));
+
         // Flanke LOW->HIGH (kurzer Tip) mit Debounce
         // LOW->HIGH edge (short tap) with debounce
         if (state && !touchLastState && (millis() - touchLastMillis) > TOUCH_DEBOUNCE_MS) {
@@ -3764,6 +3738,7 @@
         // "<= 0" statt "< 0": bei einem Dateinamen mit "!0" als Sekundenbreite
         // blieb der Wert 0 stehen, createSprite(0, HAND_HEIGHT) schlaegt fehl und
         // der Sekundenzeiger verschwand bis zum naechsten Zifferblattwechsel.
+
         // "<= 0" instead of "< 0": with a filename specifying "!0" as the second
         // hand width the value stayed 0, createSprite(0, HAND_HEIGHT) fails and the
         // second hand disappeared until the next clock face change.

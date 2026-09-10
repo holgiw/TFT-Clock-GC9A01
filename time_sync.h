@@ -35,6 +35,7 @@
 
         // Bei vollem Puffer wird die Flanke verworfen, statt den noch
         // ungelesenen Tail zu ueberschreiben (Zaehler siehe dcf77EdgeDropped).
+
         // On a full buffer the edge is dropped instead of overwriting the
         // not-yet-read tail (counter: see dcf77EdgeDropped).
         uint8_t dcf77EdgeNextHead = (dcf77EdgeHead + 1) % DCF77_EDGE_BUFFER_SIZE;
@@ -328,6 +329,7 @@
 
         // Genau ein fehlendes Bit je Gruppe aus der geraden Paritaet ergaenzen
         // (der Bereich schliesst das Paritaetsbit selbst mit ein).
+
         // Fill in exactly one missing bit per group from the even parity (the
         // range includes the parity bit itself).
         const uint8_t groupStart[3] = { 21, 29, 36 };
@@ -362,6 +364,7 @@
                 // Noch unvollstaendig - dcf77LastDecoded NICHT anfassen (letzte
                 // gueltige Dekodierung bleibt sichtbar); true: eine Luecke
                 // stellt die Minutenmarke nicht in Frage.
+
                 // Still incomplete - do NOT touch dcf77LastDecoded (last valid
                 // decoding stays visible); true: a gap doesn't call the minute
                 // marker into question.
@@ -372,6 +375,7 @@
         Dcf77Decoded result;
         // 0 bedeutet anderswo "nie dekodiert" (/api/dcf77status) - einen
         // echten Zeitstempel 0 daher auf 1 anheben.
+
         // 0 means "never decoded" elsewhere (/api/dcf77status) - so lift a
         // genuine timestamp of 0 to 1.
         result.decodedAtMillis = (decodedAtMillis == 0) ? 1 : decodedAtMillis;
@@ -400,6 +404,7 @@
 
         // Datum: Tag (36-41), Wochentag (42-44), Monat (45-49), Jahr (50-57),
         // gemeinsame Paritaet Bit 58
+
         // Date: day (36-41), day of week (42-44), month (45-49), year
         // (50-57), combined parity bit 58
         int dayUnits = bits[36] + bits[37] * 2 + bits[38] * 4 + bits[39] * 8;
@@ -438,6 +443,7 @@
 
         // Zeitpunkt als Unix-Zeit - Bezugspunkt fuer Kohaerenzpruefung unten
         // und die naechste Minute.
+
         // This telegram's time as a Unix timestamp - the reference for the
         // coherence check below and the next minute.
         struct tm decodedTm = {};
@@ -589,6 +595,7 @@
             // Rauschen/Prellen: kurze Flanke ignorieren, OHNE prevEdgeMillis
             // zu verschieben - wird beim naechsten echten Wechsel einfach
             // uebersprungen statt eine zu kurze Dauer zu erzeugen.
+
             // Noise/bounce: ignore a short edge WITHOUT moving prevEdgeMillis -
             // it is simply skipped at the next genuine change instead of
             // producing a too-short duration.
@@ -602,6 +609,7 @@
             // Langes Intervall = Rest der Sekunde; die Anzahl vergangener
             // Sekunden folgt unten aus dem Abstand der IMPULSANFAENGE, bleibt
             // also auch bei fehlenden Impulsen richtig.
+
             // Long interval = rest of the second; the number of elapsed
             // seconds follows below from the distance between PULSE STARTS,
             // staying correct even when pulses are missing.
@@ -627,6 +635,7 @@
                     // Zwei Impulse in derselben Sekunde - Stoerung. Verwerfen,
                     // Raster UND Bezugszeitpunkt aber behalten, damit der
                     // naechste echte Impuls den korrekten Abstand hat.
+
                     // Two pulses in the same second - interference. Discard,
                     // but keep both the grid AND the reference timestamp, so
                     // the next genuine pulse has the correct distance again.
@@ -644,6 +653,7 @@
             // Diagnose fuer die /dcf77-Seite: Impulsdauer und Abstand zum
             // vorherigen Impulsanfang mitschreiben, damit von aussen sichtbar
             // ist, was der Empfaenger tatsaechlich liefert.
+
             // Diagnostics for the /dcf77 page: record pulse width and distance
             // to the previous pulse start, so what the receiver actually
             // delivers is visible from the outside.
@@ -657,6 +667,7 @@
                 // Raster verloren (erster Impuls, lange Luecke oder unpassender
                 // Abstand) - Fehlstellen-Statistik zeigt sonst auf ungueltige
                 // Positionen, deshalb zuruecksetzen und neue Phase beginnen.
+
                 // Grid lost (first pulse, long gap, or a distance fitting no
                 // grid) - the miss statistics would otherwise point at invalid
                 // positions, so reset them and start a new phase.
@@ -668,6 +679,7 @@
                 // Ratenbegrenzt loggen: jede Logzeile schreibt auf LittleFS und
                 // kostet dabei DCF77-Flanken (siehe isr()) - ungebremst wuerde
                 // das den Empfang gerade bei schlechtem Empfang verschlechtern.
+
                 // Rate-limited: every log line writes to LittleFS and costs
                 // DCF77 edges while doing so (see isr()) - unthrottled this
                 // would worsen reception exactly when it's already poor.
@@ -679,22 +691,13 @@
                 continue;
             }
 
-            // LED-Blitz anfordern, sobald dcf77Confirmed gilt (siehe
-            // checkDcf77Health()) - derselbe Massstab wie Topbar-Punkt und
-            // Navigationseintrag, deutlich vor dem Markenfund (bis 3 Min.).
-            // "&& !wpsPending" zurueckgestellt: waehrend einer laufenden WPS-
-            // Verhandlung signalisiert die LED per eigenem, periodischem
-            // Blinken (siehe loop() in uhr3.ino) - ohne diese Bedingung wuerden
-            // sich beide Signalisierungen ueberlagern und das WPS-Blinken
-            // optisch verwaschen.
+            // LED-Blitz anfordern, sobald dcf77Confirmed gilt - deutlich vor
+            // dem Markenfund. "&& !wpsPending": waehrend WPS blinkt die LED
+            // schon eigenstaendig (loop()), sonst wuerden sich beide Signale ueberlagern.
 
-            // Request an LED flash once dcf77Confirmed is true (see
-            // checkDcf77Health()) - same yardstick as the topbar dot and
-            // navigation entry, well before the marker is found (up to 3 min).
-            // Held back via "&& !wpsPending": while a WPS negotiation is in
-            // progress, the LED signals via its own periodic blink (see
-            // loop() in uhr3.ino) - without this condition both signals would
-            // overlap and blur the WPS blink pattern.
+            // Request an LED flash once dcf77Confirmed is true - well before
+            // the marker is found. "&& !wpsPending": during WPS the LED
+            // already blinks on its own (loop()), otherwise both signals would overlap.
             if (dcf77Confirmed && !wpsPending) {
                 dcfLedTogglePending = true;
             }
@@ -724,6 +727,7 @@
 
             // Saettigung: alle Zaehler halbieren, damit alte Ereignisse
             // ausduennen und ein behobener Dauerstoerer nicht ewig nachwirkt.
+
             // Saturation: halve all counters so old events thin out and a
             // resolved persistent interferer does not keep echoing forever.
             if (dcf77MarkerHit[dcf77Phase] >= DCF77_MARKER_COUNT_MAX) {
@@ -762,6 +766,7 @@
                     // Marke soeben gefunden: frisches Raster, da bisherige
                     // Bits aus der Suchphase aelter als die laufende Minute
                     // sein koennen. dcf77LastSecond=-1 fuer sauberen Neustart.
+
                     // Marker just found: fresh grid, since bits collected
                     // during the search phase may be older than the current
                     // minute. dcf77LastSecond=-1 for a clean restart.
@@ -772,6 +777,7 @@
                 else {
                     // Sekundenzuordnung fehlt noch, gesammelt wird trotzdem;
                     // der Fortschrittsbalken laeuft ueber die Rasterposition.
+
                     // Second mapping still missing, collecting continues
                     // anyway; the progress display runs on the grid position.
                     dcf77Synced = false;
@@ -784,6 +790,7 @@
 
             // Rasterposition -> Sekunde der Minute. Die Markenposition selbst
             // ist die 59. Sekunde, die Position danach die Sekunde 0.
+
             // Grid position -> second of the minute. The marker position
             // itself is the 59th second, the one after it is second 0.
             uint8_t sec = (uint8_t)((dcf77Phase + DCF77_GRID_SLOTS - (uint8_t)dcf77MarkerPos + 59) % DCF77_GRID_SLOTS);
@@ -791,6 +798,7 @@
             // Minutenwechsel: Sekundennummer kleiner als zuvor -> abgelaufene
             // Minute vollstaendig. Zeitstempel = Minutenanfang, ueber die
             // aktuelle Sekundennummer exakt zurueckrechenbar.
+
             // Minute change: second number lower than before -> the elapsed
             // minute is complete. Timestamp = start of the minute, computed
             // back exactly from the current second number.
@@ -800,6 +808,7 @@
                 // Bit gehoert schon zur NEUEN Minute - vor dem Dekodieren durch
                 // previousGridValue ersetzen, NICHT auf -1 setzen (sonst zeigte
                 // "Reconstructed bits" faelschlich nie 0). Wird danach zurueckgeschrieben.
+
                 // Bit already belongs to the NEW minute - replace with
                 // previousGridValue before decoding, do NOT set -1 (otherwise
                 // "Reconstructed bits" would falsely never read 0). Written back after.
@@ -812,6 +821,7 @@
                     // Festbits widersprechen: erst nach mehreren Telegrammen
                     // in Folge gilt die Marke als falsch (ein einzelner
                     // Stoerimpuls kann genau dort gelandet sein).
+
                     // Fixed bits contradict: only after several telegrams in a
                     // row does the marker count as wrong (a single spurious
                     // pulse may have landed exactly there).
@@ -836,11 +846,13 @@
 
     // Bindet (neu) den eigenen NTP-Server der Uhr an Port 123. Muss nach
     // JEDEM Verbindungsaufbau erneut laufen, nicht nur beim Boot: connectWiFi()
+
     // faehrt WiFi zwischendurch komplett runter, der alte Socket verliert
     // sein Interface. udp.stop() davor gibt einen noch gebundenen Port frei.
 
     // Binds (or rebinds) the clock's own NTP server to port 123. Must run
     // after EVERY connection setup, not just at boot: connectWiFi() shuts
+
     // WiFi down completely in between, the old socket loses its interface.
     // udp.stop() beforehand releases a still-bound port.
 
@@ -943,6 +955,7 @@
 
             // Diagnose: DNS-Aufloesung separat pruefen/loggen, damit im
             // Fehlerfall sichtbar ist, ob der Server ueberhaupt aufloesbar war.
+
             // Diagnostic: check/log DNS resolution separately, so on failure
             // it's visible whether the server was resolvable at all.
             IPAddress ntpServerIp;
@@ -953,6 +966,7 @@
                 // Ohne aufloesbaren Namen kann der SNTP-Client den Server auch
                 // nicht erreichen - direkt zum naechsten springen statt WAIT_3s
                 // auf eine unmoegliche Antwort zu warten.
+
                 // Without a resolvable name the SNTP client can't reach the
                 // server either - skip straight to the next one instead of
                 // waiting WAIT_3s for a response that cannot arrive.
@@ -972,6 +986,7 @@
 
             // Schwelle identisch zu getLocalTime() (Jahr > 2016), sonst wuerde
             // eine gueltige, aber aeltere Systemzeit nicht wiederhergestellt.
+
             // Threshold matches getLocalTime() (year > 2016), otherwise a
             // valid but older system time would not get restored.
             bool hadValidTime = (savedTime.tv_sec > 1483228800L); // 2017-01-01
@@ -1026,6 +1041,7 @@
 
             // Keine Antwort: die oben ungueltig gesetzte Zeit wieder auf den
             // gesicherten Stand bringen, fortgeschrieben um die verstrichene Zeit.
+
             // No response: restore the time invalidated above to its saved
             // value, advanced by the elapsed time.
             if (hadValidTime) {
@@ -1075,6 +1091,7 @@
         // Wiederholung ergibt sich aus dem stuendlichen NTP-Aufruf in loop();
         // fallen alle Server aus, springt derselbe Aufrufer per
         // applyDcf77DecodedTime() auf DCF77 als Zeitquelle um.
+
         // Retry falls out of the hourly NTP call in loop(); if all servers
         // fail, that same caller falls back to DCF77 via
         // applyDcf77DecodedTime().
@@ -1228,6 +1245,7 @@
 
         // Sekundenbruchteile mitliefern (1/2^32s) - blieben sie 0, waere jede
         // Antwort auf die volle Sekunde gerundet, mit bis zu 1s Fehler.
+
         // Provide fractional seconds (1/2^32s) - if left 0, every reply would
         // round to the full second, with up to 1s of error.
         auto writeTimestamp = [&](uint8_t offset, const struct timeval& tv) {
@@ -1239,6 +1257,7 @@
 
         // Reference Timestamp: letzte Zeitstellung, hier vereinfacht
         // Empfangszeit minus einer Sekunde.
+
         // Reference timestamp: when last set, simplified here to the receive
         // instant minus one second.
         struct timeval referenceTime = receivedAt;
@@ -1255,6 +1274,7 @@
 
         // Transmit Timestamp: JETZT, nicht der Empfangszeitpunkt - der Client
         // rechnet aus Receive/Transmit die Serverzeit aus der Laufzeit heraus.
+
         // Transmit timestamp: NOW, not the receive instant - the client uses
         // receive/transmit to remove server processing time from round-trip delay.
         struct timeval transmitTime;

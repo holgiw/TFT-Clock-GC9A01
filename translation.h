@@ -48,32 +48,23 @@
         { "OK", "OK", "OK" },
         { "Syncing", "Synchronisiere", "Synchronisation en cours" },
         { "Error", "Fehler", "Erreur" },
-        // Bewusst OHNE Umlaut-Entity (&uuml;) geschrieben: dieser Text wird
-        // nicht nur beim Erstladen als HTML-Attribut gerendert (dort wuerde
-        // der Browser die Entity korrekt dekodieren), sondern auch vom
-        // Live-Status-Skript per JavaScript direkt in "title"/"aria-label"
-        // geschrieben (siehe setStatusDot() in generateTopBar()) - JS
-        // dekodiert HTML-Entities beim Setzen eines String-Properties NICHT,
-        // sodass "&uuml;" dort woertlich im Tooltip erschien statt als "ü".
-        // Deliberately written WITHOUT the umlaut entity (&uuml;): this text
-        // is not only rendered as an HTML attribute on the initial page load
-        // (where the browser decodes the entity correctly), but also written
-        // into "title"/"aria-label" directly via JavaScript by the live-status
-        // script (see setStatusDot() in generateTopBar()) - JS does NOT
-        // decode HTML entities when setting a string property, so "&uuml;"
-        // showed up literally in the tooltip instead of "ü".
+        // Bewusst OHNE Umlaut-Entity (&uuml;): wird vom Live-Status-Skript
+        // per JS direkt in "title"/"aria-label" geschrieben (setStatusDot()
+        // in generateTopBar()) - JS dekodiert Entities dabei nicht.
+
+        // Deliberately WITHOUT the umlaut entity (&uuml;): written into
+        // "title"/"aria-label" directly via JS by the live-status script
+        // (setStatusDot() in generateTopBar()) - JS doesn't decode entities there.
         { "Not available", "Nicht verfuegbar", "Non disponible" },
         { "Connection lost", "Verbindung unterbrochen", "Connexion perdue" },
-        // Kurzes Label fuer den Live-Helligkeitswert in der Topbar (siehe
-        // "value-light" in generateTopBar()) - bewusst kurz gehalten wie die
-        // uebrigen Topbar-Labels ("Zeit", "RTC", "DCF77"), anders als das
-        // ausfuehrlichere "Light (for Threshold)" weiter unten in den
-        // Helligkeits-Einstellungen.
-        // Short label for the live brightness value in the topbar (see
-        // "value-light" in generateTopBar()) - deliberately kept short like
-        // the other topbar labels ("Time", "RTC", "DCF77"), unlike the more
-        // verbose "Light (for Threshold)" further below in the brightness
-        // settings.
+
+        // Kurzes Label fuer den Live-Helligkeitswert in der Topbar -
+        // bewusst kurz wie die anderen Topbar-Labels, anders als das
+        // ausfuehrlichere "Light (for Threshold)" weiter unten.
+
+        // Short label for the live brightness value in the topbar -
+        // deliberately kept short like the other topbar labels, unlike the
+        // more verbose "Light (for Threshold)" further below.
         { "Light", "Licht", "Lumi&egrave;re" },
         { "Storage used", "Speicher belegt", "Stockage utilis&eacute;" },
         { "Presets used", "Presets belegt", "Pr&eacute;r&eacute;glages utilis&eacute;s" },
@@ -374,6 +365,7 @@
         // Erweitert um den Trennungshinweis (vorher nur im Tooltip des Buttons,
         // also leicht zu uebersehen) - erscheint jetzt direkt als Flash-Meldung
         // beim Start von WPS. Der englische Schluessel wird zusaetzlich als
+
         // exakter String-Vergleich in webserver_routes.h genutzt (erkennt, ob
         // gerade WPS gestartet wurde, um das Reconnect-Poll-Skript einzubetten)
         // - bei einer Aenderung dieses Textes MUSS die Vergleichsstelle dort mitgeaendert werden.
@@ -381,6 +373,7 @@
         // Extended with the disconnect notice (previously only in the button's
         // tooltip, easy to miss) - now shown directly as a flash message when
         // WPS starts. The English key is also used as an exact string
+
         // comparison in webserver_routes.h (detects that WPS was just started,
         // to embed the reconnect-poll script) - if this text changes, the
         // comparison there MUST be updated too.
@@ -397,6 +390,7 @@
 
         // Neu fuer die /dcf77-Live-Seite (Bit-Fortschritt + dekodiertes
         // Telegramm, siehe webserver_routes.h)
+
         // New for the /dcf77 live page (bit progress + decoded telegram,
         // see webserver_routes.h)
         { "Bit progress", "Bit-Fortschritt", "Progression des bits" },
@@ -450,11 +444,13 @@
 
         // ASCII-only, OHNE HTML-Entities: werden per JS direkt als
         // .textContent gesetzt (dcfSynced-Anzeige) statt als HTML geparst -
+
         // Entities wuerden dort woertlich erscheinen (siehe Hinweis oben bei
         // "Not available"/Umlaut-Problem). {pos} wird per JS ersetzt.
 
         // ASCII-only, WITHOUT HTML entities: set via JS directly as
         // .textContent (dcfSynced display) instead of parsed as HTML -
+
         // entities would show up literally there (see note above at
         // "Not available"/umlaut issue). {pos} is substituted in JS.
         { "yes (marker at grid position {pos})", "ja (Marke bei Rasterposition {pos})", "oui (marqueur a la position de grille {pos})" },
@@ -462,6 +458,7 @@
 
         // Neu fuer die Info-Seite (/info, siehe webserver_routes.h und
         // readme_text.h) - Projektlinks und Kontakt
+
         // New for the info page (/info, see webserver_routes.h and
         // readme_text.h) - project links and contact
         { "Project and Contact", "Projekt und Kontakt", "Projet et contact" },
@@ -473,6 +470,7 @@
 
         // Neu fuer den Rocrail-Tab (siehe webserver_routes.h und
         // rocrail_client.h) - Modellzeit-Anbindung an einen Rocrail-Server
+
         // New for the Rocrail tab (see webserver_routes.h and
         // rocrail_client.h) - model time connection to a Rocrail server
         { "Use Rocrail model time for the hands", "Rocrail-Modellzeit f&uuml;r die Zeiger verwenden", "Utiliser l&#39;heure du mod&egrave;le Rocrail pour les aiguilles" },
