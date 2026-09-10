@@ -1,11 +1,11 @@
 #pragma once
-    // Rocrail-Modellzeit: verbindet sich mit einem Rocrail-Server (TCP-Port
-    // 8051, RCP-Protokoll) und uebernimmt dessen Fast-Clock als Zeitquelle
-    // fuer die Zeiger. Serveradresse (Rocrail-Tab) ist verpflichtend.
+    // Rocrail-Modellzeit: verbindet sich mit einem konfigurierten Rocrail-
+    // Server (TCP, RCP-Protokoll) und uebernimmt dessen Fast-Clock als
+    // Zeitquelle fuer die Zeiger.
 
-    // Rocrail model time: connects to a Rocrail server (TCP port 8051, RCP
-    // protocol) and adopts its fast clock as the time source for the
-    // hands. Server address (Rocrail tab) is mandatory.
+    // Rocrail model time: connects to a configured Rocrail server (TCP,
+    // RCP protocol) and adopts its fast clock as the time source for the
+    // hands.
 
     // connect() mit Timeout ist zugleich der "Ping" (prueft Port-, nicht nur
     // Host-Ebene) und laeuft in einer eigenen FreeRTOS-Task, damit loop()
@@ -32,32 +32,13 @@
     // history).
 
 
-    // Laedt die Liste moeglicher Rocrail-Server (bis zu MAX_WLAN, siehe
-    // globals.h) aus den Preferences und stellt sie in rocrailServerList[]/
-    // rocrailServerPortList[]/rocrailActiveServerIndex wieder her - analog
-    // zum Laden der WLAN-/NTP-Listen in uhr3.ino. Wird einmal in setup()
-    // aufgerufen, direkt nach dem Laden von rocrailServerHost/-Port (die
-    // weiterhin den "aktuell aktiven" Server tragen, siehe globals.h).
+    // Laedt die Rocrail-Server-Liste (bis zu MAX_WLAN) aus den Preferences.
+    // Migriert einmalig einen alten Einzel-Server als Listenplatz 1, falls
+    // die Liste sonst leer waere.
 
-    // Einmalige Migration: ist die Liste noch komplett leer, aber
-    // rocrailServerHost (aus der alten Einzel-Server-Preference) bereits
-    // gesetzt, wird dieser Wert als Listenplatz 1 uebernommen und dort als
-    // aktiv markiert - so bleibt ein vor diesem Update konfigurierter
-    // Server nach einem Firmware-Update in der neuen Mehrfach-Server-
-    // Uebersicht sichtbar, statt dort leer zu erscheinen.
-
-    // Loads the list of possible Rocrail servers (up to MAX_WLAN, see
-    // globals.h) from preferences and restores it into rocrailServerList[]/
-    // rocrailServerPortList[]/rocrailActiveServerIndex - analogous to
-    // loading the WiFi/NTP lists in uhr3.ino. Called once in setup(),
-    // right after loading rocrailServerHost/-Port (which continue to carry
-    // the "currently active" server, see globals.h).
-
-    // One-time migration: if the list is still completely empty but
-    // rocrailServerHost (from the old single-server preference) is already
-    // set, that value is taken over as list slot 1 and marked active there -
-    // so a server configured before this update stays visible in the new
-    // multi-server list after a firmware update, instead of appearing empty.
+    // Loads the Rocrail server list (up to MAX_WLAN) from preferences.
+    // Migrates an old single server into list slot 1 once, if the list
+    // would otherwise be empty.
 
     void loadRocrailServerList() {
         bool anyFound = false;
@@ -174,43 +155,13 @@
     }
 
 
-    // Sucht das oeffnende <plan .../>-Tag (bzw. <plan ...> bei Kindelementen)
-    // im Rohstrom und uebernimmt dessen "title"-Attribut als Anlagenname fuer
-    // den aktuell aktiven Server - aber nur, solange dessen Namensfeld noch
-    // leer ist (siehe rocrailServerNameList[] in globals.h). Rein passiv:
-    // es wird NICHT aktiv angefragt (ein frueherer Versuch mit
-    // <model cmd="plan"/> wurde wieder entfernt - die Antwort kann den
-    // kompletten Anlagenplan mit allen Bloecken/Routen umfassen und damit
-    // den begrenzten Speicher des ESP32 sprengen bzw. die Verbindung
-    // stoeren). Sendet ein Rocrail-Server den Plan von sich aus (z.B. manche
-    // Versionen/Konfigurationen direkt nach dem Verbindungsaufbau), wird der
-    // Titel opportunistisch mitgenommen - ansonsten bleibt das Feld leer und
-    // ist manuell einzutragen. Bewusst VOR der Clock-Tag-Verarbeitung in
-    // processRocrailBuffer() aufgerufen: die verwirft beim Finden eines
-    // <clock/>-Tags alles davor im Puffer (siehe dort) - ein dazwischen
-    // angekommenes <plan>-Tag ginge sonst unbemerkt verloren. Der grosse
-    // Rest eines <plan>-Elements (Bloecke, Routen, ...) wird bewusst nicht
-    // ausgewertet, nur die oeffnenden Attribute interessieren hier - er wird
-    // spaeter ganz normal vom Puffer-Deckel in pollRocrailClient() verworfen.
+    // Uebernimmt den Anlagennamen aus <plan title="..."/>, falls das Feld
+    // fuer den aktiven Server noch leer ist. Rein passiv - eine aktive
+    // Anfrage wuerde den ganzen Plan anfordern und den Speicher sprengen.
 
-    // Finds the opening <plan .../> tag (or <plan ...> if it has child
-    // elements) in the raw stream and takes over its "title" attribute as
-    // the layout name for the currently active server - but only while that
-    // server's name field is still empty (see rocrailServerNameList[] in
-    // globals.h). Purely passive: it is NOT actively requested (an earlier
-    // attempt using <model cmd="plan"/> was removed again - the reply can
-    // include the entire layout plan with all blocks/routes, which can
-    // exceed the ESP32's limited memory or disrupt the connection). If a
-    // Rocrail server sends the plan on its own (e.g. some versions/
-    // configurations do so right after connecting), the title is picked up
-    // opportunistically - otherwise the field stays empty and needs to be
-    // entered manually. Deliberately called BEFORE the clock-tag processing
-    // in processRocrailBuffer(): that discards everything before a found
-    // <clock/> tag in the buffer (see there) - a <plan> tag that arrived in
-    // between would otherwise be silently lost. The large remainder of a
-    // <plan> element (blocks, routes, ...) is deliberately not evaluated,
-    // only the opening attributes matter here - it later gets discarded as
-    // usual by the buffer cap in pollRocrailClient().
+    // Takes over the layout name from <plan title="..."/>, if that field
+    // is still empty for the active server. Purely passive - an active
+    // request would ask for the whole plan and could blow the memory.
 
     void processRocrailPlanTag() {
         if (rocrailActiveServerIndex < 0 || rocrailActiveServerIndex >= MAX_WLAN) return;
@@ -275,21 +226,13 @@
         long timeValue = rocrailXmlAttrInt(payload, "time", 0);
         String state = rocrailXmlAttrString(payload, "state");
 
-        // Helligkeit: optionales "bri"-Attribut (0-255), das Rocrail nur
-        // sendet, wenn serverseitig eine Tag/Nacht-Lichtsteuerung konfiguriert
-        // ist. Fallback -1 heisst "in diesem Telegramm nicht enthalten" -
-        // rocrailBrightness/-Known bleiben dann unveraendert, statt auf einen
-        // falschen Wert wie 0 zurueckzufallen. Die eigentliche Anwendung
-        // (Deaktivieren der lokalen Fotowiderstand-/Zeitsteuerung) geschieht
-        // in updateBrightness() (display.h), nicht hier.
+        // Helligkeit: optionales "bri"-Attribut (0-255), nur gesetzt bei
+        // serverseitiger Tag/Nacht-Lichtsteuerung. Fallback -1 = nicht
+        // enthalten, dann bleibt der alte Wert statt auf 0 zu fallen.
 
-        // Brightness: optional "bri" attribute (0-255) that Rocrail only
-        // sends when a day/night lighting scheme is configured server-side.
-        // Fallback -1 means "not present in this telegram" - rocrailBrightness/
-        // -Known then stay unchanged, instead of falling back to a wrong
-        // value like 0. The actual application (disabling the local
-        // photoresistor/time-of-day control) happens in updateBrightness()
-        // (display.h), not here.
+        // Brightness: optional "bri" attribute (0-255), only set with
+        // server-side day/night lighting control. Fallback -1 = not
+        // present, then the old value stays instead of falling to 0.
         int bri = rocrailXmlAttrInt(payload, "bri", -1);
         if (bri >= 0) {
             rocrailBrightness = (uint8_t)constrain(bri, 0, 255);
@@ -382,17 +325,13 @@
     }
 
 
-    // Gemeinsamer Kern von connectRocrailClient() (periodisch, Sekunde 59)
-    // und triggerRocrailConnectNow() (sofort nach einer Einstellungs-
-    // Aenderung im Webinterface) - startet die eigentliche Connect-Task.
-    // Geht davon aus, dass der Aufrufer bereits geprueft hat, dass gerade
-    // keine Task laeuft und keine Verbindung besteht.
+    // Gemeinsamer Kern von connectRocrailClient() (periodisch) und
+    // triggerRocrailConnectNow() (sofort) - startet die Connect-Task.
+    // Setzt voraus, dass keine Task laeuft und keine Verbindung besteht.
 
-    // Shared core of connectRocrailClient() (periodic, second 59) and
-    // triggerRocrailConnectNow() (immediate, right after a settings change
-    // in the web interface) - starts the actual connect task. Assumes the
-    // caller has already checked that no task is currently running and no
-    // connection is open.
+    // Shared core of connectRocrailClient() (periodic) and
+    // triggerRocrailConnectNow() (immediate) - starts the connect task.
+    // Assumes no task is running and no connection is open.
 
     void startRocrailConnectTask() {
         rocrailLastConnectAttemptMillis = millis();
@@ -430,25 +369,13 @@
     }
 
 
-    // Stoesst sofort einen Verbindungsversuch an, ohne auf das naechste
-    // reguläre Zeitfenster (Sekunde 59, hoechstens 1x pro Minute, siehe
-    // connectRocrailClient()) zu warten - aufgerufen direkt nachdem im
-    // Webinterface Rocrail aktiviert oder die Serveradresse gespeichert
-    // wurde (siehe webserver_routes.h /applydisplaysettings, /save_rocrail).
-    // Kein Effekt, wenn Rocrail nicht aktiv ist, keine Serveradresse
-    // hinterlegt ist, bereits eine Verbindung besteht oder schon eine
-    // Connect-Task laeuft - dann uebernehmen ohnehin die naechsten
-    // pollRocrailClient()/pollRocrailConnectTask()-Aufrufe aus loop().
+    // Stoesst sofort einen Verbindungsversuch an, statt auf das reguläre
+    // Zeitfenster zu warten - aufgerufen nach Aktivieren/Speichern im
+    // Webinterface. No-op ohne Server oder bei laufender Verbindung/Task.
 
-    // Immediately kicks off a connection attempt, without waiting for the
-    // next regular window (second 59, at most once a minute, see
-    // connectRocrailClient()) - called right after Rocrail was enabled or
-    // the server address was saved in the web interface (see
-    // webserver_routes.h /applydisplaysettings, /save_rocrail). No effect
-    // if Rocrail isn't enabled, no server address is configured, a
-    // connection is already open, or a connect task is already running -
-    // the next pollRocrailClient()/pollRocrailConnectTask() calls from
-    // loop() handle that case anyway.
+    // Immediately kicks off a connection attempt, instead of waiting for
+    // the regular window - called after enabling/saving in the web
+    // interface. No-op without a server, or an existing connection/task.
 
     void triggerRocrailConnectNow() {
         if (!rocrailEnabled || rocrailServerHost.isEmpty()) return;
