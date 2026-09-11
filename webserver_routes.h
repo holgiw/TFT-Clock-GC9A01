@@ -40,8 +40,8 @@
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
         html.reserve(5000);  // Vorab reservierter Speicher fuer CSS+HTML
                               // Pre-reserved capacity for CSS+HTML
-        // Dunkles Theme mit CSS-only Tab-Mechanik (verstecktes radio-Input +
 
+        // Dunkles Theme mit CSS-only Tab-Mechanik (verstecktes radio-Input +
         // Label + Selektor "~") fuer die Tab-Hub-Startseite. Gilt sitenweit,
         // damit alle Seiten optisch einheitlich bleiben.
 
@@ -353,21 +353,13 @@
     }
 
 
-    // Wie escapeHtmlText(), aber fuer String-Werte in JSON-Antworten -
-    // noetig, sobald ein Feld nicht aus einer festen, selbst erzeugten Menge
-    // stammt (anders als z.B. die Dot-States "ok"/"bad"/...), sondern
-
-    // Server-/Netzwerkdaten enthalten kann: der Rocrail-Hostname und der vom
-    // Server gemeldete Anlagenname (siehe /api/rocrailStatus) koennten sonst
-    // ein Anfuehrungszeichen enthalten und die JSON-Antwort zerbrechen.
+    // Wie escapeHtmlText(), aber fuer String-Werte in JSON-Antworten - noetig
+    // bei Feldern mit Nutzereingaben (Rocrail-Hostname, Vorschau-Fingerabdruck),
+    // da ein Anfuehrungszeichen sonst die JSON-Antwort zerbrechen koennte.
 
     // Like escapeHtmlText(), but for string values in JSON responses -
-    // needed as soon as a field doesn't come from a fixed, self-generated
-    // set (unlike e.g. the dot states "ok"/"bad"/...), but can contain
-
-    // server/network data: the Rocrail hostname and the plan name reported
-    // by the server (see /api/rocrailStatus) could otherwise contain a
-    // quote character and break the JSON response.
+    // needed for fields with user input (Rocrail hostname, preview
+    // fingerprint), since a quote character could otherwise break the JSON.
 
     String escapeJsonText(const String& text) {
         String out;
@@ -538,29 +530,19 @@
 
         // Live-Status: pollt /api/topbarStatus alle 5s und aktualisiert Punkte
         // + Uhrzeit ohne Seiten-Reload. Offline-Hinweis erst nach zwei
-
-        // fehlgeschlagenen Polls. Polling pausiert, waehrend der Tab im
-        // Hintergrund ist.
+        // fehlgeschlagenen Polls; pausiert, waehrend der Tab im Hintergrund ist.
 
         // Live status: polls /api/topbarStatus every 5s and updates dots +
         // time without a page reload. Offline hint only after two failed
-        // polls. Polling pauses while the tab is in the background.
+        // polls; pauses while the tab is in the background.
 
-        // pageVersion: die Build-Version, mit der DIESE Seite gerade
-        // gerendert wurde (siehe "version" globals.h). Weicht die Version im
-        // naechsten Poll davon ab, laeuft auf der Uhr inzwischen eine neuere
-
-        // Firmware (OTA-Update oder WPS-Neustart) - die Seite wird dann
-        // komplett neu geladen, damit HTML/JS/CSS wieder zur aktuellen
-        // Firmware passen, statt mit veraltetem UI weiterzulaufen.
+        // pageVersion: die Build-Version, mit der DIESE Seite gerendert
+        // wurde (siehe "version" in globals.h). Weicht ein spaeterer Poll
+        // davon ab, laedt die Seite komplett neu (neuere Firmware per OTA/WPS-Neustart), statt mit veraltetem UI weiterzulaufen.
 
         // pageVersion: the build version THIS page was rendered with (see
         // "version" in globals.h). If a later poll reports a different
-        // version, newer firmware is now running on the clock (OTA update or
-
-        // WPS reboot) - the page then does a full reload so its HTML/JS/CSS
-        // match the current firmware again instead of running on with a
-        // stale UI.
+        // version, the page does a full reload (newer firmware via OTA/WPS reboot) instead of running on with a stale UI.
         html += "<script>(function(){";
         // "version" ist ein reiner Build-Zeitstempel ohne Anfuehrungszeichen
         // o.ae. (siehe globals.h) - daher hier ohne Escaping direkt als
@@ -620,11 +602,11 @@
     // Kurze Zeile mit LittleFS-Speichernutzung, reiner Inline-Text ohne
     // umschliessendes Element - der Aufrufer bettet ihn je nach Layout ein.
 
-    // forceEnglish: die Status-Seite ist immer Englisch (technische
-    // Diagnoseansicht), andere Aufrufer bleiben normal uebersetzt.
-
     // Short line with LittleFS storage usage, plain inline text with no
     // wrapping element - the caller embeds it depending on layout.
+
+    // forceEnglish: die Status-Seite ist immer Englisch (technische
+    // Diagnoseansicht), andere Aufrufer bleiben normal uebersetzt.
 
     // forceEnglish: the status page is always English (technical diagnostic
     // view), other callers stay normally translated.
@@ -668,16 +650,12 @@
         nav += "a:hover { text-decoration: underline; }";
         nav += ".navToggle { display: none; cursor: pointer; font-size: 1.8em; user-select: none; }";
         // Ueberschreibt "display:block!important" der mobilen Regel unten
-        // fuer ausgeblendete Eintraege (z.B. DCF77 vor dcf77Confirmed) -
-
-        // hoehere Selektor-Spezifitaet reicht zwar theoretisch, aber explizit
-        // ist robuster gegen kuenftige Aenderungen an der mobilen Regel.
+        // fuer ausgeblendete Eintraege (z.B. DCF77 vor dcf77Confirmed) - hoehere
+        // Selektor-Spezifitaet reicht theoretisch, explizit ist aber robuster.
 
         // Overrides the mobile rule's "display:block!important" below for
         // hidden entries (e.g. DCF77 before dcf77Confirmed) - higher selector
-
-        // specificity would technically suffice, but being explicit is more
-        // robust against future changes to the mobile rule.
+        // specificity would technically suffice, but being explicit is more robust.
         nav += ".navLinks a[hidden],.navLinks span[hidden]{display:none !important;}";
         nav += "@media (max-width: 600px) {";
         nav += "  .navToggle { display: inline-block; }";
@@ -722,21 +700,13 @@
                                               // current path of the page
 
         for (const auto& item : navItems) {
-            // "/dcf77" nur ganz weglassen, wenn keine DCF77-Hardware verbaut
-            // ist. Ist Hardware vorhanden, aber noch nicht dcf77Confirmed,
-            // wird der Eintrag trotzdem gerendert (nur per 'hidden'
+            // "/dcf77" nur weglassen, wenn keine Hardware verbaut ist - sonst
+            // wird der Eintrag per 'hidden' unsichtbar gerendert und per
+            // Live-Poll eingeblendet, sobald DCF77 erkannt wird.
 
-            // unsichtbar) und per Live-Poll eingeblendet, sobald DCF77
-            // waehrend der Laufzeit erkannt wird - siehe setPresent()
-            // in generateTopBar(), dieselbe Bedingung wie beim Topbar-Punkt.
-
-            // Only omit "/dcf77" entirely when no DCF77 hardware is wired
-            // up. If hardware is present but not yet dcf77Confirmed, the
-            // entry is still rendered (just invisible via 'hidden') and
-
-            // gets revealed live once DCF77 is recognized at runtime - see
-            // setPresent() in generateTopBar(), the same condition as the
-            // topbar dot.
+            // Only omit "/dcf77" when no hardware is wired up - otherwise
+            // the entry is rendered invisible via 'hidden' and gets
+            // revealed live once DCF77 is recognized at runtime.
             bool dcf77Hidden = false;
             if (item.path == "/dcf77") {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
@@ -2458,16 +2428,12 @@
                 chunk = "";
 
                 // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
-                // HTML-Entities dabei NICHT - "&uuml;" stuende sonst woertlich
-
-                // im Titel. Deshalb wie bei den WLAN-Labels weiter unten ueber
-                // decodeHtml() aufloesen (siehe auch Hinweis in translation.h).
+                // HTML-Entities dabei NICHT - ueber decodeHtml() aufloesen,
+                // wie bei den WLAN-Labels weiter unten.
 
                 // Plotly renders the chart title as SVG text and does NOT
-                // decode HTML entities - "&uuml;" would show up literally in
-
-                // the title. So resolve it via decodeHtml(), same as the WiFi
-                // labels further below (see also the note in translation.h).
+                // decode HTML entities - resolve it via decodeHtml(), same
+                // as the WiFi labels further below.
                 chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
                 chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
 
@@ -2571,16 +2537,12 @@
                 chunk = "";
 
                 // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
-                // HTML-Entities dabei NICHT - "&uuml;" stuende sonst woertlich
-
-                // im Titel. Deshalb wie bei den WLAN-Labels weiter unten ueber
-                // decodeHtml() aufloesen (siehe auch Hinweis in translation.h).
+                // HTML-Entities dabei NICHT - ueber decodeHtml() aufloesen,
+                // wie bei den WLAN-Labels weiter unten.
 
                 // Plotly renders the chart title as SVG text and does NOT
-                // decode HTML entities - "&uuml;" would show up literally in
-
-                // the title. So resolve it via decodeHtml(), same as the WiFi
-                // labels further below (see also the note in translation.h).
+                // decode HTML entities - resolve it via decodeHtml(), same
+                // as the WiFi labels further below.
                 chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
                 chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
 
@@ -2751,6 +2713,13 @@
                 rocrailServerPortList[i] = ROCRAIL_DEFAULT_PORT;
                 memset(rocrailServerNameList[i], 0, sizeof(rocrailServerNameList[i]));
             }
+
+            // Ist keiner angehakt, aber mindestens ein Server vorhanden -
+            // den ersten nehmen, statt Rocrail dann stillschweigend inaktiv zu lassen.
+
+            // If none is checked but at least one server exists - use the
+            // first one, instead of silently leaving Rocrail inactive.
+            if (newActiveIndex < 0 && writeIndex > 0) newActiveIndex = 0;
             rocrailActiveServerIndex = newActiveIndex;
 
             // In den Preferences sichern - nur bei tatsaechlicher Aenderung
@@ -2833,9 +2802,7 @@
 
             // "-" until the first <clock> update has actually arrived
             // (rocrailLastClockMillis != 0) - before that, both the model
-
-            // time AND the divider would just be the default value, not
-            // confirmed by the server.
+            // time AND the divider would just be the default value, not confirmed by the server.
             char modelTimeBuf[9] = "-";
             String dividerStr = "-";
             if (rocrailEnabled && rocrailLastClockMillis != 0) {
@@ -3446,21 +3413,13 @@
             String rtcTitle = dotStatusText("RTC", rtcState);
             String dcf77Title = dotStatusText("DCF77", dcfState);
             String rocrailTitle = dotStatusText("Rocrail", rocrailConnected ? "ok" : "error");
-            // "version" mitschicken, damit das Topbar-Polling erkennen kann,
-            // ob seit dem Laden der Seite eine neue Firmware-Version aktiv
-            // wurde (z.B. nach OTA-Update oder WPS-Neustart) und die Seite
+            // "version" mitschicken, damit das Topbar-Polling eine neue
+            // Firmware-Version (OTA/WPS-Neustart) erkennt und die Seite dann
+            // neu laedt - reiner Build-Zeitstempel, daher ohne JSON-Escaping sicher.
 
-            // dann komplett neu laedt (siehe pageVersion-Vergleich unten in
-            // generateTopBar()) - "version" ist ein reiner Build-Zeitstempel
-            // ohne Anfuehrungszeichen o.ae., daher ohne JSON-Escaping sicher.
-
-            // Include "version" so the topbar polling can detect whether a
-            // new firmware version became active since the page was loaded
-            // (e.g. after an OTA update or a WPS reboot) and then fully
-
-            // reload the page (see the pageVersion comparison below in
-            // generateTopBar()) - "version" is a plain build timestamp with
-            // no quotes etc., so it's safe without JSON escaping.
+            // Include "version" so the topbar polling can detect a new
+            // firmware version (OTA/WPS reboot) and reload the page then -
+            // a plain build timestamp, so it's safe without JSON escaping.
             String json = "{\"time\":\"" + timeState + "\"" +
                           ",\"rtc\":\"" + rtcState + "\"" +
                           ",\"rtcPresent\":" + String(rtcPresent ? "true" : "false") +
@@ -3598,16 +3557,12 @@
             });
 
         // Zeigt die Live-Zeiger-Uhr als eigene Seite. Server-seitig wird bei
-        // previewSize (Basisgroesse) gerendert; ein Schieberegler skaliert
-
-        // die fertige Uhr per CSS transform:scale() clientseitig weiter
-        // hoch/runter, ganz ohne Neuladen der Seite (siehe Skript unten).
+        // previewSize (Basisgroesse) gerendert; ein Schieberegler skaliert die
+        // fertige Uhr per CSS transform:scale() clientseitig weiter hoch/runter.
 
         // Shows the live hand clock as its own page. Server-side rendering
         // happens at previewSize (base size); a slider then scales the
-
-        // finished clock further up/down client-side via CSS
-        // transform:scale(), with no page reload (see the script below).
+        // finished clock further up/down client-side via CSS transform:scale().
         webserver.on("/preview", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
@@ -3616,21 +3571,13 @@
             chunk.reserve(2048);
             chunk += "<h2>" + translate("Preview") + "</h2>";
 
-            // Zuletzt per Schieberegler gewaehlte Groesse aus den Preferences
-            // laden (persistiert ueber /api/setPreviewSize) - so bleibt die
-            // Groesse auch nach einem Refresh/Neuladen der Seite erhalten,
+            // Zuletzt per Schieberegler gewaehlte Groesse laden (persistiert
+            // ueber /api/setPreviewSize), statt bei jedem Laden auf
+            // PREVIEW_SIZE_DEFAULT zu springen. constrain() faengt einen ungueltigen gespeicherten Wert ab.
 
-            // statt bei jedem Laden wieder auf PREVIEW_SIZE_DEFAULT zu springen.
-            // constrain() faengt einen aus irgendeinem Grund ausserhalb des
-            // gueltigen Bereichs liegenden gespeicherten Wert ab.
-
-            // Load the size last chosen via the slider from preferences
-            // (persisted via /api/setPreviewSize) - this keeps the size
-            // across a page refresh/reload, instead of jumping back to
-
-            // PREVIEW_SIZE_DEFAULT on every load. constrain() catches a
-            // stored value that ends up outside the valid range for
-            // whatever reason.
+            // Load the size last chosen via the slider (persisted via
+            // /api/setPreviewSize), instead of jumping back to
+            // PREVIEW_SIZE_DEFAULT on every load. constrain() catches an invalid stored value.
             int previewSize = preferences.getInt(PK_PREVIEW_SIZE, PREVIEW_SIZE_DEFAULT);
             previewSize = constrain(previewSize, PREVIEW_SIZE_MIN, PREVIEW_SIZE_MAX);
 
@@ -3822,15 +3769,11 @@
             chunk += "      baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
             // rocrailDivider/-Frozen: siehe /api/currentTime - dieselbe
             // rocrailTimeReady-Bedingung wie in renderClockFrame() (display.h).
-
-            // Ohne aktive Rocrail-Zeit bleibt divider=1 (kein Effekt auf die
-            // Rechnung unten) und frozen=false.
+            // Ohne aktive Rocrail-Zeit bleibt divider=1, frozen=false.
 
             // rocrailDivider/-Frozen: see /api/currentTime - the same
             // rocrailTimeReady condition as in renderClockFrame() (display.h).
-
-            // Without an active Rocrail time, divider stays 1 (no effect on
-            // the math below) and frozen stays false.
+            // Without an active Rocrail time, divider stays 1, frozen stays false.
             chunk += "      rocrailDivider = t.rocrail ? t.divider : 1;";
             chunk += "      rocrailFrozen = t.rocrail && t.frozen;";
             chunk += "      if (hintEl) { hintEl.hidden = !t.rocrail; if (t.rocrail) hintEl.innerHTML = rocrailHintTpl.replace('{divider}', rocrailDivider); }";
@@ -3850,15 +3793,11 @@
             chunk += "    if (haveBase) {";
             // Bei angehaltener Rocrail-Modellzeit (frozen) bleiben die Zeiger
             // auf dem zuletzt geholten Stand stehen, statt weiterzulaufen -
-
-            // wie advanceRocrailTime() (rocrail_client.h), das bei
-            // rocrailFrozen ebenfalls nicht weiterschreibt.
+            // wie advanceRocrailTime() (rocrail_client.h) bei rocrailFrozen.
 
             // While the Rocrail model time is paused (frozen), the hands stay
             // at the last fetched reading instead of advancing - like
-
-            // advanceRocrailTime() (rocrail_client.h), which also doesn't
-            // advance further while rocrailFrozen is set.
+            // advanceRocrailTime() (rocrail_client.h) does with rocrailFrozen.
             chunk += "      var elapsed = rocrailFrozen ? 0 : ((performance.now() - baseAt) / 1000) * rocrailDivider;";
             chunk += "      var totalSec = baseH * 3600 + baseM * 60 + baseS + elapsed;";
             chunk += "      h = Math.floor(totalSec / 3600) % 12;";
@@ -3869,7 +3808,14 @@
             chunk += "      var now = new Date();";
             chunk += "      h = now.getHours() % 12; m = now.getMinutes(); s = now.getSeconds(); ms = now.getMilliseconds();";
             chunk += "    }";
-            chunk += "    var minuteDeg = smoothMinute ? (m + s / 60) * 6 : m * 6;";
+            // Wie renderClockFrame() (display.h): sanfter Minutenzeiger gilt
+            // nur ausserhalb des Bahnhofsuhr-Modus - dort springt die Minute
+            // immer beim Wechsel, unabhaengig von smoothMinute.
+
+            // As in renderClockFrame() (display.h): smooth minute only
+            // applies outside station-clock mode - there the minute always
+            // jumps on change, regardless of smoothMinute.
+            chunk += "    var minuteDeg = (smoothMinute && !stationMode) ? (m + s / 60) * 6 : m * 6;";
             chunk += "    var hourDeg = (h + minuteDeg / 360) * 30;";
             chunk += "    var secDeg;";
             chunk += "    if (stationMode) {";
@@ -4613,15 +4559,11 @@
             chunk += "<div class='tabpanel panel-status'>";
             // Scrollbares Fenster wie beim Log- und Info-Tab (gleiche Hoehe
             // ueber INFO_LOG_WINDOW_HEIGHT_CSS, gleiche 900px-Breite) - vorher
-
-            // wuchs diese Karte ueber die ganze Seitenlaenge, sodass die Seite
-            // selbst scrollte statt nur der Inhalt (siehe Kommentar im Info-Tab).
+            // wuchs diese Karte ueber die ganze Seite statt nur der Inhalt.
 
             // Scrollable window like the Log and Info tabs (same height via
-            // INFO_LOG_WINDOW_HEIGHT_CSS, same 900px width) - before, this card
-
-            // grew over the full page length, so the page itself scrolled
-            // instead of just the content (see the comment in the Info tab).
+            // INFO_LOG_WINDOW_HEIGHT_CSS, same 900px width) - before, this
+            // card grew over the full page instead of just the content.
             chunk += "<div class='card' id='statusContent' style='max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;'>";
             chunk += "<ul>";
             chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
@@ -5331,21 +5273,13 @@
             }
             chunk += "</select></div>";
 
-            // Hinweis: bei nur einem tatsaechlich verbauten Display sollten
-            // beide Rotationswerte gleich stehen - dann liefert Display 2
-            // (siehe updateClock() in display.h: ohne Software-Rotation wird
+            // Hinweis: bei nur einem Display sollten beide Rotationswerte
+            // gleich stehen - dann liefert Display 2 (ohne Software-Rotation
+            // der erneut gesendete Frame von Display 1) ein konsistentes Bild.
 
-            // fuer Display 2 kein eigener Frame berechnet, sondern derselbe
-            // Frame wie fuer Display 1 einfach erneut gesendet) ein
-            // konsistentes Bild statt eines mit falscher Rotation.
-
-            // Hint: with only one display physically present, both rotation
-            // values should be set equal - then Display 2 (see updateClock()
-            // in display.h: without software rotation, no separate frame is
-
-            // computed for Display 2, the same frame built for Display 1 is
-            // simply re-sent) shows a consistent image instead of one with
-            // the wrong rotation.
+            // Hint: with only one display present, both rotation values
+            // should be equal - then Display 2 (without software rotation,
+            // the re-sent frame from Display 1) shows a consistent image.
             chunk += "<small>" + translate("If only one display is physically connected, set both rotations to the same value") + ".</small><br><br>";
 
             chunk += "</div>";
@@ -5366,15 +5300,11 @@
 
             // Hinweis: solange Rocrail verbunden ist und mindestens einmal
             // einen bri-Wert gemeldet hat, uebernimmt es die Helligkeit
-
-            // komplett (siehe updateBrightness() in display.h) - dieselbe
-            // Bedingung wie dort, hier nur zur Anzeige nochmal ausgewertet.
+            // komplett - dieselbe Bedingung wie in updateBrightness() (display.h).
 
             // Hint: as long as Rocrail is connected and has reported at
-            // least one bri value, it fully takes over the brightness (see
-
-            // updateBrightness() in display.h) - same condition as there,
-            // just re-evaluated here for display purposes.
+            // least one bri value, it fully takes over the brightness -
+            // same condition as in updateBrightness() (display.h).
             bool rocrailBrightnessActiveForDisplay = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
                                                       (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
             if (rocrailBrightnessActiveForDisplay) {
@@ -5440,16 +5370,12 @@
                 chunk = "";
 
                 // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
-                // HTML-Entities dabei NICHT - "&uuml;" stuende sonst woertlich
-
-                // im Titel. Deshalb wie bei den WLAN-Labels weiter unten ueber
-                // decodeHtml() aufloesen (siehe auch Hinweis in translation.h).
+                // HTML-Entities dabei NICHT - ueber decodeHtml() aufloesen,
+                // wie bei den WLAN-Labels weiter unten.
 
                 // Plotly renders the chart title as SVG text and does NOT
-                // decode HTML entities - "&uuml;" would show up literally in
-
-                // the title. So resolve it via decodeHtml(), same as the WiFi
-                // labels further below (see also the note in translation.h).
+                // decode HTML entities - resolve it via decodeHtml(), same
+                // as the WiFi labels further below.
                 chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
                 chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
 
