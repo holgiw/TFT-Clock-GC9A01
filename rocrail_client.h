@@ -57,6 +57,19 @@
         rocrailActiveServerIndex = preferences.getInt(PK_ROCRAIL_ACTIVE_SRV, -1);
         if (rocrailActiveServerIndex < -1 || rocrailActiveServerIndex >= MAX_WLAN) rocrailActiveServerIndex = -1;
 
+        // Keiner angehakt, aber mindestens ein Server vorhanden - den
+        // ersten befuellten Listenplatz nehmen statt Rocrail stillschweigend inaktiv zu lassen.
+
+        // None checked but at least one server exists - use the first
+        // filled list slot instead of silently leaving Rocrail inactive.
+        if (rocrailActiveServerIndex < 0 && anyFound) {
+            for (int i = 0; i < MAX_WLAN; i++) {
+                if (strlen(rocrailServerList[i]) > 0) { rocrailActiveServerIndex = i; break; }
+            }
+            preferences.putInt(PK_ROCRAIL_ACTIVE_SRV, rocrailActiveServerIndex);
+        }
+
+
         if (!anyFound && rocrailServerHost.length() > 0) {
             strncpy(rocrailServerList[0], rocrailServerHost.c_str(), sizeof(rocrailServerList[0]) - 1);
             rocrailServerList[0][sizeof(rocrailServerList[0]) - 1] = '\0';
@@ -66,6 +79,20 @@
             preferences.putUShort(pkRocrailServerPort(0).c_str(), rocrailServerPortList[0]);
             preferences.putInt(PK_ROCRAIL_ACTIVE_SRV, 0);
             DEBUG_PRINTLN("[ROCRAIL] Migrated existing single server into list slot 1: " + rocrailServerHost);
+        }
+
+        // rocrailServerHost/-Port an den aufgeloesten Index angleichen - noetig,
+        // falls der Fallback oben gerade erst einen Index bestimmt hat. setup()
+        // (uhr3.ino) ruft danach triggerRocrailConnectNow() auf und verbindet sich so noch beim Start.
+
+        // Align rocrailServerHost/-Port with the resolved index - needed if
+        // the fallback above just determined an index. setup() (uhr3.ino)
+        // calls triggerRocrailConnectNow() afterwards, so it connects right at boot.
+        if (rocrailActiveServerIndex >= 0) {
+            rocrailServerHost = String(rocrailServerList[rocrailActiveServerIndex]);
+            rocrailServerPort = rocrailServerPortList[rocrailActiveServerIndex];
+            preferences.putString(PK_ROCRAIL_SERVER, rocrailServerHost);
+            preferences.putUShort(PK_ROCRAIL_SRV_PORT, rocrailServerPort);
         }
     }
 
