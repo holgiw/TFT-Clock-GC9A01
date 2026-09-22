@@ -141,26 +141,15 @@
         firstAttempt = false;
         lastAttempt = now;
 
-        String pingServer = preferences.getString(PK_PING_SERVER, "");
-
         if (WiFi.status() == WL_CONNECTED) {
-            if (pingServer == "") {
-                return true; // Kein Ping-Server konfiguriert, Verbindung als in Ordnung betrachten
-                             // no ping server configured, treat connection as OK
-            }
-            if (isInternetReachable(pingServer)) {
-                return true; // Verbindung ist in Ordnung
-                             // connection is OK
-            }
-            else {
-                // DEBUG_PRINTLN("[WiFi] Connected to WiFi but no internet. Attempting reconnect..");
-                // return false; // Verbindung hat kein Internet, Reconnect versuchen
-            }
+            return true; // Verbindung ist in Ordnung
+                         // connection is OK
         }
 
         DEBUG_PRINTLN("[WiFi] Disconnected. Attempting reconnect..");
         WiFi.disconnect();
-        connectWiFi(preferences.getInt(PK_LAST_WLAN,0), false);
+        int slot = preferences.getInt(PK_LAST_WLAN, 0);
+        connectWiFiWithRetries(slot, wifiSsid[slot], false);
         return WiFi.status() == WL_CONNECTED;
     }
 
@@ -202,7 +191,7 @@
         if (wpsPreviousSsid != "" && !WiFi.isConnected()) {
             for (int i = 0; i < MAX_WLAN; i++) {
                 if (wifiSsid[i] == wpsPreviousSsid) {
-                    connectWiFi(i, false);
+                    connectWiFiWithRetries(i, wpsPreviousSsid, false);
                     break;
                 }
             }
@@ -634,20 +623,13 @@
         if (loggingEnabled) Serial.println();
 
         if (WiFi.status() != WL_CONNECTED) {
-            DEBUG_PRINTLN("[WiFi] Connection failed or timed out");
+            DEBUG_PRINTLN("[WiFi] Connection to '" + wifiSsid[number] + "' failed or timed out");
         } else {
-            DEBUG_PRINTLN("[WiFi] Connected successfully");
+            DEBUG_PRINTLN("[WiFi] Connected successfully to '" + wifiSsid[number] + "'");
         }
 
         if (WiFi.status() == WL_CONNECTED) {
 
-            // PK_LAST_WLAN muss allein vom Verbindungserfolg abhaengen, nicht von
-            // der optionalen Ping-Pruefung unten - sonst bleibt bei fehlendem/
-            // kurzzeitig nicht erreichbarem Pingserver der falsche Slot gespeichert.
-
-            // PK_LAST_WLAN must depend only on connection success, not on the
-            // optional ping check below - otherwise the wrong slot stays saved
-            // when no ping server is set or it's briefly unreachable.
             if (preferences.getInt(PK_LAST_WLAN, -1) != number) {
                 preferences.putInt(PK_LAST_WLAN, number);
                 DEBUG_PRINTLN("[WiFi] set lastWLan: " +  (String)(number + 1));
@@ -688,22 +670,23 @@
             // interface - otherwise the NTP server stays silent after a reconnect.
             startNtpServer();
 
+            // R2RNet-Multicast-Diagnose ebenfalls neu beitreten - derselbe
+            // Grund wie bei startNtpServer() direkt darueber: der Socket
+            // ueberlebt den WiFi-Neuaufbau nicht (siehe rocrail_client.h).
+            // Nur, wenn Rocrail ueberhaupt aktiviert ist (siehe Begruendung
+            // beim analogen Aufruf in uhr3.ino).
+
+            // Rejoin the R2RNet multicast diagnostic listener too - same
+            // reason as startNtpServer() right above: the socket doesn't
+            // survive the WiFi restart (see rocrail_client.h). Only when
+            // Rocrail is actually enabled (see the reasoning at the
+            // analogous call in uhr3.ino).
+            if (rocrailEnabled) {
+                startR2rnetDebugListener();
+            }
+
             DEBUG_PRINTLN("[WiFi] Connected to: " + wifiSsid[number]);
             DEBUG_PRINTLN("[WiFi] IP address: " + WiFi.localIP().toString());
-
-
-            String pingServer = preferences.getString(PK_PING_SERVER, "");
-            if (pingServer == "") {
-                DEBUG_PRINTLN("[WiFi] No ping server configured, skipping internet connectivity check");
-                return CONNECTED; // Kein Ping-Server konfiguriert, Verbindung als in Ordnung betrachten
-                                  // no ping server configured, treat connection as OK
-            }
-            if (!isInternetReachable(pingServer)) {
-                // Setze eine Statusvariable oder führe eine Aktion aus, wenn das Internet nicht erreichbar ist
-                // Set a status variable or take action if the internet is unreachable
-                DEBUG_PRINTLN("[WiFi] Internet not reachable after connection");
-                return CONNECTED_NO_INTERNET;
-            }
 
             if (verboseMode) {
                 showWlanCredentials(wifiSsid[number]);
@@ -718,35 +701,31 @@
     }
 
 
-    // Prüft die Internet-Konnektivität durch Verbindungsversuch zu einem konfigurierten Server.
-    // Checks internet connectivity by attempting to connect to a configured server.
+    // Versucht connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal (siehe config.h) -
+    // ein einzelner Fehlschlag (z.B. Router kurz beschaeftigt) soll das
+    // Netzwerk nicht sofort verwerfen. Gemeinsam genutzt von
+    // connectWiFiAtBoot() (siehe uhr3.ino, verboseMode=true: Fortschritt auf
+    // dem Display sichtbar), checkWiFiReconnect() und
+    // restorePreviousWpsConnection() (beide mit verboseMode=false: laufen im
+    // Hintergrund waehrend des normalen Betriebs, kein Credential-Overlay).
 
-    bool isInternetReachable(String pingServer) {
+    // Tries connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (see config.h) - a
+    // single failure (e.g. the router being briefly busy) shouldn't discard
+    // this network right away. Shared by connectWiFiAtBoot() (see uhr3.ino,
+    // verboseMode=true: progress visible on the display),
+    // checkWiFiReconnect() and restorePreviousWpsConnection() (both with
+    // verboseMode=false: run in the background during normal operation, no
+    // credential overlay).
 
-        if (WiFi.status() != WL_CONNECTED) {
-            DEBUG_PRINTLN("[PING] WiFi not connected, skipping ping");
-            return false;
+    int connectWiFiWithRetries(int number, const String& label, bool verboseMode) {
+        int result = NOT_CONNECTED;
+        for (int attempt = 0; attempt < WIFI_CONNECT_ATTEMPTS && result == NOT_CONNECTED; attempt++) {
+            if (attempt > 0) {
+                DEBUG_PRINTLN("[WiFi] Retrying '" + label + "' (attempt " + String(attempt + 1) + "/" + String(WIFI_CONNECT_ATTEMPTS) + ")..");
+            }
+            result = connectWiFi(number, verboseMode);
         }
-
-        WiFiClient client;
-
-        int pingPort = 80; // Standardport
-                           // default port
-
-    if (pingServer.indexOf(':') != -1) {
-        pingPort = pingServer.substring(pingServer.indexOf(':') + 1).toInt();
-        pingServer = pingServer.substring(0, pingServer.indexOf(':'));
-    }
-    // DEBUG_PRINTLN("[PING] Checking internet connectivity by connect to " + pingServer + ":" + pingPort); client.setTimeout(1);
-    bool connected = client.connect(pingServer.c_str(), pingPort);
-        if (connected) {
-            DEBUG_PRINTLN("[PING] Successfully connected to " + pingServer + ":" + pingPort + " internet is reachable");
-        } else {
-            DEBUG_PRINTLN("[PING] Failed to connect to " + pingServer + ":" + pingPort);
-        }
-
-        client.stop();
-        return connected;
+        return result;
     }
 
 

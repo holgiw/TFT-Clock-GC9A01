@@ -24,7 +24,6 @@
     constexpr const char* PK_WIFI_ACTIVE       = "wifiActive";
     constexpr const char* PK_LAST_WLAN         = "lastWLan";   // <- einzige Quelle der Wahrheit
                                                                // <- single source of truth
-    constexpr const char* PK_PING_SERVER       = "pingServer";
 
     // Zeit / NTP
     // Time / NTP
@@ -34,19 +33,21 @@
 
     // Zifferblatt / Darstellung
     // Clock Face / Display
-    constexpr const char* PK_TFT_ROTATION1     = "tftRotation1"; // Rotation Display 1 - hiess vor Display-2-Support "tftRotation" (siehe LEGACY unten)
-                                                                 // rotation of Display 1 - was called "tftRotation" before Display 2 support (see LEGACY below)
+    constexpr const char* PK_TFT_ROTATION1     = "tftRotation1"; // Rotation Display 1 (0-3, 4 = n.a.) - hiess vor Display-2-Support "tftRotation" (siehe LEGACY unten)
+                                                                 // rotation of Display 1 (0-3, 4 = n.a.) - was called "tftRotation" before Display 2 support (see LEGACY below)
     constexpr const char* PK_TFT_ROTATION_LEGACY = "tftRotation"; // Alter Key-Name - NUR fuer die einmalige Migration in uhr3.ino verwenden
                                                                    // old key name - use ONLY for the one-time migration in uhr3.ino
-    constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2) - Display 2 ist fest aktiviert
-                                                                 // rotation of Display 2 (CS2) - Display 2 is permanently enabled
+    constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2), 4 = n.a. (nicht angeschlossen, Standard)
+                                                                 // rotation of Display 2 (CS2), 4 = n.a. (not connected, default)
     constexpr const char* PK_HOSTNAME          = "hostname"; // leer = automatisch aus MAC-Adresse generiert
                                                              // empty = auto-generated from MAC address
     constexpr const char* PK_HANDSET           = "handset";
     constexpr const char* PK_BACKGROUND        = "background";
-    // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) ist jetzt fest aktiviert, kein Preferences-Schalter mehr (siehe config.h/globals.h/uhr3.ino).
-    // PK_USE_CS2 removed: Display 2 (CS2 pin) is now permanently enabled, no more preferences toggle (see config.h/globals.h/uhr3.ino).
-    constexpr const char* PK_STATION_MODE      = "stationMode";
+    // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) wird ueber die Rotation "n.a." (TFT_ROTATION_NA) abgeschaltet, kein eigener Preferences-Schalter (siehe config.h/globals.h/uhr3.ino).
+    // PK_USE_CS2 removed: Display 2 (CS2 pin) is switched off via the rotation value "n.a." (TFT_ROTATION_NA), no separate preferences toggle (see config.h/globals.h/uhr3.ino).
+    constexpr const char* PK_STATION_MODE      = "stationMode"; // "wartet auf 12" (siehe globals.h) - "waits at 12" (see globals.h)
+    constexpr const char* PK_SMOOTH_SECOND     = "smoothSecond"; // Darstellungsstil des Sekundenzeigers (siehe globals.h)
+                                                                 // second hand rendering style (see globals.h)
     // WICHTIG: einziger gueltiger Key fuer Sekundenzeiger-Sichtbarkeit (abweichender
     // Key "secondHand" im ILI9341-Codepfad war ein Bug, siehe git-Historie).
 

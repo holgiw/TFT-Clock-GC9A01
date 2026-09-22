@@ -70,7 +70,7 @@ TFT (Display 1, Pflicht):
 
 Chip-Select (wird vom Sketch manuell angesteuert, NICHT von der TFT_eSPI-Bibliothek - dort muss TFT_CS in der User_Setup.h auf -1 gesetzt sein):
 	CS_1 (Display 1): 12
-	CS_2 (Display 2, optional - "Display 2 aktivieren" in der Weboberfläche): 18
+	CS_2 (Display 2, optional - in der Weboberfläche die Rotation von Display 2 von "nicht angeschlossen (n.a.)" auf einen Winkel stellen; Standard ist n.a.): 18
 
 BUTTON: 16
 BOOT_BUTTON: 0 (eingebauter Boot-Taster, siehe oben)
@@ -204,7 +204,7 @@ TFT (Display 1, required):
 
 Chip select (driven manually by the sketch, NOT by the TFT_eSPI library - its User_Setup.h must have TFT_CS set to -1):
 	CS_1 (Display 1): 12
-	CS_2 (Display 2, optional - "Enable Display 2" in the web interface): 18
+	CS_2 (Display 2, optional - in the web interface, change Display 2's rotation from "not connected (n.a.)" to an angle; default is n.a.): 18
 
 BUTTON: 16
 BOOT_BUTTON: 0 (built-in Boot button, see above)
