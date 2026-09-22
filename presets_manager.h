@@ -141,6 +141,11 @@
         bool stationMode = preferences.getBool(PK_STATION_MODE, true);
         bool showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
         bool smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
+        // Fallback bewusst stationMode statt eines festen Literals - siehe
+        // Kommentar bei der smoothSecond-Ladezeile in uhr3.ino.
+        // Fallback deliberately stationMode instead of a fixed literal - see
+        // the comment at the smoothSecond load line in uhr3.ino.
+        bool smoothSecond = getSmoothSecondPref(stationMode);
         uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
@@ -157,6 +162,7 @@
         url += "&stationMode=" + String(stationMode ? "true" : "false");
         url += "&showSecondHand=" + String(showSecondHand ? "true" : "false");
         url += "&smoothMinute=" + String(smoothMinute ? "true" : "false");
+        url += "&smoothSecond=" + String(smoothSecond ? "true" : "false");
         url += "&hubSize=" + String(hubSize);
         url += "&hubColor=" + String(hubColor, HEX);
 
@@ -381,6 +387,7 @@
 
         // Parse die Parameter
         // Parse the parameters
+        bool sawSmoothSecond = false;
         while (query.length() > 0) {
             int ampersandIndex = query.indexOf('&');
             String param = query.substring(0, ampersandIndex);
@@ -412,7 +419,20 @@
             }
             else if (key == "timeZone") {
                 preferences.putString(PK_TIMEZONE, value);
-                setupNTP();
+
+                // Globale timezone-Variable aktualisieren + nur die Task
+                // anstossen (siehe time_sync.h) statt hier zu blockieren -
+                // switchToNextPreset() wird aus der Touch-Behandlung heraus
+                // aufgerufen (display.h), ein blockierendes setupNTP() wuerde
+                // die Touch-Reaktion und den Zeigerantrieb einfrieren.
+
+                // Update the global timezone variable + only kick off the
+                // task (see time_sync.h) instead of blocking here -
+                // switchToNextPreset() is called from touch handling
+                // (display.h), a blocking setupNTP() would freeze touch
+                // response and the hand animation.
+                timezone = value;
+                startNtpSyncTask("Preset switch sync");
             }
             else if (key == "hubSize") {
                 hubSize = value.toInt();
@@ -442,6 +462,42 @@
                 smoothMinute = (value == "1" || value.equalsIgnoreCase("true"));
                 preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
             }
+            else if (key == "smoothSecond") {
+                sawSmoothSecond = true;
+                smoothSecond = (value == "1" || value.equalsIgnoreCase("true"));
+                preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
+            }
+        }
+
+        // Altes Preset (von vor der Trennung von stationMode/smoothSecond,
+        // siehe globals.h): enthaelt kein eigenes smoothSecond. Damals gab es
+        // schwingend nur zusammen mit stationMode=true - smoothSecond daher
+        // hier genau wie stationMode setzen, damit das Preset weiterhin exakt
+        // so aussieht wie zu der Zeit, als es erstellt wurde, statt ploetzlich
+        // eine (damals gar nicht waehlbare) neue Kombination zu zeigen. Die
+        // Preset-URL wird dabei gleich um den jetzt expliziten Parameter
+        // ergaenzt - einmalig "geheilt", ab jetzt ist das Preset vollstaendig
+        // und braucht diese Herleitung nicht mehr.
+
+        // Old preset (from before stationMode/smoothSecond were split, see
+        // globals.h): has no smoothSecond of its own. Back then, smooth
+        // motion only existed together with stationMode=true - so set
+        // smoothSecond to match stationMode here, so the preset keeps looking
+        // exactly like it did when it was created, instead of suddenly
+        // showing a (back then not even selectable) new combination. The
+        // preset's URL gets the now-explicit parameter added at the same time
+        // - healed once, from now on the preset is complete and no longer
+        // needs this derivation.
+        if (!sawSmoothSecond) {
+            smoothSecond = stationMode;
+            preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
+
+            String healedUrl = presets[nextPresetIndex].url + "&smoothSecond=" + String(smoothSecond ? "true" : "false");
+            presets[nextPresetIndex].url = healedUrl;
+            preferences.putString(pkPresetUrl(nextPresetIndex).c_str(), healedUrl);
+
+            DEBUG_PRINTLN("[PRESET] " + presets[nextPresetIndex].name + " had no smoothSecond - derived " +
+                          String(smoothSecond ? "true" : "false") + " from stationMode and healed the stored URL");
         }
 
         freeClockFaceBuffer();

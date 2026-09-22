@@ -61,9 +61,23 @@
     // "steal" each other's frame data when rotated differently.
 #define CS_1    12
 
-    // SPI-CS Display 2 (baugleich, immer aktiv - kein Laufzeit-Umschalter).
-    // SPI CS for display 2 (identical, always active - no runtime toggle).
+    // SPI-CS Display 2 (baugleich) - bei der Uhranzeige nur bedient, solange die Rotation von Display 2 nicht "n.a." ist.
+    // SPI CS for display 2 (identical) - for the clock display only driven while display 2's rotation is not "n.a.".
 #define CS_2    18
+
+    // Rotationswert "nicht angeschlossen (n.a.)": fuer die Uhranzeige wird das Display
+    // dann weder angesteuert noch berechnet (Zifferblatt/Zeiger entfallen). Status- und
+    // Startmeldungen (Boot, AP-Modus, Codes) erscheinen weiterhin immer auf beiden Displays.
+
+    // Rotation value "not connected (n.a.)": for the clock display the display is then
+    // neither driven nor calculated (face/hands are skipped). Status and boot messages
+    // (boot, AP mode, codes) still always appear on both displays.
+#define TFT_ROTATION_NA 4
+
+    // Werkseinstellung: Display 1 angeschlossen (0 Grad), Display 2 nicht angeschlossen.
+    // Factory default: display 1 connected (0 degrees), display 2 not connected.
+#define TFT_ROTATION1_DEFAULT 0
+#define TFT_ROTATION2_DEFAULT TFT_ROTATION_NA
 
     // DCF77
 #define DCF77_INTERRUPT 0
@@ -213,19 +227,21 @@
 #define PREVIEW_SIZE_DEFAULT 400
 
     // Fuehrt einen Zeichenblock je einmal fuer Display 1 und 2 aus, korrekt
-    // rotiert (beginStatusDraw()/endStatusDraw() in display.h). Makro statt
-    // Funktion, da schon vor display.h benutzt (wifi_manager.h).
+    // rotiert (beginStatusDraw()/endStatusDraw() in display.h). Bedient immer
+    // BEIDE Displays, auch bei Rotation "n.a." (Boot, AP-Modus, Codes).
+    // Makro statt Funktion, da schon vor display.h benutzt (wifi_manager.h).
 
     // Runs a drawing block once for display 1 and once for 2, correctly
-    // rotated (beginStatusDraw()/endStatusDraw() in display.h). Macro
-    // instead of function since it's used before display.h is included (wifi_manager.h).
+    // rotated (beginStatusDraw()/endStatusDraw() in display.h). Always serves
+    // BOTH displays, even with rotation "n.a." (boot, AP mode, codes).
+    // Macro instead of function since it's used before display.h is included (wifi_manager.h).
 #define DRAW_ON_BOTH_DISPLAYS(...) \
     do { \
         { TFT_eSPI& tft = beginStatusDraw(1); __VA_ARGS__ } \
         endStatusDraw(1); \
         { TFT_eSPI& tft = beginStatusDraw(2); __VA_ARGS__ } \
         endStatusDraw(2); \
-        setCS1(LOW); \
+        setCSIdle(); \
     } while (0)
 
     // GitHub-Repository - zentral hier, damit ein Fork/Umzug nur diese
@@ -239,16 +255,6 @@
 #define GITHUB_API_CONTENTS_BASE "https://api.github.com/repos/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/contents/graphic/"
 #define GITHUB_ZIP_BASE "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/blob/master/graphic/"
 #define GITHUB_RAW_BASE "https://raw.githubusercontent.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/master/"
-
-    // Autoren-Uebersicht, Schaltplan/Platine, Kontakt - verlinkt auf der
-    // Info-Seite (/info in webserver_routes.h).
-
-    // Author overview, schematic/PCB, contact - linked on the info page
-    // (/info in webserver_routes.h).
-#define GITHUB_AUTHOR_URL "https://github.com/" GITHUB_REPO_OWNER "?tab=repositories"
-#define GITHUB_GRAPHIC_URL GITHUB_REPO_URL "/tree/master/graphic"
-#define GITHUB_PCB_URL GITHUB_REPO_URL "/blob/master/PCB/ESP32-S2%20GC9A01.jpg"
-#define PROJECT_CONTACT_MAIL "howl@gmx.de"
 
     // Zeit / NTP-Standardwerte & Timing-Makros
     // Time / NTP defaults & timing macros
@@ -273,7 +279,17 @@
     // otherwise the SNTP client won't send a new request.
 #define NTP_SYNC_ATTEMPTS 2
 
-#define DEFAULT_PING_SERVER "1.1.1.1:80"
+    // Versuche PRO WLAN-Netzwerk beim Boot (siehe connectWiFiAtBoot() in
+    // uhr3.ino), bevor mit dem naechsten Netzwerk weitergemacht bzw. ganz
+    // aufgegeben wird (-> WPS/Access-Point) - ein einzelner fehlgeschlagener
+    // Verbindungsversuch (z.B. Router kurz beschaeftigt) soll das gefundene
+    // Netzwerk nicht gleich verwerfen.
+
+    // Attempts PER WiFi network at boot (see connectWiFiAtBoot() in
+    // uhr3.ino), before moving on to the next network or giving up entirely
+    // (-> WPS/access point) - a single failed connection attempt (e.g. the
+    // router being briefly busy) shouldn't discard a network that was found.
+#define WIFI_CONNECT_ATTEMPTS 2
 
     // Access-Point (Einrichtungsmodus): SSID ist bewusst fest/gleich (steht
     // in der Anleitung); Passwort wird pro Geraet aus den letzten 4 MAC-Bytes
@@ -298,6 +314,26 @@
                        // 30 seconds in milliseconds
 #define WAIT_1m 60000 // 1 Minute in Millisekunden
                       // 1 minute in milliseconds
+#define WAIT_15m 900000 // 15 Minuten in Millisekunden
+                        // 15 minutes in milliseconds
+
+    // Gueltigkeitsdauer des Web-Factory-Reset-Codes (siehe factoryResetCode
+    // in globals.h) - danach verschwindet der Code vom Display wieder,
+    // ungenutzt, und muss bei Bedarf erneut angefordert werden.
+
+    // Validity period of the web factory-reset code (see factoryResetCode in
+    // globals.h) - after this it disappears from the display again, unused,
+    // and has to be requested again if still needed.
+#define FACTORY_RESET_CODE_TIMEOUT_MS WAIT_1m
+
+    // Maximale Fehlversuche fuer einen einzelnen Bestaetigungscode (siehe
+    // factoryResetCodeAttempts in globals.h), bevor er ungueltig wird und ein
+    // neuer angefordert werden muss - Bremse gegen Brute-Force-Raten.
+
+    // Maximum wrong attempts for a single confirmation code (see
+    // factoryResetCodeAttempts in globals.h) before it becomes invalid and a
+    // new one has to be requested - a brake against brute-force guessing.
+#define FACTORY_RESET_MAX_ATTEMPTS 5
 #define WAIT_30m 1800000 // 30 Minuten in Millisekunden
                          // 30 minutes in milliseconds
 #define WAIT_1h 3600000 // 1 Stunde in Millisekunden
@@ -309,21 +345,31 @@
     // Servers ist IANA-registriert und praktisch immer 8051. Verbindungs-
     // versuch laeuft minuetlich - ein haengender Modellbahn-PC soll nicht
 
-    // im Sekundentakt angeklopft werden. Kurzer, expliziter Connect-Timeout
-    // statt des laengeren Standard-Timeouts, damit ein nicht erreichbarer
-    // Server loop() nur kurz blockiert (siehe connectRocrailClient()).
+    // im Sekundentakt angeklopft werden. Der Verbindungsaufbau laeuft in einer
+    // eigenen Task (siehe rocrailConnectTaskFunc()), ein nicht erreichbarer
+    // Server blockiert loop()/den Webserver daher NICHT mehr - der Timeout
+    // kann grosszuegiger als noetig gewaehlt werden, ohne das zu riskieren.
 
     // Rocrail model time (see rocrail_client.h): the server's TCP client
     // port is IANA-registered and practically always 8051. The connection
     // attempt runs once a minute - an unreachable layout PC shouldn't be
 
-    // knocked on every second. A short, explicit connect timeout instead of
-    // the longer default one, so an unreachable server only blocks loop()
-    // briefly (see connectRocrailClient()).
+    // knocked on every second. The connection attempt runs in its own task
+    // (see rocrailConnectTaskFunc()), so an unreachable server no longer
+    // blocks loop()/the web server - the timeout can be set generously
+    // without risking that.
 #define ROCRAIL_DEFAULT_PORT 8051
-#define ROCRAIL_CONNECT_TIMEOUT_MS 2000 // 2 Sekunden in Millisekunden
-                                        // 2 seconds in milliseconds
+#define ROCRAIL_CONNECT_TIMEOUT_MS 5000 // 5 Sekunden in Millisekunden - laeuft in einer eigenen Task, blockiert also nichts (siehe oben)
+                                        // 5 seconds in milliseconds - runs in its own task, so this blocks nothing (see above)
 #define ROCRAIL_RECONNECT_INTERVAL_MS WAIT_1m
+#define ROCRAIL_LOG_THROTTLE_LIMIT 2 // gemeinsame Grenze fuer die gedrosselten Rocrail-Logzeilen
+                                     // (rocrailClockLogCount/rocrailConnectFailLogCount, siehe
+                                     // shouldLogThrottled() in rocrail_client.h) - eine Stelle statt
+                                     // eines an mehreren Stellen wiederholten Literals.
+                                     // shared limit for the throttled Rocrail log lines
+                                     // (rocrailClockLogCount/rocrailConnectFailLogCount, see
+                                     // shouldLogThrottled() in rocrail_client.h) - one spot instead
+                                     // of a literal repeated at several call sites.
 
     // Ab diesem Divider werden Sekundenzeiger UND Nabe ausgeblendet (siehe
     // renderClockFrame()) - bei so hoher Beschleunigung ist ihre Bewegung/
@@ -352,6 +398,20 @@
     // deviation corrected per second. Above SNAP_THRESHOLD it snaps directly instead.
 #define ROCRAIL_DRIFT_CORRECTION_RATE 0.5f
 #define ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS 30.0f
+
+    // Diagnose: R2RNet-Multicast-Gruppe mithoeren und jedes empfangene Paket
+    // unveraendert loggen (siehe startR2rnetDebugListener() in rocrail_client.h).
+    // Dient NUR der Analyse des Antwortformats - echte R2RNet-Discovery wurde
+    // entfernt (siehe Kommentar am Kopf von rocrail_client.h).
+
+    // Diagnostic: listen on the R2RNet multicast group and log every
+    // received packet unchanged (see startR2rnetDebugListener() in
+    // rocrail_client.h). ONLY for analyzing the reply format - actual
+    // R2RNet discovery was removed (see the comment at the top of
+    // rocrail_client.h).
+#define R2RNET_DEBUG_MULTICAST_IP "224.0.0.1"
+#define R2RNET_DEBUG_MULTICAST_PORT 4321
+#define R2RNET_DEBUG_PACKET_BUFFER_SIZE 512
 
     // DCF77-Status-Punkt in der Topbar: dcfTimeFound/dcf77Count werden nie
     // zurueckgesetzt, daher diese Schwellwerte, damit der Punkt bei

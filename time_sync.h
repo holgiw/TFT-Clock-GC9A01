@@ -50,11 +50,56 @@
     }
 
 
+    // Loggt die Differenz zwischen der bisherigen internen Zeit (unmittelbar
+    // vor einer Synchronisation gesichert) und der gerade neu gesetzten Zeit.
+    // Positiv = interne Uhr ging nach (musste vorwaerts springen), negativ =
+    // sie ging vor (musste rueckwaerts springen) - macht Drift/Abweichungen
+    // zwischen NTP/DCF77/RTC sichtbar (siehe dazu auch den Sekundenzeiger-
+    // Ruecksprung-Fix in display.h). oldTime ist die per gettimeofday() VOR
+    // der Synchronisation gesicherte Zeit, oldTimeMillis der millis()-
+    // Zeitpunkt dieser Sicherung, um die seitdem verstrichene echte Zeit
+    // herauszurechnen. Ohne Wirkung, wenn oldTime keine sinnvolle Zeit war
+    // (gleiche Schwelle wie hadValidTime in setupNTP()).
+
+    // Logs the difference between the previous internal time (saved right
+    // before a sync) and the time just set. Positive = internal clock was
+    // behind (had to jump forward), negative = it was ahead (had to jump
+    // backward) - surfaces drift/discrepancies between NTP/DCF77/RTC (see
+    // also the second-hand jump-back fix in display.h). oldTime is the time
+    // saved via gettimeofday() BEFORE the sync, oldTimeMillis the millis()
+    // timestamp of that save, to factor out the real time elapsed since.
+    // No-op if oldTime wasn't a meaningful time (same threshold as
+    // hadValidTime in setupNTP()).
+
+    void logTimeSyncDifference(const String& source, const struct timeval& oldTime, unsigned long oldTimeMillis) {
+        if (oldTime.tv_sec <= 1483228800L) return; // 2017-01-01 - keine sinnvolle vorherige Zeit
+                                                   // 2017-01-01 - no meaningful previous time
+        struct timeval newTime;
+        gettimeofday(&newTime, nullptr);
+        time_t extrapolatedOldTime = oldTime.tv_sec + (time_t)((millis() - oldTimeMillis) / 1000);
+        long diffSeconds = (long)(newTime.tv_sec - extrapolatedOldTime);
+
+        // Nur bei tatsaechlich nennenswerter Abweichung loggen (nicht bei
+        // -1/0/1s) - kleinere Differenzen sind normale Rundung/Latenz, kein
+        // Anzeichen fuer Drift.
+
+        // Only log an actually notable difference (not -1/0/1s) - smaller
+        // differences are normal rounding/latency, not a sign of drift.
+        if (diffSeconds > 1 || diffSeconds < -1) {
+            DEBUG_PRINTLN(source + " clock drift: " + String(diffSeconds) + "s");
+        }
+    }
+
+
     // Lädt die Zeit vom RTC-Modul und setzt die Systemzeit entsprechend
     // Loads the time from the RTC module and sets the system time accordingly
 
     void loadTimeFromRTC() {
         if (rtcOk == RTC_AVAILABLE) {
+
+            struct timeval oldTime;
+            gettimeofday(&oldTime, nullptr);
+            unsigned long oldTimeMillis = millis();
 
             DateTime now = rtc.now(); // DS3231 lesen
                                       // read DS3231
@@ -87,6 +132,237 @@
             localtime_r(&now_esp, &timeinfo);
 
             DEBUG_PRINTLN("[RTC] Time loaded from RTC and system time set");
+            logTimeSyncDifference("[RTC]", oldTime, oldTimeMillis);
+        }
+    }
+
+
+    // Prueft, ob ALLE NTP-Server-Slots leer sind, und befuellt in diesem Fall
+    // NUR Slot 0 und 1 mit den beiden eingebauten Standardservern - statt
+    // komplett ohne NTP dazustehen. Greift nicht ein, sobald irgendwo (egal an
+    // welchem Index) ein eigener Server eingetragen ist. Wird sowohl beim Boot
+    // (initializeNtpServers()) als auch live vor jedem Sync-Versuch
+    // (startNtpSyncTask()) aufgerufen, damit auch ein zur Laufzeit ueber die
+    // Weboberflaeche komplett geleertes ntpServers[] sofort wieder auf die
+    // Standardserver zurueckfaellt, ohne dass ein Neustart noetig ist.
+
+    // Checks whether ALL NTP server slots are empty, and if so fills ONLY
+    // slot 0 and 1 with the two built-in default servers - instead of ending
+    // up with no NTP at all. Does nothing as soon as a custom server is set
+    // anywhere (at any index). Called both at boot (initializeNtpServers())
+    // and live before every sync attempt (startNtpSyncTask()), so that
+    // ntpServers[] being cleared completely via the web UI at runtime falls
+    // back to the default servers immediately, without needing a restart.
+
+    void applyNtpServerDefaultsIfNoneConfigured() {
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (strlen(ntpServers[i]) > 0) return; // mindestens ein eigener Server konfiguriert
+                                                   // at least one custom server configured
+        }
+        strncpy(ntpServers[0], NTP_SERVER_1, sizeof(ntpServers[0]) - 1);
+        ntpServers[0][sizeof(ntpServers[0]) - 1] = '\0';
+        strncpy(ntpServers[1], NTP_SERVER_2, sizeof(ntpServers[1]) - 1);
+        ntpServers[1][sizeof(ntpServers[1]) - 1] = '\0';
+        DEBUG_PRINTLN("[NTP] No NTP server configured, falling back to defaults: " + String(NTP_SERVER_1) + ", " + String(NTP_SERVER_2));
+    }
+
+
+    // Prueft, ob ein String ein syntaktisch gueltiger POSIX-TZ-String ist (wie
+    // von configTzTime()/setenv("TZ", ...) erwartet:
+    // Name[Offset[Name[Offset]][,Regel]], z.B. "CET-1CEST,M3.5.0,M10.5.0/3").
+    // Keine Zeitzonendatenbank-Pruefung, sondern eine Grammatik-/
+    // Wertebereichspruefung, die typische Tippfehler erkennt (fehlender
+    // Offset, ungueltiger Monat/Woche/Wochentag, Muell am Ende usw.), bevor
+    // ein kaputter String stillschweigend als UTC endet - siehe
+    // applyTimezoneDefaultIfInvalid() direkt darunter.
+
+    // Checks whether a string is a syntactically valid POSIX TZ string (as
+    // expected by configTzTime()/setenv("TZ", ...):
+    // Name[Offset[Name[Offset]][,Rule]], e.g. "CET-1CEST,M3.5.0,M10.5.0/3").
+    // Not a time-zone-database lookup, but a grammar/range check that catches
+    // typical typos (missing offset, invalid month/week/weekday, trailing
+    // garbage, etc.) before a broken string silently ends up as UTC - see
+    // applyTimezoneDefaultIfInvalid() right below.
+
+    bool isValidPosixTimezone(const String& tz) {
+        int len = tz.length();
+        // Muss zusammen mit Nullterminator in timezoneSnapshot[] passen (siehe
+        // globals.h) - sonst wuerde ein laenger, aber sonst gueltiger String
+        // hier als gueltig durchgehen und spaeter beim Kopieren in den
+        // Snapshot stillschweigend abgeschnitten werden.
+        // Must fit into timezoneSnapshot[] together with the null terminator
+        // (see globals.h) - otherwise a longer but otherwise valid string
+        // would pass validation here and later get silently truncated when
+        // copied into the snapshot.
+        if (len == 0 || len >= (int)sizeof(timezoneSnapshot)) return false;
+
+        // Name: entweder <...> (mind. 1 Zeichen) oder mind. 3 Buchstaben
+        // name: either <...> (at least 1 char) or at least 3 letters
+        auto parseName = [&](int& i) -> bool {
+            if (i < len && tz[i] == '<') {
+                int start = ++i;
+                while (i < len && tz[i] != '>') i++;
+                if (i >= len || i - start < 1) return false;
+                i++; // '>'
+                return true;
+            }
+            int start = i;
+            while (i < len && isAlpha(tz[i])) i++;
+            return (i - start) >= 3;
+        };
+
+        // Offset: [+-]hh[:mm[:ss]], hh 0-24, mm/ss 0-59 falls vorhanden.
+        // required=false: Abwesenheit ist ok (z.B. optionaler DST-Offset).
+        // offset: [+-]hh[:mm[:ss]], hh 0-24, mm/ss 0-59 if present.
+        // required=false: absence is ok (e.g. optional DST offset).
+        auto parseOffset = [&](int& i, bool required) -> bool {
+            int start = i;
+            if (i < len && (tz[i] == '+' || tz[i] == '-')) i++;
+            int digitsStart = i;
+            while (i < len && isDigit(tz[i])) i++;
+            if (i == digitsStart) { i = start; return !required; }
+            int hh = tz.substring(digitsStart, i).toInt();
+            if (hh < 0 || hh > 24) return false;
+            for (int part = 0; part < 2; part++) {
+                if (i < len && tz[i] == ':') {
+                    int save = i;
+                    i++;
+                    int mstart = i;
+                    while (i < len && isDigit(tz[i])) i++;
+                    if (i == mstart) { i = save; break; }
+                    int mm = tz.substring(mstart, i).toInt();
+                    if (mm < 0 || mm > 59) return false;
+                }
+                else break;
+            }
+            return true;
+        };
+
+        // Datum einer Regel: Jn (1-365), n (0-365) oder Mm.w.d (m 1-12, w
+        // 1-5, d 0-6 [0=Sonntag]).
+        // rule date: Jn (1-365), n (0-365) or Mm.w.d (m 1-12, w 1-5, d 0-6
+        // [0=Sunday]).
+        auto parseDate = [&](int& i) -> bool {
+            if (i >= len) return false;
+            if (tz[i] == 'J') {
+                i++;
+                int start = i;
+                while (i < len && isDigit(tz[i])) i++;
+                if (i == start) return false;
+                int val = tz.substring(start, i).toInt();
+                return val >= 1 && val <= 365;
+            }
+            if (tz[i] == 'M') {
+                i++;
+                int start = i;
+                while (i < len && isDigit(tz[i])) i++;
+                if (i == start) return false;
+                int month = tz.substring(start, i).toInt();
+                if (month < 1 || month > 12) return false;
+                if (i >= len || tz[i] != '.') return false;
+                i++;
+                start = i;
+                while (i < len && isDigit(tz[i])) i++;
+                if (i == start) return false;
+                int week = tz.substring(start, i).toInt();
+                if (week < 1 || week > 5) return false;
+                if (i >= len || tz[i] != '.') return false;
+                i++;
+                start = i;
+                while (i < len && isDigit(tz[i])) i++;
+                if (i == start) return false;
+                int day = tz.substring(start, i).toInt();
+                return day >= 0 && day <= 6;
+            }
+            if (isDigit(tz[i])) {
+                int start = i;
+                while (i < len && isDigit(tz[i])) i++;
+                int val = tz.substring(start, i).toInt();
+                return val >= 0 && val <= 365;
+            }
+            return false;
+        };
+
+        // Zeit einer Regel: /[+-]hh[:mm[:ss]] - grosszuegiger Bereich
+        // (glibc-Erweiterung: -167..167), damit auch ungewoehnliche, aber
+        // reale Uebergangszeiten (z.B. "/24") nicht faelschlich abgelehnt werden.
+        // rule time: /[+-]hh[:mm[:ss]] - generous range (glibc extension:
+        // -167..167), so unusual but real transition times (e.g. "/24")
+        // aren't rejected incorrectly.
+        auto parseRuleTime = [&](int& i) -> bool {
+            if (i < len && tz[i] == '/') {
+                i++;
+                if (i < len && (tz[i] == '+' || tz[i] == '-')) i++;
+                int digitsStart = i;
+                while (i < len && isDigit(tz[i])) i++;
+                if (i == digitsStart) return false;
+                int hh = tz.substring(digitsStart, i).toInt();
+                if (hh < -167 || hh > 167) return false;
+                for (int part = 0; part < 2; part++) {
+                    if (i < len && tz[i] == ':') {
+                        int save = i;
+                        i++;
+                        int mstart = i;
+                        while (i < len && isDigit(tz[i])) i++;
+                        if (i == mstart) { i = save; break; }
+                        int mm = tz.substring(mstart, i).toInt();
+                        if (mm < 0 || mm > 59) return false;
+                    }
+                    else break;
+                }
+            }
+            return true;
+        };
+
+        int i = 0;
+        if (!parseName(i)) return false;
+        if (!parseOffset(i, true)) return false;
+        if (i >= len) return true; // nur Standardzeit, keine Sommerzeit
+                                   // just standard time, no DST
+
+        if (!parseName(i)) return false; // DST-Name
+                                         // DST name
+        parseOffset(i, false); // optionaler DST-Offset
+                               // optional DST offset
+
+        if (i >= len) return true; // DST-Name (+Offset) ohne Regel - laut POSIX gueltig (Default-Regel)
+                                   // DST name (+offset) without a rule - valid per POSIX (default rule)
+
+        if (tz[i] != ',') return false;
+        i++;
+        if (!parseDate(i)) return false;
+        if (!parseRuleTime(i)) return false;
+        if (i >= len || tz[i] != ',') return false;
+        i++;
+        if (!parseDate(i)) return false;
+        if (!parseRuleTime(i)) return false;
+
+        return i == len; // gesamter String muss verbraucht sein - kein Muell am Ende
+                         // entire string must be consumed - no trailing garbage
+    }
+
+
+    // Faellt auf TIMEZONE_DEFAULT zurueck, wenn die globale `timezone` leer
+    // oder syntaktisch ungueltig ist (siehe isValidPosixTimezone()) - ein
+    // leerer oder kaputter POSIX-TZ-String wird von configTzTime() als UTC
+    // interpretiert, nicht als "unveraendert", daher darf so ein Wert nie
+    // unbemerkt durchgereicht werden. Kann durch einen gespeicherten leeren
+    // oder fehlerhaften Preferences-Wert entstehen (z.B. ueber /set_timezone,
+    // /api/setMode oder ein Preset mit ungueltigem timeZone-Feld). Gleiches
+    // Muster wie applyNtpServerDefaultsIfNoneConfigured() weiter oben.
+
+    // Falls back to TIMEZONE_DEFAULT when the global `timezone` is empty or
+    // syntactically invalid (see isValidPosixTimezone()) - an empty or broken
+    // POSIX TZ string is interpreted by configTzTime() as UTC, not as
+    // "unchanged", so such a value must never be passed through unnoticed.
+    // Can result from an empty or malformed stored preferences value (e.g.
+    // via /set_timezone, /api/setMode, or a preset with an invalid timeZone
+    // field). Same pattern as applyNtpServerDefaultsIfNoneConfigured() further up.
+
+    void applyTimezoneDefaultIfInvalid() {
+        if (!isValidPosixTimezone(timezone)) {
+            DEBUG_PRINTLN("[NTP] Timezone '" + timezone + "' is empty or invalid, falling back to default: " + String(TIMEZONE_DEFAULT));
+            timezone = TIMEZONE_DEFAULT;
         }
     }
 
@@ -98,29 +374,22 @@
         for (int i = 0; i < MAX_WLAN; i++) {
             String ntpServerKey = pkNtpServer(i);
             String ntpServerValue = preferences.getString(ntpServerKey.c_str(), "");
-            if (ntpServerValue.isEmpty()) {
-                // Standardwerte setzen, falls keine gespeicherten Werte vorhanden sind
-                // Set default values if no saved values exist
-                if (i == 0) {
-                    strncpy(ntpServers[i], NTP_SERVER_1, sizeof(ntpServers[i]) - 1);
-                }
-                else if (i == 1) {
-                    strncpy(ntpServers[i], NTP_SERVER_2, sizeof(ntpServers[i]) - 1);
-                }
-                else {
-                    ntpServers[i][0] = '\0'; // Leerer Eintrag
-                                             // Empty entry
-                }
-            }
-            else {
-                // Gespeicherte Werte laden
-                // Load saved values
-                strncpy(ntpServers[i], ntpServerValue.c_str(), sizeof(ntpServers[i]) - 1);
-                DEBUG_PRINTLN("[NTP] Loaded NTP server " + String(i + 1) + ": " + String(ntpServers[i]));
-            }
+            strncpy(ntpServers[i], ntpServerValue.c_str(), sizeof(ntpServers[i]) - 1);
             ntpServers[i][sizeof(ntpServers[i]) - 1] = '\0'; // Null-terminieren
                                                              // Null-terminate
+            if (ntpServerValue.length() > 0) {
+                DEBUG_PRINTLN("[NTP] Loaded NTP server " + String(i + 1) + ": " + String(ntpServers[i]));
+            }
         }
+
+        // Falls kein einziger Server gespeichert ist (weder je konfiguriert
+        // noch durch den Erststart-Block in uhr3.ino vorbelegt), hier auf die
+        // eingebauten Standardserver zurueckfallen.
+
+        // If not a single server is stored (neither ever configured nor
+        // pre-filled by the first-start block in uhr3.ino), fall back to the
+        // built-in default servers here.
+        applyNtpServerDefaultsIfNoneConfigured();
     }
 
 
@@ -183,11 +452,11 @@
 
 
     // Uebernimmt dcf77LastDecoded als Systemzeit (+RTC) - DCF77-Fallback des
-    // stuendlichen Sync-Blocks, wenn NTP nicht verfuegbar ist. False, wenn
+    // periodischen Sync-Blocks, wenn NTP nicht verfuegbar ist. False, wenn
     // kein frisches (DCF77_DECODED_MAX_AGE), paritaets-korrektes Telegramm vorliegt.
 
     // Applies dcf77LastDecoded as the system time (+RTC) - DCF77 fallback of
-    // the hourly sync block when NTP is unavailable. False when no fresh
+    // the periodic sync block when NTP is unavailable. False when no fresh
     // (DCF77_DECODED_MAX_AGE), parity-correct telegram is available.
 
     bool applyDcf77DecodedTime(String source) {
@@ -947,11 +1216,19 @@
             return true;
         }
 
-        timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
+        // Versucht die Synchronisation mit GENAU einem Server (DNS-Aufloesung +
+        // bis zu NTP_SYNC_ATTEMPTS Versuche). Als Lambda ausgelagert, damit
+        // dieselbe Logik unten sowohl fuer die konfigurierten Server als auch
+        // fuer den eingebauten Standard-Fallback (falls alle konfigurierten
+        // Server nicht erreichbar sind) verwendet werden kann.
 
-        for (int i = 0; i < MAX_WLAN; i++) {
-            String ntpServer = ntpServers[i];
-            if (ntpServer.length() == 0) continue;
+        // Attempts synchronization with EXACTLY one server (DNS resolution +
+        // up to NTP_SYNC_ATTEMPTS attempts). Factored out into a lambda so the
+        // same logic below can be used both for the configured servers and
+        // for the built-in default fallback (if all configured servers are
+        // unreachable).
+        auto trySyncWithServer = [&](const char* ntpServerCStr) -> bool {
+            String ntpServer = ntpServerCStr;
 
             // Diagnose: DNS-Aufloesung separat pruefen/loggen, damit im
             // Fehlerfall sichtbar ist, ob der Server ueberhaupt aufloesbar war.
@@ -959,7 +1236,7 @@
             // Diagnostic: check/log DNS resolution separately, so on failure
             // it's visible whether the server was resolvable at all.
             IPAddress ntpServerIp;
-            if (WiFi.hostByName(ntpServers[i], ntpServerIp)) {
+            if (WiFi.hostByName(ntpServerCStr, ntpServerIp)) {
                 DEBUG_PRINTLN("[NTP] Trying server: " + ntpServer + " (" + ntpServerIp.toString() + ")");
             }
             else {
@@ -971,7 +1248,7 @@
                 // server either - skip straight to the next one instead of
                 // waiting WAIT_3s for a response that cannot arrive.
                 DEBUG_PRINTLN("[NTP] DNS lookup failed for server: " + ntpServer);
-                continue;
+                return false;
             }
 
             // getLocalTime() prueft nur "Jahr > 2016" - da die RTC das schon
@@ -1003,12 +1280,31 @@
             // Multiple NTP_SYNC_ATTEMPTS per server, since a single lost
             // packet is normal; configTzTime() reissued each time for a fresh request.
             bool ntpResponded = false;
+
+            // Lokale struct tm statt der globalen timeinfo: setupNTP() laeuft
+            // seit der Async-Umstellung (siehe startNtpSyncTask()) in einer
+            // eigenen Task, waehrend updateClock() (display.h) `timeinfo` auf
+            // dem Hauptthread bei JEDEM loop()-Tick liest/schreibt - ein
+            // direkter Zugriff hier waere ein Data Race auf das globale struct.
+            // Die Systemzeit selbst (settimeofday(), von configTzTime()/SNTP
+            // im Hintergrund gesetzt) bleibt davon unberuehrt und ist die
+            // eigentliche Quelle, aus der updateClock() ohnehin naechsten Tick liest.
+
+            // Local struct tm instead of the global timeinfo: since the async
+            // conversion (see startNtpSyncTask()), setupNTP() runs in its own
+            // task while updateClock() (display.h) reads/writes `timeinfo` on
+            // the main thread on EVERY loop() tick - touching it directly here
+            // would be a data race on the shared struct. The system time
+            // itself (settimeofday(), set by configTzTime()/SNTP in the
+            // background) is unaffected and is what updateClock() reads from
+            // on its next tick anyway.
+            struct tm ntpLocalTime;
             for (uint8_t attempt = 0; attempt < NTP_SYNC_ATTEMPTS; attempt++) {
                 if (attempt > 0) {
                     DEBUG_PRINTLN("[NTP] No response from " + ntpServer + ", retrying (attempt " + String(attempt + 1) + "/" + String(NTP_SYNC_ATTEMPTS) + ")..");
                 }
-                configTzTime(timezone.c_str(), ntpServers[i]);
-                if (getLocalTime(&timeinfo, WAIT_3s)) {
+                configTzTime(timezoneSnapshot, ntpServerCStr);
+                if (getLocalTime(&ntpLocalTime, WAIT_3s)) {
                     ntpResponded = true;
                     break;
                 }
@@ -1018,13 +1314,255 @@
 
                 DEBUG_PRINTLN("[NTP] Time synchronized successfully with " + ntpServer);
                 lastNtpSuccessMillis = millis();
+                logTimeSyncDifference("[NTP]", savedTime, syncStart);
 
-                if (rtcOk == RTC_AVAILABLE || rtcOk == RTC_AVAILABLE_BUT_INVALID) {
+                // RTC-Update (I2C) findet bewusst NICHT hier statt: der I2C-Bus
+                // wird auch vom Hauptthread genutzt (checkRtcHealth(), Touch,
+                // Display-Init) - ein zweiter Zugriff aus dieser Task waere ein
+                // Bus-Race. pollNtpSyncTask() erledigt das stattdessen sicher
+                // auf dem Hauptthread, sobald diese Task fertig ist.
+
+                // RTC update (I2C) deliberately does NOT happen here: the I2C
+                // bus is also used from the main thread (checkRtcHealth(),
+                // touch, display init) - a second access from this task would
+                // race on the bus. pollNtpSyncTask() does it safely on the
+                // main thread instead, once this task has finished.
+                return true;
+            }
+
+            // Keine Antwort: die oben ungueltig gesetzte Zeit wieder auf den
+            // gesicherten Stand bringen, fortgeschrieben um die verstrichene Zeit.
+            // Dabei bewusst MIT Millisekunden rechnen statt nur mit ganzen
+            // Sekunden (elapsedMs / 1000 abgeschnitten) - sonst geht bei jedem
+            // Restore ein Bruchteil einer Sekunde "verloren" (der Rest wird
+            // schlicht verworfen statt in tv_usec uebertragen zu werden). Bei
+            // mehreren Servern in Folge (dieser hier antwortet nicht, der
+            // naechste wird versucht) summierte sich das zu einer Systemzeit,
+            // die bis zu ~1s hinter der echten Zeit zurueckblieb - genau das
+            // machte den Sekundenzeiger sichtbar (und unnoetig) kurz
+            // rueckwaerts zucken, bis die Abfederung oben das wieder
+            // eingefangen hat.
+
+            // No response: restore the time invalidated above to its saved
+            // value, advanced by the elapsed time. Deliberately keep the
+            // milliseconds instead of only whole seconds (elapsedMs / 1000
+            // truncated) - otherwise every restore "loses" a fraction of a
+            // second (the remainder was simply discarded instead of carried
+            // into tv_usec). With several servers in a row (this one doesn't
+            // respond, the next one is tried), that added up to a system time
+            // trailing up to ~1s behind the real time - exactly what made the
+            // second hand visibly (and needlessly) twitch backward briefly,
+            // until the easing above caught it again.
+            if (hadValidTime) {
+                unsigned long elapsedMs = millis() - syncStart;
+                struct timeval restoreTime;
+                restoreTime.tv_sec = savedTime.tv_sec + (time_t)(elapsedMs / 1000);
+                restoreTime.tv_usec = savedTime.tv_usec + (suseconds_t)(elapsedMs % 1000) * 1000;
+                if (restoreTime.tv_usec >= 1000000) {
+                    restoreTime.tv_usec -= 1000000;
+                    restoreTime.tv_sec += 1;
+                }
+                settimeofday(&restoreTime, nullptr);
+            }
+
+            DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + ntpServer);
+            return false;
+        };
+
+        bool anyServerConfigured = false;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String ntpServer = ntpServersSnapshot[i];
+            if (ntpServer.length() == 0) continue;
+            anyServerConfigured = true;
+            if (trySyncWithServer(ntpServersSnapshot[i])) return true;
+        }
+
+        // Alle konfigurierten Server waren nicht erreichbar (oder es war
+        // ueberhaupt keiner konfiguriert, was applyNtpServerDefaultsIfNoneConfigured()
+        // eigentlich schon vor dem Snapshot verhindert) - zusaetzlich die
+        // eingebauten Standardserver versuchen, statt direkt aufzugeben.
+        // Doppelten Versuch vermeiden, falls einer der beiden ohnehin schon
+        // (erfolglos) in der obigen Liste stand.
+
+        // All configured servers were unreachable (or none was configured at
+        // all, which applyNtpServerDefaultsIfNoneConfigured() actually
+        // already prevents before the snapshot is taken) - additionally try
+        // the built-in default servers instead of giving up right away.
+        // Avoid a duplicate attempt if either one was already
+        // (unsuccessfully) in the list above.
+        if (anyServerConfigured) {
+            bool server1AlreadyTried = false;
+            bool server2AlreadyTried = false;
+            for (int i = 0; i < MAX_WLAN; i++) {
+                if (String(ntpServersSnapshot[i]) == NTP_SERVER_1) server1AlreadyTried = true;
+                if (String(ntpServersSnapshot[i]) == NTP_SERVER_2) server2AlreadyTried = true;
+            }
+            if (!server1AlreadyTried) {
+                DEBUG_PRINTLN("[NTP] All configured servers unreachable, falling back to default: " + String(NTP_SERVER_1));
+                if (trySyncWithServer(NTP_SERVER_1)) return true;
+            }
+            if (!server2AlreadyTried) {
+                DEBUG_PRINTLN("[NTP] All configured servers unreachable, falling back to default: " + String(NTP_SERVER_2));
+                if (trySyncWithServer(NTP_SERVER_2)) return true;
+            }
+        }
+
+        handleNTPFailure();
+        return false;
+    }
+
+
+    // Eigene FreeRTOS-Task fuer den (weiterhin blockierenden) setupNTP() -
+    // analog zu rocrailConnectTaskFunc() in rocrail_client.h. Laeuft in einer
+    // eigenen Task, damit die DNS-/UDP-Wartezeiten weder loop() noch den
+    // Webserver blockieren.
+
+    // Own FreeRTOS task for the (still blocking) setupNTP() - analogous to
+    // rocrailConnectTaskFunc() in rocrail_client.h. Runs in its own task so
+    // the DNS/UDP wait times block neither loop() nor the web server.
+
+    void ntpSyncTaskFunc(void* param) {
+        ntpSyncTaskResult = setupNTP();
+        ntpSyncTaskDone = true;
+        vTaskDelete(NULL);
+    }
+
+
+    // Beendet eine evtl. noch laufende NTP-Sync-Task HART, ohne auf ihr Ende
+    // zu warten - fuer Reboot/Werksreset (system_utils.h: espReboot(),
+    // factoryReset()). setupNTP() (und darueber DEBUG_PRINTLN -> logToFile(),
+    // siehe system_utils.h) kann bis zu ~90s blockieren und dabei weiterhin
+    // Preferences/LittleFS anfassen - genau die Subsysteme, die
+    // preferences.end()/LittleFS.format() im selben Moment schliessen bzw.
+    // neu formatieren wuerden. Der ESP startet direkt danach ohnehin neu, ein
+    // sauberes/abgewartetes Beenden der Task ist daher nicht noetig.
+
+    // Forcibly stops any still-running NTP sync task, WITHOUT waiting for it
+    // to finish - for reboot/factory reset (system_utils.h: espReboot(),
+    // factoryReset()). setupNTP() (and via it DEBUG_PRINTLN -> logToFile(),
+    // see system_utils.h) can block for up to ~90s and keeps touching
+    // Preferences/LittleFS while doing so - exactly the subsystems that
+    // preferences.end()/LittleFS.format() would close/reformat at that same
+    // moment. The ESP restarts immediately afterward anyway, so waiting for a
+    // graceful task shutdown isn't necessary.
+
+    void stopNtpSyncTaskIfRunning() {
+
+        // ntpSyncTaskDone mitpruefen: ist die Task bereits fertig (hat sich
+        // selbst per vTaskDelete(NULL) geloescht), nur weil pollNtpSyncTask()
+        // dieses Ergebnis noch nicht abgeholt hat, waere ntpSyncTaskHandle
+        // bereits ungueltig - ein zweites vTaskDelete() darauf waere ein
+        // Double-Delete auf einen nicht mehr existierenden Task.
+
+        // Also check ntpSyncTaskDone: if the task has already finished (has
+        // already deleted itself via vTaskDelete(NULL)) merely because
+        // pollNtpSyncTask() hasn't picked up the result yet, ntpSyncTaskHandle
+        // would already be stale - a second vTaskDelete() on it would be a
+        // double-delete on a task that no longer exists.
+        if (ntpSyncTaskRunning && !ntpSyncTaskDone && ntpSyncTaskHandle != NULL) {
+            vTaskDelete(ntpSyncTaskHandle);
+        }
+        ntpSyncTaskRunning = false;
+        ntpSyncTaskDone = false;
+        ntpSyncTaskHandle = NULL;
+    }
+
+
+    // Startet einen asynchronen NTP-Sync-Versuch (Boot, periodisch, oder per
+    // "Jetzt synchronisieren"-Button). No-op, wenn bereits eine Sync-Task
+    // laeuft - Ergebnis wird von pollNtpSyncTask() ausgewertet.
+
+    // Starts an asynchronous NTP sync attempt (boot, periodic, or via the
+    // "Sync now" button). No-op if a sync task is already running - result
+    // is evaluated by pollNtpSyncTask().
+
+    void startNtpSyncTask(String label) {
+        if (ntpSyncTaskRunning) return;
+
+        // Live-Sicherheitsnetz: greift auch, wenn ntpServers[]/timezone erst
+        // zur Laufzeit (z.B. durch Loeschen aller Eintraege bzw. ein leeres
+        // oder ungueltiges gespeichertes Zeitzonenfeld ueber die
+        // Weboberflaeche) leer/ungueltig geworden sind, ohne dass
+        // zwischenzeitlich neu gebootet wurde - siehe
+        // applyNtpServerDefaultsIfNoneConfigured()/applyTimezoneDefaultIfInvalid().
+
+        // Live safety net: also applies when ntpServers[]/timezone only
+        // became empty/invalid at runtime (e.g. by deleting all entries, or
+        // an empty/invalid saved timezone field, via the web UI), without a
+        // restart in between - see
+        // applyNtpServerDefaultsIfNoneConfigured()/applyTimezoneDefaultIfInvalid().
+        applyNtpServerDefaultsIfNoneConfigured();
+        applyTimezoneDefaultIfInvalid();
+
+        // Snapshot JETZT anlegen, auf dem Hauptthread - siehe Kommentare bei
+        // ntpServersSnapshot/timezoneSnapshot in globals.h. Ab hier liest
+        // setupNTP() nur noch aus den Kopien, unabhaengig davon, was an den
+        // Originalen waehrend die Task laeuft noch veraendert wird.
+
+        // Take the snapshots NOW, on the main thread - see the comments at
+        // ntpServersSnapshot/timezoneSnapshot in globals.h. From here on
+        // setupNTP() only reads the copies, regardless of what happens to the
+        // originals while the task is running.
+        memcpy(ntpServersSnapshot, ntpServers, sizeof(ntpServersSnapshot));
+        timezone.toCharArray(timezoneSnapshot, sizeof(timezoneSnapshot));
+
+        ntpSyncCheckBeforeMillis = millis();
+        ntpSyncCheckLabel = label;
+        ntpSyncTaskDone = false;
+        ntpSyncTaskRunning = true;
+        xTaskCreate(ntpSyncTaskFunc, "ntpSync", 4096, NULL, 1, &ntpSyncTaskHandle);
+    }
+
+
+    // Wertet eine beendete NTP-Sync-Task aus - in jedem loop()-Durchlauf
+    // aufgerufen, no-op solange keine Task fertig ist. Bei Fehlschlag greift
+    // der DCF77-Fallback (gleiche Logik wie zuvor synchron in uhr3.ino).
+
+    // Evaluates a finished NTP sync task - called on every loop() iteration,
+    // no-op as long as no task has finished. On failure, the DCF77 fallback
+    // kicks in (same logic that previously ran synchronously in uhr3.ino).
+
+    void pollNtpSyncTask() {
+        if (!ntpSyncTaskDone) return;
+
+        ntpSyncTaskRunning = false;
+        ntpSyncTaskDone = false;
+        ntpSyncTaskHandle = NULL;
+
+        // ntpSyncTaskResult (Rueckgabewert von setupNTP()) wird bewusst NICHT
+        // ausgewertet: er ist bei fehlendem WLAN irrefuehrend true (siehe
+        // Kommentar bei lastNtpSuccessMillis in globals.h). Stattdessen wird
+        // geprueft, ob seit dem Start DIESER Task ein echter Erfolg eingetragen wurde.
+
+        // ntpSyncTaskResult (setupNTP()'s return value) is deliberately NOT
+        // evaluated: it's misleadingly true without WiFi (see the comment at
+        // lastNtpSuccessMillis in globals.h). Instead, check whether a real
+        // success was recorded since THIS task started.
+        bool ntpJustSucceeded = (lastNtpSuccessMillis != 0 && lastNtpSuccessMillis >= ntpSyncCheckBeforeMillis);
+        if (ntpJustSucceeded) {
+            DEBUG_PRINTLN("[TIME SYNC] " + ntpSyncCheckLabel + ": NTP succeeded");
+
+            // RTC-Update (I2C) findet bewusst HIER statt, auf dem Hauptthread,
+            // NICHT innerhalb von setupNTP()/der Task: der I2C-Bus wird auch
+            // von checkRtcHealth() (loop()) genutzt - ein Zugriff aus zwei
+            // Threads gleichzeitig waere ein Bus-Race. Die Task ist an dieser
+            // Stelle bereits beendet (ntpSyncTaskDone/vTaskDelete), es laeuft
+            // also garantiert kein zweiter Zugriff parallel.
+
+            // RTC update (I2C) deliberately happens HERE, on the main thread,
+            // NOT inside setupNTP()/the task: the I2C bus is also used by
+            // checkRtcHealth() (loop()) - accessing it from two threads at
+            // once would race on the bus. The task has already finished at
+            // this point (ntpSyncTaskDone/vTaskDelete), so no second access
+            // can be running in parallel.
+            if (rtcOk == RTC_AVAILABLE || rtcOk == RTC_AVAILABLE_BUT_INVALID) {
+                struct tm nowTm;
+                if (getLocalTime(&nowTm, 100)) {
 
                     // Setze die RTC mit der synchronisierten Zeit
                     // Set the RTC to the synchronized time
-                    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-                        timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
+                    rtc.adjust(DateTime(nowTm.tm_year + 1900, nowTm.tm_mon + 1, nowTm.tm_mday,
+                        nowTm.tm_hour, nowTm.tm_min, nowTm.tm_sec));
                     DEBUG_PRINTLN("[RTC] RTC updated with NTP time");
 
                     // rtcOk zurueck auf RTC_AVAILABLE: eine zuvor "ungueltige"
@@ -1036,25 +1574,12 @@
                     // applyDcf77DecodedTime() (strict check) would never update it.
                     rtcOk = RTC_AVAILABLE;
                 }
-                return true;
             }
-
-            // Keine Antwort: die oben ungueltig gesetzte Zeit wieder auf den
-            // gesicherten Stand bringen, fortgeschrieben um die verstrichene Zeit.
-
-            // No response: restore the time invalidated above to its saved
-            // value, advanced by the elapsed time.
-            if (hadValidTime) {
-                struct timeval restoreTime;
-                restoreTime.tv_sec = savedTime.tv_sec + (time_t)((millis() - syncStart) / 1000);
-                restoreTime.tv_usec = savedTime.tv_usec;
-                settimeofday(&restoreTime, nullptr);
-            }
-
-            DEBUG_PRINTLN("[NTP] Failed to synchronize with server: " + ntpServer);
         }
-        handleNTPFailure();
-        return false;
+        else {
+            DEBUG_PRINTLN("[TIME SYNC] " + ntpSyncCheckLabel + ": NTP unavailable, trying DCF77 fallback..");
+            applyDcf77DecodedTime("[DCF77] " + ntpSyncCheckLabel + " (NTP unavailable)");
+        }
     }
 
 
@@ -1064,35 +1589,47 @@
     void handleNTPFailure() {
         DEBUG_PRINTLN("[NTP] Handling NTP synchronization failure..");
 
+        // Lokale struct tm statt der globalen timeinfo: laeuft in der
+        // NTP-Sync-Task (siehe startNtpSyncTask()), waehrend updateClock()
+        // (display.h) `timeinfo` parallel auf dem Hauptthread liest/schreibt -
+        // ein direkter Zugriff hier waere ein Data Race auf das globale struct.
+
+        // Local struct tm instead of the global timeinfo: runs inside the
+        // NTP sync task (see startNtpSyncTask()), while updateClock()
+        // (display.h) reads/writes `timeinfo` concurrently on the main thread
+        // - touching it directly here would be a data race on the shared struct.
+        struct tm localTime;
+
         // Versuche, die letzte bekannte Zeit zu verwenden
         // Try to use the last known time
-       // struct tm timeinfo;
-        if (getLocalTime(&timeinfo, 100)) {
+        if (getLocalTime(&localTime, 100)) {
             char timeStr[32];
-            strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+            strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &localTime);
             DEBUG_PRINTLN("[NTP] Using last known time: " + String(timeStr));
         }
         else {
             // Wenn keine gültige Zeit verfügbar ist, auf 12:00 Uhr setzen
             // If no valid time is available, set it to 12:00
             DEBUG_PRINTLN("[NTP] No valid time available. Setting time to 12:00");
-            timeinfo.tm_hour = 12;
-            timeinfo.tm_min = 0;
-            timeinfo.tm_sec = 0;
-            timeinfo.tm_year = 126; // Jahr 2026 (1900 + 126)
-                                    // year 2026 (1900 + 126)
-            timeinfo.tm_mon = 0;    // Januar
+            localTime.tm_hour = 12;
+            localTime.tm_min = 0;
+            localTime.tm_sec = 0;
+            localTime.tm_year = BUILD_YEAR - 1900; // Firmware-Build-Jahr statt fest codiertem Wert - bleibt so auch in
+                                                   // kommenden Jahren richtig, ohne bei jedem Release manuell nachgezogen werden zu muessen.
+                                                  // firmware build year instead of a hardcoded value - stays correct in
+                                                  // future years too, without needing to be bumped manually on every release.
+            localTime.tm_mon = 0;    // Januar
                                     // January
-            timeinfo.tm_mday = 1;   // 1. Tag des Monats
+            localTime.tm_mday = 1;   // 1. Tag des Monats
                                     // 1st day of the month
-            setTimeStruct(timeinfo, "[NTP]"); // Funktion, um die Zeit zu setzen
+            setTimeStruct(localTime, "[NTP]"); // Funktion, um die Zeit zu setzen
                                               // function to set the time
         }
-        // Wiederholung ergibt sich aus dem stuendlichen NTP-Aufruf in loop();
+        // Wiederholung ergibt sich aus dem periodischen NTP-Aufruf in loop();
         // fallen alle Server aus, springt derselbe Aufrufer per
         // applyDcf77DecodedTime() auf DCF77 als Zeitquelle um.
 
-        // Retry falls out of the hourly NTP call in loop(); if all servers
+        // Retry falls out of the periodic NTP call in loop(); if all servers
         // fail, that same caller falls back to DCF77 via
         // applyDcf77DecodedTime().
     }
@@ -1102,6 +1639,10 @@
     // Sets the system time manually from a `tm` struct.
 
     void setTimeStruct(const struct tm& timeinfo, String source) {
+
+        struct timeval oldTime;
+        gettimeofday(&oldTime, nullptr);
+        unsigned long oldTimeMillis = millis();
 
         // Konvertiere struct tm in time_t (unter Berücksichtigung der Zeitzone)
         // Convert struct tm to time_t (taking the timezone into account)
@@ -1118,6 +1659,7 @@
         DEBUG_PRINT(source + " ");
         DEBUG_PRINTLN(buffer); // Gibt die lokale Zeit und die Zeitzone aus
                                // prints the local time and timezone
+        logTimeSyncDifference(source, oldTime, oldTimeMillis);
     }
 
 

@@ -16,7 +16,8 @@
     void restorePreviousWpsConnection() ;
     void startAP() ;
     int connectWiFi(int number, bool verboseMode) ;
-    bool isInternetReachable(String pingServer) ;
+    int connectWiFiWithRetries(int number, const String& label, bool verboseMode = true) ; // ruft connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal auf (siehe wifi_manager.h)
+                                                                                            // calls connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (see wifi_manager.h)
     void animateCursor(int x, int y, int delayMs) ;
     void showWlanCredentials(String wlan) ;
     void eraseWiFiConfig() ;
@@ -37,7 +38,15 @@
     // time_sync.h: Time: RTC, DCF77, NTP client & server, timezone
 
     void IRAM_ATTR isr() ;
+    void logTimeSyncDifference(const String& source, const struct timeval& oldTime, unsigned long oldTimeMillis) ; // loggt Alt-/Neu-Zeitdifferenz nach einer Synchronisation (siehe time_sync.h)
+                                                                                                                  // logs old/new time difference after a sync (see time_sync.h)
     void loadTimeFromRTC() ;
+    void applyNtpServerDefaultsIfNoneConfigured() ; // Fallback auf NTP_SERVER_1/2, wenn ntpServers[] komplett leer ist (siehe time_sync.h)
+                                                    // fallback to NTP_SERVER_1/2 when ntpServers[] is completely empty (see time_sync.h)
+    void applyTimezoneDefaultIfInvalid() ; // Fallback auf TIMEZONE_DEFAULT, wenn `timezone` leer oder ungueltig ist (siehe time_sync.h)
+                                           // fallback to TIMEZONE_DEFAULT when `timezone` is empty or invalid (see time_sync.h)
+    bool isValidPosixTimezone(const String& tz) ; // Grammatik-/Wertebereichspruefung eines POSIX-TZ-Strings (siehe time_sync.h)
+                                                  // grammar/range check of a POSIX TZ string (see time_sync.h)
     void initializeNtpServers() ;
     struct tm dcf77DecodedToLocalTm() ;
     bool updateDcf77Status() ;
@@ -50,7 +59,13 @@
     void processDcf77Bits() ;
     void checkRtcHealth() ;
     String testNtpServer(const String& server) ;
-    boolean setupNTP() ;
+    boolean setupNTP() ; // blockierender Worker - nicht direkt aufrufen, siehe startNtpSyncTask()
+                        // blocking worker - do not call directly, see startNtpSyncTask()
+    void ntpSyncTaskFunc(void* param) ;
+    void startNtpSyncTask(String label) ;
+    void pollNtpSyncTask() ;
+    void stopNtpSyncTaskIfRunning() ; // hartes Beenden vor Reboot/Werksreset - siehe system_utils.h
+                                      // hard stop before reboot/factory reset - see system_utils.h
     void handleNTPFailure() ;
     void setTimeStruct(const struct tm& timeinfo, String source) ;
     uint16_t i2cScan() ;
@@ -62,6 +77,11 @@
     // display.h: Display: clock face, hands, sprites, brightness, touch
 
     void* preferPsramMalloc(size_t size) ;
+    bool isDisplayConnected(uint8_t displayNum) ;
+    uint8_t primaryDisplayRotation() ;
+    uint8_t effectiveRotation(uint8_t displayNum) ;
+    void setCSIdle() ;
+    void applyDisplayRotation(uint8_t displayNum, uint8_t newRotation) ;
     void setCS1(bool state) ;
     void setCS2(bool state) ;
     TFT_eSPI& beginStatusDraw(uint8_t displayNum) ;
@@ -73,8 +93,8 @@
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
     void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) ;
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) ;
-    void loadClockFace(uint8_t rotation = tftRotation1) ; // ohne Argument = Rotation von Display 1 (Standardverhalten fuer alle Aufrufer ausserhalb von renderClockFrame())
-                                                          // no argument = display 1's rotation (default behaviour for every caller outside renderClockFrame())
+    void loadClockFace(uint8_t rotation = primaryDisplayRotation()) ; // ohne Argument = Rotation des ersten angeschlossenen Displays (Standardverhalten fuer alle Aufrufer ausserhalb von renderClockFrame())
+                                                                      // no argument = rotation of the first connected display (default behaviour for every caller outside renderClockFrame())
     void freeClockFaceBuffer() ;
     void resetFacesToDefault() ;
     void resetHandsToDefault() ;
@@ -89,7 +109,7 @@
     void blitHandAntiAliased(uint16_t* canvas, TFT_eSprite* handSprite, float angleDeg) ;
     bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
-    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, bool& firstRunRef) ;
+    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ;
     void updateClock() ;
     void updateBrightness() ;
     uint16_t getAdjustedAdcValue(int rawValue) ;
@@ -140,11 +160,19 @@
     void rocrailConnectTaskFunc(void* param) ;
     void pollRocrailConnectTask() ;
     void processRocrailBuffer() ;
-    void processRocrailPlanTag() ;
     void processRocrailClockPayload(const String& payload) ;
     void advanceRocrailTime() ;
     int rocrailXmlAttrInt(const String& tag, const char* attr, int fallback) ;
     String rocrailXmlAttrString(const String& tag, const char* attr) ;
+    bool shouldLogThrottled(uint8_t& counter, bool& isLastLogged, uint8_t limit = ROCRAIL_LOG_THROTTLE_LIMIT) ; // Drosselung wiederkehrender Log-Zeilen (siehe rocrail_client.h)
+                                                                                                                 // throttling for recurring log lines (see rocrail_client.h)
+
+    // R2RNet-Multicast-Diagnose (siehe rocrail_client.h) - keine echte
+    // Discovery, nur Logging eingehender Pakete zur Formatanalyse.
+    // R2RNet multicast diagnostics (see rocrail_client.h) - not real
+    // discovery, just logging incoming packets for format analysis.
+    bool startR2rnetDebugListener() ;
+    void pollR2rnetDebugListener() ;
 
 
     // presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
@@ -177,6 +205,10 @@
     // webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung
     // webserver_routes.h: Web interface: all HTTP routes & HTML generation
 
+    void applyWlanList(String newSsid[MAX_WLAN], String newPass[MAX_WLAN]) ; // schreibt eine komplette WLAN-Liste in Preferences + RAM (siehe webserver_routes.h)
+    void executePendingAction(String action) ; // fuehrt eine der acht bestaetigten/direkt erlaubten Aktionen aus (siehe webserver_routes.h)
+                                               // executes one of the eight confirmed/directly-allowed actions (see webserver_routes.h)
+                                                                             // writes a complete WiFi list to preferences + RAM (see webserver_routes.h)
     String generateHtmlHeader(String extraHead = "") ;
     String simpleMessagePage(String heading, String bodyHtml, String extraHead = "") ;
     String generateTopBar() ;
@@ -184,14 +216,20 @@
     String getRtcStatus() ;
     String getDcf77Status() ;
     String dotStatusText(const String& label, const String& state) ;
+    bool isSameSubnet(IPAddress ip, IPAddress ownIp, IPAddress mask) ; // byteweiser Subnetzvergleich (siehe webserver_routes.h)
+                                                                       // byte-wise subnet comparison (see webserver_routes.h)
+    bool isPrivateNetworkIp(IPAddress ip) ; // im selben Netz wie die Uhr (STA oder AP) oder RFC1918-Rueckfall? (siehe webserver_routes.h) - blendet den Status-Tab bei externem Zugriff aus
+                                            // in the same network as the clock (STA or AP) or RFC1918 fallback? (see webserver_routes.h) - hides the Status tab on external access
+                                            // RFC1918 range? (see webserver_routes.h) - hides the Status tab on external access
     String escapeHtmlText(const String& text) ;
+    String fileManagerReturnTarget(const String& from) ; // /delete- und /rename-Rueckspring-Ziel anhand des "from"-Parameters (siehe webserver_routes.h)
+                                                         // /delete and /rename return target based on the "from" parameter (see webserver_routes.h)
     String escapeJsonText(const String& text) ;
     String generateStorageInfo(size_t used, size_t total, bool forceEnglish = false) ;
     String generateFlashMessage() ;
     String generateNavigation() ;
     String currentPreviewSignature() ;
-    String generateSettingsTabNav(bool asLinks) ; // asLinks=true: Tabs als Links zurueck auf "/?tab=<key>" (Info-Seite), sonst <label> der CSS-Tab-Mechanik (Startseite)
-                                                  // asLinks=true: tabs as links back to "/?tab=<key>" (info page), otherwise <label> elements of the CSS tab mechanism (start page)
+    String generateSettingsTabNav() ;
     String generateLanguageSelector() ;
     String resetReasonToString(esp_reset_reason_t reason) ;
     String rtcStatusToString(int status) ;
@@ -213,6 +251,14 @@
     // system_utils.h: System functions: buttons, logging, reset, restart, helper functions
 
     void checkButton() ;
+    String factoryResetActionLabel(const String& action) ; // kurze Beschriftung fuer Display + Web-Eingabeseite (siehe system_utils.h)
+                                                            // short label for display + web entry page (see system_utils.h)
+    void requestConfirmationCode(const String& action) ; // erzeugt/zeigt einen neuen Bestaetigungscode (siehe system_utils.h)
+    bool rejectIfConfirmationPending() ; // true + Hinweisseite, wenn schon ein anderer Code aussteht - vor pendingWifi*-Zuweisungen aufrufen (siehe system_utils.h)
+                                        // true + hint page if a different code is already pending - call before pendingWifi* assignments (see system_utils.h)
+                                                          // generates/shows a new confirmation code (see system_utils.h)
+    bool checkFactoryResetCodePending() ; // siehe system_utils.h - true, waehrend ein Bestaetigungscode angezeigt wird
+                                         // see system_utils.h - true while a confirmation code is being displayed
     void checkWeeklyRestart() ;
     void eraseAllNVS() ;
     void factoryReset() ;
@@ -221,7 +267,11 @@
     void deleteAllLogFiles() ;
     void checkHeapWarning(const String& context) ;
     void logToFile(const String& message) ;
+    void flushLogBuffer() ;
+    void checkLogFlush() ;
     String trim(const String& str) ;
+    bool getSmoothSecondPref(bool stationModeFallback) ; // liest PK_SMOOTH_SECOND mit Migrations-Fallback auf stationMode (siehe system_utils.h)
+                                                          // reads PK_SMOOTH_SECOND with a migration fallback to stationMode (see system_utils.h)
 
 
     // uhr3.ino: setup() & loop()

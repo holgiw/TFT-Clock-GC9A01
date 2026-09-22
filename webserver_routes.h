@@ -160,24 +160,6 @@
         html += ".tabctrl{display:none;}";
         html += ".tabnav{margin:20px auto;max-width:900px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;}";
         html += ".tabnav label{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;}";
-        // Eintraege, die auf eine andere Seite fuehren (Info von der Startseite,
-        // die Tabs von der Info-Seite zurueck), sind Links - optisch aber wie
-        // ein Tab. Kein Unterstrich, sonst greift die globale a-Regel.
-
-        // Entries leading to another page (Info from the start page, the tabs
-        // from the info page back) are links - but styled like a tab. No
-        // underline, otherwise the global a rule applies.
-        html += ".tabnav a{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;text-decoration:none;}";
-
-        // <span>: der Eintrag der GERADE offenen Seite (Info auf /info) - kein
-        // Selbstlink, gleiche Pille wie die uebrigen. ".active" faerbt ihn wie
-        // den angehakten Tab unten, damit beide Seiten identisch aussehen.
-
-        // <span>: the entry of the page currently open (Info on /info) - not a
-        // self-link, same pill as the others. ".active" colors it like the
-        // checked tab below, so both pages look identical.
-        html += ".tabnav span{background:var(--panel);border:1px solid var(--panel-border);color:var(--muted);padding:8px 16px;border-radius:8px 8px 0 0;font-weight:bold;}";
-        html += ".tabnav .active{background:var(--accent);border-color:var(--accent);color:#1a1200;}";
         html += ".tabpanel{display:none;}";
         html += ".card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:500px;margin:15px auto;padding:12px 16px;text-align:left;}";
         for (size_t i = 0; i < SETTINGS_TAB_COUNT; i++) {
@@ -335,6 +317,108 @@
     }
 
 
+    // Prueft, ob eine anfragende IP-Adresse tatsaechlich im GLEICHEN Netz
+    // steht wie die Uhr selbst - egal ob diese gerade per STA mit dem
+    // Heimnetz verbunden ist oder ihren eigenen Access Point betreibt. Nicht
+    // nur, ob die anfragende IP irgendwo in einem der privaten RFC1918-
+    // Bereiche liegt (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16). Genutzt, um
+    // Status-Tab und diverse Aktionen (siehe die Aufrufer) vor Zugriff von
+    // ausserhalb des lokalen Netzes zu verbergen/sperren, z.B. bei
+    // Erreichbarkeit ueber eine DMZ/Port-Weiterleitung.
+    //
+    // Der reine Bereichscheck allein reicht nicht: ueber bestimmte Aufbauten
+    // (z.B. ein VPN-/Tunnel-Gateway oder ein Reverse-Proxy mit eigenem
+    // privaten Adressraum vor der Uhr) koennte eine Anfrage von ausserhalb
+    // trotzdem mit einer privat aussehenden Quell-IP ankommen und faelschlich
+    // als vertrauenswuerdig durchgehen. Das Netz, in dem die Uhr selbst
+    // steht, soll dagegen IMMER als privat gelten - deshalb wird explizit
+    // sowohl das STA- als auch das AP-eigene Subnetz geprueft, statt sich im
+    // AP-Fall nur zufaellig auf den RFC1918-Rueckfall zu verlassen:
+    //
+    // - STA (auch im gleichzeitigen AP+STA-Betrieb): eigenes Subnetz ueber
+    //   WiFi.localIP()/WiFi.subnetMask().
+    // - AP (auch AP+STA): eigenes Subnetz ueber WiFi.softAPIP() mit der
+    //   Standardmaske 255.255.255.0 - dieses Projekt ruft WiFi.softAP() ohne
+    //   softAPConfig() auf (siehe startAP() in wifi_manager.h), die ESP32-
+    //   Arduino-Bibliothek vergibt dann immer 192.168.4.1/24, daher hier
+    //   fest angenommen statt von einer moeglicherweise nicht ueberall
+    //   verfuegbaren WiFi.softAPSubnetMask() abhaengig zu sein.
+    //
+    // Byteweise verglichen (IPAddress::operator[]), um keine Annahmen ueber
+    // eine eventuelle uint32_t-Konvertierung/Byte-Reihenfolge treffen zu muessen.
+    //
+    // Nur als letzter Rueckfall (z.B. Subnetzmaske kurzzeitig unbekannt,
+    // gleich nach dem Verbindungsaufbau) der grobe RFC1918-Bereichscheck wie
+    // bisher. Absichtlich weiterhin NUR die drei RFC1918-Bereiche als
+    // Rueckfall, nicht auch Link-Local (169.254.x.x) oder Loopback - beide
+    // sind fuer den normalen Zugriff auf dieses Geraet ohnehin nicht relevant.
+
+    // Checks whether a requesting IP address is actually in the SAME
+    // network as the clock itself - regardless of whether it's currently
+    // connected to the home network via STA or running its own access
+    // point. Not just whether the requesting IP falls somewhere into one of
+    // the private RFC1918 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16).
+    // Used to hide/block the Status tab and various actions (see the
+    // callers) from access outside the local network, e.g. when reachable
+    // via a DMZ/port forward.
+    //
+    // The plain range check alone isn't enough: via certain setups (e.g. a
+    // VPN/tunnel gateway or a reverse proxy with its own private address
+    // space in front of the clock), a request from outside could still
+    // arrive with a private-looking source IP and wrongly pass as
+    // trustworthy. The network the clock itself is on, on the other hand,
+    // should ALWAYS count as private - so both the STA and the AP's own
+    // subnet are checked explicitly, instead of relying on the AP case
+    // coincidentally falling under the RFC1918 fallback:
+    //
+    // - STA (also while running AP+STA simultaneously): own subnet via
+    //   WiFi.localIP()/WiFi.subnetMask().
+    // - AP (also AP+STA): own subnet via WiFi.softAPIP() with the default
+    //   mask 255.255.255.0 - this project calls WiFi.softAP() without
+    //   softAPConfig() (see startAP() in wifi_manager.h), so the ESP32
+    //   Arduino library always assigns 192.168.4.1/24, hence assumed fixed
+    //   here instead of depending on a WiFi.softAPSubnetMask() that may not
+    //   be available everywhere.
+    //
+    // Compared byte by byte (IPAddress::operator[]), to avoid any
+    // assumptions about a possible uint32_t conversion/byte order.
+    //
+    // Only as a last-resort fallback (e.g. the subnet mask briefly unknown
+    // right after connecting) the rough RFC1918 range check as before.
+    // Deliberately still ONLY these three RFC1918 ranges as the fallback,
+    // not link-local (169.254.x.x) or loopback either - neither is relevant
+    // for normal access to this device anyway.
+
+    bool isSameSubnet(IPAddress ip, IPAddress ownIp, IPAddress mask) {
+        for (int i = 0; i < 4; i++) {
+            if ((ip[i] & mask[i]) != (ownIp[i] & mask[i])) return false;
+        }
+        return true;
+    }
+
+    bool isPrivateNetworkIp(IPAddress ip) {
+        wifi_mode_t mode = WiFi.getMode();
+
+        if ((mode == WIFI_STA || mode == WIFI_AP_STA) && WiFi.status() == WL_CONNECTED) {
+            IPAddress mask = WiFi.subnetMask();
+            if (mask != IPAddress(0, 0, 0, 0) && isSameSubnet(ip, WiFi.localIP(), mask)) {
+                return true;
+            }
+        }
+
+        if (mode == WIFI_AP || mode == WIFI_AP_STA) {
+            if (isSameSubnet(ip, WiFi.softAPIP(), IPAddress(255, 255, 255, 0))) {
+                return true;
+            }
+        }
+
+        if (ip[0] == 10) return true; // 10.0.0.0/8
+        if (ip[0] == 192 && ip[1] == 168) return true; // 192.168.0.0/16
+        if (ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31) return true; // 172.16.0.0/12
+        return false;
+    }
+
+
     String escapeHtmlText(const String& text) {
         String out;
         out.reserve(text.length());
@@ -350,6 +434,34 @@
             }
         }
         return out;
+    }
+
+
+    // Liefert die Seite, zu der /delete und /rename nach ihrer Aktion
+    // zurueckspringen sollen. /files UND /listfilesFaces zeigen beide
+    // Zifferblatt-/Zeigersatz-Dateien mit denselben Delete-/Rename-Links an -
+    // frueher wurde das Ziel aus dem Dateinamen geraten ("face_*.bmp" ->
+    // /listfilesFaces, "hand_set*.bmp" -> /handsets), was beim Loeschen/
+    // Umbenennen einer solchen Datei ÜBER /files faelschlich auf die
+    // spezialisierte Seite statt zurueck zu /files sprang. Jetzt haengen
+    // /files und /listfilesFaces stattdessen einen expliziten "from"-
+    // Parameter an ihre Links an. Ein unbekannter/fehlender Wert faellt auf
+    // den allgemeinen Dateimanager zurueck, der fuer jede Datei passt.
+
+    // Returns the page /delete and /rename should redirect back to after
+    // their action. Both /files AND /listfilesFaces show clock-face/hand-set
+    // files with the same delete/rename links - the target used to be
+    // guessed from the filename ("face_*.bmp" -> /listfilesFaces,
+    // "hand_set*.bmp" -> /handsets), which wrongly jumped to the specialized
+    // page instead of back to /files when deleting/renaming such a file FROM
+    // /files. Now /files and /listfilesFaces instead attach an explicit
+    // "from" parameter to their links. An unknown/missing value falls back
+    // to the general file manager, which fits for any file.
+
+    String fileManagerReturnTarget(const String& from) {
+        if (from == "listfilesFaces") return "/listfilesFaces";
+        if (from == "handsets") return "/handsets";
+        return "/files";
     }
 
 
@@ -772,15 +884,13 @@
     }
 
 
-    // Baut die Tab-Leiste der Einstellungen an EINER Stelle fuer beide
-    // Seiten. asLinks=false (Startseite): Tabs sind <label>-Elemente der
-    // CSS-Mechanik. asLinks=true (Info-Seite): Tabs sind Links auf "/?tab=<key>", Info selbst als aktiver <span>.
+    // Baut die Tab-Leiste der Einstellungen als <label>-Elemente der CSS-
+    // Tab-Mechanik (siehe generateHtmlHeader()).
 
-    // Builds the settings tab bar in ONE place for both pages. asLinks=false
-    // (start page): tabs are <label> elements of the CSS mechanism.
-    // asLinks=true (info page): tabs link to "/?tab=<key>", Info itself as the active <span>.
+    // Builds the settings tab bar as <label> elements of the CSS tab
+    // mechanism (see generateHtmlHeader()).
 
-    String generateSettingsTabNav(bool asLinks) {
+    String generateSettingsTabNav() {
         String nav = "<div class='tabnav'>";
         for (size_t i = 0; i < SETTINGS_TAB_COUNT; i++) {
             String key = String(SETTINGS_TAB_KEYS[i]);
@@ -795,26 +905,7 @@
             if (key == "rocrail" && !rocrailEnabled) continue;
 
             String label = translate(SETTINGS_TAB_LABELS[i]);
-            if (asLinks) {
-                nav += "<a href='/?tab=" + key + "'>" + label + "</a>";
-            }
-            else {
-                nav += "<label for='tab-" + key + "'>" + label + "</label>";
-            }
-        }
-
-        // Info: kein Tab, sondern eine eigene Seite mit der Projektbeschreibung
-        // in der aktuell eingestellten Sprache (siehe readme_text.h und die
-        // /info-Route weiter unten) - der Text ist zu gross fuer die Startseite.
-
-        // Info: not a tab but its own page with the project description in the
-        // currently selected language (see readme_text.h and the /info route
-        // further below) - the text is too large for the start page.
-        if (asLinks) {
-            nav += "<span class='active'>" + translate("Info") + "</span>";
-        }
-        else {
-            nav += "<a href='/info'>" + translate("Info") + "</a>";
+            nav += "<label for='tab-" + key + "'>" + label + "</label>";
         }
 
         nav += "</div>";
@@ -984,6 +1075,34 @@
     // send(302, ...) pair that would otherwise be repeated everywhere.
 
     void redirectTo(const String& location, const String& body) {
+
+        // Verweilzeit im AP-Modus verlaengern (siehe softAPIPstart/WAIT_15m in
+        // uhr3.ino): jede Formular-Aktion (Speichern etc.) zaehlt als aktiver
+        // Zugriff, der 15-Minuten-Neustart soll also nicht mitten in einer
+        // Konfiguration dazwischenfunken. Kein Aufwand, wenn gar nicht im
+        // AP-Modus (softAPIP dann false).
+
+        // Extend the dwell time in AP mode (see softAPIPstart/WAIT_15m in
+        // uhr3.ino): every form action (save, etc.) counts as active use, so
+        // the 15-minute restart shouldn't interrupt an ongoing configuration.
+        // No cost when not even in AP mode (softAPIP is false then).
+        if (softAPIP) softAPIPstart = millis();
+
+        // Zugriffs-IP mitloggen (siehe precise-log-messages-Konvention) -
+        // deckt Formular-Aktionen (Speichern etc.) ab, beginPage() unten
+        // deckt normale Seitenaufrufe (GET) ab. Bewusst NICHT bei jeder
+        // API-Antwort (z.B. /api/currentTime, /api/topbarStatus) - die
+        // pollen alle paar Sekunden automatisch im Hintergrund und wuerden
+        // das Log mit Eintraegen ohne echten Erkenntniswert zuspammen.
+
+        // Log the accessing IP too (see the precise-log-messages convention)
+        // - covers form actions (save, etc.), beginPage() below covers
+        // normal page views (GET). Deliberately NOT on every API response
+        // (e.g. /api/currentTime, /api/topbarStatus) - those poll
+        // automatically in the background every few seconds and would spam
+        // the log with entries that carry no real information.
+        DEBUG_PRINTLN("[WEB] " + webserver.client().remoteIP().toString() + " -> " + webserver.uri());
+
         webserver.sendHeader("Location", location, true);
         webserver.send(302, "text/plain", body);
     }
@@ -993,6 +1112,18 @@
     // Generates the page start common to almost every page (header incl. topbar + navigation).
 
     String beginPage() {
+
+        // Gleicher Grund wie in redirectTo() - deckt normale Seitenaufrufe ab
+        // (GET), redirectTo() deckt Formular-Aktionen (POST->redirect) ab.
+
+        // Same reason as in redirectTo() - covers normal page views (GET),
+        // redirectTo() covers form actions (POST->redirect).
+        if (softAPIP) softAPIPstart = millis();
+
+        // Zugriffs-IP mitloggen - siehe ausfuehrlichen Kommentar in redirectTo().
+        // Log the accessing IP too - see the detailed comment in redirectTo().
+        DEBUG_PRINTLN("[WEB] " + webserver.client().remoteIP().toString() + " -> " + webserver.uri());
+
         String html = generateHtmlHeader();
         html += generateNavigation();
         return html;
@@ -1017,6 +1148,275 @@
                 if (preferences.getString(argName.c_str(), "") != String(ntpServers[i])) {
                     preferences.putString(argName.c_str(), ntpServers[i]);
                 }
+            }
+        }
+    }
+
+
+    // Uebernimmt eine komplette neue WLAN-Liste (SSID+Passwort je Slot, wie
+    // vom Formular oder aus einem bestaetigten Aenderungsantrag kommend) in
+    // Preferences und die RAM-Arrays wifiSsid[]/wifiPass[]. Ein leeres
+    // Passwortfeld laesst das gespeicherte Passwort dieses Slots unveraendert
+    // (siehe Hinweistext "Leave empty to keep current" im WLAN-Tab); ein
+    // leeres SSID-Feld wird beim anschliessenden Kompaktieren als geloescht
+    // behandelt. Gemeinsame Logik von /save (sofortiger Fall: nicht das
+    // aktive Netzwerk betroffen) und /factoryReset/confirm (Aktion
+    // "wlanOverwriteActive", nachdem das aktive Netzwerk betroffen war und
+    // der angezeigte Code bestaetigt wurde - siehe pendingWifiSsid[]/
+    // pendingWifiPass[] in globals.h).
+
+    // Applies a complete new WiFi list (SSID+password per slot, as coming
+    // from the form or a confirmed change request) to preferences and the
+    // RAM arrays wifiSsid[]/wifiPass[]. An empty password field leaves that
+    // slot's stored password unchanged (see the "Leave empty to keep
+    // current" hint in the WiFi tab); an empty SSID field is treated as
+    // deleted during the subsequent compaction. Shared logic between /save
+    // (immediate case: the active network isn't affected) and
+    // /factoryReset/confirm (action "wlanOverwriteActive", once the active
+    // network was affected and the displayed code was confirmed - see
+    // pendingWifiSsid[]/pendingWifiPass[] in globals.h).
+
+    void applyWlanList(String newSsid[MAX_WLAN], String newPass[MAX_WLAN]) {
+        // Effektiver (nach dieser Aenderung geltender) SSID/Passwort-Wert je
+        // Slot, zunaechst nur im RAM berechnet (noch NICHT geschrieben) -
+        // ein leeres Passwortfeld behaelt dabei das aktuell gespeicherte
+        // Passwort dieses Slots (siehe Hinweistext "Leave empty to keep
+        // current" im WLAN-Tab). Preferences erst weiter unten, nach dem
+        // Kompaktieren, in EINEM Durchlauf beschreiben - ein Slot, der beim
+        // Kompaktieren verschoben wird, soll nicht zusaetzlich schon hier
+        // unter seiner alten Position geschrieben werden.
+
+        // Effective (post-change) SSID/password value per slot, computed in
+        // RAM only for now (NOT written yet) - an empty password field
+        // keeps that slot's currently stored password (see the "Leave empty
+        // to keep current" hint in the WiFi tab). Preferences are only
+        // written further below, after compaction, in a SINGLE pass - a
+        // slot that gets shifted during compaction shouldn't also be
+        // written here under its old position first.
+        String effectiveSsid[MAX_WLAN];
+        String effectivePass[MAX_WLAN];
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            effectiveSsid[i] = newSsid[i];
+            if (newPass[i] != "") {
+                effectivePass[i] = newPass[i];
+            } else {
+                effectivePass[i] = preferences.getString(pkPass(i).c_str(), "");
+            }
+        }
+
+        // leere Einträge aussortieren
+        // Filter out empty entries
+        String tempSsid[MAX_WLAN];
+        String tempPass[MAX_WLAN];
+
+        int j = 0;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (trim(effectiveSsid[i]).length() > 0) {
+                tempSsid[j] = effectiveSsid[i];
+                tempPass[j] = effectivePass[i];
+                j++;
+            }
+        }
+
+        // Einziger Schreibdurchlauf: erst hier, mit dem bereits
+        // kompaktierten Endergebnis, in Preferences uebernehmen -
+        // Lesen-vor-Schreiben erspart einem unveraenderten Slot einen
+        // Flash-Schreibvorgang (siehe putStringVerified()).
+
+        // Single write pass: only now, with the already-compacted final
+        // result, commit to preferences - read-before-write saves an
+        // unchanged slot a flash write (see putStringVerified()).
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String ssidKey = pkSsid(i);
+            String passKey = pkPass(i);
+
+            if (preferences.getString(ssidKey.c_str(), "") != tempSsid[i]) {
+                putStringVerified(ssidKey.c_str(), tempSsid[i]);
+            }
+            if (preferences.getString(passKey.c_str(), "") != tempPass[i]) {
+                putStringVerified(passKey.c_str(), tempPass[i]);
+            }
+
+            wifiSsid[i] = tempSsid[i];
+            wifiPass[i] = tempPass[i];
+        }
+    }
+
+
+    // Fuehrt eine der acht bestaetigten bzw. (aus privatem Netz) direkt
+    // erlaubten Aktionen tatsaechlich aus - ausgelagert aus
+    // /factoryReset/confirm, damit /factoryReset/requestCode, /deletewifi,
+    // /save und /api/connectWifi sie bei Zugriff aus einem privaten Netz
+    // auch OHNE den Code-Umweg aufrufen koennen (Code-Bestaetigung ist
+    // dann nur noch fuer Anfragen aus einem NICHT-privaten Netz noetig -
+    // das eigene Heimnetz gilt bereits als hinreichend vertrauenswuerdig).
+    // Erwartet, dass ein evtl. benoetigtes Payload (pendingWifiChangeIndex
+    // bzw. pendingWifiSsid[]/pendingWifiPass[]) vom Aufrufer schon gesetzt wurde.
+
+    // Actually executes one of the eight confirmed, or (from a private
+    // network) directly allowed, actions - factored out of
+    // /factoryReset/confirm so /factoryReset/requestCode, /deletewifi,
+    // /save and /api/connectWifi can also call it without the code detour
+    // when accessed from a private network (code confirmation is then
+    // only needed for requests from a NON-private network - one's own
+    // home network already counts as sufficiently trustworthy). Expects
+    // that any needed payload (pendingWifiChangeIndex or
+    // pendingWifiSsid[]/pendingWifiPass[]) has already been set by the caller.
+
+    void executePendingAction(String action) {
+
+        // Einen evtl. noch anhaengigen (fremden) Bestaetigungscode
+        // verwerfen: wurde diese Aktion direkt aus einem privaten Netz
+        // ausgefuehrt, waehrend zufaellig noch ein Code fuer eine ANDERE
+        // Anfrage aussteht (z.B. von einem frueheren, nicht-privaten
+        // Versuch), wuerde checkFactoryResetCodePending() sonst
+        // weiterhin die Code-Anzeige statt der Uhrzeit zeigen, obwohl
+        // hier bereits eine andere, definitive Aktion ausgefuehrt wurde.
+        // Bei Aufruf ueber /factoryReset/confirm ohnehin schon leer
+        // (dort vorher geloescht) - dieser Reset ist dann ein
+        // wirkungsloses No-op.
+
+        // Discard any still-pending (unrelated) confirmation code: if
+        // this action was executed directly from a private network while
+        // a code for a DIFFERENT request happened to still be pending
+        // (e.g. from an earlier, non-private attempt),
+        // checkFactoryResetCodePending() would otherwise keep showing
+        // the code screen instead of the time, even though a different,
+        // definitive action has now already been taken. Already empty
+        // when called via /factoryReset/confirm (cleared there
+        // beforehand) - this reset is then a no-op.
+        factoryResetCode = "";
+        factoryResetPendingAction = "";
+        factoryResetCodeAttempts = 0;
+
+        if (action == "all") {
+            factoryReset();
+        }
+        else if (action == "wifi") {
+            eraseWiFiConfig();
+            delay(WAIT_1s);
+            espReboot();
+        }
+        else if (action == "faces") {
+            resetFacesToDefault();
+            redirectTo("/factoryReset?msg=Clock%20faces%20deleted");
+        }
+        else if (action == "hands") {
+            resetHandsToDefault();
+            redirectTo("/factoryReset?msg=Hand%20sets%20deleted");
+        }
+        else if (action == "presets") {
+            resetAllPresets();
+            redirectTo("/factoryReset?msg=Presets%20deleted");
+        }
+        else if (action == "wlanDeleteActive") {
+
+            // Slot loeschen und Liste kompaktieren - dieselbe Logik wie
+            // beim sofortigen Loeschpfad in /deletewifi (nicht-aktive
+            // Netzwerke), hier ueber applyWlanList() geteilt. Danach neu
+            // starten: die soeben geloeschten Zugangsdaten waren die der
+            // aktuell laufenden Verbindung, ein sauberer
+            // Neuverbindungsversuch mit den verbleibenden gespeicherten
+            // Netzwerken (oder WPS/AP-Modus) ist daher angebracht statt
+            // die alte Verbindung einfach weiterlaufen zu lassen.
+
+            // Delete the slot and compact the list - same logic as the
+            // immediate deletion path in /deletewifi (non-active
+            // networks), shared here via applyWlanList(). Reboot
+            // afterwards: the credentials just deleted were those of the
+            // currently running connection, so a clean reconnect attempt
+            // with the remaining saved networks (or WPS/AP mode) is
+            // appropriate instead of just letting the old connection
+            // keep running.
+            int idx = pendingWifiChangeIndex;
+            pendingWifiChangeIndex = -1;
+
+            if (idx >= 0 && idx < MAX_WLAN) {
+                String newSsid[MAX_WLAN];
+                String newPass[MAX_WLAN];
+                for (int i = 0; i < MAX_WLAN; i++) {
+                    newSsid[i] = preferences.getString(pkSsid(i).c_str(), "");
+                    newPass[i] = preferences.getString(pkPass(i).c_str(), "");
+                }
+                newSsid[idx] = "";
+                newPass[idx] = "";
+                applyWlanList(newSsid, newPass);
+
+                // PK_LAST_WLAN komplett entfernen statt auf einen Index zu
+                // setzen, damit nach dem Kompaktieren durch applyWlanList()
+                // kein veralteter Index (der jetzt evtl. ein anderes,
+                // verschobenes Netzwerk bezeichnet) nach dem Neustart bleibt.
+
+                // Remove PK_LAST_WLAN entirely rather than leave it pointing
+                // at an index, so no stale index (which may now denote a
+                // different, shifted network after applyWlanList()'s
+                // compaction) remains after the reboot.
+                preferences.remove(PK_LAST_WLAN);
+
+                delay(WAIT_1s);
+                espReboot();
+            }
+            else {
+                DEBUG_PRINTLN("[SECURITY] wlanDeleteActive but no pending slot - nothing to do (from " + webserver.client().remoteIP().toString() + ")");
+                redirectTo("/?tab=wlan&msg=Nothing%20to%20delete");
+            }
+        }
+        else if (action == "wlanOverwriteActive") {
+
+            // Die komplette, im Formular abgeschickte WLAN-Liste
+            // uebernehmen (applyWlanList() - dieselbe Logik wie beim
+            // sofortigen Speicherpfad in /save, wenn der aktive Slot
+            // NICHT betroffen ist). pendingWifiSsid[]/pendingWifiPass[]
+            // danach loeschen, damit kein Klartext-Passwort laenger als
+            // noetig im RAM steht. Neu starten wie bei "wlanDeleteActive"
+            // oben - die soeben ueberschriebenen Zugangsdaten waren die
+            // der aktuell laufenden Verbindung.
+
+            // Apply the complete WiFi list submitted by the form
+            // (applyWlanList() - same logic as the immediate save path
+            // in /save when the active slot is NOT affected).
+            // Clear pendingWifiSsid[]/pendingWifiPass[] afterwards, so no
+            // plaintext password lingers in RAM longer than necessary.
+            // Reboot as with "wlanDeleteActive" above - the credentials
+            // just overwritten were those of the currently running
+            // connection.
+            String newSsid[MAX_WLAN];
+            String newPass[MAX_WLAN];
+            for (int i = 0; i < MAX_WLAN; i++) {
+                newSsid[i] = pendingWifiSsid[i];
+                newPass[i] = pendingWifiPass[i];
+                pendingWifiSsid[i] = "";
+                pendingWifiPass[i] = "";
+            }
+            applyWlanList(newSsid, newPass);
+
+            delay(WAIT_1s);
+            espReboot();
+        }
+        else if (action == "wlanSwitchActive") {
+
+            // Wechselt auf den gemerkten Slot, sofern er noch existiert
+            // (koennte zwischenzeitlich geloescht worden sein) - gleiches
+            // Prinzip wie "wlanDeleteActive" oben: pendingWifiChangeIndex
+            // zeigt auf den betroffenen Slot.
+
+            // Switches to the remembered slot, provided it still exists
+            // (could have been deleted in the meantime) - same principle
+            // as "wlanDeleteActive" above: pendingWifiChangeIndex points
+            // at the affected slot.
+            int idx = pendingWifiChangeIndex;
+            pendingWifiChangeIndex = -1;
+
+            if (idx >= 0 && idx < MAX_WLAN && preferences.getString(pkSsid(idx).c_str(), "") != "") {
+                DEBUG_PRINTLN("[WiFi] Switching to saved network: " + preferences.getString(pkSsid(idx).c_str(), "") + " (from " + webserver.client().remoteIP().toString() + ")");
+                preferences.putInt(PK_LAST_WLAN, idx);
+                delay(WAIT_1s);
+                espReboot();
+            }
+            else {
+                DEBUG_PRINTLN("[SECURITY] wlanSwitchActive but slot no longer valid - nothing to do (from " + webserver.client().remoteIP().toString() + ")");
+                redirectTo("/?tab=wlan&msg=Network%20no%20longer%20available");
             }
         }
     }
@@ -1142,6 +1542,25 @@
     }
 
 
+    // HTML-Label fuer einen Rotationswert - "n.a." bei TFT_ROTATION_NA (kein
+    // Display an diesem Ausgang angeschlossen, siehe isDisplayConnected() in
+    // display.h), sonst 0/90/180/270 Grad. Werte ausserhalb [0,
+    // TFT_ROTATION_NA] fallen auf 0 zurueck. Gemeinsam genutzt von /status
+    // und /api/status, statt an jeder Stelle ein eigenes Label-Array zu
+    // pflegen.
+
+    // HTML label for a rotation value - "n.a." for TFT_ROTATION_NA (no
+    // display connected on that output, see isDisplayConnected() in
+    // display.h), otherwise 0/90/180/270 degrees. Values outside [0,
+    // TFT_ROTATION_NA] fall back to 0. Shared by /status and /api/status,
+    // instead of each maintaining its own label array.
+
+    String rotationLabelHtml(uint8_t rotation) {
+        static const char* labels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;", "n.a." };
+        return labels[rotation <= TFT_ROTATION_NA ? rotation : 0];
+    }
+
+
     // Webserver-API-Endpunkte einrichten
     // Set up the webserver API endpoints
 
@@ -1169,22 +1588,17 @@
         // Catch-all: redirect all other requests to the config page too
         webserver.onNotFound(captivePortalRedirect);
 
-        // API zum Setzen von Zifferblatt, Zeigersatz, Zeitzone, Mittelpunkt-Groesse/-Farbe, Bahnhofsmodus, Rotation, Sekundenzeiger-Sichtbarkeit und sanftem Minutenzeiger
-        // API to set clock face, hand set, timezone, hub size/color, station mode, rotation, second hand visibility, and smooth minute hand
+        // API zum Setzen von Zifferblatt, Zeigersatz, Zeitzone, Mittelpunkt-Groesse/-Farbe, Bahnhofsmodus ("wartet auf 12"), Rotation, Sekundenzeiger-Sichtbarkeit/-Stil und sanftem Minutenzeiger
+        // API to set clock face, hand set, timezone, hub size/color, station mode ("waits at 12"), rotation, second hand visibility/style, and smooth minute hand
 
         // DB
-        // http://192.168.0.214/api/setMode?face=face_db_uhr.bmp&handSet=0&hubSize=6&hubColor=ff0000showSecondHand=1&stationMode=true&smoothMinute=false&rotation=2
+        // http://192.168.0.214/api/setMode?face=face_db_uhr.bmp&handSet=0&hubSize=6&hubColor=ff0000showSecondHand=1&stationMode=true&smoothMinute=false&smoothSecond=true&rotation=2
 
         // Irish Pub
-        // http://192.168.0.214/api/setMode?face=face_irish_pub.bmp&handSet=0&hubSize=2&hubColor=aaaaaa&showSecondHand=false&stationMode=false&smoothMinute=true&rotation=2
+        // http://192.168.0.214/api/setMode?face=face_irish_pub.bmp&handSet=0&hubSize=2&hubColor=aaaaaa&showSecondHand=false&stationMode=false&smoothMinute=true&smoothSecond=false&rotation=2
 
 
 
-        // API zum Zurücksetzen der WiFi-Einstellungen
-
-        // API to reset the WiFi settings
-        // http://192.168.0.214/api/resetWiFi  
-   
         webserver.on("/setLanguage", HTTP_POST, []() {
             if (webserver.hasArg("lang")) {
                 String lang = webserver.arg("lang");
@@ -1208,43 +1622,6 @@
             else {
                 webserver.send(400, "text/plain", "Missing 'lang' parameter");
             }
-            });
-
-        webserver.on("/api/resetWiFi", HTTP_GET, []() {
-
-            DEBUG_PRINTLN("[API] Received GET request to /api/resetWiFi, resetting WiFi settings..");
-               
-            eraseWiFiConfig();
-
-            // Sende eine Bestätigung zurück
-            // Send back a confirmation
-            webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
-            DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
-
-            delay(WAIT_1s);
-            // Neustart des ESP
-            // Restart the ESP
-            espReboot();
-
-            });
-
-        // resetWifi POST API, um WiFi-Einstellungen zurückzusetzen
-        // resetWifi POST API to reset WiFi settings
-        webserver.on("/api/resetWiFi", HTTP_POST, []() {
-            DEBUG_PRINTLN("[API] Received POST request to /api/resetWiFi, resetting WiFi settings..");
-       
-            eraseWiFiConfig();
-            // Sende eine Bestätigung zurück
-            // Send back a confirmation
-            webserver.send(200, "application/json", "{\"status\":\"WiFi settings reset successfully\"}");
-            DEBUG_PRINTLN("[API] WiFi settings reset via /api/resetWiFi");
-
-            // preferences.end() erfolgt in espReboot(), siehe dort.
-            // preferences.end() happens in espReboot(), see there.
-            delay(WAIT_1s);
-            // Neustart des ESP
-            // Restart the ESP
-            espReboot();
             });
 
         // Startet WPS per Web-Button, kehrt SOFORT zurueck - kein delay(),
@@ -1352,7 +1729,15 @@
                 String tz = webserver.arg("timeZone");
                 preferences.putString(PK_TIMEZONE, tz);
                 timezone = tz;
-                setupNTP();
+
+                // Nur die Task anstossen (siehe time_sync.h) statt hier auf
+                // DNS/UDP zu warten - der Webserver darf dabei nicht blockieren.
+                // pollNtpSyncTask() in loop() wertet das Ergebnis aus.
+
+                // Only kick off the task (see time_sync.h) instead of waiting
+                // on DNS/UDP here - the web server must not block on this.
+                // pollNtpSyncTask() in loop() evaluates the result.
+                startNtpSyncTask("Timezone change sync");
             }
 
             updateNtpServersFromRequest();
@@ -1409,38 +1794,21 @@
                     else if (rotationArg == "180") requestedRotation = 2;
                     else if (rotationArg == "270") requestedRotation = 3;
                 }
-                // Prüfe, ob der Wert als Index (0-3) angegeben ist
-                // Check whether the value is given as an index (0-3)
+                // "na" / "n.a." = Display 1 nicht angeschlossen
+                // "na" / "n.a." = display 1 not connected
+                else if (rotationArg.equalsIgnoreCase("na") || rotationArg.equalsIgnoreCase("n.a.")) {
+                    requestedRotation = TFT_ROTATION_NA;
+                }
+                // Prüfe, ob der Wert als Index (0-3, 4 = n.a.) angegeben ist
+                // Check whether the value is given as an index (0-3, 4 = n.a.)
                 else {
                     requestedRotation = rotationArg.toInt();
                 }
 
                 // Validierung des Wertes
                 // Validate the value
-                if (requestedRotation >= 0 && requestedRotation <= 3) {
-                    uint8_t newRotation = (uint8_t)requestedRotation;
-                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
-                    preferences.putUChar(PK_TFT_ROTATION1, newRotation);
-                    tftRotation1 = newRotation; // globale Variable aktualisieren (siehe Bugfix-Kommentar oben)
-                                               // update the global variable (see bugfix comment above)
-                    // firstRun nur bei tatsaechlicher Aenderung zuruecksetzen, sonst
-                    // startet jedes Speichern die Bahnhofsmodus-Wartephase neu.
-
-                    // Only reset firstRun on an actual change, otherwise every save
-                    // restarts the station-mode wait phase.
-                    if (tftRotation1 != previousRotation) {
-                        firstRun = true;
-                    }
-                    if (!gc9d01SwRotation) {
-                        // Erst auf Display 1 umschalten - tft.setRotation() wirkt nur auf
-                        // den aktuell selektierten Chip.
-
-                        // Switch to Display 1 first - tft.setRotation() only affects the
-                        // currently selected chip.
-                        setCS1(LOW);
-                        tft.setRotation(tftRotation1); // sofort anwenden
-                                                      // apply immediately
-                    }
+                if (requestedRotation >= 0 && requestedRotation <= TFT_ROTATION_NA) {
+                    applyDisplayRotation(1, (uint8_t)requestedRotation);
                 }
             }
 
@@ -1459,9 +1827,11 @@
                 preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
             }
 
-            if (webserver.hasArg("pingServer")) {
-                String pingServerArg = webserver.arg("pingServer");
-                preferences.putString(PK_PING_SERVER, pingServerArg);
+            if (webserver.hasArg("smoothSecond")) {
+                String smoothSecondArg = webserver.arg("smoothSecond");
+                smoothSecond = (smoothSecondArg == "1" || smoothSecondArg.equalsIgnoreCase("true")); // Konvertiere zu bool
+                                                                                                     // convert to bool
+                preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
             }
 
             freeClockFaceBuffer();
@@ -1558,19 +1928,30 @@
                 {
                     String displayUrl = presets[i].url;
 
-                    // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
-                    // Replace the stored IP with the ESP's current IP
+                    // Relativer Pfad statt absoluter IP: die gespeicherte
+                    // Preset-URL enthaelt aus externen Gruenden (siehe
+                    // "Copy link"/ipLink weiter unten - fuer Home-Automation
+                    // o.ae. gedacht) immer eine feste IP. Als anklickbarer
+                    // In-Page-Link fuehrte das faelschlich zurueck auf die
+                    // LOKALE IP, selbst wenn die Seite z.B. ueber eine DMZ-/
+                    // Port-Weiterleitung von aussen aufgerufen wurde. Ein
+                    // relativer Pfad loest sich dagegen immer gegen die
+                    // Adresse auf, mit der die Seite tatsaechlich gerade
+                    // erreicht wurde.
+
+                    // Relative path instead of an absolute IP: the stored
+                    // preset URL always contains a fixed IP for external
+                    // reasons (see "Copy link"/ipLink further below - meant
+                    // for home automation etc.). As an in-page clickable
+                    // link, that incorrectly led back to the LOCAL IP, even
+                    // when the page itself was reached from outside via a
+                    // DMZ/port forward, say. A relative path, by contrast,
+                    // always resolves against whatever address the page was
+                    // actually reached with.
                     if (displayUrl.startsWith("http://")) {
-                        int ipEnd = displayUrl.indexOf('/', 7); // Suche nach dem Ende der IP-Adresse
-                                                                // find the end of the IP address
-                        if (ipEnd != -1) {
-                            displayUrl = "http://" + ipAddress + displayUrl.substring(ipEnd); // Ersetze die IP
-                                                                                              // replace the IP
-                        }
-                        else {
-                            displayUrl = "http://" + ipAddress; // Nur die IP ohne Pfad
-                                                                // just the IP, without path
-                        }
+                        int pathStart = displayUrl.indexOf('/', 7); // Suche nach dem Beginn des Pfads (nach der IP)
+                                                                    // find the start of the path (after the IP)
+                        displayUrl = (pathStart != -1) ? displayUrl.substring(pathStart) : "/";
                     }
                     displayUrl += "&source=preset";
                     // Bugfix: presets[i].name.replace() direkt hier mutierte den
@@ -1593,7 +1974,33 @@
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
                                                   // replace spaces with underscores
-                    String ipLink = "http://" + ipAddress + "/api/setPreset?name=" + presetName;
+
+                    // "Copy link" verwendet den Host-Header DIESER Anfrage statt
+                    // der festen lokalen IP: der Host-Header enthaelt genau die
+                    // Adresse, mit der die Seite gerade tatsaechlich aufgerufen
+                    // wurde (LAN-IP, mDNS-Name, oder - bei einer Port-
+                    // Weiterreichung auf Router-Ebene - die externe DMZ-Adresse
+                    // samt Port) und wird von einer solchen Weiterleitung nicht
+                    // veraendert. So kopiert man immer einen Link, der von dort
+                    // aus erreichbar ist, wo man sich gerade befindet, statt
+                    // immer die lokale IP zu bekommen, selbst wenn man von
+                    // ausserhalb zugreift. Fallback auf ipAddress, falls der
+                    // Header ausnahmsweise leer sein sollte.
+
+                    // "Copy link" uses THIS request's host header instead of the
+                    // fixed local IP: the host header carries exactly the
+                    // address the page was actually reached with (LAN IP, mDNS
+                    // name, or - with a router-level port forward - the
+                    // external DMZ address with its port) and a port forward
+                    // doesn't alter it. This way the copied link is always
+                    // reachable from wherever the user currently is, instead of
+                    // always getting the local IP even when accessing from
+                    // outside. Falls back to ipAddress if the header should
+                    // ever come back empty.
+                    String currentHost = webserver.hostHeader();
+                    if (currentHost.length() == 0) currentHost = ipAddress;
+
+                    String ipLink = "http://" + currentHost + "/api/setPreset?name=" + presetName;
                     // Aeusseres Attribut doppelt gequotet, JS-String innen einfach.
                     // Outer attribute double-quoted, inner JS string single-quoted.
                     chunk += "<br><span onclick=\"copyPresetLink('" + escapeForJsStringInAttr(ipLink, '\'') + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
@@ -1851,6 +2258,21 @@
         // API zum Restart des ESP
         // API to restart the ESP
         webserver.on("/api/reboot", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
+            // oben) - ein von aussen jederzeit ausloesbarer Neustart ist ein
+            // DoS-Vektor (Dauerreboot) und riskiert, einen laufenden
+            // Schreibvorgang (Presets speichern, GitHub-Download) zu unterbrechen.
+
+            // Only allowed from a private network (see isPrivateNetworkIp()
+            // above) - a restart triggerable from outside at any time is a
+            // DoS vector (endless reboot loop) and risks interrupting an
+            // in-progress write (saving presets, a GitHub download).
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "", "<meta http-equiv='refresh' content='0; url=/status'>"));
             delay(WAIT_1s);
             espReboot();
@@ -1890,7 +2312,7 @@
             // Preset nicht gefunden
             // Preset not found
             webserver.send(404, "text/plain", "Preset not found");
-            DEBUG_PRINTLN("[setPreset] Preset not found: " + presetName);
+            DEBUG_PRINTLN("[setPreset] Preset not found: " + presetName + " (from " + webserver.client().remoteIP().toString() + ")");
             });
 
         // NTP Server und Zeitzone setzen
@@ -1941,13 +2363,66 @@
                 memset(ntpServers[i], 0, sizeof(ntpServers[i]));
             }
 
+            // Kompaktierte Liste auch in die Preferences zurueckschreiben -
+            // sonst laufen RAM und Preferences auseinander und geloeschte/
+            // verschobene Eintraege tauchen nach einem Neustart wieder an
+            // ihrer alten Position auf. Nur bei tatsaechlicher Aenderung
+            // schreiben, wie beim analogen Rocrail-Serverlisten-Handler oben.
 
+            // Write the compacted list back to preferences too - otherwise
+            // RAM and preferences drift apart and deleted/reordered entries
+            // reappear at their old position after a restart. Only write on
+            // an actual change, as in the analogous Rocrail server list
+            // handler above.
+            for (int i = 0; i < MAX_WLAN; i++) {
+                String ntpKey = pkNtpServer(i);
+                if (preferences.getString(ntpKey.c_str(), "") != String(ntpServers[i])) {
+                    preferences.putString(ntpKey.c_str(), ntpServers[i]);
+                }
+            }
+
+            // Faellt die Liste dadurch komplett leer, sofort auf die
+            // eingebauten Standardserver zurueckfallen (siehe time_sync.h) -
+            // sonst blieb die Uhr bis zum naechsten Sync-Versuch ohne NTP,
+            // obwohl startNtpSyncTask() gleich im Anschluss aufgerufen wird.
+
+            // If this leaves the list completely empty, fall back to the
+            // built-in default servers immediately (see time_sync.h) -
+            // otherwise the clock would be without NTP until the next sync
+            // attempt, even though startNtpSyncTask() is called right after.
+            applyNtpServerDefaultsIfNoneConfigured();
 
 
             if (webserver.hasArg("timezone")) {
                 String tz = webserver.arg("timezone");
                 preferences.putString(PK_TIMEZONE, tz);
-                setupNTP();
+
+                // Globale timezone-Variable ebenfalls aktualisieren (wie im
+                // anderen Speicherpfad oben) - vorher aktualisierte das ein
+                // impliziter Nebeneffekt von setupNTP() (das die Preference
+                // beim Start neu einliest); seit der Async-Umstellung
+                // (startNtpSyncTask()) liest die Task nur noch einen Snapshot
+                // (siehe timezoneSnapshot in globals.h), daher hier explizit -
+                // sonst wuerde die Einstellungsseite die alte Zeitzone zeigen.
+
+                // Also update the global timezone variable (as the other save
+                // path above already does) - this used to happen as an
+                // implicit side effect of setupNTP() (which re-read the
+                // preference on start); since the async conversion
+                // (startNtpSyncTask()), the task only reads a snapshot (see
+                // timezoneSnapshot in globals.h), so this must be explicit
+                // here now - otherwise the settings page would keep showing
+                // the old timezone.
+                timezone = tz;
+
+                // Nur die Task anstossen (siehe time_sync.h) - der Webserver
+                // darf dabei nicht auf DNS/UDP warten. pollNtpSyncTask() in
+                // loop() wertet das Ergebnis aus.
+
+                // Only kick off the task (see time_sync.h) - the web server
+                // must not wait on DNS/UDP here. pollNtpSyncTask() in loop()
+                // evaluates the result.
+                startNtpSyncTask("Timezone change sync");
             }
 
             redirectTo("/?tab=zeit&msg=Timezone%20updated");
@@ -1956,107 +2431,6 @@
         
             );
 
-
-        // NTP Server und Zeitzone Formular
-        // NTP server and timezone form
-        webserver.on("/timezone_form", HTTP_GET, []() {
-            String timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
-
-            struct TimezoneEntry {
-                const char* label;
-                const char* value;
-            } tzList[] = {
-                {"Germany (DST auto)", TIMEZONE_DEFAULT},
-                {"Germany (fixed summer time)", "CEST-2"},
-                {"Germany (fixed winter time)", "CET-1"},
-                {"UK (DST auto)", "GMT0BST,M3.5.0/1,M10.5.0"},
-                {"UK (fixed summer time)", "BST-1"},
-                {"UK (fixed winter time)", "GMT0"},
-                {"USA Pacific (DST auto)", "PST8PDT,M3.2.0,M11.1.0"},
-                {"USA Central (DST auto)", "CST6CDT,M3.2.0,M11.1.0"},
-                {"USA Mountain (DST auto)", "MST7MDT,M3.2.0,M11.1.0"},
-                {"USA Eastern (DST auto)", "EST5EDT,M3.2.0,M11.1.0"},
-                {"USA Eastern (fixed summer time)", "EDT-4"},
-                {"USA Eastern (fixed winter time)", "EST-5"},
-                {"Japan (JST)", "JST-9"},
-                {"Australia Sydney (DST auto)", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
-                {"Australia Sydney (fixed summer time)", "AEDT-11"},
-                {"Australia Sydney (fixed winter time)", "AEST-10"},
-                {"India (IST)", "IST-5:30"},
-                {"Brazil (BRT)", "BRT-3"},
-                {"China (CST)", "CST-8"},
-                {"Singapore (SGT)", "SGT-8"},
-                {"Indonesia (WIB)", "WIB-7"},
-                {"South Korea (KST)", "KST-9"},
-                {"Argentina (ART)", "ART-3"},
-                {"Chile (DST auto)", "CLT4CLST,M9.1.6/24,M4.1.6/24"},
-                {"New Zealand (DST auto)", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
-                {"Fiji (FJT)", "FJT-12"},
-                {"Nigeria (WAT)", "WAT-1"},
-                {"South Africa (SAST)", "SAST-2"},
-                {"Egypt (EET)", "EET-2"}
-            };
-
-            String html = beginPage();
-            html.reserve(6144);  // Zeitzonen-Formular: lange Dropdown-Liste
-                                 // timezone form: long dropdown list
-            html += generateFlashMessage();
-            html += "<h2>" + translate("NTP Server / Timezone (DST String)") + "</h2>";
-            html += "<form method='POST' action='/set_timezone'>";
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-                    html += "<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;'>";
-                    html += "NTP Server" + String(i + 1) + " : <input type = 'text' id='ntpServerInput" + String(i + 1) + "' name = 'ntpServer" + String(i + 1) + "' value = '" + String(ntpServers[i]) + "' style='width:180px;'>";
-                    html += "<button type='button' onclick='testNtp(" + String(i + 1) + ")' style='width:180px;'>" + translate("Test") + "</button>";
-                    html += "</div>";
-                    html += "<div id='ntpTestResult" + String(i + 1) + "'></div>";
-                    if (trim(ntpServers[i]) == "") {
-                        break;
-                }
-            }
-
-            html += "<script>";
-            html += "async function testNtp(idx) {";
-            html += "  var input = document.getElementById('ntpServerInput' + idx);";
-            html += "  var result = document.getElementById('ntpTestResult' + idx);";
-            html += "  result.innerHTML = '" + translate("Testing") + "...';";
-            html += "  try {";
-            html += "    var r = await fetch('/api/testNtp?server=' + encodeURIComponent(input.value));";
-            html += "    var text = await r.text();";
-            html += "    if (text.indexOf('OK|') === 0) {";
-            html += "      result.innerHTML = '<div style=\\'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10004; ' + text.substring(3) + '</div>';";
-            html += "    } else {";
-            html += "      result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
-            html += "    }";
-            html += "  } catch (e) {";
-            html += "    result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
-            html += "  }";
-            html += "}";
-            html += "</script>";
-
-
-            //html += "NTP Server1: <input type='text' name='ntpServer1' value='" + String(ntpServers[0]) + "'><br>";
-            //html += "NTP Server2: <input type='text' name='ntpServer2' value='" + String(ntpServers[1]) + "'><br><br>";
-
-            // Kombiniertes Select + Input
-            // Combined select + input
-            html += translate("Timezone") + ": <br><select id = 'tz_select' style = 'width: 400px;' onchange = \"document.getElementById('tz_input').value=this.value\">";
-            for (size_t i = 0; i < sizeof(tzList) / sizeof(tzList[0]); i++) {
-                html += "<option value='" + String(tzList[i].value) + "'";
-                if (timezone == tzList[i].value) html += " selected";
-                html += ">" + String(tzList[i].label) + " (" + String(tzList[i].value) + ")</option>";
-            }
-            html += "</select><br><br>";
-
-            html += "<input type='text' id='tz_input' name='timezone' style='width: 400px;' value='" + timezone + "'><br><br>";
-
-            html += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
-            html += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
-            //  html += generateNavigation(); // Navigation einfügen
-            html += "<br><br>";
-            html += "</form></body></html>";
-            webserver.send(200, "text/html", html);
-            });
 
         // Datei umbenennen Formular
         // Rename file form
@@ -2069,22 +2443,50 @@
             // escapeHtmlText(): "file" kommt aus der URL - ohne Escaping reflektiertes XSS.
             // escapeHtmlText(): "file" comes from the URL - without escaping, reflected XSS.
             String oldName = escapeHtmlText(webserver.arg("file"));
+
+            // "from" ans Formular (versteckes Feld) und den Abbrechen-Link
+            // durchreichen, damit /rename und ein Klick auf "Abbrechen" zur
+            // selben Seite zurueckkehren, von der aus umbenannt wurde (siehe
+            // fileManagerReturnTarget()).
+
+            // Pass "from" through to the form (hidden field) and the Cancel
+            // link, so /rename and a click on "Cancel" return to the same
+            // page renaming was started from (see fileManagerReturnTarget()).
+            String from = escapeHtmlText(webserver.arg("from"));
+            String returnTarget = fileManagerReturnTarget(webserver.arg("from"));
+
             String html = beginPage();
             html.reserve(1024);  // Umbenennen-Formular: klein
                                  // rename form: small
             html += "<h2>" + translate("Rename File") + "</h2>";
             html += "<form action='/rename' method='POST'>";
             html += "<input type='hidden' name='old' value='" + oldName + "'>";
+            html += "<input type='hidden' name='from' value='" + from + "'>";
             html += "<label>" + translate("New Name") + ":</label><br>";
             html += "<input name='new' value='" + oldName + "' required><br><br>";
             html += "<button type='submit'>" + translate("Rename") + "</button></form>";
-            html += "<br><a href='/files'><button type='button'>" + translate("Cancel") + "</button></a></body></html>";
+            html += "<br><a href='" + returnTarget + "'><button type='button'>" + translate("Cancel") + "</button></a></body></html>";
             webserver.send(200, "text/html", html);
             });
 
         // Datei umbenennen Aktion
         // Rename file action
         webserver.on("/rename", HTTP_POST, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
+            // oben und die analoge Begruendung bei /delete) - /rename_form
+            // (die reine Formularanzeige) bleibt dagegen frei erreichbar, da
+            // sie fuer sich genommen nichts veraendert.
+
+            // Only allowed from a private network (see isPrivateNetworkIp()
+            // above and the analogous reasoning at /delete) - /rename_form
+            // (the plain form display) stays freely reachable, since it
+            // doesn't change anything by itself.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Rename"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             if (webserver.hasArg("old") && webserver.hasArg("new")) {
                 String oldName = webserver.arg("old");
                 String newName = webserver.arg("new");
@@ -2132,14 +2534,7 @@
                             loadClockFace();
                         }
 
-                        String baseName = newName.startsWith("/") ? newName.substring(1) : newName;
-                        String redirectTarget = "/files";
-                        if (baseName.startsWith("face_") && baseName.endsWith(".bmp")) {
-                            redirectTarget = "/listfilesFaces";
-                        }
-                        else if (baseName.startsWith("hand_set") && baseName.endsWith(".bmp")) {
-                            redirectTarget = "/handsets";
-                        }
+                        String redirectTarget = fileManagerReturnTarget(webserver.arg("from"));
                         redirectTo(redirectTarget + "?msg=File%20renamed");
                     }
                     else {
@@ -2213,18 +2608,16 @@
             // In den Preferences speichern
             // Save to Preferences
 
-            if (webserver.hasArg("pingServer")) {
-                preferences.putString(PK_PING_SERVER, webserver.arg("pingServer"));
-            }
-
             stationMode = preferences.getBool(PK_STATION_MODE, false);
             showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
             smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
+            smoothSecond = preferences.getBool(PK_SMOOTH_SECOND, false);
 
 
             stationMode = webserver.hasArg("stationMode");
             showSecondHand = webserver.hasArg("showSecondHand");
             smoothMinute = webserver.hasArg("smoothMinute");
+            smoothSecond = webserver.hasArg("smoothSecond");
 
 
             useTouch = webserver.hasArg("useTouch");
@@ -2233,10 +2626,37 @@
             if (useTouch) enableTouch();
             else disableTouch();
 
-            // Logging-Einstellung speichern
-            // Save logging setting
+            // Logging-Einstellung speichern - wird sie dabei gerade
+            // ausgeschaltet (vorher an, jetzt aus), alle Logdateien loeschen
+            // und den Rotations-Zaehler zuruecksetzen (deleteAllLogFiles()
+            // erledigt beides, siehe system_utils.h), statt sie ungenutzt
+            // liegen zu lassen, bis Logging irgendwann wieder aktiviert wird.
+
+            // Save the logging setting - if it's being switched off right now
+            // (was on, now off), delete all log files and reset the rotation
+            // counter (deleteAllLogFiles() does both, see system_utils.h),
+            // instead of leaving them sitting around unused until logging
+            // gets re-enabled at some point.
+            bool wasLoggingEnabled = preferences.getBool(PK_LOGGING_ENABLED, false);
             loggingEnabled = webserver.hasArg("loggingEnabled");
             preferences.putBool(PK_LOGGING_ENABLED, loggingEnabled);
+
+            if (wasLoggingEnabled && !loggingEnabled) {
+                deleteAllLogFiles();
+
+                // Gepufferte, noch nicht geschriebene Log-Zeilen verwerfen -
+                // Logging wurde gerade abgeschaltet, ein spaeterer Flush
+                // wuerde sie sonst in eine Datei schreiben, die der Nutzer
+                // eben bewusst geloescht hat.
+
+                // Discard any buffered, not-yet-written log lines - logging
+                // was just switched off, a later flush would otherwise write
+                // them into a file the user just deliberately deleted.
+                if (logBufferMutex != nullptr && xSemaphoreTake(logBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    logLineBuffer = "";
+                    xSemaphoreGive(logBufferMutex);
+                }
+            }
 
             // DCF77-LED nur speichern, wenn die Checkbox ueberhaupt gerendert
             // wurde (Hardware da + dcf77Confirmed) - sonst wuerde jedes Speichern
@@ -2267,6 +2687,20 @@
             if (!rocrailEnabled) {
                 if (rocrailClient.connected()) rocrailClient.stop();
                 rocrailConnected = false;
+
+                // R2RNet-Multicast-Diagnose sofort verlassen statt bis zum
+                // naechsten Reconnect/Neustart weiterlaufen zu lassen (siehe
+                // startR2rnetDebugListener()/pollR2rnetDebugListener() in
+                // rocrail_client.h) - sonst bliebe der Socket nach dem
+                // Deaktivieren unnoetig offen.
+
+                // Leave the R2RNet multicast diagnostic listener immediately
+                // instead of letting it keep running until the next
+                // reconnect/restart (see startR2rnetDebugListener()/
+                // pollR2rnetDebugListener() in rocrail_client.h) - otherwise
+                // the socket would stay needlessly open after disabling.
+                r2rnetDebugUdp.stop();
+                r2rnetDebugListening = false;
             }
             else {
                 // Sofort versuchen statt bis zum naechsten regulaeren
@@ -2277,84 +2711,62 @@
                 // window (see triggerRocrailConnectNow()) - a no-op if e.g.
                 // no server address is configured yet.
                 triggerRocrailConnectNow();
+
+                // R2RNet-Multicast-Diagnose sofort mit starten statt erst
+                // beim naechsten Reconnect/Neustart (siehe
+                // startR2rnetDebugListener() in rocrail_client.h).
+
+                // Also start the R2RNet multicast diagnostic listener right
+                // away instead of only at the next reconnect/restart (see
+                // startR2rnetDebugListener() in rocrail_client.h).
+                startR2rnetDebugListener();
             }
 
             preferences.putBool(PK_STATION_MODE, stationMode);
             preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
             preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
+            preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
 
-            if (webserver.hasArg("rotation")) {
+            // Rotation von Display 1 und 2 (0-3 oder TFT_ROTATION_NA = nicht angeschlossen) -
+            // beide Werte erst validieren, dann gemeinsam uebernehmen. Bewusst
+            // NICHT argToIntClamped() (das einen ungueltigen Wert auf minVal/
+            // maxVal KLEMMT): ein Tippfehler wie "rotation=99" wuerde sonst
+            // still auf TFT_ROTATION_NA geklemmt und angewendet, ein Display
+            // also faelschlich als "nicht angeschlossen" deaktivieren, statt
+            // die vorherige Rotation unveraendert zu lassen - so wie es auch
+            // /api/setMode weiter unten handhabt.
 
-                // Erst validieren, dann tftRotation1 setzen - sonst blieb bei einem
-                // ungueltigen Wert ein falscher Stand bis zum Reboot aktiv.
+            // Rotation of display 1 and 2 (0-3 or TFT_ROTATION_NA = not connected) -
+            // validate both values first, then apply them together. Deliberately
+            // NOT argToIntClamped() (which CLAMPS an invalid value to minVal/
+            // maxVal): a typo like "rotation=99" would otherwise silently clamp
+            // to TFT_ROTATION_NA and get applied, wrongly disabling a display as
+            // "not connected" instead of leaving the previous rotation
+            // unchanged - matching how /api/setMode below handles it too.
+            if (webserver.hasArg("rotation") || webserver.hasArg("rotation2")) {
+                uint8_t newRotation1 = tftRotation1;
+                uint8_t newRotation2 = tftRotation2;
 
-                // Validate first, then set tftRotation1 - otherwise an invalid
-                // value stayed active until the next reboot.
-                long requestedRotation = webserver.arg("rotation").toInt();
-                if (requestedRotation >= 0 && requestedRotation <= 3) {
-                    tftRotation1 = (uint8_t)requestedRotation;
-                    uint8_t previousRotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
-                    preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
-                    // firstRun nur bei tatsaechlicher Aenderung zuruecksetzen, sonst
-                    // startet jedes Speichern die Bahnhofsmodus-Wartephase neu.
-
-                    // Only reset firstRun on an actual change, otherwise every save
-                    // restarts the station-mode wait phase.
-                    if (tftRotation1 != previousRotation) {
-                        firstRun = true;
-                    }
-                    if (!gc9d01SwRotation) {
-                        // Erst auf Display 1 umschalten - tft.setRotation() wirkt nur
-                        // auf den aktuell gewaehlten Chip.
-
-                        // Switch to Display 1 first - tft.setRotation() only affects
-                        // the currently selected chip.
-                        setCS1(LOW);
-                        tft.setRotation(tftRotation1); // sofort anwenden
-                                                      // apply immediately
+                if (webserver.hasArg("rotation")) {
+                    long requestedRotation = webserver.arg("rotation").toInt();
+                    if (requestedRotation >= 0 && requestedRotation <= TFT_ROTATION_NA) {
+                        newRotation1 = (uint8_t)requestedRotation;
                     }
                 }
+                if (webserver.hasArg("rotation2")) {
+                    long requestedRotation2 = webserver.arg("rotation2").toInt();
+                    if (requestedRotation2 >= 0 && requestedRotation2 <= TFT_ROTATION_NA) {
+                        newRotation2 = (uint8_t)requestedRotation2;
+                    }
+                }
+
+                applyDisplayRotation(1, newRotation1);
+                applyDisplayRotation(2, newRotation2);
 
                 freeClockFaceBuffer();
                 loadClockFace();      // neu zeichnen mit neuer Ausrichtung
                                       // redraw with new orientation
                 loadHandSprites();
-            }
-
-            // Rotation von Display 2 (CS2) - eigener, unabhaengiger Wert.
-            // Rotation of Display 2 (CS2) - own, independent value.
-            if (webserver.hasArg("rotation2")) {
-
-                // Erst validieren, dann zuweisen - siehe ausfuehrlichen Kommentar
-                // beim Rotationsblock von Display 1 weiter oben.
-
-                // Validate first, then assign - see the detailed comment on the
-                // Display 1 rotation block further above.
-                long requestedRotation2 = webserver.arg("rotation2").toInt();
-                if (requestedRotation2 >= 0 && requestedRotation2 <= 3) {
-                    tftRotation2 = (uint8_t)requestedRotation2;
-                    uint8_t previousRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
-                    preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
-
-                    // firstRun2 nur bei tatsaechlicher Aenderung setzen (wie Display 1).
-                    // Only set firstRun2 on an actual change (same as Display 1).
-                    if (tftRotation2 != previousRotation2) {
-                        firstRun2 = true;
-                    }
-
-                    if (!gc9d01SwRotation) {
-                        // Hardware-Rotation: MADCTL-Register explizit auf Display 2 setzen.
-                        // Bei Software-Rotation liest renderClockFrame() tftRotation2 direkt.
-
-                        // Hardware rotation: explicitly set the MADCTL register on Display 2.
-                        // With software rotation, renderClockFrame() reads tftRotation2 directly.
-                        setCS2(LOW);
-                        tft.setRotation(tftRotation2); // sofort auf Display 2 anwenden
-                                                       // apply immediately to Display 2
-                        setCS1(LOW); // zurueck auf Display 1, damit loop() im gewohnten Zustand weiterlaeuft
-                                    // back to Display 1, so loop() continues from its usual state
-                    }
-                }
             }
 
 
@@ -2660,11 +3072,9 @@
                     rocrailServerPortList[i] = (uint16_t)argToIntClamped(portArg, ROCRAIL_DEFAULT_PORT, 1, 65535);
                 }
 
-                // Anlagenname: frei editierbar - ein hier geleertes Feld
-                // schaltet die automatische RCP-Uebernahme wieder frei (processRocrailPlanTag() in rocrail_client.h).
+                // Anlagenname: rein manuell, dient nur der eigenen Orientierung.
 
-                // Layout name: freely editable - a field cleared here
-                // re-enables automatic RCP takeover (processRocrailPlanTag() in rocrail_client.h).
+                // Layout name: purely manual, only for the user's own reference.
                 String nameArg = pkRocrailServerName(i);
                 if (webserver.hasArg(nameArg)) {
                     String name = webserver.arg(nameArg);
@@ -2873,12 +3283,12 @@
                 String info = getBmpInfo(name);
                 chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
                 chunk += "<td align=right>" + String(info) + "</td>";
-                chunk += " <td><a href = '/delete?file=" + name + "' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
+                chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
                 // Scale-Option nur für .bmp-Dateien anzeigen
                 // Show the scale option only for .bmp files
                 if (name.endsWith(".bmp")) {
                     chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
-                    chunk += "<a href='/rename_form?file=" + name + "' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
+                    chunk += "<a href='/rename_form?file=" + name + "&from=files' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
                 }
                 else {
                     chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#128208;</span> ";
@@ -2914,6 +3324,37 @@
                 String path = webserver.arg("file");
                 if (!path.startsWith("/")) path = "/" + path;
 
+                // Auf den Stand nach einem evtl. eingebetteten Nullbyte
+                // kappen: String::endsWith() prueft die LOGISCHE Laenge des
+                // Arduino-String (kann ein Nullbyte enthalten), waehrend
+                // LittleFS.exists()/open() intern ueber .c_str() (also
+                // nullterminiert) zugreifen. Ohne diese Normalisierung
+                // koennte ".../log_1.log\0.bmp" die Endungspruefung als
+                // ".bmp" bestehen, aber tatsaechlich die Logdatei oeffnen.
+
+                // Truncate at any embedded null byte: String::endsWith()
+                // checks the Arduino String's LOGICAL length (which can
+                // contain a null byte), while LittleFS.exists()/open()
+                // internally go through .c_str() (i.e. null-terminated).
+                // Without this normalization, ".../log_1.log\0.bmp" could
+                // pass the extension check as ".bmp" while actually opening
+                // the log file.
+                path = String(path.c_str());
+
+                // Logdateien nur aus einem privaten Netz herunterladbar (siehe
+                // isPrivateNetworkIp() oben und /api/currentLog) - koennen
+                // IP-Adressen, SSIDs u.ae. enthalten. Andere Dateitypen (BMPs
+                // usw.) bleiben unveraendert von ueberall herunterladbar.
+
+                // Log files only downloadable from a private network (see
+                // isPrivateNetworkIp() above and /api/currentLog) - can
+                // contain IP addresses, SSIDs, etc. Other file types (BMPs
+                // etc.) remain downloadable from anywhere, unchanged.
+                if (path.endsWith(".log") && !isPrivateNetworkIp(webserver.client().remoteIP())) {
+                    webserver.send(200, "text/plain", "This action is only available when accessing the clock from a private network.");
+                    return;
+                }
+
                 if (LittleFS.exists(path)) {
                     // RLE-komprimierte face_*.bmp vor dem Download zu Standard-BMP dekodieren.
                     // Decode an RLE-compressed face_*.bmp to a standard BMP before download.
@@ -2939,7 +3380,7 @@
 
                         // Streaming failed - headers may already be sent, a clean
                         // 500 status is no longer possible.
-                        DEBUG_PRINTLN("[DOWNLOAD] RLE streaming failed for " + path);
+                        DEBUG_PRINTLN("[DOWNLOAD] RLE streaming failed for " + path + " (from " + webserver.client().remoteIP().toString() + ")");
                         return;
                     }
 
@@ -2971,6 +3412,28 @@
         // System status page
         webserver.on("/status", HTTP_GET, []() {
 
+            // Nur bei Zugriff aus einem privaten Netz anzeigen (siehe
+            // isPrivateNetworkIp() weiter oben) - zeigt u.a. WLAN-Modus,
+            // Reset-Grund, Speicherbelegung und Rocrail-Serveradresse, was
+            // von aussen nicht einsehbar sein soll. Frueher Ausstieg hier
+            // moeglich (anders als beim Status-TAB auf "/"), da diese Seite
+            // fuer sich alleine steht statt in eine groessere Seite eingebettet zu sein.
+
+            // Only shown on access from a private network (see
+            // isPrivateNetworkIp() further above) - shows things like WiFi
+            // mode, reset reason, storage usage and the Rocrail server
+            // address, which shouldn't be visible from the outside. An
+            // early exit is possible here (unlike the Status TAB on "/"),
+            // since this page stands on its own instead of being embedded in a larger page.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                String html = beginPage();
+                html += "<h2>" + translate("System Status") + "</h2>";
+                html += "<p>" + translate("Status information is only shown when accessing the clock from a private network") + ".</p>";
+                html += "</body></html>";
+                webserver.send(200, "text/html", html);
+                return;
+            }
+
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
@@ -2988,10 +3451,21 @@
 
             tzDesc = tzLabel;
 
-           // struct tm timeinfo;
-            if (getLocalTime(&timeinfo, 100)) {
+            // Lokale Kopie statt der globalen timeinfo: die wird auch vom
+            // Haupt-Loop (updateClock()/updateBrightness(), siehe display.h)
+            // gelesen/geschrieben - ein Zugriff hier (Webserver-Kontext)
+            // sollte sie bei einem Fehlschlag nicht mit einer ungueltigen
+            // Zwischenzeit ueberschreiben (siehe Kommentar bei updateClock()).
+
+            // Local copy instead of the global timeinfo: that one is also
+            // read/written by the main loop (updateClock()/
+            // updateBrightness(), see display.h) - a read here (web server
+            // context) shouldn't overwrite it with an invalid intermediate
+            // time on failure (see the comment at updateClock()).
+            struct tm statusTimeinfo;
+            if (getLocalTime(&statusTimeinfo, 100)) {
                 char nowStr[32];
-                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &statusTimeinfo);
                 chunk += "<li>Current Time: " + String(nowStr) + "</li>";
                 chunk += "<li>Timezone: " + tzDesc + "</li>";
                 chunk += "<li>Current week: " + String(currentWeek) + "</li>";
@@ -3218,7 +3692,6 @@
                 }
             }
        
-            chunk += "<li><b>pingServer:port</b>: " + preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER) + "</li>";
 
             chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
@@ -3233,12 +3706,11 @@
             chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
-            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
-            const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-            chunk += "<li><b>tftRotation1</b>: " + String(rotationLabels[rotation]) + "</li>";
+            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
+            chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + "</li>";
             {
-                uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
-                chunk += "<li><b>tftRotation2</b>: " + String(rotationLabels[rotation2]) + "</li>";
+                uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
+                chunk += "<li><b>tftRotation2</b>: " + rotationLabelHtml(rotation2) + "</li>";
             }
 
             // Rotationsmodus zeigt, WIE die Werte angewendet werden: beim GC9D01
@@ -3266,7 +3738,9 @@
             // Booleans als Text
             // Booleans as text
         
-            chunk += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
+            bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
+            chunk += "<li><b>stationMode</b>: " + String(stationModeStatus ? "true" : "false") + "</li>";
+            chunk += "<li><b>smoothSecond</b>: " + String(getSmoothSecondPref(stationModeStatus) ? "true" : "false") + "</li>";
             chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
             chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
 
@@ -3295,7 +3769,7 @@
             }
             chunk += "</ul>";
             chunk += "</br>";
-            chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
+            chunk += "<li>Contact: <a href='mailto:howl@gmx.de'>howl@gmx.de</a></li>";
 
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
 
@@ -3352,6 +3826,22 @@
             webserver.send(200, "image/svg+xml", svg);
             });
 
+        // Weist brave Crawler (Google, Bing usw.) an, die Weboberflaeche
+        // nicht zu indexieren - kein Zugriffsschutz (Portscanner ignorieren
+        // das ohnehin), aber verhindert, dass die Uhr bei versehentlicher
+        // oeffentlicher Erreichbarkeit (siehe isPrivateNetworkIp()) in
+        // Suchergebnissen auftaucht. Lange Cache-Zeit, da es sich nie aendert.
+
+        // Tells well-behaved crawlers (Google, Bing, etc.) not to index the
+        // web interface - not an access control (port scanners ignore this
+        // anyway), but prevents the clock from showing up in search results
+        // if it's ever reachable publicly by accident (see
+        // isPrivateNetworkIp()). Long cache lifetime, since it never changes.
+        webserver.on("/robots.txt", HTTP_GET, []() {
+            webserver.sendHeader("Cache-Control", "public, max-age=86400");
+            webserver.send(200, "text/plain", "User-agent: *\nDisallow: /\n");
+            });
+
         webserver.on("/api/currentTime", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
 
@@ -3391,6 +3881,34 @@
         // generateTopBar() - toggled live via setPresent()/setValue().
         webserver.on("/api/topbarStatus", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
+
+            // Nur aus einem privaten Netz mit echten Werten beantworten (siehe
+            // isPrivateNetworkIp() oben) - dieses Polling laeuft auf JEDER
+            // Seite (siehe generateHtmlHeader(), alle 5s), nicht nur auf dem
+            // Status-Tab, und wuerde sonst dessen Sperre umgehen: Zeit-/RTC-/
+            // DCF77-Sync-Status und Rocrail-Verbindungsstatus blieben live von
+            // aussen einsehbar, obwohl der Status-Tab selbst blockiert ist.
+            // Vollstaendiges, aber neutrales JSON zurueckgeben (nicht nur ein
+            // leeres Objekt) - das Poll-Skript erwartet alle Felder und wuerde
+            // sonst "undefined" anzeigen oder Eintraege in falschem Zustand lassen.
+
+            // Only answer with real values from a private network (see
+            // isPrivateNetworkIp() above) - this polling runs on EVERY page
+            // (see generateHtmlHeader(), every 5s), not just the Status tab,
+            // and would otherwise bypass its block: time/RTC/DCF77 sync
+            // status and the Rocrail connection status would stay visible
+            // live from the outside even though the Status tab itself is
+            // blocked. Return complete but neutral JSON (not just an empty
+            // object) - the polling script expects every field and would
+            // otherwise show "undefined" or leave entries in the wrong state.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "application/json",
+                    "{\"time\":\"na\",\"rtc\":\"na\",\"rtcPresent\":false,\"dcf77\":\"na\",\"dcf77Present\":false,"
+                    "\"rocrailEnabled\":false,\"rocrailConnected\":false,\"rocrailTitle\":\"\",\"lightValue\":\"\","
+                    "\"datetime\":\"\",\"timeTitle\":\"\",\"rtcTitle\":\"\",\"dcf77Title\":\"\",\"version\":\"\"}");
+                return;
+            }
+
             String timeState = getTimeStatus();
             String rtcState = "na";
             String dcfState = "na";
@@ -3530,6 +4048,17 @@
         // text - for the auto-refresh polling in the Log tab. Resolves the
         // file number freshly on EVERY call, so after a rotation (>10 KB) the new file is served.
         webserver.on("/api/currentLog", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
+            // oben) - Logeintraege koennen IP-Adressen, SSIDs u.ae. enthalten.
+
+            // Only allowed from a private network (see isPrivateNetworkIp()
+            // above) - log entries can contain IP addresses, SSIDs, etc.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/plain; charset=utf-8", translate("This action is only available when accessing the clock from a private network") + ".");
+                return;
+            }
+
             webserver.sendHeader("Cache-Control", "no-store");
             if (!loggingEnabled) {
                 webserver.sendHeader("X-Log-File", "-");
@@ -3537,6 +4066,20 @@
                 return;
             }
             String logFileName = getCurrentLogFileName();
+
+            // Optionaler "file"-Parameter fuers Dropdown (siehe panel-log) -
+            // nur ein Name aus dem bekannten log_1..9.log-Namensraum wird
+            // akzeptiert, alles andere faellt auf die aktive Datei zurueck.
+
+            // Optional "file" parameter for the dropdown (see panel-log) -
+            // only a name from the known log_1..9.log namespace is
+            // accepted, anything else falls back to the active file.
+            if (webserver.hasArg("file")) {
+                String requested = webserver.arg("file");
+                for (int i = 1; i <= 9; i++) {
+                    if (requested == ("/log_" + String(i) + ".log")) { logFileName = requested; break; }
+                }
+            }
             // X-Log-File: Custom-Header, damit JS #logFileName aktualisieren
             // kann, auch wenn sich die Datei durch Rotation geaendert hat.
 
@@ -3554,6 +4097,42 @@
             }
             webserver.streamFile(logFile, "text/plain; charset=utf-8");
             logFile.close();
+            });
+
+        // Liefert alle existierenden Logdateien (log_1.log..log_9.log) als
+        // JSON-Array, absteigend sortiert - die aktive (hoechste Nummer)
+        // steht so immer zuerst und wird im Dropdown vorausgewaehlt.
+
+        // Returns all existing log files (log_1.log..log_9.log) as a JSON
+        // array, sorted descending - the active one (highest number)
+        // always comes first and is preselected in the dropdown.
+        webserver.on("/api/logFileList", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt - siehe Begruendung bei
+            // /api/currentLog weiter oben. Leeres Array statt Fehlerseite,
+            // damit das Dropdown im Log-Tab einfach leer bleibt.
+
+            // Only allowed from a private network - see the reasoning at
+            // /api/currentLog further above. Empty array instead of an
+            // error page, so the dropdown in the Log tab simply stays empty.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "application/json", "[]");
+                return;
+            }
+
+            webserver.sendHeader("Cache-Control", "no-store");
+            String json = "[";
+            bool first = true;
+            for (int i = 9; i >= 1; i--) {
+                String name = "/log_" + String(i) + ".log";
+                if (LittleFS.exists(name)) {
+                    if (!first) json += ",";
+                    json += "\"" + name + "\"";
+                    first = false;
+                }
+            }
+            json += "]";
+            webserver.send(200, "application/json", json);
             });
 
         // Zeigt die Live-Zeiger-Uhr als eigene Seite. Server-seitig wird bei
@@ -3641,6 +4220,12 @@
             // display claimed a different state than what was actually applied.
             bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
+            // Fallback bewusst stationModeActive statt eines festen Literals -
+            // siehe Kommentar bei der smoothSecond-Ladezeile in uhr3.ino.
+            // Fallback deliberately stationModeActive instead of a fixed
+            // literal - see the comment at the smoothSecond load line in uhr3.ino.
+            bool smoothSecondActive = getSmoothSecondPref(stationModeActive);
+
             float scaleFactor = (float)previewSize / CLOCK_WIDTH;
             int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
             int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
@@ -3690,7 +4275,7 @@
             if (showSecond) {
                 chunk += "<img id='liveSecondHandFull' src='data:image/png;base64," + secondB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
             }
-            chunk += "<div style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
+            chunk += "<div id='liveHubFull' style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
             chunk += "</div>"; // Ende Zifferblatt-Kreis
                                // end clock-face circle
             chunk += "</div>"; // Ende previewInner
@@ -3731,10 +4316,13 @@
             chunk += "  var hourEl = document.getElementById('liveHourHandFull');";
             chunk += "  var minuteEl = document.getElementById('liveMinuteHandFull');";
             chunk += "  var secondEl = document.getElementById('liveSecondHandFull');";
+            chunk += "  var hubEl = document.getElementById('liveHubFull');";
             chunk += "  var hintEl = document.getElementById('rocrailPreviewHint');";
             chunk += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
             chunk += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
+            chunk += "  var smoothSecond = " + String(smoothSecondActive ? "true" : "false") + ";";
             chunk += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";";
+            chunk += "  var rocrailHideDetailsDivider = " + String(ROCRAIL_HIDE_DETAILS_DIVIDER) + ";";
             chunk += "  var rocrailHintTpl = '" + translate("Showing Rocrail model time ({divider}&times; speed)") + "';";
             chunk += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
             chunk += "  var rocrailDivider = 1, rocrailFrozen = false;";
@@ -3756,6 +4344,7 @@
             // preview switches live as soon as connection/divider/frozen
             // state change on the device, without reloading the page.
             chunk += "  function applyCurrentTime() {";
+            chunk += "    var fetchStart = performance.now();";
             chunk += "    fetch('/api/currentTime', {cache:'no-store'}).then(function(r) { return r.json(); }).then(function(t) {";
 
             // Zifferblatt/Zeigersatz/Nabe/Sekundenzeiger haben sich seit dem
@@ -3766,7 +4355,26 @@
             // page loaded (e.g. elsewhere) - reload so the preview shows an
             // up to date copy of the display again.
             chunk += "      if (t.previewSig !== lastPreviewSig) { location.reload(); return; }";
-            chunk += "      baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = performance.now(); haveBase = true;";
+
+            // Bugfix: baseAt = performance.now() HIER (nachdem die Antwort
+            // schon angekommen und verarbeitet ist) ignorierte die Round-
+            // Trip-Zeit des Requests komplett - t.second galt dann faelschlich
+            // erst ab diesem spaeteren Zeitpunkt, wodurch die Vorschau um
+            // genau diese Zeit (Netzwerk + Serververarbeitung) hinter dem
+            // Display nachhinkte. Fix wie bei NTP: der Zeitpunkt, auf den sich
+            // t.second bezieht, liegt am ehesten in der MITTE des Requests -
+            // bei symmetrischer Latenz gleicht das Hin- und Rueckweg aus.
+
+            // Bugfix: baseAt = performance.now() HERE (after the response had
+            // already arrived and been processed) completely ignored the
+            // request's round-trip time - t.second was then wrongly treated
+            // as only valid from this later point on, making the preview lag
+            // behind the display by exactly that time (network + server
+            // processing). Fixed like NTP does: the moment t.second actually
+            // refers to sits roughly at the MIDPOINT of the request - with
+            // symmetric latency that balances out the outbound and return leg.
+            chunk += "      var roundTrip = performance.now() - fetchStart;";
+            chunk += "      baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = fetchStart + roundTrip / 2; haveBase = true;";
             // rocrailDivider/-Frozen: siehe /api/currentTime - dieselbe
             // rocrailTimeReady-Bedingung wie in renderClockFrame() (display.h).
             // Ohne aktive Rocrail-Zeit bleibt divider=1, frozen=false.
@@ -3818,6 +4426,16 @@
             chunk += "    var minuteDeg = (smoothMinute && !stationMode) ? (m + s / 60) * 6 : m * 6;";
             chunk += "    var hourDeg = (h + minuteDeg / 360) * 30;";
             chunk += "    var secDeg;";
+
+            // Wie renderClockFrame() (display.h) seit der Entkopplung:
+            // stationMode ("wartet auf 12") und smoothSecond (schwingend/
+            // tickend) sind zwei unabhaengige Achsen - siehe dort fuer die
+            // ausfuehrliche Begruendung jedes Zweigs.
+
+            // As in renderClockFrame() (display.h) since the decoupling:
+            // stationMode ("waits at 12") and smoothSecond (smooth/ticking)
+            // are two independent axes - see there for the detailed
+            // reasoning behind each branch.
             chunk += "    if (stationMode) {";
             chunk += "      var elapsedMs = (s + ms / 1000) * 1000;";
             // Bugfix: fastSecondMs wurde hier zusaetzlich durch rocrailDivider
@@ -3830,20 +4448,43 @@
             chunk += "      if (rocrailDivider > 1) {";
             chunk += "        var smoothPos = elapsedMs / fastSecondMs;";
             chunk += "        if (smoothPos > 60) smoothPos = 60;";
+            chunk += "        if (!smoothSecond) smoothPos = Math.floor(smoothPos);";
             chunk += "        secDeg = smoothPos * 6;";
             chunk += "      } else {";
             chunk += "        var tickIndex = Math.floor(elapsedMs / fastSecondMs);";
             chunk += "        var subTick = (elapsedMs % fastSecondMs) / fastSecondMs;";
-            chunk += "        var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
-            chunk += "        var smoothSec = Math.min(tickIndex + eased, 60);";
+            chunk += "        var smoothSec;";
+            chunk += "        if (smoothSecond) {";
+            chunk += "          var eased = -(Math.cos(Math.PI * Math.pow(subTick, 0.5)) - 1) / 2;";
+            chunk += "          smoothSec = Math.min(tickIndex + eased, 60);";
+            chunk += "        } else {";
+            chunk += "          smoothSec = Math.min(tickIndex, 60);";
+            chunk += "        }";
             chunk += "        secDeg = smoothSec * 6;";
             chunk += "      }";
             chunk += "    } else {";
-            chunk += "      secDeg = s * 6;";
+            chunk += "      secDeg = smoothSecond ? (s + ms / 1000) * 6 : s * 6;";
             chunk += "    }";
             chunk += "    hourEl.style.transform = 'rotate(' + hourDeg + 'deg)';";
             chunk += "    minuteEl.style.transform = 'rotate(' + minuteDeg + 'deg)';";
-            chunk += "    if (secondEl) secondEl.style.transform = 'rotate(' + secDeg + 'deg)';";
+
+            // Wie renderClockFrame() (display.h): zwei unabhaengige Ausblend-
+            // Regeln. hideDetails (Divider ueber Schwelle) betrifft Sekunden-
+            // zeiger UND Nabe; hideSecondTicking (Divider>1 + tickend) betrifft
+            // NUR den Sekundenzeiger, die Nabe bleibt davon unberuehrt.
+
+            // As in renderClockFrame() (display.h): two independent hiding
+            // rules. hideDetails (divider above threshold) affects the second
+            // hand AND the hub; hideSecondTicking (divider>1 + ticking style)
+            // affects ONLY the second hand, the hub is unaffected by it.
+            chunk += "    var hideDetails = rocrailDivider >= rocrailHideDetailsDivider;";
+            chunk += "    var hideSecondTicking = rocrailDivider > 1 && !smoothSecond;";
+            chunk += "    var hideSecond = hideDetails || hideSecondTicking;";
+            chunk += "    if (secondEl) {";
+            chunk += "      secondEl.style.display = hideSecond ? 'none' : '';";
+            chunk += "      if (!hideSecond) secondEl.style.transform = 'rotate(' + secDeg + 'deg)';";
+            chunk += "    }";
+            chunk += "    if (hubEl) hubEl.style.display = hideDetails ? 'none' : '';";
             chunk += "    requestAnimationFrame(tick);";
             chunk += "  }";
             chunk += "  requestAnimationFrame(tick);";
@@ -4043,90 +4684,6 @@
             webserver.sendContent("");
             });
 
-        // Info-Seite: Text aus readme_text.h (flash-resident), in Bloecken
-        // direkt aus dem Flash gesendet statt in einen String kopiert.
-
-        // Info page: text from readme_text.h (flash-resident), sent in
-        // blocks straight from flash instead of copied into a String.
-        webserver.on("/info", HTTP_GET, []() {
-            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
-            webserver.send(200, "text/html", "");
-
-            String chunk = beginPage();
-
-            // Sprachselektor bleibt auch auf der Info-Seite stehen, genau wie
-            // auf den anderen Tabs (Startseite, siehe dort) - sonst waere die
-            // Sprache dort nicht umschaltbar, ohne erst zurueck zu navigieren.
-
-            // The language selector stays visible on the Info page too, just
-            // like on the other tabs (start page, see there) - otherwise the
-            // language couldn't be switched there without navigating back first.
-            chunk += generateLanguageSelector();
-
-            // Tab-Leiste der Einstellungen bleibt auch hier stehen (als Links
-            // zurueck auf "/?tab=<key>", Info als aktiver Eintrag), damit sie
-            // an derselben Stelle bleibt wie bei jedem anderen Tab.
-
-            // The settings tab bar stays visible here too (as links back to
-            // "/?tab=<key>", with Info as the active entry), so it stays in
-            // the same place as for every other tab.
-            chunk += generateSettingsTabNav(true);
-
-            // Anordnung wie im Log-Tab: schmale Kopfkarte mit den Eckdaten,
-            // darunter ein eigenes, scrollbares Textfenster - vorher wuchs die
-            // Karte ueber die ganze Seite, sodass Topbar/Navigation mitscrollten.
-
-            // Same layout as the Log tab: a slim header card with the key
-            // facts, and a separate scrollable text window below it - before,
-            // the card grew over the full page, scrolling the topbar/nav along.
-            chunk += "<div class='card' style='max-width:900px;'>";
-            chunk += "<p style='color:var(--muted);font-size:.8rem;margin:0;'>" + translate("Version") + ": " + String(version) +
-                     " &nbsp;&middot;&nbsp; <a href='" + String(GITHUB_REPO_URL) + "' target='_blank' rel='noopener'>" +
-                     String(GITHUB_REPO_NAME) + "</a></p>";
-            chunk += "</div>";
-
-            // Hoehe wie das Log-Fenster (INFO_LOG_WINDOW_HEIGHT_CSS in
-            // config.h) - beide Fenster bleiben so gleich hoch.
-
-            // Height as for the log window (INFO_LOG_WINDOW_HEIGHT_CSS in
-            // config.h) - this keeps both windows the same size.
-            chunk += "<div class='card' id='infoContent' style='max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;'>";
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            const char* doc = readmeHtmlForCurrentLanguage();
-            size_t docLen = strlen(doc);
-            for (size_t offset = 0; offset < docLen; offset += 1024) {
-                size_t blockLen = (docLen - offset > 1024) ? 1024 : (docLen - offset);
-                webserver.sendContent(doc + offset, blockLen);
-            }
-
-            chunk = "</div>";
-
-            // Alle Adressen aus zentralen Makros in config.h. rel='noopener',
-            // sonst haengt target='_blank' window.opener an die Uhr.
-
-            // All addresses from central macros in config.h. rel='noopener',
-            // otherwise target='_blank' hands window.opener to the clock.
-            chunk += "<h2>" + translate("Project and Contact") + "</h2>";
-            chunk += "<div class='card' style='max-width:900px;'><ul>";
-            chunk += "<li>" + translate("Project repository") + ": <a href='" + String(GITHUB_REPO_URL) +
-                     "' target='_blank' rel='noopener'>" + String(GITHUB_REPO_URL) + "</a></li>";
-            chunk += "<li>" + translate("Clock faces and hand sets") + ": <a href='" + String(GITHUB_GRAPHIC_URL) +
-                     "' target='_blank' rel='noopener'>" + String(GITHUB_GRAPHIC_URL) + "</a></li>";
-            chunk += "<li>" + translate("Circuit diagram / PCB") + ": <a href='" + String(GITHUB_PCB_URL) +
-                     "' target='_blank' rel='noopener'>ESP32-S2 GC9A01</a></li>";
-            chunk += "<li>" + translate("More projects by the author") + ": <a href='" + String(GITHUB_AUTHOR_URL) +
-                     "' target='_blank' rel='noopener'>github.com/" + String(GITHUB_REPO_OWNER) + "</a></li>";
-            chunk += "<li>" + translate("Contact") + ": <a href='mailto:" + String(PROJECT_CONTACT_MAIL) + "'>" +
-                     String(PROJECT_CONTACT_MAIL) + "</a></li>";
-            chunk += "</ul></div>";
-
-            webserver.sendContent(chunk);
-            webserver.sendContent("</body></html>");
-            webserver.sendContent("");
-            });
-
         webserver.on("/currentfacebg", HTTP_GET, []() {
             if (!clockFaceBuffer) {
                 webserver.send(500, "text/plain", "Face not loaded");
@@ -4229,7 +4786,7 @@
             // panic reset instead of a clean error response.
             uint8_t* bmpData = new (std::nothrow) uint8_t[fileSize];
             if (!bmpData) {
-                DEBUG_PRINTLN("[Preview] Error: couldnt allocate preview buffer for /preview_defaultface");
+                DEBUG_PRINTLN("[Preview] Error: couldnt allocate preview buffer for /preview_defaultface (from " + webserver.client().remoteIP().toString() + ")");
                 webserver.send(500, "text/plain", "Out of memory");
                 return;
             }
@@ -4314,8 +4871,17 @@
             // Eingebautes Standard-Zifferblatt hinzufuegen
             // Add built-in default face
             chunk += "<div style='text-align:center;width:100px;'>";
-            chunk += "<a href='http://" + ipAddress + "/setbackground?file=face_default.bmp'>";
-            chunk += "<img src='http://" + ipAddress + "/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+            // Relativer Pfad statt "http://" + ipAddress: In-Page-Links
+            // sollen sich immer gegen die aktuell aufgerufene Adresse
+            // aufloesen (siehe ausfuehrliche Begruendung bei displayUrl auf
+            // der Presets-Seite), nicht fest auf die lokale IP.
+
+            // Relative path instead of "http://" + ipAddress: in-page links
+            // should always resolve against the currently used address (see
+            // the detailed reasoning at displayUrl on the presets page), not
+            // hardcoded to the local IP.
+            chunk += "<a href='/setbackground?file=face_default.bmp'>";
+            chunk += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
             chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (" + translate("active") + ")" : "");
             chunk += "</div>";
 
@@ -4359,11 +4925,11 @@
                 String safeName = escapeHtmlText(name);
                 String safeShortName = escapeHtmlText(shortName);
                 chunk += "<div style='text-align:center;width:100px;'>";
-                chunk += "<a href='http://" + ipAddress + "/setbackground?file=" + safeShortName + "'>";
+                chunk += "<a href='/setbackground?file=" + safeShortName + "'>";
                 chunk += "<img src='/facepreview?file=" + safeName + "' style='width:80px;height:80px;border:1px solid #ccc'>";
                 chunk += "</a><br>" + escapeHtmlText(displayName) + String(isActive ? " (" + translate("active") + ")" : "");
-                chunk += "<br><a href='/rename_form?file=" + safeName + "'>" + translate("Rename") + "</a> ";
-                chunk += "<a href='/delete?file=" + safeName + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
+                chunk += "<br><a href='/rename_form?file=" + safeName + "&from=listfilesFaces'>" + translate("Rename") + "</a> ";
+                chunk += "<a href='/delete?file=" + safeName + "&from=listfilesFaces' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
 
                 // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
@@ -4505,6 +5071,13 @@
             // delay() needed since building the page itself takes long enough.
             setLedOn();
 
+            // Einmal pro Aufruf ermitteln, ob der Status-Tab weiter unten
+            // angezeigt werden darf (siehe isPrivateNetworkIp() oben).
+
+            // Determined once per call whether the Status tab further below
+            // may be shown (see isPrivateNetworkIp() above).
+            bool statusAccessAllowed = isPrivateNetworkIp(webserver.client().remoteIP());
+
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
             webserver.send(200, "text/html", "");
 
@@ -4544,7 +5117,7 @@
                          "' class='tabctrl'" + (i == 0 ? " checked" : "") + ">";
             }
 
-            chunk += generateSettingsTabNav(false);
+            chunk += generateSettingsTabNav();
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -4565,15 +5138,40 @@
             // INFO_LOG_WINDOW_HEIGHT_CSS, same 900px width) - before, this
             // card grew over the full page instead of just the content.
             chunk += "<div class='card' id='statusContent' style='max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;'>";
+
+            // Bei Zugriff von ausserhalb eines privaten Netzes (siehe
+            // isPrivateNetworkIp() oben) bleibt der Inhalt verborgen - zeigt
+            // sonst u.a. WLAN-Modus, Reset-Grund, Speicherbelegung und
+            // Rocrail-Serveradresse, was von aussen nicht einsehbar sein soll.
+
+            // On access from outside a private network (see
+            // isPrivateNetworkIp() above) the content stays hidden -
+            // otherwise shows things like WiFi mode, reset reason, storage
+            // usage and the Rocrail server address, which shouldn't be
+            // visible from the outside.
+            if (!statusAccessAllowed) {
+                chunk += "<p>" + translate("Status information is only shown when accessing the clock from a private network") + ".</p>";
+                chunk += "</div>"; // Ende .card
+                                   // end .card
+                chunk += "</div>"; // Ende panel-status
+                                   // end panel-status
+            }
+            else {
             chunk += "<ul>";
             chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
 
             String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
             String tzDesc = tzLabel;
 
-            if (getLocalTime(&timeinfo, 100)) {
+            // Lokale Kopie statt der globalen timeinfo - siehe Begruendung
+            // an der ersten Statusseiten-Stelle weiter oben.
+
+            // Local copy instead of the global timeinfo - see the reasoning
+            // at the first status-page spot further above.
+            struct tm statusTimeinfo;
+            if (getLocalTime(&statusTimeinfo, 100)) {
                 char nowStr[32];
-                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &statusTimeinfo);
                 chunk += "<li>Current Time: " + String(nowStr) + "</li>";
                 chunk += "<li>Timezone: " + tzDesc + "</li>";
                 chunk += "<li>Current week: " + String(currentWeek) + "</li>";
@@ -4774,7 +5372,6 @@
                 }
             }
 
-            chunk += "<li><b>pingServer:port</b>: " + preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER) + "</li>";
 
             chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
@@ -4784,12 +5381,11 @@
             chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
-            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, 0);
-            const char* statusRotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-            chunk += "<li><b>tftRotation1</b>: " + String(statusRotationLabels[rotation]) + "</li>";
+            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
+            chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + "</li>";
             {
-                uint8_t rotation2Panel = preferences.getUChar(PK_TFT_ROTATION2, 0);
-                chunk += "<li><b>tftRotation2</b>: " + String(statusRotationLabels[rotation2Panel]) + "</li>";
+                uint8_t rotation2Panel = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
+                chunk += "<li><b>tftRotation2</b>: " + rotationLabelHtml(rotation2Panel) + "</li>";
             }
             chunk += "<li><b>rotation mode</b>: ";
             if (gc9d01SwRotation) {
@@ -4809,7 +5405,9 @@
             // Booleans als Text
             // Booleans as text
 
-            chunk += "<li><b>stationMode</b>: " + String(preferences.getBool(PK_STATION_MODE, true) ? "true" : "false") + "</li>";
+            bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
+            chunk += "<li><b>stationMode</b>: " + String(stationModeStatus ? "true" : "false") + "</li>";
+            chunk += "<li><b>smoothSecond</b>: " + String(getSmoothSecondPref(stationModeStatus) ? "true" : "false") + "</li>";
             chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
             chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
 
@@ -4838,13 +5436,15 @@
             }
             chunk += "</ul>";
             chunk += "</br>";
-            chunk += "<li>Contact: <a href='mailto:holger.wagenlehner@gmx.de'>holger.wagenlehner@gmx.de</a></li>";
+            chunk += "<li>Contact: <a href='mailto:howl@gmx.de'>howl@gmx.de</a></li>";
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
             chunk += "</ul>";
             chunk += "</div>"; // Ende .card
                                // end .card
             chunk += "</div>"; // Ende panel-status
                                // end panel-status
+            } // Ende else (statusAccessAllowed)
+              // end else (statusAccessAllowed)
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -4857,6 +5457,20 @@
             // togglable 10s auto-refresh and a manual button via
             // /api/currentLog. Content is lazy-loaded via JS, not server-rendered.
             chunk += "<div class='tabpanel panel-log'>";
+
+            // Nur aus einem privaten Netz sichtbar (siehe isPrivateNetworkIp()
+            // oben, gleiches Muster wie beim Status-Tab) - Logeintraege
+            // koennen IP-Adressen, SSIDs u.ae. enthalten, die von aussen
+            // nicht einsehbar sein sollen.
+
+            // Only visible from a private network (see isPrivateNetworkIp()
+            // above, same pattern as the Status tab) - log entries can
+            // contain IP addresses, SSIDs, etc. that shouldn't be visible
+            // from the outside.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                chunk += "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>";
+            }
+            else {
 
             // Nur ein Preferences-Zugriff, kein Datei-Lesevorgang - unproblematisch
             // bei jedem Seitenaufruf. JS-Refresh haelt #logFileName aktuell.
@@ -4879,7 +5493,7 @@
             String disabledAttr = loggingEnabled ? "" : " disabled";
 
             chunk += "<div class='card' style='max-width:900px;'>";
-            chunk += "<div style='margin-bottom:8px;'>" + translate("Log file") + ": <code id='logFileName'>" + escapeHtmlText(currentLogFileName) + "</code></div>";
+            chunk += "<div style='margin-bottom:8px;'>" + translate("Log file") + ": <select id='logFileSelect' style='width:auto;display:inline-block;margin:0;padding:4px 8px;'" + disabledAttr + "><option>" + escapeHtmlText(currentLogFileName) + "</option></select></div>";
             chunk += "<div style='display:flex;align-items:center;gap:14px;flex-wrap:wrap;'>";
             chunk += "<label style='display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;'>";
             chunk += "<input type='checkbox' id='logAutoRefresh' style='width:auto;margin:0;'" + disabledAttr + ">";
@@ -4904,18 +5518,16 @@
             chunk += loggingEnabled ? translate("Loading&hellip;") : translate("Logging is disabled.");
             chunk += "</pre>";
 
-            // Auto-Refresh: Checkbox-Status in localStorage, pollt alle 10s
-            // per fetch() (Lazy-Load, da CSS-only-Tabs immer mitrendern).
-            // Scrollt bei jedem Refresh ans Ende (tail -f).
+            // Auto-Refresh: Checkbox-Status in localStorage, pollt alle 10s.
+            // Dateiliste kommt per JS von /api/logFileList, neueste zuerst.
 
-            // Auto-refresh: checkbox state in localStorage, polls
-            // via fetch() every 10s (lazy load, since CSS-only tabs always
-            // render). Scrolls to bottom on every refresh (tail -f).
+            // Auto-refresh: checkbox state in localStorage, polls every 10s.
+            // File list arrives via JS from /api/logFileList, newest first.
             chunk += "<script>";
             chunk += "(function() {";
             chunk += "  var cb = document.getElementById('logAutoRefresh');";
             chunk += "  var pre = document.getElementById('logContent');";
-            chunk += "  var fnEl = document.getElementById('logFileName');";
+            chunk += "  var select = document.getElementById('logFileSelect');";
             chunk += "  var errEl = document.getElementById('logErrorHint');";
             chunk += "  var refreshBtn = document.getElementById('logRefreshNow');";
             chunk += "  var timer = null;";
@@ -4924,10 +5536,8 @@
             chunk += "  cb.checked = (stored === null) ? false : (stored === '1');";
             chunk += "  function scrollToBottom() { pre.scrollTop = pre.scrollHeight; }";
             chunk += "  function refreshLog() {";
-            chunk += "    if (!loggingEnabled) return;";
-            chunk += "    fetch('/api/currentLog', {cache:'no-store'}).then(function(r){";
-            chunk += "      var fname = r.headers.get('X-Log-File');";
-            chunk += "      if (fname !== null) fnEl.textContent = fname;";
+            chunk += "    if (!loggingEnabled || !select.value) return;";
+            chunk += "    fetch('/api/currentLog?file=' + encodeURIComponent(select.value), {cache:'no-store'}).then(function(r){";
             chunk += "      return r.text();";
             chunk += "    }).then(function(text){";
             chunk += "      errEl.classList.remove('show');";
@@ -4935,27 +5545,87 @@
             chunk += "      scrollToBottom();";
             chunk += "    }).catch(function(){ errEl.classList.add('show'); });";
             chunk += "  }";
+
+            // Laedt die Dateiliste - die neueste (erstes Element, siehe
+            // /api/logFileList) wird automatisch ausgewaehlt, ausser der
+            // Nutzer stand bereits auf einer AELTEREN Datei (bewusst zum
+            // Durchsehen ausgewaehlt) - diese bleibt dann erhalten, sofern
+            // sie noch existiert. So verpasst weder das anfaengliche Laden
+            // noch ein spaeteres Auto-Refresh eine inzwischen per Rotation
+            // neu angelegte Logdatei (siehe flushLogBuffer() in
+            // system_utils.h), waehrend ein bewusst geoeffnetes altes Logfile
+            // nicht durch die Rotation weggerissen wird.
+
+            // Loads the file list - the newest (first element, see
+            // /api/logFileList) is auto-selected, unless the user was
+            // already on an OLDER file (deliberately picked to review) -
+            // that stays selected as long as it still exists. This way
+            // neither the initial load nor a later auto-refresh misses a
+            // log file newly created by rotation in the meantime (see
+            // flushLogBuffer() in system_utils.h), while a deliberately
+            // opened older log file doesn't get yanked away by rotation.
+            chunk += "  function loadFileList() {";
+            chunk += "    fetch('/api/logFileList', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(list){";
+            chunk += "      var previousValue = select.value;";
+            chunk += "      var wasOnNewest = (select.options.length === 0) || (select.options[0] && previousValue === select.options[0].value);";
+            chunk += "      select.innerHTML = '';";
+            chunk += "      list.forEach(function(name){";
+            chunk += "        var opt = document.createElement('option');";
+            chunk += "        opt.value = name; opt.textContent = name;";
+            chunk += "        select.appendChild(opt);";
+            chunk += "      });";
+            chunk += "      if (list.length > 0) {";
+            chunk += "        select.value = (wasOnNewest || list.indexOf(previousValue) === -1) ? list[0] : previousValue;";
+            chunk += "      }";
+            chunk += "      refreshLog();";
+            chunk += "    }).catch(function(){ refreshLog(); });";
+            chunk += "  }";
             chunk += "  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }";
             chunk += "  function applyState() {";
             chunk += "    stopTimer();";
             chunk += "    if (cb.checked && !document.hidden) {";
-            chunk += "      timer = setInterval(refreshLog, 10000);";
+            chunk += "      timer = setInterval(loadFileList, 10000);";
             chunk += "    }";
             chunk += "  }";
-            chunk += "  refreshBtn.addEventListener('click', refreshLog);";
+            chunk += "  refreshBtn.addEventListener('click', loadFileList);";
+            chunk += "  select.addEventListener('change', function() {";
+            // Wird eine AELTERE als die neueste Datei ausgewaehlt, das
+            // Auto-Refresh abschalten - beim periodischen Neuladen der
+            // Dateiliste (loadFileList()) waere sonst wieder auf die
+            // neueste gesprungen worden (siehe deren Kommentar oben), was
+            // eine bewusst zum Durchsehen gewaehlte aeltere Datei nicht
+            // mehr wegreissen wuerde, aber unnoetige Anfragen fuer eine
+            // ohnehin statische Datei blieben.
+
+            // If a file OLDER than the newest is selected, turn off
+            // auto-refresh - the periodic file-list reload (loadFileList())
+            // would otherwise jump back to the newest one (see its comment
+            // above), and while that no longer yanks away a deliberately
+            // reviewed older file, needless requests for an otherwise
+            // static file would remain.
+            chunk += "    var isNewest = select.options.length > 0 && select.value === select.options[0].value;";
+            chunk += "    if (!isNewest && cb.checked) {";
+            chunk += "      cb.checked = false;";
+            chunk += "      localStorage.setItem('uhr3LogAutoRefresh', '0');";
+            chunk += "      applyState();";
+            chunk += "    }";
+            chunk += "    refreshLog();";
+            chunk += "  });";
             chunk += "  cb.addEventListener('change', function() {";
             chunk += "    localStorage.setItem('uhr3LogAutoRefresh', cb.checked ? '1' : '0');";
-            chunk += "    if (cb.checked) refreshLog();";
+            chunk += "    if (cb.checked) loadFileList();";
             chunk += "    applyState();";
             chunk += "  });";
             chunk += "  document.addEventListener('visibilitychange', function() {";
             chunk += "    if (document.hidden) { stopTimer(); }";
-            chunk += "    else { if (cb.checked) refreshLog(); applyState(); }";
+            chunk += "    else { if (cb.checked) loadFileList(); applyState(); }";
             chunk += "  });";
-            chunk += "  refreshLog();";
+            chunk += "  loadFileList();";
             chunk += "  applyState();";
             chunk += "})();";
             chunk += "</script>";
+            } // Ende else (private Netz)
+              // end else (private network)
 
             chunk += "</div>"; // Ende panel-log
                                // end panel-log
@@ -5200,7 +5870,21 @@
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='stationMode' value='1' ";
             chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Train Station Mode");
-            chunk += " <span title='" + translate("The second hand rushes ahead slightly and briefly rests at 60, like a classic train station clock") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            chunk += " <span title='" + translate("The second hand completes its lap in about 58.5 seconds and then waits at 60 until the minute changes, like a classic train station clock") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothSecond' value='1' ";
+            // Fallback bewusst PK_STATION_MODE statt eines festen Literals -
+            // siehe Kommentar bei der smoothSecond-Ladezeile in uhr3.ino
+            // (Geraete ohne je gespeicherten smoothSecond-Wert behalten so ihr
+            // bisheriges Aussehen bei).
+
+            // Fallback deliberately PK_STATION_MODE instead of a fixed literal
+            // - see the comment at the smoothSecond load line in uhr3.ino
+            // (devices that never saved a smoothSecond value keep their
+            // previous look this way).
+            chunk += getSmoothSecondPref(preferences.getBool(PK_STATION_MODE, true)) ? "checked" : "";
+            chunk += " style='width:auto;margin:0;'>" + translate("Smooth Second Hand");
+            chunk += " <span title='" + translate("The second hand moves smoothly instead of jumping in 1-second steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='showSecondHand' value='1' ";
             chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
@@ -5251,36 +5935,32 @@
             }
 #endif
 
-            String pingServer = preferences.getString(PK_PING_SERVER, DEFAULT_PING_SERVER);
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Ping Server");
-            chunk += " <span title='" + translate("Server used to periodically check the internet connection") + ".' style='cursor:help;'>&#9432;</span>";
-            chunk += "<input type='text' name='pingServer' value='" + pingServer + "' style='width:100px;'></div><br>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:100px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:190px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
-            for (int i = 0; i <= 3; i++) {
+            String rotationNaLabel = translate("not connected (n.a.)");
+            for (int i = 0; i <= TFT_ROTATION_NA; i++) {
                 chunk += "<option value='" + String(i) + "'";
                 if (i == tftRotation1) chunk += " selected";
-                chunk += ">" + String(rotationLabels[i]) + "</option>";
+                chunk += ">" + (i == TFT_ROTATION_NA ? rotationNaLabel : String(rotationLabels[i])) + "</option>";
             }
             chunk += "</select></div>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:100px;'>";
-            for (int i = 0; i <= 3; i++) {
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:190px;'>";
+            for (int i = 0; i <= TFT_ROTATION_NA; i++) {
                 chunk += "<option value='" + String(i) + "'";
                 if (i == tftRotation2) chunk += " selected";
-                chunk += ">" + String(rotationLabels[i]) + "</option>";
+                chunk += ">" + (i == TFT_ROTATION_NA ? rotationNaLabel : String(rotationLabels[i])) + "</option>";
             }
             chunk += "</select></div>";
 
-            // Hinweis: bei nur einem Display sollten beide Rotationswerte
-            // gleich stehen - dann liefert Display 2 (ohne Software-Rotation
-            // der erneut gesendete Frame von Display 1) ein konsistentes Bild.
+            // Hinweis: ein nicht angeschlossenes Display auf "n.a." stellen - dann
+            // bleibt es schwarz, Zifferblatt/Zeiger werden nicht gezeichnet/berechnet.
+            // Status-/Startmeldungen erscheinen bis zum Uhrstart weiterhin auf beiden.
 
-            // Hint: with only one display present, both rotation values
-            // should be equal - then Display 2 (without software rotation,
-            // the re-sent frame from Display 1) shows a consistent image.
-            chunk += "<small>" + translate("If only one display is physically connected, set both rotations to the same value") + ".</small><br><br>";
+            // Hint: set a display that is not connected to "n.a." - then it stays
+            // black, face/hands are not drawn/calculated. Status/boot messages still
+            // appear on both until the clock takes over.
+            chunk += "<small>" + translate("Set a display that is not physically connected to n.a. - it then stays black and the clock face is neither drawn nor calculated for it. Boot, access point and code messages still appear on both displays until the clock takes over") + ".</small><br><br>";
 
             chunk += "</div>";
             chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
@@ -5551,9 +6231,7 @@
                 chunk += "<label>" + translate("Port") + ":</label>";
                 chunk += "<input type='number' name='" + pkRocrailServerPort(i) + "' min='1' max='65535' style='width:90px;' value='" +
                          String(rocrailServerPortList[i]) + "'>";
-                chunk += "<label>" + translate("Layout name") + ": <span title='" +
-                         translate("Filled in automatically from Rocrail once connected, as long as this field is left empty - edit it yourself to keep your own name, or clear it to let Rocrail fill it in again") +
-                         ".' style='cursor:help;'>&#9432;</span></label>";
+                chunk += "<label>" + translate("Layout name") + " (" + translate("optional") + "):</label>";
                 chunk += "<input type='text' name='" + pkRocrailServerName(i) + "' placeholder='" + translate("optional") + "' style='width:150px;' value='" +
                          escapeHtmlText(String(rocrailServerNameList[i])) + "'>";
                 chunk += "</div>";
@@ -5667,60 +6345,64 @@
             });
 
         webserver.on("/deletewifi", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
+            // oben) - WLAN-Loeschungen (aktiv wie nicht-aktiv) sollen
+            // grundsaetzlich nicht von aussen moeglich sein, auch nicht per
+            // Bestaetigungscode. Anders als /save (Ueberschreiben) und
+            // /api/connectWifi (Wechseln), wo ein Bestaetigungscode als
+            // Alternative fuer Zugriff von aussen bleibt.
+
+            // Only allowed from a private network (see isPrivateNetworkIp()
+            // above) - WLAN deletions (active or not) should never be
+            // possible from outside at all, not even via a confirmation
+            // code. Unlike /save (overwrite) and /api/connectWifi
+            // (switching), where a confirmation code remains available as
+            // an alternative for access from outside.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
                 if (idx >= 0 && idx < MAX_WLAN) {
 
-                    // Vor dem Loeschen merken, ob es das aktiv verbundene Netzwerk
-                    // ist - gebraucht nach dem Umsortieren fuer den Neustart.
+                    // Ist es das aktiv verbundene Netzwerk, ueber
+                    // executePendingAction() loeschen (kompaktiert die Liste
+                    // und startet danach neu, siehe dort) - Zugriff ist an
+                    // dieser Stelle bereits als privat bestaetigt (siehe
+                    // Guard oben), daher ohne Bestaetigungscode-Umweg.
 
-                    // Before deleting, remember whether this is the actively
-                    // connected network - needed after reindexing to decide on a reboot.
+                    // If this is the actively connected network, delete it
+                    // via executePendingAction() (compacts the list and
+                    // reboots afterwards, see there) - access has already
+                    // been confirmed as private at this point (see the
+                    // guard above), so no confirmation-code detour needed.
                     bool deletingActiveNetwork = (WiFi.status() == WL_CONNECTED && wifiSsid[idx] != "" && WiFi.SSID() == wifiSsid[idx]);
 
-                    putStringVerified(pkSsid(idx).c_str(), "");
-                    putStringVerified(pkPass(idx).c_str(), "");
-
-                    String tempSsid[MAX_WLAN];
-                    String tempPass[MAX_WLAN];
-                    int j = 0;
-                    for (int i = 0; i < MAX_WLAN; i++) {
-                        String ssid = trim(preferences.getString(pkSsid(i).c_str(), ""));
-                        if (ssid.length() > 0) {
-                            tempSsid[j] = preferences.getString(pkSsid(i).c_str(), "");
-                            tempPass[j] = preferences.getString(pkPass(i).c_str(), "");
-                            j++;
-                        }
-                    }
-                    for (int i = 0; i < MAX_WLAN; i++) {
-                        if (preferences.getString(pkSsid(i).c_str(), "") != tempSsid[i]) {
-                            putStringVerified(pkSsid(i).c_str(), tempSsid[i]);
-                        }
-                        if (preferences.getString(pkPass(i).c_str(), "") != tempPass[i]) {
-                            putStringVerified(pkPass(i).c_str(), tempPass[i]);
-                        }
-                        wifiSsid[i] = tempSsid[i];
-                        wifiPass[i] = tempPass[i];
-                    }
-
                     if (deletingActiveNetwork) {
-
-                        // PK_LAST_WLAN komplett entfernen statt auf einen Index zu
-                        // setzen, damit kein veralteter Index nach dem Neustart bleibt.
-
-                        // Remove PK_LAST_WLAN entirely rather than set it to an
-                        // index, so no stale index remains after the reboot.
-                        DEBUG_PRINTLN("[WiFi] Active network was deleted via Web UI - rebooting to connect to a different saved network");
-                        preferences.remove(PK_LAST_WLAN);
-                        redirectTo("/?tab=wlan&msg=Network%20deleted%2C%20reconnecting...");
-
-                        // preferences.end() erfolgt in espReboot(), siehe dort.
-                        // preferences.end() happens in espReboot(), see there.
-                        delay(WAIT_1s);
-                        // Neustart des ESP
-                        // Restart the ESP
-                        espReboot();
+                        pendingWifiChangeIndex = idx;
+                        executePendingAction("wlanDeleteActive");
+                        return;
                     }
+
+                    // Liste kompaktieren wie bei "wlanDeleteActive" oben -
+                    // ueber applyWlanList() geteilt, statt dieselbe
+                    // Kompaktierungslogik hier ein zweites Mal zu pflegen.
+
+                    // Compact the list as with "wlanDeleteActive" above -
+                    // shared via applyWlanList(), instead of maintaining the
+                    // same compaction logic here a second time.
+                    String newSsid[MAX_WLAN];
+                    String newPass[MAX_WLAN];
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        newSsid[i] = preferences.getString(pkSsid(i).c_str(), "");
+                        newPass[i] = preferences.getString(pkPass(i).c_str(), "");
+                    }
+                    newSsid[idx] = "";
+                    newPass[idx] = "";
+                    applyWlanList(newSsid, newPass);
                 }
                 redirectTo("/?tab=wlan&msg=Network%20deleted");
             }
@@ -5738,7 +6420,66 @@
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
                 if (idx >= 0 && idx < MAX_WLAN && preferences.getString(pkSsid(idx).c_str(), "") != "") {
-                    DEBUG_PRINTLN("[WiFi] Web UI requested switch to saved network: " + preferences.getString(pkSsid(idx).c_str(), ""));
+
+                    // Wechsel auf ein ANDERES als das gerade aktive Netzwerk
+                    // kann die Verbindung dauerhaft kappen, wenn das Ziel von
+                    // hier aus nicht erreichbar ist (z.B. falsches Passwort
+                    // oder ausserhalb der Reichweite): aus einem privaten Netz
+                    // direkt ausfuehren (das eigene Heimnetz gilt als
+                    // hinreichend vertrauenswuerdig), aus einem NICHT-privaten
+                    // Netz erst einen Bestaetigungscode verlangen, wie beim
+                    // Loeschen/Ueberschreiben des aktiven Netzwerks. Ist idx
+                    // ohnehin schon das aktive Netzwerk, ist ein Neustart
+                    // darauf risikolos, bleibt aber trotzdem privat-only
+                    // (unten) - ein von aussen jederzeit ausloesbarer Neustart
+                    // ist unabhaengig vom Risiko ein DoS-Vektor.
+
+                    // Switching to a network OTHER than the currently active
+                    // one can permanently sever the connection if the target
+                    // isn't reachable from here (e.g. wrong password or out
+                    // of range): execute directly from a private network
+                    // (one's own home network counts as sufficiently
+                    // trustworthy), but from a NON-private network first
+                    // require a confirmation code, as with deleting/
+                    // overwriting the active network. If idx is already the
+                    // active network, restarting into it is risk-free, but
+                    // still stays private-only (below) - a restart
+                    // triggerable from outside at any time is a DoS vector
+                    // regardless of the risk involved.
+                    bool isAlreadyActive = (WiFi.status() == WL_CONNECTED && WiFi.SSID() == wifiSsid[idx]);
+
+                    if (!isAlreadyActive) {
+                        if (isPrivateNetworkIp(webserver.client().remoteIP())) {
+                            pendingWifiChangeIndex = idx;
+                            DEBUG_PRINTLN("[SECURITY] WiFi network switch executed directly (private network) from " + webserver.client().remoteIP().toString());
+                            executePendingAction("wlanSwitchActive");
+                            return;
+                        }
+
+                        // rejectIfConfirmationPending() ZUERST, bevor
+                        // pendingWifiChangeIndex gesetzt wird - siehe
+                        // Begruendung dort (Payload einer anderen, noch
+                        // ausstehenden Anfrage nicht ueberschreiben).
+
+                        // rejectIfConfirmationPending() FIRST, before
+                        // pendingWifiChangeIndex is set - see the reasoning
+                        // there (don't overwrite the payload of a different,
+                        // still-pending request).
+                        if (rejectIfConfirmationPending()) return;
+
+                        pendingWifiChangeIndex = idx;
+                        requestConfirmationCode("wlanSwitchActive");
+                        DEBUG_PRINTLN("[SECURITY] Confirmation code requested to switch the active WiFi network to slot " + String(idx + 1) + " from " + webserver.client().remoteIP().toString());
+                        redirectTo("/factoryReset/enterCode");
+                        return;
+                    }
+
+                    if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                        webserver.send(200, "text/html", simpleMessagePage(translate("Connect"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                        return;
+                    }
+
+                    DEBUG_PRINTLN("[WiFi] Web UI requested switch to saved network: " + preferences.getString(pkSsid(idx).c_str(), "") + " (from " + webserver.client().remoteIP().toString() + ")");
                     preferences.putInt(PK_LAST_WLAN, idx);
                     redirectTo("/?tab=wlan&msg=Connecting...");
 
@@ -5761,62 +6502,135 @@
         webserver.on("/save", HTTP_POST, []() {
             //if (webserver.hasArg("ssid1")) {
 
+                String newSsid[MAX_WLAN];
+                String newPass[MAX_WLAN];
                 for (int i = 0; i < MAX_WLAN; i++) {
-                    // Dynamisch berechnete Schlüssel
-                    // Dynamically computed keys
-                    String ssidKey = pkSsid(i);
-                    String passKey = pkPass(i);
+                    newSsid[i] = webserver.arg(pkSsid(i));
+                    newPass[i] = webserver.arg(pkPass(i));
+                }
 
-                    if (preferences.getString(ssidKey.c_str(), "") != webserver.arg(ssidKey)) {
-                        putStringVerified(ssidKey.c_str(), webserver.arg(ssidKey));
-                    }
-                    if (webserver.arg(passKey) != "" && preferences.getString(passKey.c_str(), "") != webserver.arg(passKey)) {
-                        putStringVerified(passKey.c_str(), webserver.arg(passKey));
+                // Betrifft dieses Formular den AKTUELL VERBUNDENEN Slot? Dann
+                // nicht sofort anwenden: aus einem privaten Netz direkt
+                // ausfuehren (das eigene Heimnetz gilt als hinreichend
+                // vertrauenswuerdig), aus einem NICHT-privaten Netz erst
+                // einen Bestaetigungscode auf dem Display anfordern (siehe
+                // requestConfirmationCode()/checkFactoryResetCodePending()/
+                // executePendingAction() in system_utils.h bzw. weiter oben
+                // sowie /deletewifi) - verhindert, dass die aktive Verbindung
+                // aus der Ferne (z.B. ueber eine DMZ/Port-Weiterreitung) ohne
+                // physischen Zugriff auf die Uhr veraendert wird. Andere
+                // (nicht aktive) Slots im selben Formular bleiben unten
+                // privat-only, ganz ohne Code-Option.
+
+                // Does this form touch the CURRENTLY CONNECTED slot? If so,
+                // don't apply it right away: execute directly from a private
+                // network (one's own home network counts as sufficiently
+                // trustworthy), but from a NON-private network first request
+                // a confirmation code on the display (see
+                // requestConfirmationCode()/checkFactoryResetCodePending()/
+                // executePendingAction() in system_utils.h and further above,
+                // and /deletewifi) - prevents the active connection from
+                // being changed remotely (e.g. via a DMZ/port forward)
+                // without physical access to the clock. Other (non-active)
+                // slots in the same form stay private-only below, with no
+                // code option at all.
+                int activeIdx = -1;
+                if (WiFi.status() == WL_CONNECTED) {
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        if (wifiSsid[i] != "" && WiFi.SSID() == wifiSsid[i]) {
+                            activeIdx = i;
+                            break;
+                        }
                     }
                 }
 
-
-                // leere Einträge aussortieren
-                // Filter out empty entries
-                String tempSsid[MAX_WLAN];
-                String tempPass[MAX_WLAN];
-
-
-                int j = 0;
-                for (int i = 0; i < MAX_WLAN; i++) {
-
-                    // Dynamisch berechnete Schlüssel
-                    // Dynamically computed keys
-                    String ssidKey = pkSsid(i);
-                    String passKey = pkPass(i);
-
-                    String ssid = trim(preferences.getString(ssidKey.c_str(), ""));                
-                    if (ssid.length() > 0) {
-                        tempSsid[j] = preferences.getString(ssidKey.c_str(), "");
-                        tempPass[j] = preferences.getString(passKey.c_str(), "");                    
-                        j++;
+                bool activeSlotChanged = false;
+                if (activeIdx >= 0) {
+                    if (newSsid[activeIdx] != preferences.getString(pkSsid(activeIdx).c_str(), "")) {
+                        activeSlotChanged = true;
+                    }
+                    if (newPass[activeIdx] != "" && newPass[activeIdx] != preferences.getString(pkPass(activeIdx).c_str(), "")) {
+                        activeSlotChanged = true;
                     }
                 }
 
-                for (int i = 0; i < MAX_WLAN; i++) {
-                    // Dynamisch berechnete Schlüssel
-                    // Dynamically computed keys
-                    String ssidKey = pkSsid(i);
-                    String passKey = pkPass(i);
+                if (activeSlotChanged) {
 
-                    if (preferences.getString(ssidKey.c_str(), "") != tempSsid[i]) {
-                        putStringVerified(ssidKey.c_str(), tempSsid[i]);
-                    }
-                    if (preferences.getString(passKey.c_str(), "") != tempPass[i]) {
-                        putStringVerified(passKey.c_str(), tempPass[i]);
+                    // Leeres SSID-Feld fuer den aktiven Slot ist der Sache
+                    // nach ein LOESCHEN (genau das, was /deletewifi fuer den
+                    // aktiven Slot macht), keine Aenderung - muss daher
+                    // genauso strikt behandelt werden: ausschliesslich aus
+                    // einem privaten Netz, OHNE Code-Alternative fuer
+                    // Zugriff von aussen. Sonst waere das Loeschen des
+                    // aktiven Netzwerks ueber /save (statt ueber
+                    // /deletewifi) ein Umweg, der trotz der dortigen
+                    // Sperre per Code von aussen moeglich bliebe.
+
+                    // An empty SSID field for the active slot effectively
+                    // amounts to DELETING it (exactly what /deletewifi does
+                    // for the active slot), not a change - must therefore be
+                    // treated just as strictly: only from a private network,
+                    // with NO code alternative for access from outside.
+                    // Otherwise deleting the active network via /save
+                    // (instead of via /deletewifi) would be a detour that
+                    // stayed possible from outside via a code, despite the
+                    // block there.
+                    bool isActiveDeleteAttempt = (newSsid[activeIdx].length() == 0);
+
+                    if (isActiveDeleteAttempt) {
+                        if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                            webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                            return;
+                        }
+                        pendingWifiChangeIndex = activeIdx;
+                        executePendingAction("wlanDeleteActive");
+                        return;
                     }
 
-                    wifiSsid[i] = tempSsid[i];
-                    wifiPass[i] = tempPass[i];
+                    if (isPrivateNetworkIp(webserver.client().remoteIP())) {
+                        for (int i = 0; i < MAX_WLAN; i++) {
+                            pendingWifiSsid[i] = newSsid[i];
+                            pendingWifiPass[i] = newPass[i];
+                        }
+                        DEBUG_PRINTLN("[SECURITY] Active WiFi network change executed directly (private network) from " + webserver.client().remoteIP().toString());
+                        executePendingAction("wlanOverwriteActive");
+                        return;
+                    }
+
+                    // rejectIfConfirmationPending() ZUERST, bevor
+                    // pendingWifiSsid[]/pendingWifiPass[] gesetzt werden -
+                    // siehe Begruendung dort (Payload einer anderen, noch
+                    // ausstehenden Anfrage nicht ueberschreiben).
+
+                    // rejectIfConfirmationPending() FIRST, before
+                    // pendingWifiSsid[]/pendingWifiPass[] are set - see the
+                    // reasoning there (don't overwrite the payload of a
+                    // different, still-pending request).
+                    if (rejectIfConfirmationPending()) return;
+
+                    for (int i = 0; i < MAX_WLAN; i++) {
+                        pendingWifiSsid[i] = newSsid[i];
+                        pendingWifiPass[i] = newPass[i];
+                    }
+                    requestConfirmationCode("wlanOverwriteActive");
+                    DEBUG_PRINTLN("[SECURITY] Confirmation code requested to change the active WiFi network (slot " + String(activeIdx + 1) + ") from " + webserver.client().remoteIP().toString());
+                    redirectTo("/factoryReset/enterCode");
+                    return;
                 }
 
+                // Nur nicht-aktive Slots betroffen: nur aus einem privaten
+                // Netz erlaubt (siehe isPrivateNetworkIp() oben) - bisher
+                // ohne jede Ruecksprache sofort uebernommen.
 
-            
+                // Only non-active slots affected: only allowed from a
+                // private network (see isPrivateNetworkIp() above) -
+                // previously applied immediately without any confirmation.
+                if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                    webserver.send(200, "text/html", simpleMessagePage(translate("Settings saved"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                    return;
+                }
+
+                applyWlanList(newSsid, newPass);
 
                 if (WiFi.getMode() == WIFI_STA) {
                     redirectTo("/?tab=wlan&msg=Settings%20saved");
@@ -5872,7 +6686,7 @@
                 if (LittleFS.exists(file)) {
                     selectedBackground = file;
                     preferences.putString(PK_BACKGROUND, file);
-                    DEBUG_PRINTLN("set bg to: " + file);
+                    DEBUG_PRINTLN("set bg to: " + file + " (from " + webserver.client().remoteIP().toString() + ")");
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
@@ -5886,6 +6700,19 @@
         // Datei löschen
         // Delete file
         webserver.on("/delete", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
+            // oben) - loescht beliebige Dateien auf LittleFS, das soll aus
+            // der Ferne (z.B. ueber eine DMZ/Port-Weiterleitung) nicht moeglich sein.
+
+            // Only allowed from a private network (see isPrivateNetworkIp()
+            // above) - deletes arbitrary files on LittleFS, which shouldn't
+            // be possible remotely (e.g. via a DMZ/port forward).
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             if (webserver.hasArg("file")) {
                 String path = webserver.arg("file");
                 //path.replace(".", "");
@@ -5926,13 +6753,7 @@
                         }
                     }
 
-                    String redirectTarget = "/files";
-                    if (name.startsWith("face_") && name.endsWith(".bmp")) {
-                        redirectTarget = "/listfilesFaces";
-                    }
-                    else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
-                        redirectTarget = "/handsets";
-                    }
+                    String redirectTarget = fileManagerReturnTarget(webserver.arg("from"));
                     redirectTo(redirectTarget + "?msg=File%20deleted");
                 }
                 else {
@@ -5955,6 +6776,14 @@
         // Delete a single preset (frees up the slot again for
         // createPresetFromPreferences())
         webserver.on("/deletepreset", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp() oben).
+            // Only allowed from a private network (see isPrivateNetworkIp() above).
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             if (webserver.hasArg("index")) {
                 int idx = webserver.arg("index").toInt();
                 if (idx >= 0 && idx < MAX_PRESETS) {
@@ -5993,6 +6822,14 @@
         // Preset umbenennen Aktion
         // Rename preset action
         webserver.on("/renamepreset", HTTP_POST, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp() oben).
+            // Only allowed from a private network (see isPrivateNetworkIp() above).
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Rename"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             if (webserver.hasArg("index") && webserver.hasArg("new")) {
                 int idx = webserver.arg("index").toInt();
                 String newName = webserver.arg("new");
@@ -6023,10 +6860,31 @@
         webserver.on("/file", HTTP_GET, []() {
             if (webserver.hasArg("name")) {
 
-                setLedOn();
-
                 String path = webserver.arg("name");
                 if (!path.startsWith("/")) path = "/" + path;
+
+                // Auf den Stand nach einem evtl. eingebetteten Nullbyte
+                // kappen - siehe ausfuehrliche Begruendung bei /download.
+
+                // Truncate at any embedded null byte - see the detailed
+                // reasoning at /download.
+                path = String(path.c_str());
+
+                // Logdateien nur aus einem privaten Netz einsehbar (siehe
+                // isPrivateNetworkIp() oben und /api/currentLog) - koennen
+                // IP-Adressen, SSIDs u.ae. enthalten. Andere Dateitypen
+                // bleiben unveraendert von ueberall einsehbar.
+
+                // Log files only viewable from a private network (see
+                // isPrivateNetworkIp() above and /api/currentLog) - can
+                // contain IP addresses, SSIDs, etc. Other file types remain
+                // viewable from anywhere, unchanged.
+                if (path.endsWith(".log") && !isPrivateNetworkIp(webserver.client().remoteIP())) {
+                    webserver.send(200, "text/plain", "This action is only available when accessing the clock from a private network.");
+                    return;
+                }
+
+                setLedOn();
 
                 if (LittleFS.exists(path)) {
 
@@ -6065,7 +6923,7 @@
                             // Streaming failed (e.g. read error) - do NOT silently serve the raw
                             // compressed bytes (no longer a valid BMP), instead a clear error
                             // (500 status may no longer be possible if headers were already sent).
-                            DEBUG_PRINTLN("[FILE] RLE streaming failed for " + path);
+                            DEBUG_PRINTLN("[FILE] RLE streaming failed for " + path + " (from " + webserver.client().remoteIP().toString() + ")");
                             setLedOff();
                             return;
                         }
@@ -6340,7 +7198,7 @@
                 //  String finalPath = "/hand_set" + set + "_" + target + ".bmp";
                 //  LittleFS.rename(uploadFilePath, finalPath);
                 //  DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + finalPath);
-                DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + uploadFilePath);
+                DEBUG_PRINTLN("[UPLOAD] Hand uploaded to: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                 redirectTo("/handsets?msg=Hand%20set%20uploaded");
             }
             else {
@@ -6370,15 +7228,23 @@
         // Handset löschen
         // Delete hand set
         webserver.on("/deletehandset", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp() oben).
+            // Only allowed from a private network (see isPrivateNetworkIp() above).
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             if (webserver.hasArg("set")) {
                 String setId = webserver.arg("set");
                 String targets[] = { "hour", "minute", "second" };
                 for (const String& target : targets) {
                     String path = "/hand_set" + setId + "_" + target + ".bmp";
-                    DEBUG_PRINTLN("[DELETE] Looking for: " + path);
+                    DEBUG_PRINTLN("[DELETE] Looking for: " + path + " (from " + webserver.client().remoteIP().toString() + ")");
                     if (LittleFS.exists(path)) {
                         LittleFS.remove(path);
-                        DEBUG_PRINTLN("[DELETE] Removed: " + path);
+                        DEBUG_PRINTLN("[DELETE] Removed: " + path + " (from " + webserver.client().remoteIP().toString() + ")");
                     }
                 }
                 removeOrphanedPresets("", setId);
@@ -6408,6 +7274,17 @@
         // ESP neu starten
         // Restart the ESP
         webserver.on("/reboot", HTTP_GET, []() {
+
+            // Nur aus einem privaten Netz erlaubt - siehe Begruendung bei
+            // /api/reboot weiter oben.
+
+            // Only allowed from a private network - see the reasoning at
+            // /api/reboot further above.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+
             webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "<p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>", "<meta http-equiv='refresh' content='10; url=/'>"));
             espReboot();
             });
@@ -6422,65 +7299,208 @@
             html += generateFlashMessage();
             html += "<h2>" + translate("Factory&nbsp;Reset") + "</h2>";
 
+            // Keine Aktion mehr direkt per Klick: alle fuenf fuehren erst zu
+            // einem Bestaetigungscode auf dem Display (siehe /factoryReset/
+            // requestCode und checkFactoryResetCodePending() in
+            // system_utils.h) - schuetzt vor einer Aktion ohne physischen
+            // Zugriff auf die Uhr, z.B. bei Erreichbarkeit ueber eine DMZ/
+            // Port-Weiterleitung. Das versteckte "action"-Feld sagt
+            // /factoryReset/requestCode, welche der fuenf Aktionen nach der
+            // Code-Bestaetigung ausgefuehrt werden soll.
+
+            // No action happens directly on click anymore: all five first
+            // lead to a confirmation code shown on the display (see
+            // /factoryReset/requestCode and checkFactoryResetCodePending()
+            // in system_utils.h) - protects against an action without
+            // physical access to the clock, e.g. when reachable via a DMZ/
+            // port forward. The hidden "action" field tells
+            // /factoryReset/requestCode which of the five actions to run
+            // once the code is confirmed.
             html += "<h3>" + translate("Reset Everything") + "</h3>";
             html += "<p>" + translate("Resets WiFi, all settings and deletes all files - the clock restarts afterwards") + ".</p>";
-            html += "<form method='POST' action='/factoryReset/all' onsubmit=\"return confirm('" + translate("Are you sure you want to reset to factory settings?") + "');\">";
+            html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to reset to factory settings?") + "');\">";
+            html += "<input type='hidden' name='action' value='all'>";
             html += "<button type='submit'>" + translate("Reset Everything") + "</button></form><hr>";
 
             html += "<h3>" + translate("Reset Saved Networks") + "</h3>";
             html += "<p>" + translate("Deletes all saved WiFi networks - other settings remain unchanged") + ".</p>";
-            html += "<form method='POST' action='/api/resetWiFi' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
+            html += "<form method='POST' action='/factoryReset/requestCode' onsubmit='return confirm(\"" + translate("Are you sure you want to reset all saved WiFi networks?") + "\");'>";
+            html += "<input type='hidden' name='action' value='wifi'>";
             html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Clock Faces (except default)") + "</h3>";
             html += "<p>" + translate("Deletes all uploaded clock faces - the built-in default remains") + ".</p>";
-            html += "<form method='POST' action='/factoryReset/faces' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
+            html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
+            html += "<input type='hidden' name='action' value='faces'>";
             html += "<button type='submit'>" + translate("Delete Clock Faces (except default)") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Hand Sets (except default)") + "</h3>";
             html += "<p>" + translate("Deletes all uploaded hand sets - the built-in default remains") + ".</p>";
-            html += "<form method='POST' action='/factoryReset/hands' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all hand sets except the default one?") + "');\">";
+            html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all hand sets except the default one?") + "');\">";
+            html += "<input type='hidden' name='action' value='hands'>";
             html += "<button type='submit'>" + translate("Delete Hand Sets (except default)") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Presets") + "</h3>";
             html += "<p>" + translate("Deletes all saved presets") + ".</p>";
-            html += "<form method='POST' action='/factoryReset/presets' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all presets?") + "');\">";
+            html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all presets?") + "');\">";
+            html += "<input type='hidden' name='action' value='presets'>";
             html += "<button type='submit'>" + translate("Delete Presets") + "</button></form><hr>";
 
             html += "</body></html>";
             webserver.send(200, "text/html", html);
             });
 
-        webserver.on("/factoryReset/all", HTTP_POST, []() {
-            factoryReset();
+        // Schritt 1: Bestaetigungscode erzeugen und auf dem Display anzeigen
+        // (siehe checkFactoryResetCodePending() in system_utils.h), die
+        // angeforderte Aktion merken, dann zur Eingabeseite weiterleiten.
+        // Ersetzt den frueher direkten Klick auf einen der fuenf Buttons.
+
+        // Step 1: generate a confirmation code and show it on the display
+        // (see checkFactoryResetCodePending() in system_utils.h), remember
+        // which action was requested, then redirect to the entry page.
+        // Replaces the formerly direct click on one of the five buttons.
+        webserver.on("/factoryReset/requestCode", HTTP_POST, []() {
+            String action = webserver.arg("action");
+            if (action != "all" && action != "wifi" && action != "faces" && action != "hands" && action != "presets") {
+                redirectTo("/factoryReset");
+                return;
+            }
+
+            // Aus einem privaten Netz keine Code-Bestaetigung noetig - Zugriff
+            // aus dem eigenen Heimnetz gilt bereits als hinreichend
+            // vertrauenswuerdig. Der Code ist nur noch die zusaetzliche
+            // Huerde fuer Anfragen von ausserhalb (z.B. ueber eine DMZ/Port-
+            // Weiterleitung), wo niemand physisch am Geraet sein muss, um
+            // sie auszuloesen.
+
+            // No code confirmation needed from a private network - access
+            // from one's own home network already counts as sufficiently
+            // trustworthy. The code is now only the extra hurdle for
+            // requests from outside (e.g. via a DMZ/port forward), where no
+            // one needs to be physically at the device to trigger them.
+            if (isPrivateNetworkIp(webserver.client().remoteIP())) {
+                DEBUG_PRINTLN("[SECURITY] Action '" + action + "' executed directly (private network) from " + webserver.client().remoteIP().toString());
+                executePendingAction(action);
+                return;
+            }
+
+            // requestConfirmationCode() erzeugt den Code und merkt sich die
+            // Aktion (siehe system_utils.h) - hier nur noch protokollieren
+            // und weiterleiten.
+
+            // requestConfirmationCode() generates the code and remembers the
+            // action (see system_utils.h) - only logging and the redirect
+            // happen here.
+            requestConfirmationCode(action);
+            DEBUG_PRINTLN("[SECURITY] Confirmation code requested for action '" + action + "' from " + webserver.client().remoteIP().toString());
+            redirectTo("/factoryReset/enterCode");
             });
 
-        webserver.on("/factoryReset/faces", HTTP_POST, []() {
-            resetFacesToDefault();
-            redirectTo("/factoryReset?msg=Clock%20faces%20deleted");
+        // Schritt 2: Eingabeseite fuer den auf dem Display gezeigten Code.
+        // Step 2: entry page for the code shown on the display.
+        webserver.on("/factoryReset/enterCode", HTTP_GET, []() {
+            if (factoryResetCode.isEmpty()) {
+                redirectTo("/factoryReset");
+                return;
+            }
+            String html = beginPage();
+            html += generateFlashMessage();
+            html += "<h2>" + translate("Factory&nbsp;Reset") + "</h2>";
+
+            // Kurze, englische Aktionsbeschriftung (siehe
+            // factoryResetActionLabel() in system_utils.h) - seit das Display
+            // selbst nur noch den nackten Code zeigt, ist dies die einzige
+            // Stelle, an der zu sehen ist, WELCHE Aktion gerade bestaetigt wird.
+
+            // Short, English action label (see factoryResetActionLabel() in
+            // system_utils.h) - now that the display itself shows only the
+            // bare code, this is the only place showing WHICH action is
+            // currently being confirmed.
+            html += "<p><strong>" + factoryResetActionLabel(factoryResetPendingAction) + "</strong></p>";
+            html += "<p>" + translate("A 3-digit code now appears on the clock's display. Enter it below to confirm - this cannot be undone") + ".</p>";
+            html += "<form method='POST' action='/factoryReset/confirm'>";
+            html += "<input type='text' name='code' inputmode='numeric' pattern='[0-9]{3}' maxlength='3' autofocus autocomplete='off' style='width:100px;font-size:1.5rem;text-align:center;letter-spacing:.2em;'> ";
+            html += "<button type='submit'>" + translate("Confirm Reset") + "</button>";
+            html += "</form>";
+            html += "<p><a href='/factoryReset'>" + translate("Cancel") + "</a></p>";
+            html += "</body></html>";
+            webserver.send(200, "text/html", html);
             });
 
-        webserver.on("/factoryReset/hands", HTTP_POST, []() {
-            resetHandsToDefault();
-            redirectTo("/factoryReset?msg=Hand%20sets%20deleted");
+        // Schritt 3: Code pruefen, erst dann die gemerkte Aktion ausfuehren -
+        // gemeinsamer Bestaetigungs-Endpunkt fuer alle fuenf Aktionen.
+        // executePendingAction() (siehe weiter oben) fuehrt die eigentliche
+        // Aktion aus.
+
+        // Step 3: verify the code, only then run the remembered action -
+        // shared confirmation endpoint for all five actions.
+        // executePendingAction() (see further above) runs the actual action.
+        webserver.on("/factoryReset/confirm", HTTP_POST, []() {
+            String action = factoryResetPendingAction;
+
+            if (factoryResetCode.isEmpty() || action.isEmpty() || millis() - factoryResetCodeStartMillis > FACTORY_RESET_CODE_TIMEOUT_MS) {
+                factoryResetCode = "";
+                factoryResetPendingAction = "";
+                factoryResetCodeAttempts = 0;
+                DEBUG_PRINTLN("[SECURITY] Confirmation attempted from " + webserver.client().remoteIP().toString() + " with no valid code pending");
+                redirectTo("/factoryReset?msg=Code%20expired%2C%20please%20try%20again");
+                return;
+            }
+            if (!webserver.hasArg("code") || webserver.arg("code") != factoryResetCode) {
+                factoryResetCodeAttempts++;
+                DEBUG_PRINTLN("[SECURITY] Confirmation attempted from " + webserver.client().remoteIP().toString() + " with wrong code (action: " + action + ", attempt " + String(factoryResetCodeAttempts) + "/" + String(FACTORY_RESET_MAX_ATTEMPTS) + ")");
+
+                // Zu viele Fehlversuche: Code sofort ungueltig machen statt
+                // das Zeitfenster weiter zum Raten offen zu lassen - ein
+                // neuer Code (und damit ein neuer, sichtbarer Anzeigevorgang
+                // auf dem Display) ist dann faellig.
+
+                // Too many wrong attempts: invalidate the code right away
+                // instead of leaving the window open for further guessing -
+                // a new code (and with it a new, visible display prompt) is
+                // then required.
+                if (factoryResetCodeAttempts >= FACTORY_RESET_MAX_ATTEMPTS) {
+                    factoryResetCode = "";
+                    factoryResetPendingAction = "";
+                    DEBUG_PRINTLN("[SECURITY] Too many wrong attempts from " + webserver.client().remoteIP().toString() + " - code invalidated");
+                    redirectTo("/factoryReset?msg=Too%20many%20wrong%20attempts%2C%20please%20try%20again");
+                    return;
+                }
+
+                redirectTo("/factoryReset/enterCode?msg=Wrong%20code%2C%20please%20try%20again");
+                return;
+            }
+
+            // Code verbraucht - vor der Aktion loeschen, damit
+            // checkFactoryResetCodePending() das Display nicht mehr
+            // beansprucht, waehrend die Aktion selbst schon zeichnet
+            // (factoryReset()) bzw. neu startet (WiFi-Reset).
+
+            // Code consumed - clear before the action, so
+            // checkFactoryResetCodePending() no longer claims the display
+            // while the action itself is already drawing on it
+            // (factoryReset()) or restarting (WiFi reset).
+            factoryResetCode = "";
+            factoryResetPendingAction = "";
+            factoryResetCodeAttempts = 0;
+            DEBUG_PRINTLN("[SECURITY] Confirmed from " + webserver.client().remoteIP().toString() + " (action: " + action + ")");
+
+            executePendingAction(action);
             });
 
-        webserver.on("/factoryReset/presets", HTTP_POST, []() {
-            resetAllPresets();
-            redirectTo("/factoryReset?msg=Presets%20deleted");
-            });
+        // Sofortige Zeitsynchronisation - startet nur die asynchrone Task
+        // (siehe time_sync.h) und antwortet sofort, statt den Webserver auf
+        // DNS/UDP warten zu lassen; das Ergebnis zeigt die naechste Aktualisierung
+        // der Statuszeile (poll alle 5s) bzw. der Zeit-Tab beim naechsten Laden.
 
-        // Sofortige Zeitsynchronisation
-        // Immediate time synchronization
+        // Immediate time synchronization - only starts the asynchronous task
+        // (see time_sync.h) and responds right away instead of letting the
+        // web server wait on DNS/UDP; the result shows up in the next status
+        // bar refresh (polled every 5s) or the Time tab on its next load.
         webserver.on("/syncnow", HTTP_POST, []() {
-            setupNTP();
-           // struct tm timeinfo;
-            getLocalTime(&timeinfo, 100);
+            startNtpSyncTask("Manual sync");
 
-            char timeStr[32];
-            strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
-
-            String html = simpleMessagePage(translate("Time synced"), "<p>" + String(timeStr) + "</p><p>" + translate("Returning to main page in 3 seconds") + ".</p>", "<meta http-equiv='refresh' content='3; url=/'>");
+            String html = simpleMessagePage(translate("Time sync started"), "<p>" + translate("Returning to main page in 3 seconds") + ".</p>", "<meta http-equiv='refresh' content='3; url=/'>");
 
             webserver.send(200, "text/html", html);
             });
@@ -6496,16 +7516,36 @@
 
         if (upload.status == UPLOAD_FILE_START) {
             uploadFilePath = upload.filename;
-           // uploadFilePath.replace(".", "");
-           // uploadFilePath.replace("#", "_");
-
             if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
+
+            // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
+            // weiter oben) - HIER pruefen, nicht erst im "Request Handler"
+            // von /upload bzw. /uploadhandset: der laeuft laut ESP32-
+            // WebServer-API erst NACH dem kompletten Upload, dieser Callback
+            // hier bereits waehrend jedes einzelnen Chunks. Ohne die Sperre
+            // an dieser Stelle waeren die Daten laengst auf LittleFS
+            // geschrieben (Flutungs-/Speicherplatz-Erschoepfungsrisiko aus
+            // der Ferne), bevor die Ablehnung ueberhaupt greifen wuerde.
+
+            // Only allowed from a private network (see isPrivateNetworkIp()
+            // further above) - checked HERE, not only in /upload's or
+            // /uploadhandset's "request handler": per the ESP32 WebServer
+            // API, that only runs AFTER the complete upload, while this
+            // callback already runs during each individual chunk. Without
+            // the gate at this point, the data would already have been
+            // written to LittleFS (a remote flooding/storage-exhaustion
+            // risk) before the rejection could take effect at all.
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                DEBUG_PRINTLN("[UPLOAD] Rejected: not a private network : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                uploadSuccess = false;
+                return;
+            }
 
             // Nur bestimmte Dateinamenmuster zulassen
             // Only allow certain filename patterns
             if (!uploadFilePath.endsWith(".bmp") ||
                 !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set"))) {
-                DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp' : " + uploadFilePath);
+                DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp' : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                 uploadSuccess = false;
                 return;
             }
@@ -6526,13 +7566,13 @@
                     }
                 }
                 if (!uploadNameValid || uploadFilePath.indexOf("..") >= 0) {
-                    DEBUG_PRINTLN("[UPLOAD] Invalid filename: contains disallowed characters : " + uploadFilePath);
+                    DEBUG_PRINTLN("[UPLOAD] Invalid filename: contains disallowed characters : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                     uploadSuccess = false;
                     return;
                 }
             }
 
-            DEBUG_PRINTLN("[UPLOAD] Start: " + uploadFilePath);
+            DEBUG_PRINTLN("[UPLOAD] Start: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
             uploadFile = LittleFS.open(uploadFilePath, FILE_WRITE);
             uploadSuccess = uploadFile ? true : false;
         }
@@ -6545,26 +7585,26 @@
             if (uploadSuccess && uploadFile) {
                 uploadFile.close();
                 if (LittleFS.exists(uploadFilePath)) {
-                    DEBUG_PRINTLN("[UPLOAD] Finished OK: " + uploadFilePath);
+                    DEBUG_PRINTLN("[UPLOAD] Finished OK: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                     String lowerPath = uploadFilePath;
                     lowerPath.toLowerCase();
                     if (lowerPath.endsWith(".bmp")) {
                       //  bool isHand = uploadFilePath.indexOf("hour") > 0 || uploadFilePath.indexOf("minute") > 0 || uploadFilePath.indexOf("second") > 0;
                         if (uploadFilePath.startsWith("/face_")) {
-                            DEBUG_PRINTLN("[UPLOAD] Detected Clock Face upload");
+                            DEBUG_PRINTLN("[UPLOAD] Detected Clock Face upload (from " + webserver.client().remoteIP().toString() + ")");
 
                             if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
-                                DEBUG_PRINTLN("[UPLOAD] Scaling failed!");
+                                DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                                 uploadSuccess = false;
                                 return;
                             }
 
                         }
                         else if (uploadFilePath.startsWith("/hand_set")) {
-                            DEBUG_PRINTLN("[UPLOAD] Detected Clock Hand upload");
+                            DEBUG_PRINTLN("[UPLOAD] Detected Clock Hand upload (from " + webserver.client().remoteIP().toString() + ")");
 
                             if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
-                                DEBUG_PRINTLN("[UPLOAD] Scaling failed!");
+                                DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                                 uploadSuccess = false;
                                 return;
                             }
@@ -6572,12 +7612,12 @@
                     }
                 }
                 else {
-                    DEBUG_PRINTLN("[UPLOAD] Finished but file missing!");
+                    DEBUG_PRINTLN("[UPLOAD] Finished but file missing: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                     uploadSuccess = false;
                 }
             }
             else {
-                DEBUG_PRINTLN("[UPLOAD] Failed during writing");
+                DEBUG_PRINTLN("[UPLOAD] Failed during writing: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
             }
         }
     }
@@ -6636,7 +7676,7 @@
         HTTPUpload& upload = webserver.upload();
 
         if (upload.status == UPLOAD_FILE_START) {
-            DEBUG_PRINTLN("[PRESET-IMPORT] Start");
+            DEBUG_PRINTLN("[PRESET-IMPORT] Start (from " + webserver.client().remoteIP().toString() + ")");
             presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
             presetImportSuccess = presetImportFile ? true : false;
         }
@@ -6651,7 +7691,7 @@
 
                 File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
                 if (!readFile) {
-                    DEBUG_PRINTLN("[PRESET-IMPORT] Could not read file");
+                    DEBUG_PRINTLN("[PRESET-IMPORT] Could not read file (from " + webserver.client().remoteIP().toString() + ")");
                     presetImportSuccess = false;
                     return;
                 }
@@ -6695,7 +7735,7 @@
 
                     int tabPos = line.indexOf('\t');
                     if (tabPos == -1) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Ungueltige Zeile (kein Tab): " + line);
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Ungueltige Zeile (kein Tab): " + line + " (from " + webserver.client().remoteIP().toString() + ")");
                         continue;
                     }
 
@@ -6713,13 +7753,13 @@
                         if (existingName == name) { alreadyExists = true; break; }
                     }
                     if (alreadyExists) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (already exists): " + name);
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (already exists): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
                         skippedCount++;
                         continue;
                     }
 
                     if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (clock face not found): " + name);
+                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (clock face not found): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
                         skippedCount++;
                         continue;
                     }
@@ -6732,7 +7772,7 @@
                         }
                     }
                     if (freeIndex == -1) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] No free slot left - aborted");
+                        DEBUG_PRINTLN("[PRESET-IMPORT] No free slot left - aborted (from " + webserver.client().remoteIP().toString() + ")");
                         break;
                     }
 
@@ -6749,12 +7789,12 @@
                     savePresets();
                 }
 
-                DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " presets imported, " + String(skippedCount) + " skipped");
+                DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " presets imported, " + String(skippedCount) + " skipped (from " + webserver.client().remoteIP().toString() + ")");
                 presetImportSuccess = true; // auch 0 neue Presets ist kein Fehler (z.B. alles schon vorhanden)
                                             // 0 new presets is also not an error (e.g. everything already existed)
             }
             else {
-                DEBUG_PRINTLN("[PRESET-IMPORT] Failed while writing");
+                DEBUG_PRINTLN("[PRESET-IMPORT] Failed while writing (from " + webserver.client().remoteIP().toString() + ")");
             }
         }
     }
@@ -6770,7 +7810,7 @@
         HTTPUpload& upload = webserver.upload();
 
         if (upload.status == UPLOAD_FILE_START) {
-            DEBUG_PRINTLN("[PRESET-MERGE] Start");
+            DEBUG_PRINTLN("[PRESET-MERGE] Start (from " + webserver.client().remoteIP().toString() + ")");
             presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
             presetImportSuccess = presetImportFile ? true : false;
         }
@@ -6785,7 +7825,7 @@
 
                 File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
                 if (!readFile) {
-                    DEBUG_PRINTLN("[PRESET-MERGE] Could not read file");
+                    DEBUG_PRINTLN("[PRESET-MERGE] Could not read file (from " + webserver.client().remoteIP().toString() + ")");
                     presetImportSuccess = false;
                     return;
                 }
@@ -6816,7 +7856,7 @@
                     if (name.isEmpty() || url.isEmpty()) continue;
 
                     if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] Skipped (clock face not found): " + name);
+                        DEBUG_PRINTLN("[PRESET-MERGE] Skipped (clock face not found): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
                         skippedCount++;
                         continue;
                     }
@@ -6829,14 +7869,14 @@
                         }
                     }
                     if (freeIndex == -1) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] No free slot left - aborted (preset: " + name + ")");
+                        DEBUG_PRINTLN("[PRESET-MERGE] No free slot left - aborted (preset: " + name + ") (from " + webserver.client().remoteIP().toString() + ")");
                         break;
                     }
 
                     presets[freeIndex].name = name;
                     presets[freeIndex].url = url;
                     addedCount++;
-                    DEBUG_PRINTLN("[PRESET-MERGE] Added: " + name);
+                    DEBUG_PRINTLN("[PRESET-MERGE] Added: " + name + " (from " + webserver.client().remoteIP().toString() + ")");
                 }
                 readFile.close();
                 LittleFS.remove(PRESET_IMPORT_TMP_PATH);
@@ -6846,10 +7886,10 @@
                 }
                 presetImportSuccess = true; // Auch bei 0 neuen Presets kein Fehler (z.B. alles schon vorhanden)
                                             // 0 new presets is also not an error (e.g. everything already existed)
-                DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " new presets added, " + String(skippedCount) + " skipped");
+                DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " new presets added, " + String(skippedCount) + " skipped (from " + webserver.client().remoteIP().toString() + ")");
             }
             else {
-                DEBUG_PRINTLN("[PRESET-MERGE] Failed while writing");
+                DEBUG_PRINTLN("[PRESET-MERGE] Failed while writing (from " + webserver.client().remoteIP().toString() + ")");
             }
         }
     }

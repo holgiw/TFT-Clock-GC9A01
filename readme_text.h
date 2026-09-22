@@ -11,7 +11,7 @@ static const char README_HTML_EN[] = R"rawliteral(
 <h2>1. Support for Multiple TFT Displays</h2>
 <ul>
 <li>Supported displays: GC9A01, GC9D01, ILI9341 (deprecated).</li>
-<li>A second, identical display is always active on its own chip-select pin (CS2) on the shared SPI bus. Each display has its own rotation setting, so both can be mounted in different orientations. Status and boot messages appear on both, each correctly rotated.</li>
+<li>An optional second, identical display can be driven on its own chip-select pin (CS2) on the shared SPI bus. Each display has its own rotation setting, so both can be mounted in different orientations. A display that is not connected is set to &quot;n.a.&quot; - it then stays black and the clock face is neither drawn nor calculated for it (default: display 1 at 0&deg;, display 2 n.a.). Status and boot messages (boot, access point mode, confirmation codes) appear on both displays until the clock takes over, each correctly rotated (n.a. counts as 0&deg;).</li>
 </ul>
 
 <h2>2. Customizable Hands and Clock Faces</h2>
@@ -38,12 +38,12 @@ static const char README_HTML_EN[] = R"rawliteral(
 <ul>
 <li>Up to 15 WiFi networks. Scanning shows signal strength and encryption; the strongest networks are kept and listed first.</li>
 <li>Hostname and all WiFi settings live on the WLAN tab, which opens automatically when no known network is reachable.</li>
-<li>Automatic reconnect, individual networks deletable, and WPS setup with a single button.</li>
+<li>Automatic reconnect, individual networks deletable, and WPS setup with a single button; overwriting or switching away from the currently connected network is executed directly when accessed from the private network, but requires confirming a code shown on the display when accessed from a non-private network (e.g. via a port forward/DMZ). Deleting a network (active or not), and any other changes to non-active networks, is only possible from a private network in general, with no code option at all.</li>
 <li>The clock is reachable at http://&lt;hostname&gt;.local via mDNS; the link is only offered when mDNS actually started.</li>
-<li>NTP has priority and is checked hourly, with a retry per server before moving to the next.</li>
+<li>NTP has priority and is checked every 6 hours, with a retry per server before moving to the next; if none are configured, or the configured ones are unreachable, pool.ntp.org and ptbtime1.ptb.de are used as a built-in fallback.</li>
 <li>If NTP is unavailable, the last valid DCF77 telegram is used, provided it is parity-correct and no older than 10 minutes - the elapsed time is added back on.</li>
-<li>The RTC is set at boot and hourly from whichever source succeeded.</li>
-<li>The clock also acts as an NTP server on port 123 for other devices. It answers whenever its own time is valid, no matter which source provided it.</li>
+<li>The RTC is set at boot and periodically from whichever source succeeded.</li>
+<li>The clock also acts as an NTP server on port 123 for other devices. It only answers requests from a private network, and only once its own time is valid, no matter which source provided it.</li>
 </ul>
 
 <h2>6. DCF77 Reception</h2>
@@ -69,7 +69,7 @@ static const char README_HTML_EN[] = R"rawliteral(
 <h2>8. File Management with LittleFS</h2>
 <ul>
 <li>Clock faces and hands are stored RLE-compressed to save flash space.</li>
-<li>Upload, download, rename and delete through a compact icon-based file manager.</li>
+<li>Upload, download, rename and delete through a compact icon-based file manager; uploading, renaming and deleting are only available from a private network.</li>
 <li>Optional logging to up to 9 rotating log files, viewable live in the Log tab.</li>
 </ul>
 
@@ -77,14 +77,15 @@ static const char README_HTML_EN[] = R"rawliteral(
 <ul>
 <li>Automatic daylight saving (e.g. CET/CEST) or permanent summer or winter time.</li>
 <li>Custom timezone strings can be entered directly.</li>
+<li>If no timezone is set, or the entered value isn't a valid POSIX TZ string, the clock falls back to CET-1CEST,M3.5.0,M10.5.0/3 (Central European Time).</li>
 </ul>
 
 <h2>10. Further Features</h2>
 <ul>
-<li>Up to 50 presets (face, hand set, hub color and size, second hand) - renameable, deletable, sorted alphabetically, with backup and restore.</li>
+<li>Up to 50 presets (face, hand set, hub color and size, second hand) - renameable, deletable (only from a private network), sorted alphabetically, with backup and restore.</li>
 <li>Deleting a face or hand set removes any presets referring to it; deleting the active hand set falls back to the default.</li>
 <li>Uploaded BMP files can be scaled to the display size.</li>
-<li>Uptime display, reboot from the web interface, weekly preventive restart.</li>
+<li>Uptime display, reboot from the web interface (only from a private network), weekly preventive restart.</li>
 <li>API interface for switching settings from outside.</li>
 <li>Hardware: ESP32-S2, photoresistor for brightness, optional DS3231 real time clock, DCF77 receiver module.</li>
 </ul>
@@ -105,7 +106,7 @@ static const char README_HTML_DE[] = R"rawliteral(
 <h2>1. Unterst&uuml;tzte TFT-Displays</h2>
 <ul>
 <li>Unterst&uuml;tzt werden GC9A01, GC9D01 und ILI9341 (nicht mehr gepflegt).</li>
-<li>Ein zweites, baugleiches Display ist immer aktiv und h&auml;ngt mit einem eigenen Chip-Select-Pin (CS2) am gemeinsamen SPI-Bus. Jedes Display hat seine eigene Rotationseinstellung, beide k&ouml;nnen also unterschiedlich eingebaut sein. Status- und Startmeldungen erscheinen auf beiden, jeweils korrekt gedreht.</li>
+<li>Ein optionales zweites, baugleiches Display kann &uuml;ber einen eigenen Chip-Select-Pin (CS2) am gemeinsamen SPI-Bus angesteuert werden. Jedes Display hat seine eigene Rotationseinstellung, beide k&ouml;nnen also unterschiedlich eingebaut sein. Ein nicht angeschlossenes Display wird auf &quot;n.a.&quot; gestellt - es bleibt dann schwarz, Zifferblatt und Zeiger werden daf&uuml;r weder gezeichnet noch berechnet (Standard: Display 1 mit 0&deg;, Display 2 n.a.). Status- und Startmeldungen (Start, Access-Point-Modus, Best&auml;tigungscodes) erscheinen bis zum Uhrstart auf beiden Displays, jeweils korrekt gedreht (n.a. z&auml;hlt als 0&deg;).</li>
 </ul>
 
 <h2>2. Eigene Zeiger und Zifferbl&auml;tter</h2>
@@ -132,12 +133,12 @@ static const char README_HTML_DE[] = R"rawliteral(
 <ul>
 <li>Bis zu 15 WLAN-Netzwerke. Der Scan zeigt Signalst&auml;rke und Verschl&uuml;sselung; die st&auml;rksten Netze werden behalten und zuerst gelistet.</li>
 <li>Hostname und alle WLAN-Einstellungen liegen auf dem WLAN-Tab, das automatisch &ouml;ffnet, wenn kein bekanntes Netz erreichbar ist.</li>
-<li>Automatischer Reconnect, einzeln l&ouml;schbare Netzwerke und WPS-Einrichtung per Knopfdruck.</li>
+<li>Automatischer Reconnect, einzeln l&ouml;schbare Netzwerke und WPS-Einrichtung per Knopfdruck; das &Uuml;berschreiben oder Wechseln weg vom aktuell verbundenen Netzwerk wird bei Zugriff aus dem privaten Netzwerk direkt ausgefuehrt, verlangt bei Zugriff aus einem nicht-privaten Netzwerk (z.B. ueber eine Port-Weiterleitung/DMZ) aber die Best&auml;tigung eines auf dem Display angezeigten Codes. Das L&ouml;schen eines Netzwerks (aktiv oder nicht) sowie alle sonstigen &Auml;nderungen an nicht aktiven Netzwerken sind dagegen grunds&auml;tzlich nur aus einem privaten Netzwerk m&ouml;glich, ganz ohne Code-Option.</li>
 <li>Die Uhr ist per mDNS unter http://&lt;hostname&gt;.local erreichbar; der Link wird nur angeboten, wenn mDNS tats&auml;chlich gestartet ist.</li>
-<li>NTP hat Vorrang und wird st&uuml;ndlich gepr&uuml;ft, mit einem Wiederholungsversuch je Server, bevor der n&auml;chste an die Reihe kommt.</li>
+<li>NTP hat Vorrang und wird alle 6 Stunden gepr&uuml;ft, mit einem Wiederholungsversuch je Server, bevor der n&auml;chste an die Reihe kommt; ist keiner konfiguriert oder sind die konfigurierten nicht erreichbar, dienen pool.ntp.org und ptbtime1.ptb.de als eingebauter R&uuml;ckfall.</li>
 <li>Ist NTP nicht verf&uuml;gbar, springt das zuletzt empfangene DCF77-Telegramm ein, sofern seine Parit&auml;t stimmt und es h&ouml;chstens 10 Minuten alt ist - die seitdem vergangene Zeit wird aufgerechnet.</li>
-<li>Die RTC wird beim Start und st&uuml;ndlich von der Quelle gestellt, die tats&auml;chlich Erfolg hatte.</li>
-<li>Die Uhr ist selbst NTP-Server auf Port 123 f&uuml;r andere Ger&auml;te. Sie antwortet, sobald ihre eigene Zeit g&uuml;ltig ist - unabh&auml;ngig davon, woher sie stammt.</li>
+<li>Die RTC wird beim Start und periodisch von der Quelle gestellt, die tats&auml;chlich Erfolg hatte.</li>
+<li>Die Uhr ist selbst NTP-Server auf Port 123 f&uuml;r andere Ger&auml;te. Sie antwortet nur auf Anfragen aus einem privaten Netzwerk, und erst, sobald ihre eigene Zeit g&uuml;ltig ist - unabh&auml;ngig davon, woher sie stammt.</li>
 </ul>
 
 <h2>6. DCF77-Empfang</h2>
@@ -163,7 +164,7 @@ static const char README_HTML_DE[] = R"rawliteral(
 <h2>8. Dateiverwaltung mit LittleFS</h2>
 <ul>
 <li>Zifferbl&auml;tter und Zeiger werden RLE-komprimiert gespeichert, das spart Flash-Speicher.</li>
-<li>Hochladen, Herunterladen, Umbenennen und L&ouml;schen &uuml;ber einen kompakten Dateimanager mit Symbolen.</li>
+<li>Hochladen, Herunterladen, Umbenennen und L&ouml;schen &uuml;ber einen kompakten Dateimanager mit Symbolen; Hochladen, Umbenennen und L&ouml;schen sind nur aus einem privaten Netzwerk m&ouml;glich.</li>
 <li>Optionales Logging in bis zu 9 rotierende Logdateien, live im Log-Tab einsehbar.</li>
 </ul>
 
@@ -171,14 +172,15 @@ static const char README_HTML_DE[] = R"rawliteral(
 <ul>
 <li>Automatische Sommer-/Winterzeit (z.B. MEZ/MESZ) oder dauerhaft Sommer- bzw. Winterzeit.</li>
 <li>Eigene Zeitzonen-Zeichenketten k&ouml;nnen direkt eingegeben werden.</li>
+<li>Ist keine Zeitzone eingetragen oder der eingetragene Wert kein g&uuml;ltiger POSIX-TZ-String, f&auml;llt die Uhr automatisch auf CET-1CEST,M3.5.0,M10.5.0/3 (Mitteleurop&auml;ische Zeit) zur&uuml;ck.</li>
 </ul>
 
 <h2>10. Weitere Funktionen</h2>
 <ul>
-<li>Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe und -gr&ouml;&szlig;e, Sekundenzeiger) - umbenennbar, l&ouml;schbar, alphabetisch sortiert, mit Sicherung und Wiederherstellung.</li>
+<li>Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe und -gr&ouml;&szlig;e, Sekundenzeiger) - umbenennbar, l&ouml;schbar (nur aus einem privaten Netzwerk), alphabetisch sortiert, mit Sicherung und Wiederherstellung.</li>
 <li>Wird ein Zifferblatt oder Zeigersatz gel&ouml;scht, verschwinden die Presets, die darauf verweisen; beim aktiven Zeigersatz wird auf den Standard zur&uuml;ckgeschaltet.</li>
 <li>Hochgeladene BMP-Dateien k&ouml;nnen auf die Displaygr&ouml;&szlig;e skaliert werden.</li>
-<li>Anzeige der Laufzeit, Neustart &uuml;ber die Weboberfl&auml;che, w&ouml;chentlicher vorbeugender Neustart.</li>
+<li>Anzeige der Laufzeit, Neustart &uuml;ber die Weboberfl&auml;che (nur aus einem privaten Netzwerk), w&ouml;chentlicher vorbeugender Neustart.</li>
 <li>API-Schnittstelle zum Umschalten der Einstellungen von au&szlig;en.</li>
 <li>Hardware: ESP32-S2, Fotowiderstand f&uuml;r die Helligkeit, optionale DS3231-Echtzeituhr, DCF77-Empfangsmodul.</li>
 </ul>
@@ -199,7 +201,7 @@ static const char README_HTML_FR[] = R"rawliteral(
 <h2>1. &Eacute;crans TFT pris en charge</h2>
 <ul>
 <li>&Eacute;crans pris en charge&nbsp;: GC9A01, GC9D01, ILI9341 (obsol&egrave;te).</li>
-<li>Un second &eacute;cran identique est toujours actif, sur sa propre broche de s&eacute;lection (CS2) du bus SPI partag&eacute;. Chaque &eacute;cran a sa propre rotation, les deux peuvent donc &ecirc;tre mont&eacute;s diff&eacute;remment. Les messages d&#39;&eacute;tat et de d&eacute;marrage s&#39;affichent sur les deux, correctement orient&eacute;s.</li>
+<li>Un second &eacute;cran identique peut &ecirc;tre pilot&eacute; via sa propre broche de s&eacute;lection (CS2) du bus SPI partag&eacute;. Chaque &eacute;cran a sa propre rotation, les deux peuvent donc &ecirc;tre mont&eacute;s diff&eacute;remment. Un &eacute;cran non raccord&eacute; se r&egrave;gle sur &quot;n.a.&quot; - il reste alors noir et le cadran et les aiguilles ne sont ni dessin&eacute;s ni calcul&eacute;s pour lui (par d&eacute;faut : &eacute;cran 1 &agrave; 0&deg;, &eacute;cran 2 n.a.). Les messages d&#39;&eacute;tat et de d&eacute;marrage (d&eacute;marrage, mode point d&#39;acc&egrave;s, codes de confirmation) s&#39;affichent sur les deux &eacute;crans jusqu&#39;&agrave; ce que l&#39;horloge prenne le relais, correctement orient&eacute;s (n.a. compte comme 0&deg;).</li>
 </ul>
 
 <h2>2. Aiguilles et cadrans personnalis&eacute;s</h2>
@@ -226,12 +228,12 @@ static const char README_HTML_FR[] = R"rawliteral(
 <ul>
 <li>Jusqu&#39;&agrave; 15 r&eacute;seaux WiFi. Le balayage indique la puissance du signal et le chiffrement&nbsp;; les r&eacute;seaux les plus forts sont conserv&eacute;s et list&eacute;s en premier.</li>
 <li>Le nom d&#39;h&ocirc;te et tous les param&egrave;tres WiFi se trouvent sur l&#39;onglet WLAN, qui s&#39;ouvre automatiquement si aucun r&eacute;seau connu n&#39;est joignable.</li>
-<li>Reconnexion automatique, suppression individuelle des r&eacute;seaux et configuration WPS en un bouton.</li>
+<li>Reconnexion automatique, suppression individuelle des r&eacute;seaux et configuration WPS en un bouton&nbsp;; le remplacement ou le changement depuis le r&eacute;seau actuellement connect&eacute; est ex&eacute;cut&eacute; directement en cas d&#39;acc&egrave;s depuis le r&eacute;seau priv&eacute;, mais exige la confirmation d&#39;un code affich&eacute; sur l&#39;&eacute;cran en cas d&#39;acc&egrave;s depuis un r&eacute;seau non priv&eacute; (par ex. via une redirection de port/DMZ). La suppression d&#39;un r&eacute;seau (actif ou non), ainsi que toute autre modification des r&eacute;seaux non actifs, n&#39;est possible que depuis un r&eacute;seau priv&eacute;, sans aucune option de code.</li>
 <li>L&#39;horloge est joignable via mDNS &agrave; http://&lt;hostname&gt;.local&nbsp;; le lien n&#39;est propos&eacute; que si mDNS a r&eacute;ellement d&eacute;marr&eacute;.</li>
-<li>NTP est prioritaire et v&eacute;rifi&eacute; toutes les heures, avec une nouvelle tentative par serveur avant de passer au suivant.</li>
+<li>NTP est prioritaire et v&eacute;rifi&eacute; toutes les 6 heures, avec une nouvelle tentative par serveur avant de passer au suivant&nbsp;; si aucun serveur n&#39;est configur&eacute;, ou si les serveurs configur&eacute;s sont inaccessibles, pool.ntp.org et ptbtime1.ptb.de servent de solution de repli int&eacute;gr&eacute;e.</li>
 <li>Si NTP est indisponible, le dernier t&eacute;l&eacute;gramme DCF77 valide prend le relais, &agrave; condition que sa parit&eacute; soit correcte et qu&#39;il ait au plus 10 minutes - le temps &eacute;coul&eacute; depuis est ajout&eacute;.</li>
-<li>Le RTC est r&eacute;gl&eacute; au d&eacute;marrage et chaque heure par la source qui a r&eacute;ellement abouti.</li>
-<li>L&#39;horloge est elle-m&ecirc;me serveur NTP sur le port 123. Elle r&eacute;pond d&egrave;s que sa propre heure est valide, quelle qu&#39;en soit la source.</li>
+<li>Le RTC est r&eacute;gl&eacute; au d&eacute;marrage et p&eacute;riodiquement par la source qui a r&eacute;ellement abouti.</li>
+<li>L&#39;horloge est elle-m&ecirc;me serveur NTP sur le port 123. Elle ne r&eacute;pond qu&#39;aux demandes provenant d&#39;un r&eacute;seau priv&eacute;, et seulement d&egrave;s que sa propre heure est valide, quelle qu&#39;en soit la source.</li>
 </ul>
 
 <h2>6. R&eacute;ception DCF77</h2>
@@ -257,7 +259,7 @@ static const char README_HTML_FR[] = R"rawliteral(
 <h2>8. Gestion des fichiers avec LittleFS</h2>
 <ul>
 <li>Les cadrans et les aiguilles sont stock&eacute;s compress&eacute;s en RLE pour &eacute;conomiser la m&eacute;moire flash.</li>
-<li>Envoi, t&eacute;l&eacute;chargement, renommage et suppression via un gestionnaire de fichiers compact.</li>
+<li>Envoi, t&eacute;l&eacute;chargement, renommage et suppression via un gestionnaire de fichiers compact&nbsp;; l&#39;envoi, le renommage et la suppression ne sont possibles que depuis un r&eacute;seau priv&eacute;.</li>
 <li>Journalisation optionnelle dans jusqu&#39;&agrave; 9 fichiers rotatifs, consultables en direct dans l&#39;onglet Journal.</li>
 </ul>
 
@@ -265,14 +267,15 @@ static const char README_HTML_FR[] = R"rawliteral(
 <ul>
 <li>Heure d&#39;&eacute;t&eacute; automatique (par ex. CET/CEST) ou heure d&#39;&eacute;t&eacute; / d&#39;hiver permanente.</li>
 <li>Des cha&icirc;nes de fuseau horaire personnalis&eacute;es peuvent &ecirc;tre saisies directement.</li>
+<li>Si aucun fuseau horaire n&#39;est renseign&eacute;, ou si la valeur saisie n&#39;est pas une cha&icirc;ne POSIX-TZ valide, l&#39;horloge revient automatiquement &agrave; CET-1CEST,M3.5.0,M10.5.0/3 (heure d&#39;Europe centrale).</li>
 </ul>
 
 <h2>10. Autres fonctions</h2>
 <ul>
-<li>Jusqu&#39;&agrave; 50 pr&eacute;r&eacute;glages (cadran, aiguilles, couleur et taille du moyeu, trotteuse) - renommables, supprimables, tri&eacute;s alphab&eacute;tiquement, avec sauvegarde et restauration.</li>
+<li>Jusqu&#39;&agrave; 50 pr&eacute;r&eacute;glages (cadran, aiguilles, couleur et taille du moyeu, trotteuse) - renommables, supprimables (uniquement depuis un r&eacute;seau priv&eacute;), tri&eacute;s alphab&eacute;tiquement, avec sauvegarde et restauration.</li>
 <li>Supprimer un cadran ou un jeu d&#39;aiguilles supprime les pr&eacute;r&eacute;glages qui s&#39;y r&eacute;f&egrave;rent&nbsp;; pour le jeu actif, le d&eacute;faut reprend la main.</li>
 <li>Les fichiers BMP envoy&eacute;s peuvent &ecirc;tre redimensionn&eacute;s &agrave; la taille de l&#39;&eacute;cran.</li>
-<li>Affichage de la dur&eacute;e de fonctionnement, red&eacute;marrage depuis l&#39;interface web, red&eacute;marrage pr&eacute;ventif hebdomadaire.</li>
+<li>Affichage de la dur&eacute;e de fonctionnement, red&eacute;marrage depuis l&#39;interface web (uniquement depuis un r&eacute;seau priv&eacute;), red&eacute;marrage pr&eacute;ventif hebdomadaire.</li>
 <li>Interface API pour modifier les r&eacute;glages depuis l&#39;ext&eacute;rieur.</li>
 <li>Mat&eacute;riel&nbsp;: ESP32-S2, photor&eacute;sistance pour la luminosit&eacute;, horloge temps r&eacute;el DS3231 en option, module de r&eacute;ception DCF77.</li>
 </ul>

@@ -32,6 +32,87 @@
     // history).
 
 
+    // Diagnose-Funktion: tritt der R2RNet-Multicast-Gruppe bei und loggt jedes
+    // empfangene Paket unveraendert (Rohtext + Hex) - um zu klaeren, ob und in
+    // welchem Format ueberhaupt etwas ankommt, BEVOR echte Discovery evtl.
+    // wieder aufgebaut wird. Muss nach jedem WiFi-(Re-)Connect neu aufgerufen
+    // werden (siehe Aufrufstellen in uhr3.ino/wifi_manager.h), genau wie
+    // startNtpServer() - ein Reconnect reisst den Socket sonst mit runter.
+
+    // Diagnostic function: joins the R2RNet multicast group and logs every
+    // received packet unchanged (raw text + hex) - to find out whether and in
+    // what format anything arrives at all, BEFORE real discovery might get
+    // rebuilt. Must be called again after every WiFi (re)connect (see the
+    // call sites in uhr3.ino/wifi_manager.h), exactly like startNtpServer() -
+    // a reconnect otherwise takes the socket down with it.
+
+    bool startR2rnetDebugListener() {
+        r2rnetDebugUdp.stop();
+
+        IPAddress multicastIp;
+        if (!multicastIp.fromString(R2RNET_DEBUG_MULTICAST_IP)) {
+            DEBUG_PRINTLN("[R2RNET-DEBUG] Invalid multicast address: " + String(R2RNET_DEBUG_MULTICAST_IP));
+            r2rnetDebugListening = false;
+            return false;
+        }
+
+        r2rnetDebugListening = (r2rnetDebugUdp.beginMulticast(multicastIp, R2RNET_DEBUG_MULTICAST_PORT) == 1);
+
+        if (r2rnetDebugListening) {
+            DEBUG_PRINTLN("[R2RNET-DEBUG] Listening on multicast " + String(R2RNET_DEBUG_MULTICAST_IP) + ":" + String(R2RNET_DEBUG_MULTICAST_PORT));
+        }
+        else {
+            DEBUG_PRINTLN("[R2RNET-DEBUG] Could not join multicast group " + String(R2RNET_DEBUG_MULTICAST_IP) + ":" + String(R2RNET_DEBUG_MULTICAST_PORT));
+        }
+        return r2rnetDebugListening;
+    }
+
+
+    // In loop() gepollt (siehe uhr3.ino) - liest eingehende Multicast-Pakete
+    // non-blocking (parsePacket() liefert 0, wenn keins wartet) und loggt
+    // Absender, Laenge, Rohtext sowie eine Hex-Ansicht der ersten Bytes -
+    // Rohtext allein reicht bei evtl. binaeren Headern/Nicht-ASCII nicht aus.
+
+    // Polled in loop() (see uhr3.ino) - reads incoming multicast packets
+    // non-blocking (parsePacket() returns 0 when none is waiting) and logs
+    // sender, length, raw text, and a hex view of the first bytes - raw text
+    // alone isn't enough if there are binary headers/non-ASCII bytes.
+
+    void pollR2rnetDebugListener() {
+        if (!r2rnetDebugListening) return;
+
+        int packetSize = r2rnetDebugUdp.parsePacket();
+        if (packetSize <= 0) return;
+
+        uint8_t buf[R2RNET_DEBUG_PACKET_BUFFER_SIZE];
+        int len = r2rnetDebugUdp.read(buf, sizeof(buf) - 1);
+        if (len < 0) len = 0;
+        buf[len] = '\0';
+
+        // Hex-Ansicht der ersten Bytes, damit auch nicht-druckbare/binaere
+        // Anteile sichtbar werden statt im Log als Muell/leer zu erscheinen.
+
+        // Hex view of the first bytes, so non-printable/binary portions show
+        // up too instead of appearing as garbage/blank in the log.
+        String hex;
+        int hexBytes = min(len, 64);
+        hex.reserve(hexBytes * 3 + 4); // "XX " je Byte + evtl. "..." - vermeidet
+                                       // wiederholte Heap-Reallokation durch +=
+                                       // "XX " per byte + optional "..." - avoids
+                                       // repeated heap reallocation from +=
+        for (int i = 0; i < hexBytes; i++) {
+            if (buf[i] < 0x10) hex += "0";
+            hex += String(buf[i], HEX);
+            hex += " ";
+        }
+        if (len > hexBytes) hex += "...";
+
+        DEBUG_PRINTLN("[R2RNET-DEBUG] " + String(packetSize) + " bytes from " +
+            r2rnetDebugUdp.remoteIP().toString() + ":" + String(r2rnetDebugUdp.remotePort()) +
+            " | text: " + String((char*)buf) + " | hex: " + hex);
+    }
+
+
     // Laedt die Rocrail-Server-Liste (bis zu MAX_WLAN) aus den Preferences.
     // Migriert einmalig einen alten Einzel-Server als Listenplatz 1, falls
     // die Liste sonst leer waere.
@@ -183,38 +264,6 @@
     }
 
 
-    // Uebernimmt den Anlagennamen aus <plan title="..."/>, falls das Feld
-    // fuer den aktiven Server noch leer ist. Rein passiv - eine aktive
-    // Anfrage wuerde den ganzen Plan anfordern und den Speicher sprengen.
-
-    // Takes over the layout name from <plan title="..."/>, if that field
-    // is still empty for the active server. Purely passive - an active
-    // request would ask for the whole plan and could blow the memory.
-
-    void processRocrailPlanTag() {
-        if (rocrailActiveServerIndex < 0 || rocrailActiveServerIndex >= MAX_WLAN) return;
-        if (strlen(rocrailServerNameList[rocrailActiveServerIndex]) > 0) return; // schon gesetzt (Nutzer oder frueher per RCP) - nicht ueberschreiben
-                                                                                 // already set (by the user or earlier via RCP) - don't overwrite
-
-        int planPos = rocrailRxBuffer.indexOf("<plan ");
-        if (planPos == -1) return;
-
-        int endPos = rocrailRxBuffer.indexOf(">", planPos);
-        if (endPos == -1) return; // Oeffnendes Tag noch nicht vollstaendig angekommen
-                                  // opening tag hasn't fully arrived yet
-
-        String title = rocrailXmlAttrString(rocrailRxBuffer.substring(planPos, endPos + 1), "title");
-        title.trim();
-        if (title.isEmpty()) return;
-
-        strncpy(rocrailServerNameList[rocrailActiveServerIndex], title.c_str(), sizeof(rocrailServerNameList[rocrailActiveServerIndex]) - 1);
-        rocrailServerNameList[rocrailActiveServerIndex][sizeof(rocrailServerNameList[rocrailActiveServerIndex]) - 1] = '\0';
-        preferences.putString(pkRocrailServerName(rocrailActiveServerIndex).c_str(), rocrailServerNameList[rocrailActiveServerIndex]);
-
-        DEBUG_PRINTLN("[ROCRAIL] Layout name from RCP for server " + String(rocrailActiveServerIndex + 1) + ": " + title);
-    }
-
-
     // Sucht das letzte vollstaendige <clock .../>-Tag im Rohstrom (kein
     // <xmlh>-Header, siehe Dateikopf) und wertet es aus.
 
@@ -222,8 +271,6 @@
     // <xmlh> header, see file header) and evaluates it.
 
     void processRocrailBuffer() {
-        processRocrailPlanTag();
-
         int clockPos = rocrailRxBuffer.lastIndexOf("<clock ");
         if (clockPos == -1) return;
 
@@ -240,18 +287,60 @@
 
 
     // Wertet ein <clock .../>-Tag aus: state ("go"/"freeze") gehoert zum
-    // Clock-Objekt, "time" liefert die Sekunde (time%60). Eine Abweichung
-    // wird sanft angeglichen statt gesprungen (siehe advanceRocrailTime()).
+    // Clock-Objekt. Das "time"-Attribut ist laut Rocrail-Wiki (digint:user-en,
+    // Beispiel "time="1559803151"" passend zu "year="2019" month="6" mday="6"")
+    // ein REALER Unix-Zeitstempel des Sendezeitpunkts, KEINE Modellzeit-
+    // Sekunde - time%60 lieferte daher einen mit hour/minute komplett
+    // unkorrelierten Wert (frueherer Bug, siehe Git-Historie: loeste sehr
+    // haeufig faelschlich "Large drift"/Snapping aus). Rocrails <clock>-
+    // Updates sind ohnehin minutengenau ("Client update frequency in model
+    // minutes", siehe rocrailini-service-Doku) - jedes Update markiert daher
+    // den Beginn einer neuen Modellminute (Sekunde 0); dazwischen laeuft die
+    // Anzeige rein lokal weiter (siehe advanceRocrailTime()). Eine Abweichung
+    // wird sanft angeglichen statt gesprungen.
 
     // Evaluates a <clock .../> tag: state ("go"/"freeze") belongs to the
-    // clock object, "time" gives the second (time%60). A deviation is
-    // eased in smoothly instead of snapped (see advanceRocrailTime()).
+    // clock object. Per the Rocrail wiki (digint:user-en, example
+    // "time="1559803151"" matching "year="2019" month="6" mday="6""), the
+    // "time" attribute is a REAL Unix timestamp of when it was sent, NOT a
+    // model-time second - time%60 therefore produced a value completely
+    // uncorrelated with hour/minute (earlier bug, see git history: falsely
+    // triggered "Large drift"/snapping very often). Rocrail's <clock>
+    // updates are minute-granular anyway ("Client update frequency in model
+    // minutes", see the rocrailini-service docs) - each update therefore
+    // marks the start of a new model minute (second 0); the display keeps
+    // running purely locally in between (see advanceRocrailTime()). A
+    // deviation is eased in smoothly instead of snapped.
+
+    // Drosselung fuer wiederkehrende Log-Zeilen: loggt nur die ersten `limit`
+    // Aufrufe (erhoeht `counter` dabei), danach keine mehr - verhindert, dass
+    // ein dauerhafter Zustand (z.B. jede Minute erneuter Verbindungsfehlschlag)
+    // das Log zuschreibt. `isLastLogged` wird true beim letzten NOCH geloggten
+    // Aufruf, damit der Aufrufer dort einen Hinweis anhaengen kann, warum das
+    // Log danach still wird (siehe processRocrailClockPayload()/
+    // pollRocrailConnectTask()).
+
+    // Throttling for recurring log lines: only logs the first `limit` calls
+    // (incrementing `counter` for each), none after that - prevents an
+    // ongoing condition (e.g. a connect failure repeating every minute) from
+    // flooding the log. `isLastLogged` is true on the last call that still
+    // gets logged, so the caller can append a note there explaining why the
+    // log goes quiet afterwards (see processRocrailClockPayload()/
+    // pollRocrailConnectTask()).
+
+    bool shouldLogThrottled(uint8_t& counter, bool& isLastLogged, uint8_t limit) {
+        isLastLogged = false;
+        if (counter >= limit) return false;
+        counter++;
+        isLastLogged = (counter == limit);
+        return true;
+    }
+
 
     void processRocrailClockPayload(const String& payload) {
         int hour = rocrailXmlAttrInt(payload, "hour", -1);
         int minute = rocrailXmlAttrInt(payload, "minute", -1);
         int divider = rocrailXmlAttrInt(payload, "divider", rocrailDivider);
-        long timeValue = rocrailXmlAttrInt(payload, "time", 0);
         String state = rocrailXmlAttrString(payload, "state");
 
         // Helligkeit: optionales "bri"-Attribut (0-255), nur gesetzt bei
@@ -267,12 +356,23 @@
             rocrailBrightnessKnown = true;
         }
 
+        // Frueheren Zustand fuer den Vergleich unten sichern, BEVOR er durch
+        // das aktuelle Update ueberschrieben wird (state -> rocrailFrozen,
+        // divider -> rocrailDivider) - noetig, um einen echten Wechsel von
+        // einem blossen "unveraendert"-Update zu unterscheiden.
+
+        // Save the previous state for the comparison below, BEFORE this
+        // update overwrites it (state -> rocrailFrozen, divider ->
+        // rocrailDivider) - needed to tell a genuine change apart from a
+        // plain "unchanged" update.
+        bool wasFrozen = rocrailFrozen;
+        uint8_t oldDivider = rocrailDivider;
+
         if (state == "go") rocrailFrozen = false;
         else if (state == "freeze") rocrailFrozen = true;
 
         if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-            int seconds = (timeValue > 0) ? (int)(timeValue % 60) : 0;
-            long newModelSeconds = (long)hour * 3600 + (long)minute * 60 + seconds;
+            long newModelSeconds = (long)hour * 3600 + (long)minute * 60;
 
             bool firstSync = (rocrailLastClockMillis == 0);
 
@@ -293,7 +393,8 @@
                     // Too large for a smooth ease-in - set directly.
                     rocrailDisplaySeconds = (float)newModelSeconds;
                     rocrailDriftSeconds = 0.0f;
-                    DEBUG_PRINTLN("[ROCRAIL] Large drift (" + String(drift, 1) + "s) - snapping directly");
+                    DEBUG_PRINTLN("[ROCRAIL] " + rocrailServerHost + ":" + String(rocrailServerPort) +
+                                  " - large drift (" + String(drift, 1) + "s) - snapping directly");
                 }
                 else {
                     rocrailDriftSeconds = drift;
@@ -303,11 +404,54 @@
             rocrailLastClockMillis = millis();
             if (divider > 0) rocrailDivider = (uint8_t)divider;
 
-            DEBUG_PRINTLN("[ROCRAIL] clock " + String(hour) + ":" +
-                          (minute < 10 ? "0" : "") + String(minute) + ":" +
-                          (seconds < 10 ? "0" : "") + String(seconds) +
-                          " (divider " + String(rocrailDivider) +
-                          (rocrailFrozen ? ", angehalten)" : ")"));
+            // Die routinemaessige Zeile nur fuer die ersten beiden <clock>-
+            // Updates zeigen (Bestaetigung, dass die Verbindung/Zeituebernahme
+            // funktioniert) - danach wuerde sie das Logfile bei jedem Update
+            // (minuetlich x Divider) zulaufen lassen, ohne neue Information zu
+            // liefern. Ab dann nur noch bei echten Aenderungen (Divider- oder
+            // Pause/Lauf-Wechsel) melden - der grosse-Drift-Fall oben bleibt
+            // davon unberuehrt und wird immer geloggt. Host:Port stehen mit in
+            // der Zeile (siehe precise-log-messages-Konvention), da bei
+            // mehreren konfigurierten Servern sonst nicht erkennbar waere,
+            // von welchem die Meldung stammt.
+
+            // Only show the routine line for the first two <clock> updates
+            // (confirmation that the connection/time takeover works) - after
+            // that it would fill the log file on every update (per model
+            // minute x divider) without new information. From then on only
+            // report genuine changes (divider or pause/run switch) - the
+            // large-drift case above is unaffected and always logged. Host:
+            // port are included in the line (see the precise-log-messages
+            // convention), since with multiple configured servers it
+            // otherwise wouldn't be clear which one the message is about.
+            bool isLastLogged = false;
+            if (shouldLogThrottled(rocrailClockLogCount, isLastLogged)) {
+
+                // Beim letzten der beiden Routine-Updates einen Hinweis
+                // anhaengen, WARUM danach Stille im Log herrscht - sonst liesse
+                // sich das leicht mit einer abgebrochenen Verbindung verwechseln.
+
+                // On the last of the two routine updates, append a note
+                // explaining WHY the log goes quiet afterwards - otherwise
+                // that could easily be mistaken for a dropped connection.
+                String suffix = isLastLogged ?
+                    " - Rocrail ok, no more messages until divider/pause changes" : "";
+
+                DEBUG_PRINTLN("[ROCRAIL] " + rocrailServerHost + ":" + String(rocrailServerPort) +
+                              " - clock " + String(hour) + ":" +
+                              (minute < 10 ? "0" : "") + String(minute) +
+                              " (divider " + String(rocrailDivider) +
+                              (rocrailFrozen ? ", angehalten)" : ")") + suffix);
+            }
+            else if (rocrailFrozen != wasFrozen || rocrailDivider != oldDivider) {
+                DEBUG_PRINTLN("[ROCRAIL] " + rocrailServerHost + ":" + String(rocrailServerPort) +
+                              " - clock " + String(hour) + ":" +
+                              (minute < 10 ? "0" : "") + String(minute) +
+                              " - " +
+                              (rocrailFrozen != wasFrozen ? String(rocrailFrozen ? "paused" : "running again") : "") +
+                              (rocrailFrozen != wasFrozen && rocrailDivider != oldDivider ? ", " : "") +
+                              (rocrailDivider != oldDivider ? "divider changed " + String(oldDivider) + " -> " + String(rocrailDivider) : ""));
+            }
         }
     }
 
@@ -319,7 +463,7 @@
     // doesn't block. Deletes itself at the end.
 
     void rocrailConnectTaskFunc(void* param) {
-        rocrailConnectTaskResult = rocrailClient.connect(rocrailServerHost.c_str(), rocrailServerPort, ROCRAIL_CONNECT_TIMEOUT_MS);
+        rocrailConnectTaskResult = rocrailClient.connect(rocrailServerHostSnapshot, rocrailServerPortSnapshot, ROCRAIL_CONNECT_TIMEOUT_MS);
         rocrailConnectTaskDone = true;
         vTaskDelete(NULL);
     }
@@ -338,17 +482,55 @@
         rocrailConnectTaskHandle = NULL;
 
         if (rocrailConnectTaskResult && rocrailEnabled) {
-            DEBUG_PRINTLN("[ROCRAIL] Connected");
+            DEBUG_PRINTLN("[ROCRAIL] Connected to " + String(rocrailServerHostSnapshot) + ":" + String(rocrailServerPortSnapshot));
             rocrailRxBuffer = "";
             rocrailFrozen = false; // Zustand unbekannt bis zum naechsten state-Attribut
                                    // state unknown until the next state attribute
             // Naechstes <clock>-Update startet die Modellzeit neu.
             // Next <clock> update restarts the model time.
             rocrailLastClockMillis = 0;
+
+            // Zaehler fuer die naechste Ausfall-Serie zuruecksetzen: eine neue
+            // Verbindung ist ein neuer Anfang - faellt sie spaeter erneut aus,
+            // soll das wieder (kurz) im Log auftauchen statt fuer immer stumm
+            // zu bleiben, nur weil frueher schon mal 2 Fehlschlaege geloggt wurden.
+            // Gleicher Grund fuer rocrailClockLogCount: nach einem Reconnect
+            // sollen die ersten beiden <clock>-Updates wieder bestaetigen, dass
+            // die Zeituebernahme funktioniert, statt fuer den Rest der Laufzeit
+            // stumm zu bleiben, nur weil vor dem Verbindungsabbruch schon 2
+            // Updates geloggt wurden.
+
+            // Reset the counter for the next failure streak: a new connection
+            // is a fresh start - if it fails again later, that should show up
+            // (briefly) in the log again instead of staying silent forever
+            // just because 2 failures were already logged earlier. Same
+            // reason for rocrailClockLogCount: after a reconnect, the first
+            // two <clock> updates should again confirm the time takeover
+            // works, instead of staying quiet for the rest of the runtime
+            // just because 2 updates were already logged before the drop.
+            rocrailConnectFailLogCount = 0;
+            rocrailClockLogCount = 0;
         }
         else if (!rocrailConnectTaskResult) {
-            DEBUG_PRINTLN("[ROCRAIL] Server did not respond on port " + String(rocrailServerPort) +
-                          " - falling back to real time, retrying in a minute");
+
+            // Wie bei der Clock-Routinezeile (siehe processRocrailClockPayload()):
+            // nur die ersten 2 Fehlschlaege loggen, danach im Hintergrund
+            // weiter versuchen, aber das Log nicht mit derselben Meldung jede
+            // Minute zuschreiben - mit Hinweis bei der letzten geloggten Zeile,
+            // damit das nicht wie eine tote Verbindung ohne jede Rueckmeldung wirkt.
+
+            // Same as the clock routine line (see processRocrailClockPayload()):
+            // only log the first 2 failures, then keep retrying in the
+            // background without filling the log with the same message every
+            // minute - with a hint on the last logged line, so it doesn't look
+            // like a dead connection with no feedback at all.
+            bool isLastLogged = false;
+            if (shouldLogThrottled(rocrailConnectFailLogCount, isLastLogged)) {
+                String suffix = isLastLogged ?
+                    " - retrying in background, no more messages until it succeeds" : "";
+                DEBUG_PRINTLN("[ROCRAIL] Server " + String(rocrailServerHostSnapshot) + ":" + String(rocrailServerPortSnapshot) +
+                              " did not respond - falling back to real time, retrying in a minute" + suffix);
+            }
         }
     }
 
@@ -363,6 +545,19 @@
 
     void startRocrailConnectTask() {
         rocrailLastConnectAttemptMillis = millis();
+
+        // Snapshot JETZT anlegen, auf dem Hauptthread - siehe Kommentar bei
+        // rocrailServerHostSnapshot in globals.h. Ab hier liest die Task nur
+        // noch aus der Kopie, unabhaengig davon, was am Original waehrend
+        // die Task laeuft noch veraendert wird (z.B. Speichern neuer
+        // Rocrail-Einstellungen im Webinterface).
+
+        // Take the snapshot NOW, on the main thread - see the comment at
+        // rocrailServerHostSnapshot in globals.h. From here on the task only
+        // reads the copy, regardless of what happens to the original while
+        // the task is running (e.g. saving new Rocrail settings in the web UI).
+        rocrailServerHost.toCharArray(rocrailServerHostSnapshot, sizeof(rocrailServerHostSnapshot));
+        rocrailServerPortSnapshot = rocrailServerPort;
 
         rocrailConnectTaskDone = false;
         rocrailConnectTaskRunning = true;
@@ -393,7 +588,16 @@
         // time is shown anyway until connected.
         if (timeinfo.tm_sec != 59) return;
 
-        DEBUG_PRINTLN("[ROCRAIL] Connecting to " + rocrailServerHost + ":" + String(rocrailServerPort));
+        // Gleiche Drosselung wie bei der Fehlschlag-Meldung unten
+        // (pollRocrailConnectTask()): sonst wuerde diese Zeile weiter jede
+        // Minute geloggt, auch wenn die Fehlschlag-Zeile schon still ist.
+
+        // Same throttling as the failure message below
+        // (pollRocrailConnectTask()): otherwise this line would keep getting
+        // logged every minute even while the failure line has already gone quiet.
+        if (rocrailConnectFailLogCount < ROCRAIL_LOG_THROTTLE_LIMIT) {
+            DEBUG_PRINTLN("[ROCRAIL] Connecting to " + rocrailServerHost + ":" + String(rocrailServerPort));
+        }
         startRocrailConnectTask();
     }
 
@@ -468,8 +672,8 @@
 
                 // Diagnostic: only log the first 5 raw data chunks, so the
                 // log file doesn't fill up with frequent status lines.
-                if (rocrailLogChunkCount < 5) {
-                    rocrailLogChunkCount++;
+                bool isLastChunkLogged = false;
+                if (shouldLogThrottled(rocrailLogChunkCount, isLastChunkLogged, 5)) {
                     DEBUG_PRINTLN("[ROCRAIL] RCP #" + String(rocrailLogChunkCount) +
                                   " (" + String(n) + " bytes): " + String(buf));
                 }

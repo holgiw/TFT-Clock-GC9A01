@@ -29,6 +29,32 @@
     }
 
 
+    // Ein Display gilt als angeschlossen, solange seine Rotation nicht "n.a." ist
+    // A display counts as connected as long as its rotation is not "n.a."
+
+    bool isDisplayConnected(uint8_t displayNum) {
+        return ((displayNum == 1) ? tftRotation1 : tftRotation2) != TFT_ROTATION_NA;
+    }
+
+
+    // Rotation des ersten angeschlossenen Displays (Display 1 hat Vorrang), nie "n.a."
+    // Rotation of the first connected display (display 1 takes priority), never "n.a."
+
+    uint8_t primaryDisplayRotation() {
+        if (isDisplayConnected(1)) return tftRotation1;
+        if (isDisplayConnected(2)) return tftRotation2;
+        return 0;
+    }
+
+
+    // Rotation fuer Status-/Startmeldungen eines Displays: bei "n.a." 0 Grad, nie der Wert 4
+    // Rotation for status/boot messages of a display: 0 degrees for "n.a.", never the value 4
+
+    uint8_t effectiveRotation(uint8_t displayNum) {
+        return isDisplayConnected(displayNum) ? ((displayNum == 1) ? tftRotation1 : tftRotation2) : 0;
+    }
+
+
 #if defined CS_2
 
 
@@ -64,6 +90,17 @@
     }
 
 
+    // Ruhezustand nach dem Zeichnen: selektiert das erste angeschlossene Display,
+    // damit ein "n.a."-Display ausserhalb von Status-/Startmeldungen nicht selektiert bleibt.
+
+    // Idle state after drawing: selects the first connected display, so a "n.a."
+    // display doesn't stay selected outside of status/boot messages.
+
+    void setCSIdle() {
+        if (isDisplayConnected(1) || !isDisplayConnected(2)) setCS1(LOW); else setCS2(LOW);
+    }
+
+
     // Bereitet Status-/Boot-Text vor: Hardware-Rotation zeichnet direkt auf 'tft',
     // Software-Rotation kann Text nicht drehen und zeichnet daher immer unrotiert
     // in ein persistentes Sprite - Drehung folgt erst in endStatusDraw().
@@ -73,6 +110,8 @@
     // persistent sprite instead - rotation happens only in endStatusDraw().
 
     TFT_eSPI& beginStatusDraw(uint8_t displayNum) {
+        displayNeedsBlank[displayNum - 1] = true; // Meldung auf dem Display - ein "n.a."-Display muss spaeter wieder schwarz werden
+                                                  // message on the display - a "n.a." display has to go black again later
         TFT_eSprite& sprite = (displayNum == 1) ? statusSprite1 : statusSprite2;
         bool& created = (displayNum == 1) ? statusSprite1Created : statusSprite2Created;
 
@@ -129,7 +168,7 @@
         if (!gc9d01SwRotation || !created) return;
 
         TFT_eSprite& sprite = (displayNum == 1) ? statusSprite1 : statusSprite2;
-        uint8_t rotation = (displayNum == 1) ? tftRotation1 : tftRotation2;
+        uint8_t rotation = effectiveRotation(displayNum);
         if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
 
         if (rotation == 0) {
@@ -171,6 +210,42 @@
         tft.setSwapBytes(false);
     }
 #endif
+
+
+    // Uebernimmt eine neue Rotation (0-3 oder TFT_ROTATION_NA) fuer Display 1 oder 2:
+    // speichert sie und wendet sie bei Hardware-Rotation sofort am Chip an.
+    // Bei "n.a." bekommt der Chip 0 Grad (effectiveRotation()), nie den Wert 4 (waere beim GC9A01 gespiegelt).
+
+    // Applies a new rotation (0-3 or TFT_ROTATION_NA) for display 1 or 2:
+    // stores it and, with hardware rotation, applies it on the chip right away.
+    // For "n.a." the chip gets 0 degrees (effectiveRotation()), never the value 4 (mirrored on the GC9A01).
+
+    void applyDisplayRotation(uint8_t displayNum, uint8_t newRotation) {
+        uint8_t& rotation = (displayNum == 1) ? tftRotation1 : tftRotation2;
+        bool& firstRunFlag = (displayNum == 1) ? firstRun : firstRun2;
+
+        // firstRun nur bei tatsaechlicher Aenderung zuruecksetzen, sonst
+        // startet jedes Speichern die Bahnhofsmodus-Wartephase neu.
+
+        // Only reset firstRun on an actual change, otherwise every save
+        // restarts the station-mode wait phase.
+        if (rotation != newRotation) {
+            firstRunFlag = true;
+            if (newRotation == TFT_ROTATION_NA) displayNeedsBlank[displayNum - 1] = true; // letztes Uhrbild muss weg
+                                                                                          // last clock image has to go
+        }
+        rotation = newRotation;
+        preferences.putUChar((displayNum == 1) ? PK_TFT_ROTATION1 : PK_TFT_ROTATION2, rotation);
+
+        if (!gc9d01SwRotation) {
+            // tft.setRotation() wirkt nur auf den aktuell selektierten Chip.
+            // tft.setRotation() only affects the currently selected chip.
+            if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
+            tft.setRotation(effectiveRotation(displayNum));
+            setCSIdle(); // zurueck auf den Ausgangszustand, damit loop() im gewohnten Zustand weiterlaeuft
+                         // back to the initial state, so loop() continues from its usual state
+        }
+    }
 
 
     // Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
@@ -1130,6 +1205,22 @@
     static float lastHourAngle2 = 0.0f;
     static float lastMinuteAngle2 = 0.0f;
 
+    // Analoger Glaettungs-Zustand fuer den Sekundenzeiger im Normalmodus
+    // (kein "wartet auf 12") - siehe renderClockFrame() weiter unten: faengt
+    // einen sichtbaren Ruecksprung ab, falls die zugrundeliegende Zeit selbst
+    // rueckwaerts korrigiert wird (z.B. durch einen NTP-/RTC-/DCF77-Abgleich).
+    // Die Bahnhofsuhr-Schrittlogik (stationTick) braucht das nicht, da sie
+    // bereits eigenstaendig gegen Ruecksprünge abgesichert ist.
+
+    // Analogous smoothing state for the second hand in normal mode (not
+    // "waits at 12") - see renderClockFrame() further below: catches a
+    // visible jump-back if the underlying time itself is corrected backward
+    // (e.g. by an NTP/RTC/DCF77 resync). The station-clock step logic
+    // (stationTick) doesn't need this, since it is already independently
+    // guarded against jumping back.
+    static float lastSecondAngle = 0.0f;
+    static float lastSecondAngle2 = 0.0f;
+
 
     // Rendert EIN Frame (Zifferblatt+Zeiger+Nabe) fuers per Chip-Select
     // gewaehlte Display. lastHourAngleRef/lastMinuteAngleRef sind Referenzen
@@ -1399,7 +1490,7 @@
     }
 
 
-    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, bool& firstRunRef) {
+    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) {
 
         int orientation = rotation;
 
@@ -1414,14 +1505,25 @@
                                  (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
         struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
 
-        // Die Bahnhofsuhr-Schrittanimation ist auf FAST_SECOND kalibriert -
-        // im Rocrail-Modus wird die Schrittdauer weiter unten (stationStepMs)
-        // durch rocrailDivider geteilt, damit der Umlauf genauso viel schneller laeuft wie die Modellzeit selbst.
+        // Bahnhofsuhr-"Wartet auf 12"-Verhalten (stationMode): der Sekunden-
+        // zeiger eilt in einer komprimierten Zeit (~58,5s) einmal rum und
+        // wartet dann bis zum Minutenwechsel oben auf der 12 - unabhaengig
+        // davon, OB diese Bewegung schwingend oder tickend dargestellt wird
+        // (siehe smoothSecond weiter unten, an renderClockFrame() entkoppelt).
+        // Die Schrittanimation ist auf FAST_SECOND kalibriert - im Rocrail-
+        // Modus wird die Schrittdauer weiter unten (stationStepMs) durch
+        // rocrailDivider geteilt, damit der Umlauf genauso viel schneller
+        // laeuft wie die Modellzeit selbst.
 
-        // The station-clock stepping animation is calibrated to
-        // FAST_SECOND - in Rocrail mode the step duration further below
-        // (stationStepMs) is divided by rocrailDivider, so the lap runs exactly as much faster as the model time itself.
-        bool useStationSweep = stationMode;
+        // Station-clock "wait at 12" behaviour (stationMode): the second hand
+        // races around once in a compressed time (~58.5s) and then waits at
+        // the top until the minute changes - independent of WHETHER that
+        // motion is rendered smoothly or in ticks (see smoothSecond further
+        // below, decoupled in renderClockFrame()). The stepping animation is
+        // calibrated to FAST_SECOND - in Rocrail mode the step duration
+        // further below (stationStepMs) is divided by rocrailDivider, so the
+        // lap runs exactly as much faster as the model time itself.
+        bool waitAtTwelve = stationMode;
 
         // Schrittdauer fuer die Sweep-Animation: im Rocrail-Modus durch den
         // Divider geteilt (siehe Kommentar oben), sonst die reale FAST_SECOND.
@@ -1446,6 +1548,22 @@
         // second hand AND the hub entirely - at such high acceleration
         // their movement/visibility wouldn't be meaningfully useful anyway.
         bool hideDetailsForRocrail = rocrailTimeReady && rocrailDivider >= ROCRAIL_HIDE_DETAILS_DIVIDER;
+
+        // Zusaetzlich NUR den Sekundenzeiger (nicht die Nabe) ausblenden, wenn
+        // Rocrail ueberhaupt beschleunigt (divider > 1) UND tickend statt
+        // schwingend dargestellt wird: ein springender Zeiger wirkt bei jeder
+        // Beschleunigung unruhig/ruckelig (Sprungrate skaliert mit dem Divider,
+        // Anzeige-Framerate aber nicht), waehrend die schwingende Darstellung
+        // bei jeder Geschwindigkeit saubersieht - dafuer bleibt sie ja da.
+
+        // Additionally hide ONLY the second hand (not the hub) when Rocrail is
+        // accelerated at all (divider > 1) AND rendered in ticking instead of
+        // smooth style: a jumping hand looks jittery/unsteady at any
+        // acceleration (the jump rate scales with the divider, but the
+        // display's frame rate doesn't), while the smooth style looks clean
+        // at any speed - that's exactly what it stays available for.
+        bool hideSecondHandTicking = rocrailTimeReady && rocrailDivider > 1 && !smoothSecond;
+        bool hideSecondHand = hideDetailsForRocrail || hideSecondHandTicking;
 
         float secAngle = t.tm_sec * 6.0f;
         float minAngle = t.tm_min * 6.0f;
@@ -1500,37 +1618,51 @@
 
             lastHourAngleRef = rotatedAngle(hourAngle, orientation);
             lastMinuteAngleRef = rotatedAngle(minAngle, orientation);
+            lastSecondAngleRef = rotatedAngle(secAngle, orientation); // Basiswert fuer die Ruecksprung-Abfederung unten (Normalmodus)
+                                                                     // baseline for the jump-back easing below (normal mode)
 
             hourHandSprite.pushRotated(&backgroundSprite, lastHourAngleRef, TRANSPARENT_COLOR);
             minuteHandSprite.pushRotated(&backgroundSprite, lastMinuteAngleRef, TRANSPARENT_COLOR);
 
-            if (showSecondHand && !hideDetailsForRocrail) {
+            if (showSecondHand && !hideSecondHand) {
                 secondHandSprite.pushRotated(&backgroundSprite, rotatedAngle(secAngle, orientation), TRANSPARENT_COLOR);
             }
             backgroundSprite.pushSprite(0, 0);
         }
 
 
-        // Bahnhofsuhr-Modus: Sekundenzeiger schreitet in 60 Schritten je
-        // stationStepMs (siehe easeInOutSine()), erreicht nach ~58,5s
+        // Bahnhofsuhr-"Wartet auf 12"-Modus: Sekundenzeiger schreitet in 60
+        // Schritten je stationStepMs (schwingend per easeInOutSine() oder
+        // tickend, je nach smoothSecond - s.u.), erreicht nach ~58,5s
 
         // (bzw. ~58,5s/divider im Rocrail-Modus) die 12 und wartet dort,
         // bis die (Modell-)Minute wechselt (Pause ~1,5s bzw. ~1,5s/divider).
 
-        // Station clock mode: second hand steps in 60 steps of
-        // stationStepMs each (see easeInOutSine()), reaches the top after
+        // Station-clock "waits at 12" mode: second hand steps in 60 steps of
+        // stationStepMs each (smooth via easeInOutSine(), or ticking,
+        // depending on smoothSecond - see below), reaches the top after
 
         // ~58.5s (or ~58.5s/divider in Rocrail mode) and waits there until
         // the (model) minute changes (pause ~1.5s, or ~1.5s/divider).
-        if (useStationSweep) {
+        if (waitAtTwelve) {
 
-            // Bei divider 1 (keine Beschleunigung) laeuft die Uhr mit dem
-            // gewohnten schwingenden Bahnhofsuhr-Sekundenzeiger (else-Zweig
-            // unten) - die reale Kalibrierung passt dort exakt, da die
+            // Bei divider 1 (keine Beschleunigung) verwendet die Uhr die
+            // gewohnte schrittweise Bahnhofsuhr-Logik unten (Schritt +
+            // easeInOutSine() bzw. reines Ticken, je nach smoothSecond) - die
+            // reale Kalibrierung passt dort exakt, da die Modellzeit 1:1 mit
+            // der realen Zeit fortschreitet. Erst ab divider > 1 wird die
+            // Position direkt aus rocrailSecFrac abgeleitet (siehe Kommentar
+            // im if-Zweig) - smoothSecond entscheidet auch dort zwischen
+            // stufenloser und auf ganze Schritte gerundeter Darstellung.
 
-            // Modellzeit 1:1 mit der realen Zeit fortschreitet. Erst ab
-            // divider > 1 wird glatt statt tickend dargestellt (siehe
-            // Kommentar im if-Zweig).
+            // At divider 1 (no acceleration) the clock uses the usual
+            // stepwise station-clock logic below (step + easeInOutSine(), or
+            // plain ticking, depending on smoothSecond) - the real calibration
+            // matches exactly there, since the model time advances 1:1 with
+            // real time. Only from divider > 1 onwards is the position
+            // derived directly from rocrailSecFrac (see comment in the if
+            // branch) - smoothSecond decides there too between a continuous
+            // and a whole-step-rounded rendering.
 
             // At divider 1 (no acceleration), the clock runs with the usual
             // swinging station-clock second hand (else branch below) - the
@@ -1549,6 +1681,17 @@
                 // carries the fractional part, the same position formula as above caps at 60.
                 float smoothPos = (rocrailSecFrac * 1000.0f) / FAST_SECOND;
                 if (smoothPos > 60.0f) smoothPos = 60.0f;
+
+                // smoothSecond entkoppelt "wartet auf 12" von der Darstellung:
+                // bei tickend wird auf den ganzzahligen Schritt abgerundet statt
+                // die (durch rocrailSecFrac ohnehin schon gleitende) Position
+                // stufenlos zu uebernehmen.
+
+                // smoothSecond decouples "waits at 12" from the rendering
+                // style: with ticking, round down to the whole step instead of
+                // taking over the (already continuously gliding via
+                // rocrailSecFrac) position as-is.
+                if (!smoothSecond) smoothPos = floorf(smoothPos);
 
                 secAngle = rotatedAngle(smoothPos * 6.0f, orientation);
                 minAngle = rotatedAngle(t.tm_min * 6.0f, orientation);
@@ -1628,14 +1771,30 @@
             if (subTick > 1.0f) subTick = 1.0f;
             if (stationWaiting) subTick = 0.0f;
 
-            // Bewusst KEINE gleichfoermige Bewegung: easeInOutSine() beschleunigt
-            // und bremst pro Schritt, wie bei aelteren Bahnhofsuhren - nicht
-            // durch lineare Interpolation ersetzen.
+            // Bewusst KEINE gleichfoermige Bewegung im schwingenden Stil:
+            // easeInOutSine() beschleunigt und bremst pro Schritt, wie bei
+            // aelteren Bahnhofsuhren - nicht durch lineare Interpolation ersetzen.
 
-            // Deliberately NOT uniform movement: easeInOutSine() accelerates and
-            // brakes each step, like older station clocks - do not replace
-            // with linear interpolation.
-            float smoothSec = (stationTick >= 60) ? 60.0f : (float)stationTick + easeInOutSine(subTick);
+            // Deliberately NOT uniform movement in the smooth style:
+            // easeInOutSine() accelerates and brakes each step, like older
+            // station clocks - do not replace with linear interpolation.
+
+            // smoothSecond entkoppelt "wartet auf 12" (waitAtTwelve, s.o.) von
+            // der Darstellung: schwingend interpoliert per easeInOutSine()
+            // innerhalb des Schritts, tickend haelt exakt auf der Ganzzahl-
+            // Position bis zum naechsten Schritt (kein Zwischenwert).
+
+            // smoothSecond decouples "waits at 12" (waitAtTwelve, see above)
+            // from the rendering style: smooth interpolates via
+            // easeInOutSine() within the step, ticking holds exactly at the
+            // whole-number position until the next step (no intermediate value).
+            float smoothSec;
+            if (smoothSecond) {
+                smoothSec = (stationTick >= 60) ? 60.0f : (float)stationTick + easeInOutSine(subTick);
+            }
+            else {
+                smoothSec = (stationTick >= 60) ? 60.0f : (float)stationTick;
+            }
             secAngle = rotatedAngle(smoothSec * 6.0f, orientation);
 
             minAngle = rotatedAngle(t.tm_min * 6.0f, orientation);
@@ -1643,19 +1802,162 @@
               // end "else" (not Rocrail OR Rocrail with divider 1) - see condition above
         }
 
-        // Normaler Modus: Sekundenzeiger läuft normal, Minutenzeiger kann optional sanft laufen
-        // Normal mode: second hand runs normally, minute hand can optionally move smoothly
-        if (!useStationSweep) {
-            secAngle = rotatedAngle(secAngle, orientation);
+        // Normaler Modus (kein "wartet auf 12"): Sekundenzeiger laeuft mit der
+        // echten (bzw. bei Rocrail: modellzeit-)Sekunde mit, ohne Pause oben.
+        // Auch hier entkoppelt smoothSecond Stil von Timing: schwingend
+        // interpoliert stufenlos innerhalb der laufenden Sekunde (per Millis.
+        // bzw. bei Rocrail per rocrailSecFrac, das den Divider bereits
+        // beruecksichtigt), tickend springt einmal pro Sekunde wie bisher.
+        // Minutenzeiger kann optional weiterhin sanft laufen (unveraendert).
+
+        // Normal mode (no "waits at 12"): the second hand keeps pace with the
+        // real (or, in Rocrail mode, model-time) second, without pausing at
+        // the top. smoothSecond decouples style from timing here too: smooth
+        // interpolates continuously within the running second (via millis(),
+        // or via rocrailSecFrac in Rocrail mode, which already accounts for
+        // the divider), ticking jumps once per second as before. The minute
+        // hand can still optionally run smoothly (unchanged).
+        if (!waitAtTwelve) {
+
+            // Praeziser Sekundenbruchteil fuer sanfte Zeigerbewegung (Minute
+            // UND Sekunde): statt millis()%1000 (frueher - phasenversetzt zum
+            // echten Sekundenwechsel, da millis() seit dem Boot zaehlt und in
+            // keiner festen Beziehung zu t.tm_sec steht) wird der Zeitpunkt
+            // des zuletzt beobachteten Sekundenwechsels selbst gemerkt und die
+            // seitdem vergangene Zeit gebildet. Dadurch endet die Bewegung
+            // IMMER genau dann, wenn t.tm_sec tatsaechlich weiterspringt,
+            // statt mit einem zufaelligen, boot-abhaengigen Versatz zu enden
+            // oder anzufangen (kleiner Ruckler moeglich, je nach Bootzeitpunkt).
+            // Bei aktiver Rocrail-Modellzeit dagegen bereits exakt aus
+            // rocrailSecFrac abgeleitet (siehe dort) - kein Tracking noetig.
+
+            // Precise sub-second fraction for smooth hand motion (minute AND
+            // second): instead of millis()%1000 (previously - out of phase
+            // with the real second change, since millis() counts since boot
+            // and has no fixed relationship to t.tm_sec), the moment of the
+            // last observed second change is remembered and the time elapsed
+            // since then is used instead. This way the motion ALWAYS finishes
+            // exactly when t.tm_sec actually advances, instead of ending or
+            // starting with a random, boot-dependent offset (a small hitch
+            // was possible, depending on boot time). With active Rocrail
+            // model time, on the other hand, already derived exactly from
+            // rocrailSecFrac (see there) - no tracking needed.
+            static long lastWholeSecondValue = -1;
+            static unsigned long secondBoundaryMillis = 0;
+            float realSubSecond = 0.0f;
+
+            // Nur pflegen, wenn tatsaechlich gebraucht (nicht waehrend
+            // aktiver Rocrail-Modellzeit, die ihren Bruchteil bereits exakt
+            // aus rocrailSecFrac bezieht) - sonst wuerde hier fuer nichts
+            // mitgezaehlt, waehrend Rocrail aktiv ist.
+
+            // Only maintained when actually needed (not while Rocrail model
+            // time is active, which already gets its fraction exactly from
+            // rocrailSecFrac) - otherwise this would keep counting for
+            // nothing while Rocrail is active.
+            if (!rocrailTimeReady) {
+                long currentWholeSecond = (long)t.tm_hour * 3600 + (long)t.tm_min * 60 + t.tm_sec;
+                if (currentWholeSecond != lastWholeSecondValue) {
+                    lastWholeSecondValue = currentWholeSecond;
+                    secondBoundaryMillis = currentMillis;
+                }
+                realSubSecond = (currentMillis - secondBoundaryMillis) / 1000.0f;
+
+                // Deckeln statt ueberlaufen zu lassen: bei einem verzoegerten
+                // Frame (z.B. durch einen blockierenden Aufruf anderswo) waere
+                // sonst kurzzeitig eine Bewegung ueber die naechste Sekunde
+                // hinaus sichtbar, bevor t.tm_sec nachzieht.
+
+                // Clamp instead of letting it overshoot: on a delayed frame
+                // (e.g. due to a blocking call elsewhere) motion past the
+                // next second would otherwise be briefly visible before
+                // t.tm_sec catches up.
+                if (realSubSecond < 0.0f) realSubSecond = 0.0f;
+                else if (realSubSecond > 0.999f) realSubSecond = 0.999f;
+            }
+
+            // rocrailSecFrac traegt Ganzzahl- und Bruchteil bereits zusammen
+            // (siehe advanceRocrailTime()) - t.tm_sec (derselbe Ganzzahlteil)
+            // abziehen liefert exakt den divider-skalierten Bruchteil, analog
+            // zu realSubSecond oben.
+
+            // rocrailSecFrac already carries the whole and fractional part
+            // together (see advanceRocrailTime()) - subtracting t.tm_sec (the
+            // same whole part) yields exactly the divider-scaled fraction,
+            // analogous to realSubSecond above.
+            float secondFraction = rocrailTimeReady ? (rocrailSecFrac - (float)t.tm_sec) : realSubSecond;
+
+            float targetSecAngle;
+            if (smoothSecond) {
+                float smoothSecondValue = (float)t.tm_sec + secondFraction;
+                targetSecAngle = rotatedAngle(smoothSecondValue * 6.0f, orientation);
+            }
+            else {
+                targetSecAngle = rotatedAngle(secAngle, orientation);
+            }
+
+            // Gegen einen sichtbaren Ruecksprung abfedern, falls die
+            // zugrundeliegende Zeit selbst rueckwaerts korrigiert wurde (z.B.
+            // durch einen NTP-/RTC-/DCF77-Abgleich) - analog zur Minuten-/
+            // Stundenzeiger-Behandlung weiter unten. Ein normaler Vorwaerts-
+            // schritt (positive kuerzeste Winkeldifferenz) wird weiterhin
+            // SOFORT uebernommen, damit der tickende Stil exakt wie bisher
+            // einmal pro Sekunde snapt statt einzuschleichen - nur eine
+            // negative Differenz (Zeit ist zurueckgesprungen) wird ueber ein
+            // paar Frames sanft nachgefuehrt statt den Zeiger springen zu lassen.
+
+            // Ease away a visible jump-back if the underlying time itself was
+            // corrected backward (e.g. by an NTP/RTC/DCF77 resync) - same
+            // idea as the minute/hour hand handling further below. A normal
+            // forward step (positive shortest angle difference) is still
+            // applied IMMEDIATELY, so the ticking style keeps snapping
+            // exactly once per second as before instead of creeping in -
+            // only a negative difference (time jumped backward) gets eased
+            // in gradually over a few frames instead of letting the hand jump.
+            // Diagnose-Logging fuer das Abfedern selbst (siehe DEBUG_PRINTLN,
+            // ohne Wirkung solange loggingEnabled aus ist): loggt EINMAL pro
+            // Ruecksprungepisode Start (mit Betrag in Sekunden) und Ende (mit
+            // Dauer), damit sich ein gemeldetes kurzes "Ruckeln" im Log einer
+            // Ursache zuordnen laesst (NTP-Resync kurz zuvor? DCF77-Zeile
+            // dazwischen? nichts dergleichen?), statt weiter zu raten.
+
+            // Diagnostic logging for the easing itself (see DEBUG_PRINTLN, a
+            // no-op while loggingEnabled is off): logs ONCE per jump-back
+            // episode at its start (with the magnitude in seconds) and at its
+            // end (with the duration), so a reported brief "jitter" can be
+            // matched against a cause in the log (an NTP resync just before?
+            // a DCF77 line in between? neither?) instead of continuing to guess.
+            static bool secondEasingActive[2] = { false, false };
+            static unsigned long secondEasingStartMillis[2] = { 0, 0 };
+            uint8_t easingIdx = displayNum - 1;
+
+            float secAngleDiff = shortestAngleDiff(lastSecondAngleRef, targetSecAngle);
+            if (secAngleDiff < 0.0f) {
+                if (!secondEasingActive[easingIdx]) {
+                    secondEasingActive[easingIdx] = true;
+                    secondEasingStartMillis[easingIdx] = currentMillis;
+                    DEBUG_PRINTLN("[Clock] Display " + String(displayNum) + ": second hand jumped back by " +
+                                  String(-secAngleDiff / 6.0f, 2) + "s, easing in (time now " +
+                                  String(t.tm_hour) + ":" + String(t.tm_min) + ":" + String(t.tm_sec) + ")");
+                }
+                lastSecondAngleRef += secAngleDiff * 0.2f;
+                if (lastSecondAngleRef < 0.0f) lastSecondAngleRef += 360.0f;
+                else if (lastSecondAngleRef >= 360.0f) lastSecondAngleRef -= 360.0f;
+            }
+            else {
+                if (secondEasingActive[easingIdx]) {
+                    secondEasingActive[easingIdx] = false;
+                    DEBUG_PRINTLN("[Clock] Display " + String(displayNum) + ": second hand jump-back settled after " +
+                                  String(currentMillis - secondEasingStartMillis[easingIdx]) + "ms");
+                }
+                lastSecondAngleRef = targetSecAngle;
+            }
+            secAngle = lastSecondAngleRef;
 
             smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
             if (smoothMinute) {
-                // Millisekunden einbeziehen
-                // Include milliseconds
-                unsigned long currentMillis = millis();
-                int milliseconds = currentMillis % 1000;
-                float smoothMinuteValue = t.tm_min + (t.tm_sec / 60.0f) + (milliseconds / 60000.0f);
+                float smoothMinuteValue = t.tm_min + (t.tm_sec / 60.0f) + (secondFraction / 60.0f);
 
                 float rawMinAngle = smoothMinuteValue * 6.0f;
                 minAngle = rotatedAngle(rawMinAngle, orientation);
@@ -1712,14 +2014,55 @@
         // Clock face + hour/minute hands come from the cached composite image
         // (drawCompositeInto()), rebuilt only on movement - per tick only the
         // copy remains. Falls back to the old drawing path on low memory.
-        if (!drawCompositeInto(displayNum, rotation, hourAngle, minAngle)) {
+        bool compositeOk = drawCompositeInto(displayNum, rotation, hourAngle, minAngle);
+        if (!compositeOk) {
             loadClockFace(rotation);
             hourHandSprite.pushRotated(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
             minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
         }
 
-        if (showSecondHand && !hideDetailsForRocrail) {
-            secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
+        if (showSecondHand && !hideSecondHand) {
+
+            // Kantengeglaettet NUR im tickenden Stil (smoothSecond == false),
+            // unabhaengig davon, ob "wartet auf 12" (waitAtTwelve/stationMode)
+            // an oder aus ist: bei tickend bewegt sich der Sekundenzeiger nur
+            // einmal pro Sekunde bzw. Schritt, die teurere Supersampling-
+            // Blendtechnik (blitHandAntiAliased(), siehe dort) faellt
+            // performance-maessig also nicht ins Gewicht. Im schwingenden Stil
+            // bewegt er sich dagegen viel oefter pro Sekunde - dort bleibt es
+            // beim guenstigeren, nicht kantengeglaetteten TFT_eSPI-eigenen
+            // pushRotated(). Setzt ausserdem voraus, dass der Compositing-
+            // Cache verfuegbar ist (compositeOk) - im Speichermangel-Fallback
+            // oben gibt es kein handComposite[]-Puffer zum Hineinblenden.
+
+            // Anti-aliased ONLY in ticking style (smoothSecond == false),
+            // regardless of whether "waits at 12" (waitAtTwelve/stationMode)
+            // is on or off: with ticking the second hand only moves once per
+            // second/step, so the costlier supersampled blend technique
+            // (blitHandAntiAliased(), see there) doesn't matter performance-
+            // wise. In the smooth style it moves much more often per second -
+            // there it stays on the cheaper, non-anti-aliased TFT_eSPI
+            // pushRotated(). Also requires the compositing cache to be
+            // available (compositeOk) - the low-memory fallback above has no
+            // handComposite[] buffer to blend into.
+            bool didAntiAliasedSecondHand = false;
+
+            if (!smoothSecond && compositeOk) {
+                if (!secondHandCompositeScratch) {
+                    secondHandCompositeScratch = (uint16_t*)preferPsramMalloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
+                }
+                if (secondHandCompositeScratch) {
+                    HandComposite& comp = handComposite[(displayNum == 1) ? 0 : 1];
+                    memcpy(secondHandCompositeScratch, comp.buffer, (size_t)CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t));
+                    blitHandAntiAliased(secondHandCompositeScratch, &secondHandSprite, secAngle);
+                    backgroundSprite.pushImage(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, secondHandCompositeScratch);
+                    didAntiAliasedSecondHand = true;
+                }
+            }
+
+            if (!didAntiAliasedSecondHand) {
+                secondHandSprite.pushRotated(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
+            }
         }
 
 
@@ -1736,19 +2079,93 @@
     }
 
 
-    // Liest Zeit/RTC einmal, dann ein renderClockFrame() pro Display. Bei
-    // Hardware-Rotation genuegt fuer Display 2 immer erneutes Senden; bei
-    // GC9D01 nur, wenn tftRotation2 tatsaechlich von tftRotation1 abweicht.
+    // Liest Zeit/RTC einmal, dann ein renderClockFrame() pro angeschlossenem
+    // Display ("n.a." wird uebersprungen). Bei Hardware-Rotation genuegt fuer
+    // Display 2 erneutes Senden; bei GC9D01 nur, wenn tftRotation2 von tftRotation1 abweicht.
 
-    // Reads time/RTC once, then one renderClockFrame() per display. With
-    // hardware rotation, re-sending always suffices for Display 2; with
-    // GC9D01, only if tftRotation2 actually differs from tftRotation1.
+    // Reads time/RTC once, then one renderClockFrame() per connected display
+    // ("n.a." is skipped). With hardware rotation, re-sending suffices for
+    // Display 2; with GC9D01, only if tftRotation2 differs from tftRotation1.
 
     void updateClock() {
-       // struct tm timeinfo;
-        if (!getLocalTime(&timeinfo, 1000)) {
-            // Keine gültige Uhrzeit verfügbar
-            // No valid time available
+
+        // In eine lokale Kopie lesen statt direkt in die globale timeinfo:
+        // waehrend die NTP-Sync-Task laeuft, wird die Systemzeit dort bewusst
+        // kurzzeitig auf 1970 (ungueltig) gesetzt, um einen echten Sync-
+        // Erfolg zu erkennen (siehe settimeofday(&invalidTime, ...) in
+        // setupNTP(), time_sync.h) - das betrifft die Systemzeit insgesamt,
+        // nicht nur die Sync-Task selbst. Wuerde getLocalTime() direkt in die
+        // globale timeinfo schreiben, laende dieser Zwischenzustand bei einem
+        // Fehlschlag (Jahr <= 2016) fuer einen Frame sichtbar hier: falsch
+        // stehende Zeiger, und ueber updateBrightness() sogar ein kurzes
+        // Abdunkeln, da die Stunde dann faelschlich ausserhalb des
+        // Tagesfensters liegt.
+
+        // Read into a local copy instead of directly into the global
+        // timeinfo: while the NTP sync task is running, it deliberately sets
+        // the system time to 1970 (invalid) for a moment to detect a genuine
+        // sync success (see settimeofday(&invalidTime, ...) in setupNTP(),
+        // time_sync.h) - that affects the system time as a whole, not just
+        // the sync task itself. If getLocalTime() wrote directly into the
+        // global timeinfo, this intermediate state would become visible here
+        // for a frame on a failure (year <= 2016): hands pointing to the
+        // wrong time, and via updateBrightness() even a brief dimming, since
+        // the hour would then wrongly fall outside the daytime window.
+        // Letzte bekannte gueltige Zeit + Zeitpunkt (millis()), zu dem sie
+        // gelesen wurde - Grundlage fuer das Weiterrechnen unten, wenn
+        // getLocalTime() kurzzeitig fehlschlaegt.
+
+        // Last known valid time + the millis() moment it was read at - basis
+        // for extrapolating below when getLocalTime() briefly fails.
+        static time_t lastGoodEpoch = 0;
+        static unsigned long lastGoodEpochMillis = 0;
+
+        // Timeout 0 statt eines Wartewerts: schlaegt der Lesevorgang fehl,
+        // rechnen wir unten ohnehin aus der letzten guten Zeit weiter - ein
+        // Warten von bis zu 1s PRO loop()-Tick waere nur verschenkte Zeit
+        // und wuerde ausgerechnet waehrend der NTP-Invalidierung (siehe
+        // unten) den kompletten Haupt-Loop (Webserver, Touch, ...) fuer die
+        // Dauer des Sync-Versuchs lahmlegen. Gleiches Prinzip wie beim
+        // Timeout 0 in logToFile() (system_utils.h).
+
+        // Timeout 0 instead of a wait value: if the read fails, we
+        // extrapolate from the last good time below anyway - waiting up to
+        // 1s PER loop() tick would just waste time, and during the NTP
+        // invalidation (see below) would stall the entire main loop
+        // (web server, touch, ...) for the whole sync attempt. Same
+        // principle as the 0 timeout in logToFile() (system_utils.h).
+        struct tm freshTimeinfo;
+        if (getLocalTime(&freshTimeinfo, 0)) {
+            timeinfo = freshTimeinfo;
+            time_t now;
+            time(&now);
+            lastGoodEpoch = now;
+            lastGoodEpochMillis = millis();
+        }
+        else if (lastGoodEpoch != 0) {
+
+            // Waehrend die Systemzeit kurz ungueltig ist (z.B. die NTP-Sync-
+            // Invalidierung, siehe settimeofday(&invalidTime, ...) in
+            // setupNTP()), aus der letzten bekannten guten Zeit plus
+            // verstrichener Zeit weiterrechnen, statt den Sekundenzeiger
+            // anzuhalten. Sobald die echte Systemzeit wieder gueltig ist,
+            // steigt der obige Zweig nahtlos wieder ein.
+
+            // While the system time is briefly invalid (e.g. the NTP sync
+            // invalidation, see settimeofday(&invalidTime, ...) in
+            // setupNTP()), keep advancing from the last known good time plus
+            // elapsed time, instead of pausing the second hand. Once the
+            // real system time is valid again, the branch above picks back
+            // up seamlessly.
+            time_t estimatedNow = lastGoodEpoch + (time_t)((millis() - lastGoodEpochMillis) / 1000);
+            localtime_r(&estimatedNow, &timeinfo);
+        }
+        else {
+            // Noch nie eine gueltige Zeit gesehen (z.B. ganz am Anfang nach
+            // dem Boot) - wie bisher auf die RTC zurueckfallen.
+
+            // Never seen a valid time yet (e.g. right after boot) - fall
+            // back to the RTC as before.
             loadTimeFromRTC();
         }
 
@@ -1759,7 +2176,52 @@
             // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
             // Check whether time has passed since the last call
             if (millis() - lastRtcReloadMillis >= WAIT_1h) {
-                loadTimeFromRTC();
+
+                // NUR neu laden, wenn NTP nicht ohnehin erst vor kurzem (< der
+                // NTP-Sync-Periode, siehe WAIT_6h in uhr3.ino) erfolgreich
+                // synchronisiert hat (siehe lastNtpSuccessMillis in
+                // globals.h/setupNTP()). Dieser Reload ist ein Sicherheitsnetz
+                // fuer den Fall, dass WLAN/NTP laenger ausfaellt - laeuft NTP
+                // aber normal (der Regelfall - dieser Check hier laeuft
+                // bewusst weiterhin stuendlich, unabhaengig von der laengeren
+                // NTP-Periode, um zeitnah zu reagieren, falls NTP tatsaechlich
+                // ausfaellt), wuerde er eine bereits aktuelle, NTP-genaue
+                // Systemzeit unnoetig durch die RTC ueberschreiben. Die RTC
+                // zaehlt seit dem letzten Abgleich eigenstaendig weiter
+                // (eigene, weniger praezise Uhr als der NTP-korrigierte
+                // Systemtakt) und kann dabei um ein paar Sekunden abweichen -
+                // loadTimeFromRTC() setzt ohne jede Richtungspruefung direkt
+                // per settimeofday(), wodurch genau das den Sekundenzeiger
+                // sichtbar (und faelschlich) zurueckspringen liess. Die
+                // Schwelle MUSS mit der tatsaechlichen NTP-Sync-Periode
+                // uebereinstimmen (WAIT_6h, nicht mehr WAIT_1h) - sonst wuerde
+                // dieser Reload bei einer laengeren NTP-Periode wieder bei
+                // JEDEM Durchlauf greifen, weil NTP zwischen zwei Syncs
+                // immer "aelter als 1h" waere, obwohl es normal laeuft.
+
+                // ONLY reload when NTP hasn't already succeeded recently
+                // (< the NTP sync period, see WAIT_6h in uhr3.ino) (see
+                // lastNtpSuccessMillis in globals.h/setupNTP()). This reload
+                // is a safety net for when WiFi/NTP is down for a longer
+                // stretch - but if NTP is running normally (the usual case -
+                // this check here deliberately still runs hourly, independent
+                // of the longer NTP period, to react promptly if NTP
+                // actually does fail), it would needlessly overwrite an
+                // already-current, NTP-accurate system time with the RTC's.
+                // The RTC keeps counting on its own since the last
+                // adjustment (a separate, less precise clock than the
+                // NTP-corrected system clock) and can have drifted by a few
+                // seconds by then - loadTimeFromRTC() sets it directly via
+                // settimeofday() with no direction check at all, which is
+                // exactly what made the second hand visibly (and wrongly)
+                // jump backward. The threshold MUST match the actual NTP
+                // sync period (WAIT_6h, no longer WAIT_1h) - otherwise this
+                // reload would fire on EVERY pass again with a longer NTP
+                // period, since NTP would always be "older than 1h" between
+                // two syncs even while running normally.
+                if (lastNtpSuccessMillis == 0 || millis() - lastNtpSuccessMillis >= WAIT_6h) {
+                    loadTimeFromRTC();
+                }
                 lastRtcReloadMillis = millis();
             }
         }
@@ -1771,14 +2233,91 @@
         // above - only does anything when rocrailEnabled (see there).
         advanceRocrailTime();
 
-        setCS1(LOW);
-        renderClockFrame(1, tftRotation1, lastHourAngle, lastMinuteAngle, firstRun);
+        // Bug: die Bahnhofsuhr-Schrittlogik (stationTick, siehe
+        // renderClockFrame()) initialisiert sich nur beim ALLERERSTEN Aufruf
+        // (firstRun/firstRun2) anhand der dann verfuegbaren Zeit. War timeinfo
+        // zu dem Zeitpunkt noch nicht gueltig (kein RTC, NTP/DCF77 noch nicht
+        // synchronisiert - timeinfo steht dann auf seinem Nullwert, Jahr 1900),
+        // blieb stationTick auf dieser falschen Basis stehen und wurde erst
+        // beim naechsten Bahnhofsuhr-Minutenwechsel per Resync korrigiert -
+        // sichtbar als "Sekundenzeiger stimmt anfangs nicht, springt erst nach
+        // einer Weile auf den richtigen Wert". Sobald timeinfo zum ERSTEN Mal
+        // plausibel wird (Jahr >= 2000 - auch der 12:00-Notfallwert aus
+        // handleNTPFailure() zaehlt dazu, siehe dort), daher einmalig
+        // firstRun/firstRun2 erneut auf true setzen, damit sich die Animation
+        // sauber auf die jetzt gueltige Zeit neu einstellt. Betrifft nur den
+        // Bahnhofsuhr-Modus - tickende/sanfte Darstellung im Normalmodus leiten
+        // ihre Position ohnehin jeden Frame frisch aus timeinfo ab und
+        // korrigieren sich dadurch schon von selbst (bei einem Ruecksprung
+        // sanft nachgefuehrt statt gesprungen - siehe die Sekundenzeiger-
+        // Behandlung in renderClockFrame()).
 
-        setCS2(LOW);
-        if (gc9d01SwRotation && tftRotation2 != tftRotation1) {
-            renderClockFrame(2, tftRotation2, lastHourAngle2, lastMinuteAngle2, firstRun2);
+        // Bug: the station-clock stepping logic (stationTick, see
+        // renderClockFrame()) initializes itself only on the VERY FIRST call
+        // (firstRun/firstRun2), based on whatever time is available then. If
+        // timeinfo wasn't valid yet at that point (no RTC, NTP/DCF77 not yet
+        // synced - timeinfo then sits at its zero value, year 1900),
+        // stationTick stayed on that wrong baseline and only got corrected via
+        // resync at the next station-clock minute change - visible as "the
+        // second hand doesn't match at first, only jumps to the right value
+        // after a while". So, once timeinfo becomes plausible for the FIRST
+        // time (year >= 2000 - the 12:00 emergency value from
+        // handleNTPFailure() counts too, see there), force firstRun/firstRun2
+        // back to true once, so the animation cleanly re-baselines on the now
+        // valid time. Only affects station-clock mode - ticking/smooth
+        // rendering in normal mode derives its position fresh from timeinfo
+        // every single frame anyway and therefore already self-corrects on
+        // its own (eased rather than snapped for a backward step - see the
+        // second-hand handling in renderClockFrame()).
+        static bool hadPlausibleTime = false;
+        if (!hadPlausibleTime && timeinfo.tm_year >= 100) {
+            hadPlausibleTime = true;
+            firstRun = true;
+            firstRun2 = true;
+        }
+
+        // Displays mit Rotation "n.a." werden bei der Uhranzeige weder selektiert
+        // noch berechnet. Ist nur Display 2 angeschlossen, rendert es sein Bild selbst.
+        // firstRun bleibt dabei auf true, damit das Display beim spaeteren
+        // Anschliessen (Einstellungsaenderung zur Laufzeit) sofort korrekt einrastet.
+
+        // Displays with rotation "n.a." are neither selected nor calculated for
+        // the clock display. If only display 2 is connected, it renders its own frame.
+        // firstRun stays true meanwhile, so the display snaps correctly as
+        // soon as it gets connected later (settings change at runtime).
+        const bool display1Connected = isDisplayConnected(1);
+        const bool display2Connected = isDisplayConnected(2);
+
+        // Ein "n.a."-Display zeigt nur schwarz: letzten Inhalt (Uhr oder Status-/
+        // Startmeldung) einmalig loeschen, danach wird es nicht mehr angefasst.
+
+        // A "n.a." display shows only black: clear its last content (clock or
+        // status/boot message) once, after that it is not touched anymore.
+        for (uint8_t d = 1; d <= 2; d++) {
+            if (!isDisplayConnected(d) && displayNeedsBlank[d - 1]) {
+                if (d == 1) setCS1(LOW); else setCS2(LOW);
+                tft.fillScreen(TFT_BLACK);
+                displayNeedsBlank[d - 1] = false;
+            }
+        }
+
+        if (display1Connected) {
+            setCS1(LOW);
+            renderClockFrame(1, tftRotation1, lastHourAngle, lastMinuteAngle, lastSecondAngle, firstRun);
         }
         else {
+            firstRun = true;
+        }
+
+        if (!display2Connected) {
+            firstRun2 = true;
+        }
+        else if (!display1Connected || (gc9d01SwRotation && tftRotation2 != tftRotation1)) {
+            setCS2(LOW);
+            renderClockFrame(2, tftRotation2, lastHourAngle2, lastMinuteAngle2, lastSecondAngle2, firstRun2);
+        }
+        else {
+            setCS2(LOW);
             backgroundSprite.pushSprite(0, 0);
 
             // firstRun2 bewusst auf true halten: rastet tftRotation2 spaeter
@@ -1799,8 +2338,8 @@
             firstRun2 = true;
         }
 
-        setCS1(LOW); // definierter Zustand fuer alles, was danach noch direkt auf 'tft' zeichnet
-                    // defined state for anything that draws directly to 'tft' afterwards
+        setCSIdle(); // definierter Zustand fuer alles, was danach noch direkt auf 'tft' zeichnet
+                     // defined state for anything that draws directly to 'tft' afterwards
     }
 
 
@@ -1840,11 +2379,35 @@
 
         // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
         // Check whether we're currently within the configured full-brightness time window
-        bool withinDayWindow = false;
+
+        // Letzten bekannten Stand beibehalten statt bei einem getLocalTime()-
+        // Fehlschlag faelschlich auf "false" (Nacht) zu wechseln - genau das
+        // wuerde waehrend der kurzen NTP-Sync-bedingten Systemzeit-
+        // Invalidierung (siehe updateClock()/setupNTP()) sonst die
+        // Helligkeit grundlos auf minBrightness fallen lassen.
+
+        // Keep the last known state instead of wrongly falling back to
+        // "false" (night) on a getLocalTime() failure - that's exactly what
+        // would otherwise drop the brightness to minBrightness for no
+        // reason during the brief NTP-sync-induced system time invalidation
+        // (see updateClock()/setupNTP()).
+        static bool withinDayWindow = false;
 
         // struct tm timeinfo;
-        if (getLocalTime(&timeinfo, 500)) {
-            int h = timeinfo.tm_hour;
+        struct tm freshTimeinfo;
+        // Timeout 0 - siehe Begruendung bei updateClock() (display.h):
+        // schlaegt der Lesevorgang fehl, bleibt withinDayWindow ohnehin auf
+        // dem letzten bekannten Stand (siehe oben), ein Warten wuerde nur
+        // den Haupt-Loop waehrend der NTP-Invalidierung unnoetig blockieren.
+
+        // Timeout 0 - see the reasoning at updateClock() (display.h): if the
+        // read fails, withinDayWindow stays at its last known state anyway
+        // (see above), waiting would just needlessly block the main loop
+        // during the NTP invalidation.
+        if (getLocalTime(&freshTimeinfo, 0)) {
+            timeinfo = freshTimeinfo; // nur bei Erfolg uebernehmen, siehe updateClock()
+                                      // only adopt on success, see updateClock()
+            int h = freshTimeinfo.tm_hour;
             if (brightStartHour <= brightEndHour) {
                 // normaler Bereich z.B. 8..20
                 // normal range e.g. 8..20
@@ -1867,25 +2430,40 @@
 #ifdef ADC_PIN
         if (useAdc) {
 
-            int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
+            // Nur alle ADC_SAMPLE_INTERVAL_MS neu abtasten statt bei jedem
+            // loop()-Tick: sonst deckt das ADC_SMOOTHING-Mittel nur wenige
+            // Millisekunden ab, und ein kurzer Stromspitzen-Einbruch (z.B.
+            // WLAN-Sendeburst waehrend NTP-Sync) faerbt fast jedes Sample im
+            // Fenster gleich ein, statt herausgemittelt zu werden.
 
-            // DEBUG_PRINTF("[ADC] Raw value: %d\n", adcRaw);
+            // Only re-sample every ADC_SAMPLE_INTERVAL_MS instead of on every
+            // loop() tick: otherwise the ADC_SMOOTHING average spans only a
+            // few milliseconds, and a brief current-draw dip (e.g. a WiFi TX
+            // burst during NTP sync) taints nearly every sample in the
+            // window instead of being averaged out.
+            if (initial || millis() - lastAdcSampleMillis >= ADC_SAMPLE_INTERVAL_MS) {
+                lastAdcSampleMillis = millis();
 
-            if (initial) {
-                for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
+                int adcRaw = getAdjustedAdcValue(analogRead(ADC_PIN));
+
+                // DEBUG_PRINTF("[ADC] Raw value: %d\n", adcRaw);
+
+                if (initial) {
+                    for (int i = 0; i < ADC_SMOOTHING; i++) adcHistory[i] = adcRaw;
+                }
+
+                adcHistory[adcIndex] = adcRaw;
+                adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
+
+                uint32_t avg = 0;
+                for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
+                avg /= ADC_SMOOTHING;
+
+                currentAdcAvg = avg;  // speichern
+                                      // save
+
+                currentLightPercent = map(avg, 0, 4095, 5, 100);
             }
-
-            adcHistory[adcIndex] = adcRaw;
-            adcIndex = (adcIndex + 1) % ADC_SMOOTHING;
-
-            uint32_t avg = 0;
-            for (int i = 0; i < ADC_SMOOTHING; i++) avg += adcHistory[i];
-            avg /= ADC_SMOOTHING;
-
-            currentAdcAvg = avg;  // speichern
-                                  // save
-
-            currentLightPercent = map(avg, 0, 4095, 5, 100);
         }
 #endif
 
@@ -1939,10 +2517,38 @@
                 // currentAdcAvg/currentLightPercent were already updated
                 // above for this pass - only the brightness DECISION based
                 // on those fresh values happens here.
-                if (currentLightPercent < lowThreshold) targetBrightness = minBrightness;
-                else if (currentLightPercent > highThreshold) targetBrightness = maxBrightness;
+
+                // Schwellwert-Ueberschreitung erst nach BRIGHTNESS_DEBOUNCE_MS
+                // Bestand uebernehmen: ein kurzer Ausreisser (z.B. WLAN-
+                // Sendeburst waehrend NTP-Sync) soll targetBrightness nicht
+                // sofort umschalten, sonst faerbt setPixelBrightness() das
+                // komplette Zifferblatt fuer einen Frame sichtbar um.
+
+                // Only act on a threshold crossing once it has persisted for
+                // BRIGHTNESS_DEBOUNCE_MS: a brief outlier (e.g. a WiFi TX
+                // burst during NTP sync) must not flip targetBrightness
+                // immediately, or setPixelBrightness() visibly re-tints the
+                // whole clock face for a frame.
+                int desiredBrightnessState = 0; // -1 = Kandidat fuer minBrightness, 1 = fuer maxBrightness
+                                                // -1 = candidate for minBrightness, 1 = for maxBrightness
+                if (currentLightPercent < lowThreshold) desiredBrightnessState = -1;
+                else if (currentLightPercent > highThreshold) desiredBrightnessState = 1;
+
+                if (desiredBrightnessState != pendingBrightnessState) {
+                    pendingBrightnessState = desiredBrightnessState;
+                    // initial: Debounce ueberspringen, sonst startete die Uhr
+                    // erst nach BRIGHTNESS_DEBOUNCE_MS mit korrekter Helligkeit.
+                    // initial: skip the debounce, otherwise the clock would
+                    // only reach the correct brightness after BRIGHTNESS_DEBOUNCE_MS.
+                    brightnessThresholdSinceMillis = initial ? (millis() - BRIGHTNESS_DEBOUNCE_MS) : millis();
+                }
+
+                bool brightnessStateDebounced = (millis() - brightnessThresholdSinceMillis) >= BRIGHTNESS_DEBOUNCE_MS;
+                if (pendingBrightnessState != 0 && brightnessStateDebounced) {
+                    targetBrightness = (pendingBrightnessState < 0) ? minBrightness : maxBrightness;
+                }
 #ifdef TFT_Backlight
-                else {
+                else if (pendingBrightnessState == 0) {
                     float norm = constrain((float)currentAdcAvg / 4095.0f, 0.0f, 1.0f);
                     float gamma = gammaBrightness;
                     float gammaNorm = powf(norm, gamma);

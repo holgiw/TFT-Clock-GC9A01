@@ -74,10 +74,10 @@
         { "Test", "Testen", "Tester" },
         { "Testing", "Teste", "Test en cours" },
         { "Server not reachable", "Server nicht erreichbar", "Serveur inaccessible" },
-        { "The second hand rushes ahead slightly and briefly rests at 60, like a classic train station clock", "Der Sekundenzeiger eilt etwas voraus und verweilt kurz auf der 60, wie bei einer klassischen Bahnhofsuhr", "La trotteuse avance l&eacute;g&egrave;rement et s&#39;arr&ecirc;te bri&egrave;vement sur 60, comme une horloge de gare classique" },
+        { "The second hand completes its lap in about 58.5 seconds and then waits at 60 until the minute changes, like a classic train station clock", "Der Sekundenzeiger legt seine Runde in rund 58,5 Sekunden zur&uuml;ck und wartet dann auf der 60, bis die Minute wechselt, wie bei einer klassischen Bahnhofsuhr", "La trotteuse termine son tour en environ 58,5 secondes puis attend sur 60 jusqu&#39;au changement de minute, comme une horloge de gare classique" },
         { "Shows or hides the second hand on the clock face", "Zeigt oder verbirgt den Sekundenzeiger auf dem Zifferblatt", "Affiche ou masque la trotteuse sur le cadran" },
         { "The minute hand moves smoothly instead of jumping in 1-minute steps", "Der Minutenzeiger bewegt sich gleichm&auml;&szlig;ig, statt in 1-Minuten-Schritten zu springen", "L&#39;aiguille des minutes se d&eacute;place en douceur au lieu d&#39;avancer minute par minute" },
-        { "Server used to periodically check the internet connection", "Server, der regelm&auml;&szlig;ig zur Pr&uuml;fung der Internetverbindung angefragt wird", "Serveur utilis&eacute; pour v&eacute;rifier p&eacute;riodiquement la connexion internet" },
+        { "The second hand moves smoothly instead of jumping in 1-second steps", "Der Sekundenzeiger bewegt sich gleichm&auml;&szlig;ig, statt in 1-Sekunden-Schritten zu springen", "La trotteuse se d&eacute;place en douceur au lieu d&#39;avancer seconde par seconde" },
         { "Automatically tries to reconnect if the WiFi connection is lost", "Versucht automatisch, die WLAN-Verbindung bei Verbindungsverlust wiederherzustellen", "Tente automatiquement de se reconnecter en cas de perte de la connexion WiFi" },
         { "Writes up to 9 log files to LittleFS for troubleshooting", "Schreibt bis zu 9 Logdateien zur Fehlersuche in LittleFS", "&Eacute;crit jusqu&#39;&agrave; 9 fichiers journaux sur LittleFS pour le d&eacute;pannage" },
         { "DCF77 Sync LED Blink", "DCF77-Sync-LED-Blinken", "Clignotement LED synchro DCF77" },
@@ -86,7 +86,8 @@
         { "Rotation Display 1", "Rotation Display 1", "Rotation &eacute;cran 1" },
         { "Rotation Display 2", "Rotation Display 2", "Rotation &eacute;cran 2" },
         { "Rotates Display 2's (CS2) clock face independently of Display 1", "Dreht das Zifferblatt von Display 2 (CS2) unabh&auml;ngig von Display 1", "Fait pivoter le cadran de l&#39;&eacute;cran 2 (CS2) ind&eacute;pendamment de l&#39;&eacute;cran 1" },
-        { "If only one display is physically connected, set both rotations to the same value", "Ist nur ein Display tats&auml;chlich angeschlossen, sollten beide Rotationswerte auf denselben Wert gestellt werden", "Si un seul &eacute;cran est r&eacute;ellement raccord&eacute;, r&eacute;glez les deux rotations sur la m&ecirc;me valeur" },
+        { "not connected (n.a.)", "nicht angeschlossen (n.a.)", "non raccord&eacute; (n.a.)" },
+        { "Set a display that is not physically connected to n.a. - it then stays black and the clock face is neither drawn nor calculated for it. Boot, access point and code messages still appear on both displays until the clock takes over", "Ein nicht tats&auml;chlich angeschlossenes Display auf n.a. stellen - es bleibt dann schwarz und das Zifferblatt wird daf&uuml;r weder gezeichnet noch berechnet. Start-, Access-Point- und Code-Meldungen erscheinen bis zum Uhrstart weiterhin auf beiden Displays", "R&eacute;glez un &eacute;cran non raccord&eacute; sur n.a. - il reste alors noir et le cadran n&#39;est ni dessin&eacute; ni calcul&eacute; pour lui. Les messages de d&eacute;marrage, du point d&#39;acc&egrave;s et de code s&#39;affichent encore sur les deux &eacute;crans jusqu&#39;&agrave; ce que l&#39;horloge prenne le relais" },
         // "2 Minuten" statt vormals "3 Minuten": muss zum tatsaechlichen WPS-
         // Timeout passen (2 * WAIT_1m in startAP()/loop(), siehe uhr3.ino/
         // wifi_manager.h) - der Text war seit dessen Aenderung veraltet.
@@ -133,6 +134,7 @@
         { "Station Mode", "Station Modus", "Mode gare" },
         { "Show Second Hand", "Sekundenzeiger anzeigen", "Afficher la trotteuse" },
         { "Smooth Minute Hand", "Sanfter Minutenzeiger", "Aiguille des minutes fluide" },
+        { "Smooth Second Hand", "Sanfter Sekundenzeiger", "Trotteuse fluide" },
         { "Photoresistor Settings", "Fotowiderstand Einstellungen", "Param&egrave;tres de la photor&eacute;sistance" },
         { "Min Brightness", "Minimale Helligkeit", "Luminosit&eacute; minimale" },
         { "Max Brightness", "Maximale Helligkeit", "Luminosit&eacute; maximale" },
@@ -269,6 +271,8 @@
         { "Scale and Save", "skalieren und speichern", "Redimensionner et enregistrer" },
         { "Are you sure you want to reboot?", "Sind Sie sicher, das Sie die Uhr neu starten wollen?", "&Ecirc;tes-vous s&ucirc;r de vouloir red&eacute;marrer l&#39;horloge&nbsp;?" },
         { "Are you sure you want to reset to factory settings?", "Sind Sie absolut sicher, das Sie die Uhr auf Werkseinstellung setzen wollen?", "&Ecirc;tes-vous absolument s&ucirc;r de vouloir r&eacute;initialiser l&#39;horloge aux param&egrave;tres d&#39;usine&nbsp;?" },
+        { "A 3-digit code now appears on the clock's display. Enter it below to confirm - this cannot be undone", "Auf dem Display der Uhr erscheint jetzt ein 3-stelliger Code. Zur Best&auml;tigung unten eingeben - dies kann nicht r&uuml;ckg&auml;ngig gemacht werden", "Un code &agrave; 3 chiffres appara&icirc;t maintenant sur l&#39;&eacute;cran de l&#39;horloge. Saisissez-le ci-dessous pour confirmer - cette action est irr&eacute;versible" },
+        { "Confirm Reset", "Zur&uuml;cksetzen best&auml;tigen", "Confirmer la r&eacute;initialisation" },
         { "Reset Everything", "Alles zur&uuml;cksetzen", "Tout r&eacute;initialiser" },
         { "Resets WiFi, all settings and deletes all files - the clock restarts afterwards", "Setzt WLAN, alle Einstellungen zur&uuml;ck und l&ouml;scht alle Dateien - die Uhr startet danach neu", "R&eacute;initialise le WiFi, tous les param&egrave;tres et supprime tous les fichiers - l&#39;horloge red&eacute;marre ensuite" },
         { "Deletes all saved WiFi networks - other settings remain unchanged", "L&ouml;scht alle gespeicherten WLAN-Netzwerke - andere Einstellungen bleiben unver&auml;ndert", "Supprime tous les r&eacute;seaux WiFi enregistr&eacute;s - les autres param&egrave;tres restent inchang&eacute;s" },
@@ -284,6 +288,12 @@
         { "Clock faces deleted", "Zifferbl&auml;tter gel&ouml;scht", "Cadrans supprim&eacute;s" },
         { "Hand sets deleted", "Zeigers&auml;tze gel&ouml;scht", "Jeux d&#39;aiguilles supprim&eacute;s" },
         { "Presets deleted", "Presets gel&ouml;scht", "Pr&eacute;r&eacute;glages supprim&eacute;s" },
+        { "Code expired, please try again", "Code abgelaufen, bitte erneut versuchen", "Code expir&eacute;, veuillez r&eacute;essayer" },
+        { "Wrong code, please try again", "Falscher Code, bitte erneut versuchen", "Code incorrect, veuillez r&eacute;essayer" },
+        { "Too many wrong attempts, please try again", "Zu viele Fehlversuche, bitte erneut versuchen", "Trop de tentatives incorrectes, veuillez r&eacute;essayer" },
+        { "Status information is only shown when accessing the clock from a private network", "Statusinformationen werden nur angezeigt, wenn auf die Uhr aus einem privaten Netzwerk zugegriffen wird", "Les informations de statut ne s&#39;affichent que lors d&#39;un acc&egrave;s depuis un r&eacute;seau priv&eacute;" },
+        { "This action is only available when accessing the clock from a private network", "Diese Aktion ist nur verf&uuml;gbar, wenn auf die Uhr aus einem privaten Netzwerk zugegriffen wird", "Cette action n&#39;est disponible que lors d&#39;un acc&egrave;s depuis un r&eacute;seau priv&eacute;" },
+        { "Another confirmation is already pending. Please complete it or wait a moment and try again", "Es steht bereits eine andere Best&auml;tigung aus. Bitte diese abschlie&szlig;en oder kurz warten und es erneut versuchen", "Une autre confirmation est d&eacute;j&agrave; en attente. Veuillez la terminer ou patienter un instant avant de r&eacute;essayer" },
         { "Network deleted", "Netzwerk gel&ouml;scht", "R&eacute;seau supprim&eacute;" },
         { "Rename File", "Datei umbenennen", "Renommer le fichier" },
         { "Rename Preset", "Preset umbenennen", "Renommer le pr&eacute;r&eacute;glage" },
@@ -317,6 +327,7 @@
         { "Settings saved", "Einstellungen gespeichert", "Param&egrave;tres enregistr&eacute;s" },
         { "Please connect to your home network and go to the ESP website at", "Bitte mit dem Heimnetzwerk verbinden und die ESP-Webseite aufrufen unter", "Veuillez vous connecter &agrave; votre r&eacute;seau domestique et acc&eacute;der au site de l&#39;ESP &agrave;" },
         { "Time synced", "Zeit synchronisiert", "Heure synchronis&eacute;e" },
+        { "Time sync started", "Zeitsynchronisation gestartet", "Synchronisation de l&#39;heure d&eacute;marr&eacute;e" },
         { "Returning to main page in 3 seconds", "Zur&uuml;ck zur Hauptseite in 3 Sekunden", "Retour &agrave; la page principale dans 3 secondes" },
         { "System Status", "Systemstatus", "&Eacute;tat du syst&egrave;me" },
         { "Upload Failed", "Upload fehlgeschlagen", "&Eacute;chec du t&eacute;l&eacute;chargement" },
@@ -359,8 +370,9 @@
         { "Hostname", "Hostname", "Nom d&#39;h&ocirc;te" },
         { "Hostname saved - requires a reboot to take effect", "Hostname gespeichert - Neustart erforderlich, damit die &Auml;nderung wirksam wird", "Nom d&#39;h&ocirc;te enregistr&eacute; - un red&eacute;marrage est n&eacute;cessaire pour appliquer le changement" },
         { "No valid hostname could be derived from the input - falling back to the automatic name based on the MAC address", "Aus der Eingabe konnte kein g&uuml;ltiger Hostname gebildet werden - R&uuml;ckfall auf den automatischen, aus der MAC-Adresse gebildeten Namen", "Aucun nom d&#39;h&ocirc;te valide n&#39;a pu &ecirc;tre form&eacute; &agrave; partir de la saisie - retour au nom automatique bas&eacute; sur l&#39;adresse MAC" },
-        { "Ping Server", "Ping-Server", "Serveur de ping" },
         { "Reset Saved Networks", "Gespeicherte Netzwerke zur&uuml;cksetzen", "R&eacute;initialiser les r&eacute;seaux enregistr&eacute;s" },
+        { "Delete Active WiFi", "Aktives WLAN l&ouml;schen", "Supprimer le WiFi actif" },
+        { "Change Active WiFi", "Aktives WLAN &auml;ndern", "Modifier le WiFi actif" },
         { "Add Network via WPS", "Netzwerk per WPS hinzuf&uuml;gen", "Ajouter un r&eacute;seau via WPS" },
         // Erweitert um den Trennungshinweis (vorher nur im Tooltip des Buttons,
         // also leicht zu uebersehen) - erscheint jetzt direkt als Flash-Meldung
@@ -456,18 +468,6 @@
         { "yes (marker at grid position {pos})", "ja (Marke bei Rasterposition {pos})", "oui (marqueur a la position de grille {pos})" },
         { "no (collecting - the minute marker needs a few minutes)", "nein (sammle - die Minutenmarke braucht ein paar Minuten)", "non (collecte en cours - le repere de minute prend quelques minutes)" },
 
-        // Neu fuer die Info-Seite (/info, siehe webserver_routes.h und
-        // readme_text.h) - Projektlinks und Kontakt
-
-        // New for the info page (/info, see webserver_routes.h and
-        // readme_text.h) - project links and contact
-        { "Project and Contact", "Projekt und Kontakt", "Projet et contact" },
-        { "Project repository", "Projekt-Repository", "D&eacute;p&ocirc;t du projet" },
-        { "More projects by the author", "Weitere Projekte des Autors", "Autres projets de l&#39;auteur" },
-        { "Clock faces and hand sets", "Zifferbl&auml;tter und Zeigers&auml;tze", "Cadrans et jeux d&#39;aiguilles" },
-        { "Circuit diagram / PCB", "Schaltplan / Platine", "Sch&eacute;ma / circuit imprim&eacute;" },
-        { "Contact", "Kontakt", "Contact" },
-
         // Neu fuer den Rocrail-Tab (siehe webserver_routes.h und
         // rocrail_client.h) - Modellzeit-Anbindung an einen Rocrail-Server
 
@@ -486,7 +486,6 @@
         { "Take over the model time from a Rocrail server (model railroad control software) for the hands - unlocks the Rocrail tab, where the server address can then be entered", "Modellzeit von einem Rocrail-Server (Modelleisenbahn-Steuerungssoftware) f&uuml;r die Zeiger &uuml;bernehmen - schaltet den Rocrail-Tab frei, in dem dann die Serveradresse eingetragen werden kann", "Reprendre l&#39;heure du mod&egrave;le d&#39;un serveur Rocrail (logiciel de commande de train miniature) pour les aiguilles - d&eacute;verrouille l&#39;onglet Rocrail, o&ugrave; l&#39;adresse du serveur peut ensuite &ecirc;tre saisie" },
         { "Plan", "Anlage", "Plan" },
         { "Layout name", "Anlagenname", "Nom du r&eacute;seau" },
-        { "Filled in automatically from Rocrail once connected, as long as this field is left empty - edit it yourself to keep your own name, or clear it to let Rocrail fill it in again", "Wird automatisch von Rocrail eingetragen, sobald verbunden - solange dieses Feld leer bleibt. Selbst editieren, um einen eigenen Namen zu behalten, oder leeren, damit Rocrail ihn wieder eintr&auml;gt", "Rempli automatiquement par Rocrail une fois connect&eacute;, tant que ce champ reste vide - modifiez-le vous-m&ecirc;me pour garder votre propre nom, ou videz-le pour laisser Rocrail le remplir &agrave; nouveau" },
         { "optional", "optional", "optionnel" },
         { "Divider", "Divider", "Diviseur" },
         { "Model time", "Modellzeit", "Heure du mod&egrave;le" },

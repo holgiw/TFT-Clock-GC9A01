@@ -57,8 +57,6 @@
                            // global objects, variables, structs
 #include "declarations.h"  // Forward-Deklarationen aller Funktionen
                            // forward declarations of all functions
-#include "readme_text.h"   // Projektbeschreibung (README) in drei Sprachen fuer die /info-Seite
-                           // project description (README) in three languages for the /info page
 
 #include "wifi_manager.h"      // WLAN: Verbindung, AP, Scan, Reconnect
                                // WiFi: connection, AP, scan, reconnect
@@ -153,7 +151,7 @@ void connectWiFiAtBoot() {
             }
         }
         if (foundLastSSID == false) {
-            DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan, starting new scan..");
+            DEBUG_PRINTLN("[WiFi] Last connected SSID '" + wifiSsid[number] + "' not found in scan, starting new scan..");
             startWiFiScan();
             delay(100); // Kurze Verzögerung, damit der Scan starten kann
                         // brief delay to let the scan start
@@ -190,13 +188,21 @@ void connectWiFiAtBoot() {
 
         if (trim(wifiSsid[number]) != "") {
             if (!foundLastSSID) {
-                DEBUG_PRINTLN("[WiFi] Last connected SSID not found in scan - trying it anyway (may be hidden or router not up yet)");
+                DEBUG_PRINTLN("[WiFi] Last connected SSID '" + wifiSsid[number] + "' not found in scan - trying it anyway (may be hidden or router not up yet)");
             }
             lastSsidTried = true;
-            lastSsidResult = connectWiFi(number, true);
+
+            // Mehrere Versuche (siehe WIFI_CONNECT_ATTEMPTS in config.h) - ein
+            // einzelner Fehlschlag (z.B. Router kurz beschaeftigt) soll dieses
+            // Netzwerk nicht sofort verwerfen.
+
+            // Multiple attempts (see WIFI_CONNECT_ATTEMPTS in config.h) - a
+            // single failure (e.g. the router being briefly busy) shouldn't
+            // discard this network right away.
+            lastSsidResult = connectWiFiWithRetries(number, wifiSsid[number]);
         }
 
-        if (lastSsidResult != CONNECTED) {
+        if (lastSsidResult == NOT_CONNECTED) {
 
             // Wenn Verbindung fehlschlägt, scannen und vergleichen
             // If connection fails, scan and compare
@@ -220,7 +226,17 @@ void connectWiFiAtBoot() {
 
                     if (wifiSsid[j] == availableSSID) {
                         DEBUG_PRINTLN("[WiFi] Found matching network: " + availableSSID);
-                        if (connectWiFi(j, true) == CONNECTED) {
+
+                        // Mehrere Versuche (siehe WIFI_CONNECT_ATTEMPTS in
+                        // config.h) - gleicher Grund wie beim zuletzt
+                        // verbundenen Netz oben.
+
+                        // Multiple attempts (see WIFI_CONNECT_ATTEMPTS in
+                        // config.h) - same reason as for the last connected
+                        // network above.
+                        bool connectedNow = (connectWiFiWithRetries(j, availableSSID) != NOT_CONNECTED);
+
+                        if (connectedNow) {
                             DEBUG_PRINTLN("[WiFi] Connected to " + availableSSID + " using stored credentials");
                             preferences.putInt(PK_LAST_WLAN, j);
                             return;
@@ -299,6 +315,15 @@ void setup() {
 
         Serial.begin(115200);
 
+        // Muss vor jedem moeglichen ersten DEBUG_PRINTLN()-Aufruf existieren
+        // (siehe logToFile()/logLineBuffer in globals.h) - loggingEnabled ist
+        // zu diesem Zeitpunkt zwar noch false, aber sicher ist sicher.
+
+        // Must exist before any possible first DEBUG_PRINTLN() call (see
+        // logToFile()/logLineBuffer in globals.h) - loggingEnabled is still
+        // false at this point, but better safe than sorry.
+        logBufferMutex = xSemaphoreCreateMutex();
+
         // CS_1 (Display-1-Chip-Select) manuell auf Output/LOW setzen - TFT_eSPI
         // steuert seinen CS-Pin nicht mehr selbst (TFT_CS = -1, siehe config.h).
         // Muss VOR tft.init() weiter unten passieren.
@@ -310,10 +335,10 @@ void setup() {
         digitalWrite(CS_1, LOW);
 
         // CS2-Pin-Initialisierung folgt weiter unten, NACH preferences.begin()
-        // (Display 2 ist fest aktiviert).
+        // (ob Display 2 bedient wird, haengt von seiner Rotation ab, "n.a." = nein).
 
         // CS2 pin initialization follows further below, AFTER preferences.begin()
-        // (display 2 is permanently enabled).
+        // (whether display 2 is served depends on its rotation, "n.a." = no).
 
         // Asynchronen WLAN-Scan starten, damit Netzwerke schon erkannt sind, wenn
         // der Nutzer die WLAN-Einstellungen zum ersten Mal öffnet
@@ -346,14 +371,6 @@ void setup() {
         }
 
         preferences.begin("clock", false);
-
-        // Workaround für neuen Parameter
-        // Workaround for new parameter
-        String pingServer = preferences.getString(PK_PING_SERVER,"#");
-        if (pingServer.startsWith("8.8.8.8") or pingServer == "#") {
-            preferences.putString(PK_PING_SERVER,"1.1.1.1:80");
-        }
-
 
         snprintf(version, sizeof(version), "%d-%02d-%02d %02d:%02d:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
@@ -394,18 +411,32 @@ void setup() {
             preferences.putBool(PK_MIGRATIONS_DONE, true);
         }
 
+        // Merken, ob deleteAllLogFiles() gerade eben (wegen Versionswechsel)
+        // die Lognummer schon frisch auf 1 zurueckgesetzt hat - dann direkt
+        // darunter NICHT zusaetzlich hochzaehlen, sonst wuerde log_1.log nie
+        // angelegt und die erste Datei nach jedem Neu-Flash mit geaenderter
+        // Version faelschlich bei 2 statt bei 1 beginnen.
+
+        // Remember whether deleteAllLogFiles() just now (due to a version
+        // change) already reset the log number fresh to 1 - if so, do NOT
+        // additionally increment it right below, otherwise log_1.log would
+        // never get created and the first file after every reflash with a
+        // changed version would wrongly start at 2 instead of 1.
+        bool logNumberJustReset = false;
+
         if (preferences.getString(PK_VERSION, "") != String(version)) {
             DEBUG_PRINTLN("[Preferences] Version change detected, updating version in preferences..");
             preferences.putString(PK_VERSION, String(version));
             preferences.putBool(PK_LOGGING_ENABLED, true); // Logging bei Version-Änderung aktivieren
                                                            // enable logging on version change
             deleteAllLogFiles();
+            logNumberJustReset = true;
         }
 
         // Logging aktivieren, wenn in den Preferences aktiviert
         // Enable logging if enabled in preferences
         loggingEnabled = preferences.getBool(PK_LOGGING_ENABLED, false);
-        if (loggingEnabled) {
+        if (loggingEnabled && !logNumberJustReset) {
             uint16_t logfileNumber = preferences.getInt(PK_LOG_FILE_NUMBER, 0);
             logfileNumber++;
             preferences.putInt(PK_LOG_FILE_NUMBER, logfileNumber);
@@ -528,8 +559,6 @@ void setup() {
                 preferences.putString(passKey.c_str(), "");
             }
 
-            preferences.putString(PK_PING_SERVER, DEFAULT_PING_SERVER);
-
             preferences.putInt(PK_LAST_WLAN, 0);
 
             preferences.putString(pkNtpServer(0).c_str(), NTP_SERVER_1);
@@ -537,14 +566,17 @@ void setup() {
 
             preferences.putString(PK_TIMEZONE, TIMEZONE_DEFAULT);
 
-            preferences.putUChar(PK_TFT_ROTATION1, 0);
-            preferences.putUChar(PK_TFT_ROTATION2, 0);
+            preferences.putUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
+            preferences.putUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT); // Display 2 werkseitig "nicht angeschlossen"
+                                                                           // display 2 is "not connected" by factory default
             preferences.putString(PK_HANDSET, "default");
             preferences.putString(PK_BACKGROUND, "/face_default.bmp");
 
             preferences.putBool(PK_STATION_MODE, true);
             preferences.putBool(PK_SHOW_SECOND_HAND, true);
             preferences.putBool(PK_SMOOTH_MINUTE, false);
+            preferences.putBool(PK_SMOOTH_SECOND, true); // Faktoreinstellung passend zu stationMode=true oben (klassischer Bahnhofsuhr-Look: schwingend + wartet auf 12)
+                                                         // factory default matching stationMode=true above (classic station-clock look: smooth + waits at 12)
 
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
@@ -584,7 +616,7 @@ void setup() {
 #if defined GC9A01_WITH_BACKLIGHT
             preferences.putUChar(PK_TFT_ROTATION1, 2);
 #else
-            preferences.putUChar(PK_TFT_ROTATION1, 0);
+            preferences.putUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
 #endif
             preferences.putBool(PK_ADC_INVERTED, false);
             preferences.putBool(PK_USE_TOUCH, false);
@@ -614,12 +646,17 @@ void setup() {
             preferences.putUChar(PK_TFT_ROTATION1, preferences.getUChar(PK_TFT_ROTATION_LEGACY, 0));
         }
 
-        tftRotation1 = preferences.getUChar(PK_TFT_ROTATION1, 0);
-        if (tftRotation1 > 3) {
+        // Werte 0-3 und TFT_ROTATION_NA sind gueltig; alles darueber sind
+        // Altwerte in Grad (90/180/270) und werden auf 0-3 umgerechnet.
+
+        // Values 0-3 and TFT_ROTATION_NA are valid; anything above is a legacy
+        // value in degrees (90/180/270) and gets converted to 0-3.
+        tftRotation1 = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
+        if (tftRotation1 > TFT_ROTATION_NA) {
             if (tftRotation1 == 90) tftRotation1 = 1;
             else if (tftRotation1 == 180) tftRotation1 = 2;
             else if (tftRotation1 == 270) tftRotation1 = 3;
-            else tftRotation1 = 0;
+            else tftRotation1 = TFT_ROTATION1_DEFAULT;
             preferences.putUChar(PK_TFT_ROTATION1, tftRotation1);
         }
 
@@ -628,12 +665,12 @@ void setup() {
 
         // rotation of Display 2 (CS2) - independent of tftRotation1, so
         // both displays can be mounted with a different orientation.
-        tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, 0);
-        if (tftRotation2 > 3) {
+        tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
+        if (tftRotation2 > TFT_ROTATION_NA) {
             if (tftRotation2 == 90) tftRotation2 = 1;
             else if (tftRotation2 == 180) tftRotation2 = 2;
             else if (tftRotation2 == 270) tftRotation2 = 3;
-            else tftRotation2 = 0;
+            else tftRotation2 = TFT_ROTATION2_DEFAULT;
             preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
         }
 
@@ -649,26 +686,45 @@ void setup() {
         initializeNtpServers();
 
         timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
+        applyTimezoneDefaultIfInvalid(); // faengt einen leer oder ungueltig gespeicherten Preferences-Wert ab (siehe time_sync.h)
+                                         // catches a preferences value stored empty or invalid (see time_sync.h)
 
         DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
 
         stationMode = preferences.getBool(PK_STATION_MODE, true);
         smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
+
+        // Fallback bewusst stationMode statt eines festen Literals: vor der
+        // Aufteilung in "wartet auf 12" (stationMode) und Darstellungsstil
+        // (smoothSecond, dieses Update) war schwingende Bewegung nur ueber
+        // stationMode=true zu haben - Geraete, die noch nie einen expliziten
+        // smoothSecond-Wert gespeichert haben, behalten so ihr bisheriges
+        // Aussehen bei, statt sich beim ersten Update dieser Firmware ungefragt zu aendern.
+
+        // Fallback deliberately stationMode instead of a fixed literal:
+        // before the split into "waits at 12" (stationMode) and rendering
+        // style (smoothSecond, this update), smooth motion was only ever
+        // available via stationMode=true - devices that have never saved an
+        // explicit smoothSecond value keep their previous look this way,
+        // instead of silently changing on the first update to this firmware.
+        smoothSecond = getSmoothSecondPref(stationMode);
         showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
 
-        // Display 2 (CS2) ist fest aktiviert, kein Preferences-/UI-Schalter
-        // mehr - CS2-Pin wird immer als Output konfiguriert.
+        // CS2-Pin wird immer als Output konfiguriert: Status-/Startmeldungen
+        // bedienen beide Displays, und Display 2 laesst sich zur Laufzeit
+        // (Rotation von "n.a." auf einen Winkel) ohne Neustart aktivieren.
 
-        // Display 2 (CS2) is permanently enabled, no more preferences/UI
-        // toggle - the CS2 pin is always configured as output.
+        // The CS2 pin is always configured as output: status/boot messages
+        // serve both displays, and display 2 can be enabled at runtime
+        // (rotation from "n.a." to an angle) without a reboot.
         pinMode(CS_2, OUTPUT);
 
-        // Startzustand: Display 1 ausgewaehlt, Display 2 abgewaehlt -
-        // setCS1(LOW) erledigt beides bereits (siehe display.h).
+        // Startzustand: erstes angeschlossenes Display ausgewaehlt, das andere
+        // abgewaehlt (siehe setCSIdle() in display.h).
 
-        // Starting state: display 1 selected, display 2 deselected -
-        // setCS1(LOW) already handles both (see display.h).
-        setCS1(LOW);
+        // Starting state: first connected display selected, the other one
+        // deselected (see setCSIdle() in display.h).
+        setCSIdle();
 
         // Nabe
         // Hub
@@ -765,6 +821,14 @@ void setup() {
 
         if (loggingEnabled)  Serial.println("debug is " + String(loggingEnabled ? "enabled" : "disabled"));
 
+        // Beide Chips fuer tft.init() gleichzeitig selektieren - auch ein als
+        // "n.a." markiertes Display wird so initialisiert (Startmeldungen laufen
+        // auf beiden) und ist spaeter ohne Neustart aktivierbar.
+
+        // Select both chips at once for tft.init() - a display marked "n.a."
+        // is initialized as well (boot messages run on both) and can be
+        // enabled later without a reboot.
+        digitalWrite(CS_1, LOW);
         digitalWrite(CS_2, LOW);
 
         tft.init();
@@ -800,22 +864,30 @@ void setup() {
         // CS2 gets its OWN rotation (tftRotation2) - each display keeps its
         // MADCTL register permanently, no need to re-set it every tick
         // (loop() only toggles the chip select).
+        // Beide Displays bekommen ihre Rotation, damit Startmeldungen auf beiden
+        // korrekt stehen. Bei "n.a." liefert effectiveRotation() 0 Grad statt
+        // des Werts 4 (waere beim GC9A01 eine gespiegelte Ausrichtung).
+
+        // Both displays get their rotation, so boot messages look right on both.
+        // For "n.a." effectiveRotation() returns 0 degrees instead of the value 4
+        // (which would be a mirrored orientation on the GC9A01).
         setCS2(LOW);
 #ifndef GC9D01
-        tft.setRotation(tftRotation2);
+        tft.setRotation(effectiveRotation(2));
 #else
         if (!gc9d01SwRotation) {
-            tft.setRotation(tftRotation2);
+            tft.setRotation(effectiveRotation(2));
         }
 #endif
         setCS1(LOW);
 #ifndef GC9D01
-        tft.setRotation(tftRotation1);
+        tft.setRotation(effectiveRotation(1));
 #else
         if (!gc9d01SwRotation) {
-            tft.setRotation(tftRotation1);
+            tft.setRotation(effectiveRotation(1));
         }
 #endif
+        setCSIdle();
 
 
 #ifdef TFT_Backlight
@@ -943,18 +1015,17 @@ void setup() {
         // NTP has priority, DCF77 (applyDcf77DecodedTime()) is the fallback.
         // Success is checked via lastNtpSuccessMillis, not setupNTP()'s return
         // value (which is misleadingly true when WiFi is down).
-        {
-            unsigned long beforeNtpMillis = millis();
-            setupNTP();
-            bool ntpJustSucceeded = (lastNtpSuccessMillis != 0 && lastNtpSuccessMillis >= beforeNtpMillis);
-            if (ntpJustSucceeded) {
-                DEBUG_PRINTLN("[TIME SYNC] Initial sync: NTP succeeded");
-            }
-            else {
-                DEBUG_PRINTLN("[TIME SYNC] Initial sync: NTP unavailable, trying DCF77 fallback..");
-                applyDcf77DecodedTime("[DCF77] initial sync (NTP unavailable)");
-            }
-        }
+
+        // Laeuft jetzt asynchron (startNtpSyncTask(), siehe time_sync.h): der
+        // Bootvorgang wartet nicht mehr auf DNS/UDP, die Uhr zeigt zunaechst
+        // die bereits geladene RTC-Zeit (loadTimeFromRTC() weiter oben) und
+        // pollNtpSyncTask() in loop() wertet das Ergebnis aus, sobald es vorliegt.
+
+        // Now runs asynchronously (startNtpSyncTask(), see time_sync.h): boot
+        // no longer waits on DNS/UDP, the clock initially shows the already-
+        // loaded RTC time (loadTimeFromRTC() further above), and
+        // pollNtpSyncTask() in loop() evaluates the result once it's ready.
+        startNtpSyncTask("Initial sync");
 
         if (useTouch) {
             // Touch-Eingang initialisieren
@@ -980,6 +1051,27 @@ void setup() {
         // keeps ntpServerRunning current, and is called again after every
         // reconnect (connectWiFi() in wifi_manager.h) - the socket wouldn't survive otherwise.
         startNtpServer();
+
+        // R2RNet-Multicast-Diagnose (siehe rocrail_client.h): nur zur Analyse,
+        // ob/in welchem Format Pakete auf 224.0.0.1:4321 ankommen - keine
+        // echte Discovery. Gleiche Ueberlegung wie bei startNtpServer()
+        // direkt darueber (Aufruf nach jedem Reconnect, siehe wifi_manager.h).
+        // Nur, wenn Rocrail ueberhaupt aktiviert ist - sonst voellig
+        // ungenutzter Multicast-Socket im Dauerbetrieb (siehe auch den
+        // Rocrail-Hauptschalter in webserver_routes.h, der ihn beim Ein-/
+        // Ausschalten zusaetzlich live startet/stoppt).
+
+        // R2RNet multicast diagnostics (see rocrail_client.h): purely to
+        // analyze whether/in what format packets arrive on 224.0.0.1:4321 -
+        // not real discovery. Same reasoning as startNtpServer() right above
+        // (called again after every reconnect, see wifi_manager.h). Only
+        // when Rocrail is actually enabled - otherwise a completely unused
+        // multicast socket running permanently (see also the Rocrail master
+        // switch in webserver_routes.h, which additionally starts/stops it
+        // live when toggled on/off).
+        if (rocrailEnabled) {
+            startR2rnetDebugListener();
+        }
 
         DEBUG_PRINTLN("[SETUP] Boot complete, free heap: " + String(ESP.getFreeHeap()) + " bytes");
         checkHeapWarning("Setup Ende");
@@ -1131,12 +1223,12 @@ void setup() {
         }
 
         // DCF77-Empfangsstatus aktuell halten (lastDcfSyncTime/dcfTimeFound) -
-        // die eigentliche Zeituebernahme passiert getrennt davon, stuendlich
-        // mit NTP-Vorrang (siehe checkHourlyTimeSync-Logik weiter unten).
+        // die eigentliche Zeituebernahme passiert getrennt davon, periodisch
+        // mit NTP-Vorrang (siehe Sync-Logik weiter unten).
 
         // Keep the DCF77 reception status up to date (lastDcfSyncTime/
-        // dcfTimeFound) - the actual time takeover happens separately, hourly
-        // with NTP priority (see the checkHourlyTimeSync logic further below).
+        // dcfTimeFound) - the actual time takeover happens separately,
+        // periodically with NTP priority (see the sync logic further below).
         updateDcf77Status();
 
         // Empfangsausfall bzw. RTC-Ausfall waehrend des Betriebs erkennen -
@@ -1158,14 +1250,19 @@ void setup() {
         // drained promptly even without WiFi.
         processDcf77Bits();
 
-        // Stuendliche Zeitsynchronisation: NTP hat Vorrang, DCF77 (siehe
+        // Periodische Zeitsynchronisation: NTP hat Vorrang, DCF77 (siehe
         // applyDcf77DecodedTime()) ist der Fallback - gleicher Ablauf wie
-        // der initiale Sync in setup() (Begruendung dort).
+        // der initiale Sync in setup() (Begruendung dort). Intervall WAIT_6h
+        // statt stuendlich - Zeitzone/Sommer-Winterzeit-Umstellung ist davon
+        // unberuehrt (siehe Kommentar bei WAIT_6h unten).
 
-        // Hourly time sync: NTP has priority, DCF77 (see
+        // Periodic time sync: NTP has priority, DCF77 (see
         // applyDcf77DecodedTime()) is the fallback - same flow as the
-        // initial sync in setup() (reasoning there).
-        if (millis() - lastNTPUpdate > WAIT_1h) {
+        // initial sync in setup() (reasoning there). Interval WAIT_6h
+        // instead of hourly - the timezone/DST transition is unaffected by
+        // this (see the comment at WAIT_6h below).
+
+        if (millis() - lastNTPUpdate > WAIT_6h) {
             if (timeinfo.tm_sec < 10 || timeinfo.tm_sec > 55) {
 
                 // 15s verschieben ohne den Zeitstempel in die Zukunft zu
@@ -1175,23 +1272,30 @@ void setup() {
                 // Postpone by 15s without setting the timestamp into the
                 // future: "millis() + 15000" caused underflow and an
                 // immediate re-trigger. This form is overflow-safe.
-                lastNTPUpdate = millis() - WAIT_1h + 15 * 1000;
+                lastNTPUpdate = millis() - WAIT_6h + 15 * 1000;
             }
             else {
-                unsigned long beforeNtpMillis = millis();
-                setupNTP();
-                bool ntpJustSucceeded = (lastNtpSuccessMillis != 0 && lastNtpSuccessMillis >= beforeNtpMillis);
-                if (ntpJustSucceeded) {
-                    DEBUG_PRINTLN("[TIME SYNC] Hourly sync: NTP succeeded");
-                }
-                else {
-                    DEBUG_PRINTLN("[TIME SYNC] Hourly sync: NTP unavailable, trying DCF77 fallback..");
-                    applyDcf77DecodedTime("[DCF77] hourly sync (NTP unavailable)");
-                }
+                // Startet nur die Task (siehe time_sync.h) - das Ergebnis
+                // wertet pollNtpSyncTask() weiter unten in loop() aus, sobald
+                // sie fertig ist, statt hier auf DNS/UDP zu warten.
+
+                // Only starts the task (see time_sync.h) - the result is
+                // evaluated by pollNtpSyncTask() further below in loop() once
+                // it finishes, instead of waiting on DNS/UDP here.
+                startNtpSyncTask("Periodic sync");
                 lastNTPUpdate = millis();
             }
 
         }
+
+        // Wertet eine ggf. laufende NTP-Sync-Task aus (Boot-, periodischer
+        // oder manueller Sync ueber /syncnow) - no-op, solange keine Task
+        // fertig ist. Siehe startNtpSyncTask()/pollNtpSyncTask() in time_sync.h.
+
+        // Evaluates any running NTP sync task (boot, periodic, or manual
+        // sync via /syncnow) - no-op as long as no task has finished. See
+        // startNtpSyncTask()/pollNtpSyncTask() in time_sync.h.
+        pollNtpSyncTask();
 
         // Sicherheits-Abschaltung der LED einmal pro Minute, falls ein Blitz
         // haengen bleibt. Ueber millis() statt timeinfo.tm_sec, damit es auch
@@ -1255,7 +1359,18 @@ void setup() {
 
         if (WiFi.getMode() == WIFI_STA || rtcOk == RTC_AVAILABLE || dcfTimeFound) {
 
-        updateClock();
+        // checkFactoryResetCodePending() zeichnet bei Bedarf den Bestaetigungs-
+        // code (siehe system_utils.h) und haelt das Zifferblatt dabei bewusst
+        // anugehalten - der Code soll ablesbar bleiben, nicht vom naechsten
+        // Tick sofort ueberschrieben werden.
+
+        // checkFactoryResetCodePending() draws the confirmation code when
+        // needed (see system_utils.h) and deliberately keeps the clock face
+        // paused while it does - the code should stay readable, not get
+        // overwritten by the next tick right away.
+        if (!checkFactoryResetCodePending()) {
+            updateClock();
+        }
 
         checkWeeklyRestart();
 
@@ -1287,14 +1402,23 @@ void setup() {
         // itself is a no-op as long as rocrailEnabled is off.
         if (WiFi.getMode() == WIFI_STA) {
             pollRocrailClient();
+
+            // R2RNet-Multicast-Diagnose (siehe rocrail_client.h) - non-blocking,
+            // no-op solange kein Paket wartet oder die Gruppe nicht beigetreten
+            // werden konnte (r2rnetDebugListening).
+
+            // R2RNet multicast diagnostics (see rocrail_client.h) - non-
+            // blocking, no-op as long as no packet is waiting or the group
+            // couldn't be joined (r2rnetDebugListening).
+            pollR2rnetDebugListener();
         }
 
         //  checkWiFiScan(); // Überprüfe den Status des Scans
-        // NTP-/DCF77-Zeitsynchronisation laeuft jetzt stuendlich weiter oben
+        // NTP-/DCF77-Zeitsynchronisation laeuft jetzt periodisch weiter oben
         // (unabhaengig vom WLAN-Status abgearbeitet) - hier daher nichts
 
         // mehr zu tun.
-        // NTP/DCF77 time sync now runs hourly further above (handled
+        // NTP/DCF77 time sync now runs periodically further above (handled
         // independent of WiFi status) - nothing left to do here.
 
         initial = false;
@@ -1335,6 +1459,23 @@ void setup() {
                 memset(ntpPacket, 0, NTP_PACKET_SIZE);
                 udp.read(ntpPacket, NTP_PACKET_SIZE);
 
+                // Nur aus einem privaten Netz beantworten (siehe
+                // isPrivateNetworkIp() in webserver_routes.h) - ein offener
+                // NTP-Server, der jede Anfrage aus dem Internet beantwortet,
+                // ist ein klassischer Reflection-/Amplification-Vektor fuer
+                // DDoS-Angriffe (Anfrage mit gefaelschter Absender-IP, die
+                // Antwort geht dann an das eigentliche Opfer statt an den
+                // Angreifer).
+
+                // Only answer from a private network (see
+                // isPrivateNetworkIp() in webserver_routes.h) - an open NTP
+                // server that answers every request from the internet is a
+                // classic reflection/amplification vector for DDoS attacks
+                // (request with a spoofed source IP, the reply then goes to
+                // the actual victim instead of the attacker).
+                if (!isPrivateNetworkIp(clientIP)) {
+                    DEBUG_PRINTLN("[NTPD] Request from " + clientIP.toString() + " ignored - not a private network");
+                }
                 // Ohne gueltige Systemzeit waere jede Antwort schlimmer als
                 // keine (Client stellt sich auf 1970) - Anfrage dann verwerfen,
                 // Client faellt auf seinen Timeout/naechste Quelle zurueck.
@@ -1342,7 +1483,7 @@ void setup() {
                 // Without a valid system time, any answer is worse than none
                 // (client would set itself to 1970) - discard the request,
                 // the client falls back to its timeout/next source.
-                if (receivedAt.tv_sec <= 1483228800L) { // 2017-01-01
+                else if (receivedAt.tv_sec <= 1483228800L) { // 2017-01-01
                     DEBUG_PRINTLN("[NTPD] Request from " + clientIP.toString() +
                                   " ignored - no valid system time yet");
                 }
@@ -1361,6 +1502,7 @@ void setup() {
 
         checkButton();
         updateBrightness();
+        checkLogFlush();
 
         if (useTouch) {
             // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
@@ -1377,11 +1519,23 @@ void setup() {
             }
         }
 
-        // restart im AP Mode nach 30 Minuten
-        // Restart in AP mode after 30 minutes
+        // Neustart im AP-Modus nach 15 Minuten, damit die Uhr von selbst
+        // wieder einen WLAN-Verbindungsversuch startet (connectWiFiAtBoot()
+        // laeuft ja bei jedem Boot erneut) - z.B. falls der Router zwischen-
+        // zeitlich wieder erreichbar wurde, ohne dass jemand das Captive
+        // Portal von Hand ausgefuellt hat. War hier zuvor auskommentiert
+        // (totes Feature) und wirkte daher nie.
+
+        // Restart in AP mode after 15 minutes, so the clock automatically
+        // starts a fresh WiFi connection attempt again (connectWiFiAtBoot()
+        // runs again on every boot) - e.g. if the router became reachable
+        // again in the meantime, without anyone filling in the captive
+        // portal by hand. Was commented out before (dead feature) and
+        // therefore never actually did anything.
         if (softAPIP == true) {
-            if (millis() - softAPIPstart > WAIT_30m) {
-                //        ESP.restart();
+            if (millis() - softAPIPstart > WAIT_15m) {
+                DEBUG_PRINTLN("[WiFi] 15 minutes in AP mode without configuration - restarting to retry WiFi");
+                espReboot();
             }
         }
 
