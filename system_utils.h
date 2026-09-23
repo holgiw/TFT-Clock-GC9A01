@@ -711,21 +711,13 @@
     }
 
 
-    // Liest PK_SMOOTH_SECOND mit Migrations-Fallback: wurde es noch nie
-    // explizit gespeichert, uebernimmt es den Wert von `stationModeFallback`
-    // (klassischer Bahnhofsuhr-Look: schwingender Sekundenzeiger passend zum
-    // "wartet auf 12"-Verhalten von stationMode) statt eines festen
-    // Literals. Ein Aufruf statt der wiederholten Inline-Formel an mehreren
-    // Stellen (siehe presets_manager.h, uhr3.ino, webserver_routes.h), damit
-    // die Migrationsregel sich nur an einer Stelle aendern muss.
+    // Liest PK_SMOOTH_SECOND mit Migrations-Fallback auf stationMode, statt
+    // die Formel an mehreren Stellen zu wiederholen (siehe presets_manager.h,
+    // uhr3.ino, webserver_routes.h).
 
-    // Reads PK_SMOOTH_SECOND with a migration fallback: if it was never
-    // explicitly saved, it defaults to the value of `stationModeFallback`
-    // (classic station-clock look: a sweeping second hand matching
-    // stationMode's "waits at 12" behaviour) instead of a fixed literal. One
-    // call instead of the repeated inline formula at several places (see
-    // presets_manager.h, uhr3.ino, webserver_routes.h), so the migration
-    // rule only needs to change in one spot.
+    // Reads PK_SMOOTH_SECOND with a migration fallback to stationMode,
+    // instead of repeating the formula at several places (see
+    // presets_manager.h, uhr3.ino, webserver_routes.h).
 
     bool getSmoothSecondPref(bool stationModeFallback) {
         return preferences.getBool(PK_SMOOTH_SECOND, stationModeFallback);

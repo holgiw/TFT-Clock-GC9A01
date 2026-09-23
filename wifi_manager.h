@@ -701,21 +701,13 @@
     }
 
 
-    // Versucht connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal (siehe config.h) -
-    // ein einzelner Fehlschlag (z.B. Router kurz beschaeftigt) soll das
-    // Netzwerk nicht sofort verwerfen. Gemeinsam genutzt von
-    // connectWiFiAtBoot() (siehe uhr3.ino, verboseMode=true: Fortschritt auf
-    // dem Display sichtbar), checkWiFiReconnect() und
-    // restorePreviousWpsConnection() (beide mit verboseMode=false: laufen im
-    // Hintergrund waehrend des normalen Betriebs, kein Credential-Overlay).
+    // Versucht connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal (config.h).
+    // Gemeinsam genutzt von connectWiFiAtBoot() (verboseMode=true) sowie
+    // checkWiFiReconnect()/restorePreviousWpsConnection() (beide false).
 
-    // Tries connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (see config.h) - a
-    // single failure (e.g. the router being briefly busy) shouldn't discard
-    // this network right away. Shared by connectWiFiAtBoot() (see uhr3.ino,
-    // verboseMode=true: progress visible on the display),
-    // checkWiFiReconnect() and restorePreviousWpsConnection() (both with
-    // verboseMode=false: run in the background during normal operation, no
-    // credential overlay).
+    // Tries connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (config.h).
+    // Shared by connectWiFiAtBoot() (verboseMode=true) and
+    // checkWiFiReconnect()/restorePreviousWpsConnection() (both false).
 
     int connectWiFiWithRetries(int number, const String& label, bool verboseMode) {
         int result = NOT_CONNECTED;
