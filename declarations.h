@@ -49,6 +49,8 @@
                                                   // grammar/range check of a POSIX TZ string (see time_sync.h)
     void initializeNtpServers() ;
     struct tm dcf77DecodedToLocalTm() ;
+    long rtcDriftSec(struct tm newLocal) ; // Abweichung der RTC-Zeit von newLocal in Sekunden (siehe time_sync.h)
+                                           // deviation of the RTC time from newLocal in seconds (see time_sync.h)
     bool updateDcf77Status() ;
     bool applyDcf77DecodedTime(String source) ;
     void checkDcf77Health() ;

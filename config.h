@@ -279,6 +279,15 @@
     // otherwise the SNTP client won't send a new request.
 #define NTP_SYNC_ATTEMPTS 2
 
+    // Ab dieser Abweichung (Sekunden) wird die RTC bei einem NTP-/DCF77-Sync
+    // ueberhaupt geschrieben (siehe rtcDriftSec() in time_sync.h) - kleinere
+    // Differenzen sind normale Rundung, kein unnoetiger I2C-Schreibzugriff.
+
+    // Above this deviation (seconds) the RTC is actually written on an NTP/
+    // DCF77 sync (see rtcDriftSec() in time_sync.h) - smaller differences
+    // are normal rounding, not worth an unnecessary I2C write.
+#define RTC_UPDATE_MIN_DRIFT_SEC 2
+
     // Versuche PRO WLAN-Netzwerk beim Boot (siehe connectWiFiAtBoot() in
     // uhr3.ino), bevor mit dem naechsten Netzwerk weitergemacht bzw. ganz
     // aufgegeben wird (-> WPS/Access-Point) - ein einzelner fehlgeschlagener

@@ -450,6 +450,28 @@
     }
 
 
+    // Abweichung der aktuellen RTC-Zeit von `newLocal` in Sekunden - fuer
+    // das Diff-Logging und die 2s-Schwelle bei einem RTC-Update via NTP/
+    // DCF77 (siehe pollNtpSyncTask()/applyDcf77DecodedTime()).
+
+    // Deviation of the current RTC time from `newLocal` in seconds - for
+    // the diff logging and the 2s threshold on an RTC update via NTP/
+    // DCF77 (see pollNtpSyncTask()/applyDcf77DecodedTime()).
+
+    long rtcDriftSec(struct tm newLocal) {
+        DateTime oldRtcTime = rtc.now();
+        struct tm oldRtcTm = {};
+        oldRtcTm.tm_year = oldRtcTime.year() - 1900;
+        oldRtcTm.tm_mon = oldRtcTime.month() - 1;
+        oldRtcTm.tm_mday = oldRtcTime.day();
+        oldRtcTm.tm_hour = oldRtcTime.hour();
+        oldRtcTm.tm_min = oldRtcTime.minute();
+        oldRtcTm.tm_sec = oldRtcTime.second();
+        oldRtcTm.tm_isdst = -1;
+        return (long)(mktime(&newLocal) - mktime(&oldRtcTm));
+    }
+
+
     // Uebernimmt dcf77LastDecoded als Systemzeit (+RTC) - DCF77-Fallback des
     // periodischen Sync-Blocks, wenn NTP nicht verfuegbar ist. False, wenn
     // kein frisches (DCF77_DECODED_MAX_AGE), paritaets-korrektes Telegramm vorliegt.
@@ -493,11 +515,17 @@
         // well as NTP.
         if (rtcOk == RTC_AVAILABLE || rtcOk == RTC_AVAILABLE_BUT_INVALID) {
 
-            // Setze die RTC mit der synchronisierten Zeit
-            // Set the RTC to the synchronized time
-            rtc.adjust(DateTime(dcfLocal.tm_year + 1900, dcfLocal.tm_mon + 1, dcfLocal.tm_mday,
-                dcfLocal.tm_hour, dcfLocal.tm_min, dcfLocal.tm_sec));
-            DEBUG_PRINTLN("[RTC] RTC updated with DCF77 time");
+            // Nur bei nennenswerter Abweichung tatsaechlich schreiben (siehe
+            // RTC_UPDATE_MIN_DRIFT_SEC) - unnoetige I2C-Schreibzugriffe vermeiden.
+
+            // Only actually write on a notable deviation (see
+            // RTC_UPDATE_MIN_DRIFT_SEC) - avoid unnecessary I2C writes.
+            long rtcDiffSec = rtcDriftSec(dcfLocal);
+            if (labs(rtcDiffSec) >= RTC_UPDATE_MIN_DRIFT_SEC) {
+                rtc.adjust(DateTime(dcfLocal.tm_year + 1900, dcfLocal.tm_mon + 1, dcfLocal.tm_mday,
+                    dcfLocal.tm_hour, dcfLocal.tm_min, dcfLocal.tm_sec));
+                DEBUG_PRINTLN("[RTC] RTC updated with DCF77 time (diff " + String(rtcDiffSec) + "s)");
+            }
             rtcOk = RTC_AVAILABLE; // siehe Begruendung bei setupNTP() weiter oben
                                    // see the reasoning at setupNTP() further above
         }
@@ -1558,11 +1586,18 @@
                 struct tm nowTm;
                 if (getLocalTime(&nowTm, 100)) {
 
-                    // Setze die RTC mit der synchronisierten Zeit
-                    // Set the RTC to the synchronized time
-                    rtc.adjust(DateTime(nowTm.tm_year + 1900, nowTm.tm_mon + 1, nowTm.tm_mday,
-                        nowTm.tm_hour, nowTm.tm_min, nowTm.tm_sec));
-                    DEBUG_PRINTLN("[RTC] RTC updated with NTP time");
+                    // Nur bei nennenswerter Abweichung tatsaechlich schreiben
+                    // (siehe RTC_UPDATE_MIN_DRIFT_SEC) - unnoetige I2C-
+                    // Schreibzugriffe vermeiden.
+
+                    // Only actually write on a notable deviation (see
+                    // RTC_UPDATE_MIN_DRIFT_SEC) - avoid unnecessary I2C writes.
+                    long rtcDiffSec = rtcDriftSec(nowTm);
+                    if (labs(rtcDiffSec) >= RTC_UPDATE_MIN_DRIFT_SEC) {
+                        rtc.adjust(DateTime(nowTm.tm_year + 1900, nowTm.tm_mon + 1, nowTm.tm_mday,
+                            nowTm.tm_hour, nowTm.tm_min, nowTm.tm_sec));
+                        DEBUG_PRINTLN("[RTC] RTC updated with NTP time (diff " + String(rtcDiffSec) + "s)");
+                    }
 
                     // rtcOk zurueck auf RTC_AVAILABLE: eine zuvor "ungueltige"
                     // RTC ist jetzt physisch korrekt - sonst wuerde
