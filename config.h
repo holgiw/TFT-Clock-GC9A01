@@ -362,14 +362,13 @@
 #define ROCRAIL_CONNECT_TIMEOUT_MS 5000 // 5 Sekunden in Millisekunden - laeuft in einer eigenen Task, blockiert also nichts (siehe oben)
                                         // 5 seconds in milliseconds - runs in its own task, so this blocks nothing (see above)
 #define ROCRAIL_RECONNECT_INTERVAL_MS WAIT_1m
-#define ROCRAIL_LOG_THROTTLE_LIMIT 2 // gemeinsame Grenze fuer die gedrosselten Rocrail-Logzeilen
-                                     // (rocrailClockLogCount/rocrailConnectFailLogCount, siehe
-                                     // shouldLogThrottled() in rocrail_client.h) - eine Stelle statt
-                                     // eines an mehreren Stellen wiederholten Literals.
-                                     // shared limit for the throttled Rocrail log lines
-                                     // (rocrailClockLogCount/rocrailConnectFailLogCount, see
-                                     // shouldLogThrottled() in rocrail_client.h) - one spot instead
-                                     // of a literal repeated at several call sites.
+#define ROCRAIL_LOG_THROTTLE_LIMIT 2 // gemeinsame Grenze fuer gedrosselte Rocrail-Logs (siehe
+                                     // shouldLogThrottled() in rocrail_client.h) - eine Stelle
+                                     // statt mehrfach wiederholtem Literal.
+
+                                     // shared limit for throttled Rocrail logs (see
+                                     // shouldLogThrottled() in rocrail_client.h) - one spot
+                                     // instead of a repeated literal.
 
     // Ab diesem Divider werden Sekundenzeiger UND Nabe ausgeblendet (siehe
     // renderClockFrame()) - bei so hoher Beschleunigung ist ihre Bewegung/

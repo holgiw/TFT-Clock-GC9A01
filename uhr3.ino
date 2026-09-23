@@ -52,6 +52,13 @@
 #include <RTClib.h>
 #include <WiFiUdp.h>
 
+// Fuer sntp_set_sync_mode()/sntp_set_sync_interval() - siehe setup() und
+// den Kommentar dort zum Sekundenzeiger-Ruecksprung-Fix.
+
+// For sntp_set_sync_mode()/sntp_set_sync_interval() - see setup() and the
+// comment there about the second-hand jump-back fix.
+#include <esp_sntp.h>
+
 
 #include "globals.h"       // globale Objekte, Variablen, Structs
                            // global objects, variables, structs
@@ -1025,6 +1032,17 @@ void setup() {
         // no longer waits on DNS/UDP, the clock initially shows the already-
         // loaded RTC time (loadTimeFromRTC() further above), and
         // pollNtpSyncTask() in loop() evaluates the result once it's ready.
+
+        // lwIP-SNTP synct nach configTzTime() eigenstaendig weiter (Default
+        // ~1x/Std., am 6h-Timer vorbei) - SMOOTH schleicht Korrekturen per
+        // adjtime() ein statt zu springen (Sekundenzeiger-Ruecksprung-Fix).
+
+        // lwIP SNTP keeps syncing on its own after configTzTime() (default
+        // ~1x/hour, bypassing our 6h timer) - SMOOTH eases corrections in
+        // via adjtime() instead of stepping (second-hand jump-back fix).
+        sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
+        sntp_set_sync_interval(WAIT_6h);
+
         startNtpSyncTask("Initial sync");
 
         if (useTouch) {

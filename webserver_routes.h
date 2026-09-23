@@ -1177,22 +1177,13 @@
     // pendingWifiSsid[]/pendingWifiPass[] in globals.h).
 
     void applyWlanList(String newSsid[MAX_WLAN], String newPass[MAX_WLAN]) {
-        // Effektiver (nach dieser Aenderung geltender) SSID/Passwort-Wert je
-        // Slot, zunaechst nur im RAM berechnet (noch NICHT geschrieben) -
-        // ein leeres Passwortfeld behaelt dabei das aktuell gespeicherte
-        // Passwort dieses Slots (siehe Hinweistext "Leave empty to keep
-        // current" im WLAN-Tab). Preferences erst weiter unten, nach dem
-        // Kompaktieren, in EINEM Durchlauf beschreiben - ein Slot, der beim
-        // Kompaktieren verschoben wird, soll nicht zusaetzlich schon hier
-        // unter seiner alten Position geschrieben werden.
+        // Effektiver SSID/Passwort-Wert je Slot, zunaechst nur im RAM (leeres
+        // Passwortfeld behaelt das gespeicherte). Preferences erst unten, nach
+        // dem Kompaktieren, in EINEM Durchlauf beschreiben.
 
-        // Effective (post-change) SSID/password value per slot, computed in
-        // RAM only for now (NOT written yet) - an empty password field
-        // keeps that slot's currently stored password (see the "Leave empty
-        // to keep current" hint in the WiFi tab). Preferences are only
-        // written further below, after compaction, in a SINGLE pass - a
-        // slot that gets shifted during compaction shouldn't also be
-        // written here under its old position first.
+        // Effective SSID/password per slot, computed in RAM first (empty
+        // password field keeps the stored one). Preferences are written only
+        // below, after compaction, in a SINGLE pass.
         String effectiveSsid[MAX_WLAN];
         String effectivePass[MAX_WLAN];
 
@@ -1219,10 +1210,9 @@
             }
         }
 
-        // Einziger Schreibdurchlauf: erst hier, mit dem bereits
-        // kompaktierten Endergebnis, in Preferences uebernehmen -
-        // Lesen-vor-Schreiben erspart einem unveraenderten Slot einen
-        // Flash-Schreibvorgang (siehe putStringVerified()).
+        // Einziger Schreibdurchlauf: erst hier, mit dem kompaktierten
+        // Endergebnis, in Preferences uebernehmen - Lesen-vor-Schreiben spart
+        // unveraenderten Slots einen Flash-Schreibvorgang (putStringVerified()).
 
         // Single write pass: only now, with the already-compacted final
         // result, commit to preferences - read-before-write saves an
@@ -1344,14 +1334,12 @@
                 applyWlanList(newSsid, newPass);
 
                 // PK_LAST_WLAN komplett entfernen statt auf einen Index zu
-                // setzen, damit nach dem Kompaktieren durch applyWlanList()
-                // kein veralteter Index (der jetzt evtl. ein anderes,
-                // verschobenes Netzwerk bezeichnet) nach dem Neustart bleibt.
+                // setzen - nach dem Kompaktieren durch applyWlanList() koennte
+                // der Index sonst ein anderes, verschobenes Netzwerk bezeichnen.
 
                 // Remove PK_LAST_WLAN entirely rather than leave it pointing
-                // at an index, so no stale index (which may now denote a
-                // different, shifted network after applyWlanList()'s
-                // compaction) remains after the reboot.
+                // at an index - after applyWlanList()'s compaction that index
+                // could now denote a different, shifted network.
                 preferences.remove(PK_LAST_WLAN);
 
                 delay(WAIT_1s);
@@ -1542,18 +1530,13 @@
     }
 
 
-    // HTML-Label fuer einen Rotationswert - "n.a." bei TFT_ROTATION_NA (kein
-    // Display an diesem Ausgang angeschlossen, siehe isDisplayConnected() in
-    // display.h), sonst 0/90/180/270 Grad. Werte ausserhalb [0,
-    // TFT_ROTATION_NA] fallen auf 0 zurueck. Gemeinsam genutzt von /status
-    // und /api/status, statt an jeder Stelle ein eigenes Label-Array zu
-    // pflegen.
+    // HTML-Label fuer einen Rotationswert - "n.a." bei TFT_ROTATION_NA (siehe
+    // isDisplayConnected() in display.h), sonst 0/90/180/270 Grad. Gemeinsam
+    // genutzt von /status und /api/status.
 
-    // HTML label for a rotation value - "n.a." for TFT_ROTATION_NA (no
-    // display connected on that output, see isDisplayConnected() in
-    // display.h), otherwise 0/90/180/270 degrees. Values outside [0,
-    // TFT_ROTATION_NA] fall back to 0. Shared by /status and /api/status,
-    // instead of each maintaining its own label array.
+    // HTML label for a rotation value - "n.a." for TFT_ROTATION_NA (see
+    // isDisplayConnected() in display.h), otherwise 0/90/180/270 degrees.
+    // Shared by /status and /api/status.
 
     String rotationLabelHtml(uint8_t rotation) {
         static const char* labels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;", "n.a." };
@@ -2727,22 +2710,13 @@
             preferences.putBool(PK_SMOOTH_MINUTE, smoothMinute);
             preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
 
-            // Rotation von Display 1 und 2 (0-3 oder TFT_ROTATION_NA = nicht angeschlossen) -
-            // beide Werte erst validieren, dann gemeinsam uebernehmen. Bewusst
-            // NICHT argToIntClamped() (das einen ungueltigen Wert auf minVal/
-            // maxVal KLEMMT): ein Tippfehler wie "rotation=99" wuerde sonst
-            // still auf TFT_ROTATION_NA geklemmt und angewendet, ein Display
-            // also faelschlich als "nicht angeschlossen" deaktivieren, statt
-            // die vorherige Rotation unveraendert zu lassen - so wie es auch
-            // /api/setMode weiter unten handhabt.
+            // Rotation validieren, dann gemeinsam uebernehmen. Bewusst NICHT
+            // argToIntClamped() (klemmt ungueltige Werte statt sie zu verwerfen) -
+            // ein Tippfehler wuerde sonst ein Display faelschlich deaktivieren.
 
-            // Rotation of display 1 and 2 (0-3 or TFT_ROTATION_NA = not connected) -
-            // validate both values first, then apply them together. Deliberately
-            // NOT argToIntClamped() (which CLAMPS an invalid value to minVal/
-            // maxVal): a typo like "rotation=99" would otherwise silently clamp
-            // to TFT_ROTATION_NA and get applied, wrongly disabling a display as
-            // "not connected" instead of leaving the previous rotation
-            // unchanged - matching how /api/setMode below handles it too.
+            // Validate rotation, then apply together. Deliberately NOT
+            // argToIntClamped() (clamps invalid values instead of rejecting
+            // them) - a typo could otherwise wrongly disable a display.
             if (webserver.hasArg("rotation") || webserver.hasArg("rotation2")) {
                 uint8_t newRotation1 = tftRotation1;
                 uint8_t newRotation2 = tftRotation2;

@@ -186,14 +186,13 @@
 
     bool isValidPosixTimezone(const String& tz) {
         int len = tz.length();
-        // Muss zusammen mit Nullterminator in timezoneSnapshot[] passen (siehe
-        // globals.h) - sonst wuerde ein laenger, aber sonst gueltiger String
-        // hier als gueltig durchgehen und spaeter beim Kopieren in den
-        // Snapshot stillschweigend abgeschnitten werden.
-        // Must fit into timezoneSnapshot[] together with the null terminator
-        // (see globals.h) - otherwise a longer but otherwise valid string
-        // would pass validation here and later get silently truncated when
-        // copied into the snapshot.
+        // Muss in timezoneSnapshot[] passen (siehe globals.h) - sonst wuerde
+        // ein laengerer, aber gueltiger String hier durchgehen und beim
+        // Kopieren stillschweigend abgeschnitten werden.
+
+        // Must fit into timezoneSnapshot[] (see globals.h) - otherwise a
+        // longer but valid string would pass here and get silently
+        // truncated when copied.
         if (len == 0 || len >= (int)sizeof(timezoneSnapshot)) return false;
 
         // Name: entweder <...> (mind. 1 Zeichen) oder mind. 3 Buchstaben

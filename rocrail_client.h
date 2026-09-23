@@ -98,6 +98,7 @@
         int hexBytes = min(len, 64);
         hex.reserve(hexBytes * 3 + 4); // "XX " je Byte + evtl. "..." - vermeidet
                                        // wiederholte Heap-Reallokation durch +=
+
                                        // "XX " per byte + optional "..." - avoids
                                        // repeated heap reallocation from +=
         for (int i = 0; i < hexBytes; i++) {
@@ -312,21 +313,13 @@
     // running purely locally in between (see advanceRocrailTime()). A
     // deviation is eased in smoothly instead of snapped.
 
-    // Drosselung fuer wiederkehrende Log-Zeilen: loggt nur die ersten `limit`
-    // Aufrufe (erhoeht `counter` dabei), danach keine mehr - verhindert, dass
-    // ein dauerhafter Zustand (z.B. jede Minute erneuter Verbindungsfehlschlag)
-    // das Log zuschreibt. `isLastLogged` wird true beim letzten NOCH geloggten
-    // Aufruf, damit der Aufrufer dort einen Hinweis anhaengen kann, warum das
-    // Log danach still wird (siehe processRocrailClockPayload()/
-    // pollRocrailConnectTask()).
+    // Drosselung fuer wiederkehrende Logs: loggt nur die ersten `limit`
+    // Aufrufe (erhoeht `counter`); `isLastLogged` markiert den letzten
+    // geloggten Aufruf fuer einen "wird jetzt still"-Hinweis.
 
-    // Throttling for recurring log lines: only logs the first `limit` calls
-    // (incrementing `counter` for each), none after that - prevents an
-    // ongoing condition (e.g. a connect failure repeating every minute) from
-    // flooding the log. `isLastLogged` is true on the last call that still
-    // gets logged, so the caller can append a note there explaining why the
-    // log goes quiet afterwards (see processRocrailClockPayload()/
-    // pollRocrailConnectTask()).
+    // Throttles recurring logs: only logs the first `limit` calls
+    // (increments `counter`); `isLastLogged` marks the last logged call
+    // so the caller can note the log going quiet.
 
     bool shouldLogThrottled(uint8_t& counter, bool& isLastLogged, uint8_t limit) {
         isLastLogged = false;
@@ -490,24 +483,13 @@
             // Next <clock> update restarts the model time.
             rocrailLastClockMillis = 0;
 
-            // Zaehler fuer die naechste Ausfall-Serie zuruecksetzen: eine neue
-            // Verbindung ist ein neuer Anfang - faellt sie spaeter erneut aus,
-            // soll das wieder (kurz) im Log auftauchen statt fuer immer stumm
-            // zu bleiben, nur weil frueher schon mal 2 Fehlschlaege geloggt wurden.
-            // Gleicher Grund fuer rocrailClockLogCount: nach einem Reconnect
-            // sollen die ersten beiden <clock>-Updates wieder bestaetigen, dass
-            // die Zeituebernahme funktioniert, statt fuer den Rest der Laufzeit
-            // stumm zu bleiben, nur weil vor dem Verbindungsabbruch schon 2
-            // Updates geloggt wurden.
+            // Beide Zaehler zuruecksetzen: eine neue Verbindung ist ein
+            // Neuanfang - Fehlschlaege und die ersten <clock>-Updates sollen
+            // danach wieder kurz geloggt werden, statt dauerhaft stumm zu bleiben.
 
-            // Reset the counter for the next failure streak: a new connection
-            // is a fresh start - if it fails again later, that should show up
-            // (briefly) in the log again instead of staying silent forever
-            // just because 2 failures were already logged earlier. Same
-            // reason for rocrailClockLogCount: after a reconnect, the first
-            // two <clock> updates should again confirm the time takeover
-            // works, instead of staying quiet for the rest of the runtime
-            // just because 2 updates were already logged before the drop.
+            // Reset both counters: a new connection is a fresh start -
+            // failures and the first <clock> updates should briefly log
+            // again afterward, instead of staying silent forever.
             rocrailConnectFailLogCount = 0;
             rocrailClockLogCount = 0;
         }
