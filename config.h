@@ -370,6 +370,15 @@
                                      // shouldLogThrottled() in rocrail_client.h) - one spot
                                      // instead of a repeated literal.
 
+    // Ab dieser Winkeldifferenz gilt ein Vorwaerts-Frame als abnormal
+    // (verzoegerter Frame, z.B. durch eine blockierende Web-Anfrage) statt
+    // als normaler Tick - siehe Abfederung in renderClockFrame() (display.h).
+
+    // Above this angle difference, a forward frame counts as abnormal (a
+    // delayed frame, e.g. a blocking web request) instead of a normal tick
+    // - see the easing in renderClockFrame() (display.h).
+#define SECOND_HAND_MAX_NORMAL_FORWARD_STEP_DEG 6.5f
+
     // Ab diesem Divider werden Sekundenzeiger UND Nabe ausgeblendet (siehe
     // renderClockFrame()) - bei so hoher Beschleunigung ist ihre Bewegung/
     // Sichtbarkeit ohnehin kaum noch sinnvoll.

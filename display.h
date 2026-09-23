@@ -1896,48 +1896,35 @@
                 targetSecAngle = rotatedAngle(secAngle, orientation);
             }
 
-            // Gegen einen sichtbaren Ruecksprung abfedern, falls die
-            // zugrundeliegende Zeit selbst rueckwaerts korrigiert wurde (z.B.
-            // durch einen NTP-/RTC-/DCF77-Abgleich) - analog zur Minuten-/
-            // Stundenzeiger-Behandlung weiter unten. Ein normaler Vorwaerts-
-            // schritt (positive kuerzeste Winkeldifferenz) wird weiterhin
-            // SOFORT uebernommen, damit der tickende Stil exakt wie bisher
-            // einmal pro Sekunde snapt statt einzuschleichen - nur eine
-            // negative Differenz (Zeit ist zurueckgesprungen) wird ueber ein
-            // paar Frames sanft nachgefuehrt statt den Zeiger springen zu lassen.
+            // Abfedern bei sichtbarem Sprung: rueckwaerts (Zeitkorrektur)
+            // oder ungewoehnlich weit vorwaerts (verzoegerter Frame, z.B.
+            // durch eine blockierende Web-Anfrage). Normale Ticks bleiben sofort.
 
-            // Ease away a visible jump-back if the underlying time itself was
-            // corrected backward (e.g. by an NTP/RTC/DCF77 resync) - same
-            // idea as the minute/hour hand handling further below. A normal
-            // forward step (positive shortest angle difference) is still
-            // applied IMMEDIATELY, so the ticking style keeps snapping
-            // exactly once per second as before instead of creeping in -
-            // only a negative difference (time jumped backward) gets eased
-            // in gradually over a few frames instead of letting the hand jump.
-            // Diagnose-Logging fuer das Abfedern selbst (siehe DEBUG_PRINTLN,
-            // ohne Wirkung solange loggingEnabled aus ist): loggt EINMAL pro
-            // Ruecksprungepisode Start (mit Betrag in Sekunden) und Ende (mit
-            // Dauer), damit sich ein gemeldetes kurzes "Ruckeln" im Log einer
-            // Ursache zuordnen laesst (NTP-Resync kurz zuvor? DCF77-Zeile
-            // dazwischen? nichts dergleichen?), statt weiter zu raten.
+            // Ease away a visible jump: backward (time correction) or
+            // unusually far forward (a delayed frame, e.g. a blocking web
+            // request). Normal ticks still apply immediately.
 
-            // Diagnostic logging for the easing itself (see DEBUG_PRINTLN, a
-            // no-op while loggingEnabled is off): logs ONCE per jump-back
-            // episode at its start (with the magnitude in seconds) and at its
-            // end (with the duration), so a reported brief "jitter" can be
-            // matched against a cause in the log (an NTP resync just before?
-            // a DCF77 line in between? neither?) instead of continuing to guess.
+            // Diagnose-Logging (DEBUG_PRINTLN, wirkungslos wenn loggingEnabled
+            // aus): loggt je Episode Start (Betrag, Richtung) und Ende
+            // (Dauer), um eine Ursache im Log zuzuordnen statt zu raten.
+
+            // Diagnostic logging (DEBUG_PRINTLN, a no-op while loggingEnabled
+            // is off): logs each episode's start (magnitude, direction) and
+            // end (duration), to match a cause in the log instead of guessing.
             static bool secondEasingActive[2] = { false, false };
             static unsigned long secondEasingStartMillis[2] = { 0, 0 };
             uint8_t easingIdx = displayNum - 1;
 
             float secAngleDiff = shortestAngleDiff(lastSecondAngleRef, targetSecAngle);
-            if (secAngleDiff < 0.0f) {
+            bool jumpedBack = (secAngleDiff < 0.0f);
+            bool skippedForward = (secAngleDiff > SECOND_HAND_MAX_NORMAL_FORWARD_STEP_DEG);
+            if (jumpedBack || skippedForward) {
                 if (!secondEasingActive[easingIdx]) {
                     secondEasingActive[easingIdx] = true;
                     secondEasingStartMillis[easingIdx] = currentMillis;
-                    DEBUG_PRINTLN("[Clock] Display " + String(displayNum) + ": second hand jumped back by " +
-                                  String(-secAngleDiff / 6.0f, 2) + "s, easing in (time now " +
+                    DEBUG_PRINTLN("[Clock] Display " + String(displayNum) + ": second hand " +
+                                  (jumpedBack ? "jumped back by " : "skipped forward by ") +
+                                  String(fabsf(secAngleDiff) / 6.0f, 2) + "s, easing in (time now " +
                                   String(t.tm_hour) + ":" + String(t.tm_min) + ":" + String(t.tm_sec) + ")");
                 }
                 lastSecondAngleRef += secAngleDiff * 0.2f;
@@ -1947,7 +1934,7 @@
             else {
                 if (secondEasingActive[easingIdx]) {
                     secondEasingActive[easingIdx] = false;
-                    DEBUG_PRINTLN("[Clock] Display " + String(displayNum) + ": second hand jump-back settled after " +
+                    DEBUG_PRINTLN("[Clock] Display " + String(displayNum) + ": second hand jump settled after " +
                                   String(currentMillis - secondEasingStartMillis[easingIdx]) + "ms");
                 }
                 lastSecondAngleRef = targetSecAngle;
