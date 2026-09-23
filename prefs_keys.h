@@ -176,3 +176,4 @@
     // NOTE: putStringVerified() is deliberately not defined here, since
     // prefs_keys.h is included in uhr3.ino before globals.h ("preferences") and
     // config.h (DEBUG_PRINTLN); see wifi_manager.h for the implementation.
+

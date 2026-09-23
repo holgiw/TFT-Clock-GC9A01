@@ -304,3 +304,4 @@ static const char README_HTML_FR[] = R"rawliteral(
         if (currentLanguage == "fr") return README_HTML_FR;
         return README_HTML_EN;
     }
+
