@@ -395,7 +395,7 @@
     // From this divider onwards, the second hand AND the hub are hidden
     // (see renderClockFrame()) - at such high acceleration their movement/
     // visibility isn't meaningfully useful anyway.
-#define ROCRAIL_HIDE_DETAILS_DIVIDER 10
+#define ROCRAIL_HIDE_DETAILS_DIVIDER 11
 
     // Bleibt ein <clock>-Update laenger als das aus, gilt die Modellzeit als
     // veraltet - die Uhr faellt dann auf NTP/RTC/DCF77 zurueck (siehe
@@ -562,3 +562,4 @@
 
     // Transparent in R5G6B5 RGB(16)
 #define TRANSPARENT_COLOR 0x0120
+
