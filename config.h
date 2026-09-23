@@ -426,8 +426,16 @@
     // rocrail_client.h). ONLY for analyzing the reply format - actual
     // R2RNet discovery was removed (see the comment at the top of
     // rocrail_client.h).
-#define R2RNET_DEBUG_MULTICAST_IP "224.0.0.1"
-#define R2RNET_DEBUG_MULTICAST_PORT 4321
+
+    // 224.0.1.20:8051 ist laut wiki.rocrail.net die tatsaechliche R2RNet-
+    // Adresse - 224.0.0.1 (zuvor hier) ist die reservierte "All Hosts"-
+    // Gruppe (RFC 1112), fuer die ein expliziter IGMP-Join meist scheitert.
+
+    // 224.0.1.20:8051 is the actual R2RNet address per wiki.rocrail.net -
+    // 224.0.0.1 (previously here) is the reserved "All Hosts" group
+    // (RFC 1112), for which an explicit IGMP join usually fails.
+#define R2RNET_DEBUG_MULTICAST_IP "224.0.1.20"
+#define R2RNET_DEBUG_MULTICAST_PORT 8051
 #define R2RNET_DEBUG_PACKET_BUFFER_SIZE 512
 
     // DCF77-Status-Punkt in der Topbar: dcfTimeFound/dcf77Count werden nie

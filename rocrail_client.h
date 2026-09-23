@@ -62,7 +62,16 @@
             DEBUG_PRINTLN("[R2RNET-DEBUG] Listening on multicast " + String(R2RNET_DEBUG_MULTICAST_IP) + ":" + String(R2RNET_DEBUG_MULTICAST_PORT));
         }
         else {
-            DEBUG_PRINTLN("[R2RNET-DEBUG] Could not join multicast group " + String(R2RNET_DEBUG_MULTICAST_IP) + ":" + String(R2RNET_DEBUG_MULTICAST_PORT));
+            // Zusatzdaten fuers Debugging (WiFi-Modus/-Status, freier Heap) -
+            // der ESP-IDF-Fehlercode (errno) landet nur auf dem rohen
+            // Serial-Ausgang, nicht hier (siehe log_e() in NetworkUdp.cpp).
+
+            // Extra data for debugging (WiFi mode/status, free heap) - the
+            // ESP-IDF error code (errno) only reaches the raw serial output,
+            // not here (see log_e() in NetworkUdp.cpp).
+            DEBUG_PRINTLN("[R2RNET-DEBUG] Could not join multicast group " + String(R2RNET_DEBUG_MULTICAST_IP) + ":" + String(R2RNET_DEBUG_MULTICAST_PORT) +
+                          " (WiFi mode " + String(WiFi.getMode()) + ", status " + String(WiFi.status()) +
+                          ", free heap " + String(ESP.getFreeHeap()) + ")");
         }
         return r2rnetDebugListening;
     }
