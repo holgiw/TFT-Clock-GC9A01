@@ -12,7 +12,7 @@ Wenn der ESP bereits eine Vorgängerversion der Uhr hatte diesen Block ausführe
 
 ########################################################
 	ESP32-S2 am PC per USB anstecken..
-	In der start.bat Schnittstelle auf COM4 stellen
+	start_COM4.bat verwenden
 
 ########################################################
 
@@ -30,11 +30,10 @@ ODER
 	ESP32-S2 am PC per USB anstecken.
 	Reset drücken und halten, Boot drücken und halten, Reset loslassen, danach Boot loslassen.
 	Am PC sollte jetzt die COM Schnittstelle des ESP auftauchen, es ist meist COM3.
+	start_COM3.bat verwenden
 ########################################################
 
-
-In der Batch Datei start.bat muss evtl. die serielle COM Schnittstelle angepasst und gespeichert werden (COM3/COM4).
-Danach ist im DOS Fenster die start.bat auszuführen und flasht den ESP32 S2.
+Alternativ, wenn der PC eine andere COM Schnittstelle bereitstellt, diese in einer der beiden START_COMx.bat anpassen.
 
 SSID einstellen:
 	Am WLan Router WPS einschalten (Menü, Taster)
