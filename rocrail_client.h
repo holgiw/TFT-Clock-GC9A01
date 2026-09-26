@@ -59,6 +59,8 @@
         r2rnetDebugListening = (r2rnetDebugUdp.beginMulticast(multicastIp, R2RNET_DEBUG_MULTICAST_PORT) == 1);
 
         if (r2rnetDebugListening) {
+            r2rnetDebugLogCount = 0; // neuer Beitritt: wieder kurz loggen
+                                     // new join: log briefly again
             DEBUG_PRINTLN("[R2RNET-DEBUG] Listening on multicast " + String(R2RNET_DEBUG_MULTICAST_IP) + ":" + String(R2RNET_DEBUG_MULTICAST_PORT));
         }
         else {
@@ -93,6 +95,16 @@
         int packetSize = r2rnetDebugUdp.parsePacket();
         if (packetSize <= 0) return;
 
+        // Nur die ersten R2RNET_DEBUG_LOG_LIMIT Pakete je Beitritt loggen -
+        // jede Logzeile schreibt in LittleFS (Flash-Verschleiss, kostet DCF77-
+        // Flanken); parsePacket() hat das Paket bereits aus dem Puffer geholt.
+
+        // Only log the first R2RNET_DEBUG_LOG_LIMIT packets per join - each
+        // log line writes to LittleFS (flash wear, costs DCF77 edges);
+        // parsePacket() has already pulled the packet out of the buffer.
+        bool isLastLogged = false;
+        if (!shouldLogThrottled(r2rnetDebugLogCount, isLastLogged, R2RNET_DEBUG_LOG_LIMIT)) return;
+
         uint8_t buf[R2RNET_DEBUG_PACKET_BUFFER_SIZE];
         int len = r2rnetDebugUdp.read(buf, sizeof(buf) - 1);
         if (len < 0) len = 0;
@@ -119,7 +131,8 @@
 
         DEBUG_PRINTLN("[R2RNET-DEBUG] " + String(packetSize) + " bytes from " +
             r2rnetDebugUdp.remoteIP().toString() + ":" + String(r2rnetDebugUdp.remotePort()) +
-            " | text: " + String((char*)buf) + " | hex: " + hex);
+            " | text: " + String((char*)buf) + " | hex: " + hex +
+            (isLastLogged ? " - no more R2RNet packets logged until the next reconnect" : ""));
     }
 
 

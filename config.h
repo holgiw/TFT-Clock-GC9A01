@@ -437,6 +437,8 @@
 #define R2RNET_DEBUG_MULTICAST_IP "224.0.1.20"
 #define R2RNET_DEBUG_MULTICAST_PORT 8051
 #define R2RNET_DEBUG_PACKET_BUFFER_SIZE 512
+#define R2RNET_DEBUG_LOG_LIMIT 20 // nur so viele Pakete je Beitritt loggen - reicht zur Formatanalyse, schont Log/Flash
+                                  // log only this many packets per join - enough for format analysis, spares log/flash
 
     // DCF77-Status-Punkt in der Topbar: dcfTimeFound/dcf77Count werden nie
     // zurueckgesetzt, daher diese Schwellwerte, damit der Punkt bei

@@ -72,6 +72,8 @@
     // independent of 'udp' above (the clock's own NTP server, different
     // port/purpose).
     WiFiUDP r2rnetDebugUdp;
+    uint8_t r2rnetDebugLogCount = 0; // geloggte R2RNet-Pakete seit dem letzten Beitritt (siehe R2RNET_DEBUG_LOG_LIMIT)
+                                     // R2RNet packets logged since the last join (see R2RNET_DEBUG_LOG_LIMIT)
     bool r2rnetDebugListening = false; // true, sobald der Multicast-Gruppe erfolgreich beigetreten wurde
                                        // true once the multicast group has been joined successfully
 
