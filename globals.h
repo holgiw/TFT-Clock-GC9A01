@@ -740,6 +740,38 @@
     };
     HandComposite handComposite[2]; // [0] = Display 1, [1] = Display 2
 
+    // Zuletzt tatsaechlich gesendeter Frame pro Display - renderClockFrame()
+    // ueberspringt Zeichnen + SPI-Push, solange sich keiner dieser Werte
+    // aendert (tickender Zeiger: Bild aendert sich nur ~1x pro Sekunde).
+
+    // Last frame actually pushed per display - renderClockFrame() skips
+    // drawing + SPI push as long as none of these values change (ticking
+    // hand: the image only changes ~once per second).
+    struct ClockFrameKey {
+        bool valid = false;
+        float hourAngle = 0.0f;
+        float minuteAngle = 0.0f;
+        float secondAngle = 0.0f;
+        bool drawSecond = false;
+        bool drawHub = false;
+        uint8_t hubSize = 0;
+        uint16_t hubColor = 0;
+        uint8_t brightness = 0;
+        uint8_t rotation = 0xFF;
+        bool smoothSecond = false;
+        uint32_t assetGeneration = 0;
+    };
+    ClockFrameKey lastClockFrame[2]; // [0] = Display 1, [1] = Display 2
+
+    // Etwas anderes (Status-/Bootmeldung, Bestaetigungscode) hat aufs Display
+    // gezeichnet - naechster Uhr-Frame muss voll neu gesendet werden, auch
+    // wenn sich die Zeigerwinkel nicht geaendert haben (siehe beginStatusDraw()).
+
+    // Something else (status/boot message, confirmation code) drew on the
+    // display - the next clock frame must be sent in full, even if the hand
+    // angles didn't change (see beginStatusDraw()).
+    bool clockFrameDirty[2] = { true, true };
+
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
     // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne
     // Aenderungsstelle das Zwischenbild selbst kennen muss.

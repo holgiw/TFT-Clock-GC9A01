@@ -112,6 +112,8 @@
     TFT_eSPI& beginStatusDraw(uint8_t displayNum) {
         displayNeedsBlank[displayNum - 1] = true; // Meldung auf dem Display - ein "n.a."-Display muss spaeter wieder schwarz werden
                                                   // message on the display - a "n.a." display has to go black again later
+        clockFrameDirty[displayNum - 1] = true;   // Uhrbild ist ueberzeichnet - naechster Frame voll senden
+                                                  // clock image got drawn over - send the next frame in full
         TFT_eSprite& sprite = (displayNum == 1) ? statusSprite1 : statusSprite2;
         bool& created = (displayNum == 1) ? statusSprite1Created : statusSprite2Created;
 
@@ -231,6 +233,8 @@
         // restarts the station-mode wait phase.
         if (rotation != newRotation) {
             firstRunFlag = true;
+            clockFrameDirty[displayNum - 1] = true; // auch im Spiegelbetrieb (Display 2 ohne eigenes Rendern) neu senden
+                                                    // resend in mirror mode too (display 2 without its own rendering)
             if (newRotation == TFT_ROTATION_NA) displayNeedsBlank[displayNum - 1] = true; // letztes Uhrbild muss weg
                                                                                           // last clock image has to go
         }
@@ -1490,9 +1494,10 @@
     }
 
 
-    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) {
+    bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) {
 
         int orientation = rotation;
+        bool forceRender = firstRunRef;
 
         // Rocrail-Modus: Zeiger folgen der Modellzeit statt der echten Zeit -
         // nur solange ein <clock>-Signal angekommen ist, die Verbindung
@@ -1941,8 +1946,6 @@
             }
             secAngle = lastSecondAngleRef;
 
-            smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
-
             if (smoothMinute) {
                 float smoothMinuteValue = t.tm_min + (t.tm_sec / 60.0f) + (secondFraction / 60.0f);
 
@@ -1993,6 +1996,31 @@
         }
         hourAngle = lastHourAngleRef;
 
+        // Nichts geaendert (Winkel, Sichtbarkeit, Nabe, Helligkeit, Rotation,
+        // Stil, Grafiken) und nichts drueber gezeichnet: Zeichnen + SPI-Push
+        // sparen - die Winkel-Zustaende oben laufen trotzdem jeden Tick weiter.
+
+        // Nothing changed (angles, visibility, hub, brightness, rotation,
+        // style, graphics) and nothing drawn over it: skip drawing + SPI push
+        // - the angle state above still advances every tick.
+        bool drawSecond = showSecondHand && !hideSecondHand;
+        bool drawHub = hubSize > 0 && !hideDetailsForRocrail;
+        ClockFrameKey& lastFrame = lastClockFrame[displayNum - 1];
+        if (!forceRender && !clockFrameDirty[displayNum - 1] && lastFrame.valid
+            && lastFrame.hourAngle == hourAngle
+            && lastFrame.minuteAngle == minAngle
+            && (!drawSecond || lastFrame.secondAngle == secAngle)
+            && lastFrame.drawSecond == drawSecond
+            && lastFrame.drawHub == drawHub
+            && lastFrame.hubSize == hubSize
+            && lastFrame.hubColor == hubColor
+            && lastFrame.brightness == currentBrightness
+            && lastFrame.rotation == rotation
+            && lastFrame.smoothSecond == smoothSecond
+            && lastFrame.assetGeneration == clockAssetGeneration) {
+            return false;
+        }
+
 
         // Zifferblatt + Stunden-/Minutenzeiger kommen aus dem zwischen-
         // gespeicherten Bild (drawCompositeInto()), neu gebaut nur bei
@@ -2008,7 +2036,7 @@
             minuteHandSprite.pushRotated(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
         }
 
-        if (showSecondHand && !hideSecondHand) {
+        if (drawSecond) {
 
             // Kantengeglaettet NUR im tickenden Stil (smoothSecond == false),
             // unabhaengig davon, ob "wartet auf 12" (waitAtTwelve/stationMode)
@@ -2058,11 +2086,26 @@
 
         // hub - also hidden from ROCRAIL_HIDE_DETAILS_DIVIDER onwards (see
         // hideDetailsForRocrail above)
-        if (hubSize > 0 && !hideDetailsForRocrail) {
+        if (drawHub) {
            backgroundSprite.fillCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hubSize, setPixelBrightness(hubColor));
         }
 
         backgroundSprite.pushSprite(0, 0);
+
+        lastFrame.valid = true;
+        lastFrame.hourAngle = hourAngle;
+        lastFrame.minuteAngle = minAngle;
+        lastFrame.secondAngle = secAngle;
+        lastFrame.drawSecond = drawSecond;
+        lastFrame.drawHub = drawHub;
+        lastFrame.hubSize = hubSize;
+        lastFrame.hubColor = hubColor;
+        lastFrame.brightness = currentBrightness;
+        lastFrame.rotation = rotation;
+        lastFrame.smoothSecond = smoothSecond;
+        lastFrame.assetGeneration = clockAssetGeneration;
+        clockFrameDirty[displayNum - 1] = false;
+        return true;
     }
 
 
@@ -2288,9 +2331,10 @@
             }
         }
 
+        bool display1Pushed = false;
         if (display1Connected) {
             setCS1(LOW);
-            renderClockFrame(1, tftRotation1, lastHourAngle, lastMinuteAngle, lastSecondAngle, firstRun);
+            display1Pushed = renderClockFrame(1, tftRotation1, lastHourAngle, lastMinuteAngle, lastSecondAngle, firstRun);
         }
         else {
             firstRun = true;
@@ -2298,14 +2342,26 @@
 
         if (!display2Connected) {
             firstRun2 = true;
+            clockFrameDirty[1] = true; // beim spaeteren Anschliessen sofort senden (auch im Spiegelbetrieb)
+                                       // send right away once connected later (mirror mode too)
         }
         else if (!display1Connected || (gc9d01SwRotation && tftRotation2 != tftRotation1)) {
             setCS2(LOW);
             renderClockFrame(2, tftRotation2, lastHourAngle2, lastMinuteAngle2, lastSecondAngle2, firstRun2);
         }
         else {
-            setCS2(LOW);
-            backgroundSprite.pushSprite(0, 0);
+            // Spiegelbetrieb: nur senden, wenn Display 1 ein neues Bild hat
+            // oder Display 2 selbst ueberzeichnet wurde - backgroundSprite
+            // enthaelt dann weiterhin das zuletzt gerenderte Uhrbild.
+
+            // Mirror mode: only send when display 1 has a new image or display
+            // 2 itself got drawn over - backgroundSprite then still holds the
+            // last rendered clock image.
+            if (display1Pushed || clockFrameDirty[1]) {
+                setCS2(LOW);
+                backgroundSprite.pushSprite(0, 0);
+                clockFrameDirty[1] = false;
+            }
 
             // firstRun2 bewusst auf true halten: rastet tftRotation2 spaeter
             // (per Einstellungsaenderung zur Laufzeit) wieder von tftRotation1

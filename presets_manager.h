@@ -432,6 +432,8 @@
                 // (display.h), a blocking setupNTP() would freeze touch
                 // response and the hand animation.
                 timezone = value;
+                applyTimezoneToSystem(); // sofort wirksam, auch ohne erreichbaren NTP-Server
+                                         // effective right away, even without a reachable NTP server
                 startNtpSyncTask("Preset switch sync");
             }
             else if (key == "hubSize") {

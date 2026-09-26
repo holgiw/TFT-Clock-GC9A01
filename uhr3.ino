@@ -458,6 +458,17 @@ void setup() {
 
         DEBUG_PRINTLN("[SETUP] Initializing..");
 
+        // Zeitzone VOR dem ersten RTC-/DCF77-Lesen anwenden - sonst wird die
+        // dort gespeicherte Ortszeit als UTC interpretiert (siehe
+        // applyTimezoneToSystem() in time_sync.h).
+
+        // Apply the timezone BEFORE the first RTC/DCF77 read - otherwise the
+        // local time stored there gets interpreted as UTC (see
+        // applyTimezoneToSystem() in time_sync.h).
+        timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
+        applyTimezoneToSystem();
+        DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
+
         // I2C-Scanner starten, um RTC zu erkennen
         // Start I2C scanner to detect the RTC
 #if defined SDA_PIN && defined SCL_PIN
@@ -691,12 +702,6 @@ void setup() {
         // NTP-Server initialisieren
         // Initialize NTP servers
         initializeNtpServers();
-
-        timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
-        applyTimezoneDefaultIfInvalid(); // faengt einen leer oder ungueltig gespeicherten Preferences-Wert ab (siehe time_sync.h)
-                                         // catches a preferences value stored empty or invalid (see time_sync.h)
-
-        DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
 
         stationMode = preferences.getBool(PK_STATION_MODE, true);
         smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);

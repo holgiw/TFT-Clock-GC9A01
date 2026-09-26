@@ -1712,6 +1712,8 @@
                 String tz = webserver.arg("timeZone");
                 preferences.putString(PK_TIMEZONE, tz);
                 timezone = tz;
+                applyTimezoneToSystem(); // sofort wirksam, auch ohne erreichbaren NTP-Server
+                                         // effective right away, even without a reachable NTP server
 
                 // Nur die Task anstossen (siehe time_sync.h) statt hier auf
                 // DNS/UDP zu warten - der Webserver darf dabei nicht blockieren.
@@ -2397,6 +2399,8 @@
                 // here now - otherwise the settings page would keep showing
                 // the old timezone.
                 timezone = tz;
+                applyTimezoneToSystem(); // sofort wirksam, auch ohne erreichbaren NTP-Server
+                                         // effective right away, even without a reachable NTP server
 
                 // Nur die Task anstossen (siehe time_sync.h) - der Webserver
                 // darf dabei nicht auf DNS/UDP warten. pollNtpSyncTask() in

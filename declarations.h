@@ -45,6 +45,8 @@
                                                     // fallback to NTP_SERVER_1/2 when ntpServers[] is completely empty (see time_sync.h)
     void applyTimezoneDefaultIfInvalid() ; // Fallback auf TIMEZONE_DEFAULT, wenn `timezone` leer oder ungueltig ist (siehe time_sync.h)
                                            // fallback to TIMEZONE_DEFAULT when `timezone` is empty or invalid (see time_sync.h)
+    void applyTimezoneToSystem() ; // setzt `timezone` sofort als TZ der Systemzeit (siehe time_sync.h)
+                                   // applies `timezone` right away as the system time's TZ (see time_sync.h)
     bool isValidPosixTimezone(const String& tz) ; // Grammatik-/Wertebereichspruefung eines POSIX-TZ-Strings (siehe time_sync.h)
                                                   // grammar/range check of a POSIX TZ string (see time_sync.h)
     void initializeNtpServers() ;
@@ -111,7 +113,8 @@
     void blitHandAntiAliased(uint16_t* canvas, TFT_eSprite* handSprite, float angleDeg) ;
     bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
-    void renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ;
+    bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
+                                                                                                                                                                  // false = frame unchanged, nothing sent
     void updateClock() ;
     void updateBrightness() ;
     uint16_t getAdjustedAdcValue(int rawValue) ;

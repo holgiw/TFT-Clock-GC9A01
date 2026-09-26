@@ -366,6 +366,21 @@
     }
 
 
+    // Wendet `timezone` sofort auf die Systemzeit an (TZ + tzset()) statt
+    // erst beim naechsten NTP-Versuch (configTzTime()) - sonst wird die als
+    // Ortszeit gespeicherte RTC-/DCF77-Zeit als UTC gelesen (1-2h Versatz).
+
+    // Applies `timezone` to the system time right away (TZ + tzset())
+    // instead of only on the next NTP attempt (configTzTime()) - otherwise
+    // RTC/DCF77 time, stored as local time, is read as UTC (1-2h offset).
+
+    void applyTimezoneToSystem() {
+        applyTimezoneDefaultIfInvalid();
+        setenv("TZ", timezone.c_str(), 1);
+        tzset();
+    }
+
+
     // Initialisiere die NTP-Server
     // Initialize the NTP servers
 
