@@ -542,14 +542,14 @@
         return true;
     }
 
-    // Zielhoehe beim Speichern einer Zeigerdatei: exakt altes oder neues Format
-    // bleibt unskaliert, sonst entscheidet das naeherliegende Seitenverhaeltnis.
+    // Zielhoehe beim Speichern einer Zeigerdatei: nur exakt das neue Format
+    // bleibt neu, alles andere wird wie frueher auf das alte Format skaliert.
 
-    // Target height when storing a hand file: exactly the old or new format stays
-    // unscaled, otherwise the closer aspect ratio decides.
+    // Target height when storing a hand file: only exactly the new format stays
+    // new, everything else is scaled to the old format as before.
     int handTargetHeight(const char* path) {
         File f = LittleFS.open(path, "r");
-        if (!f) return HAND_HEIGHT;
+        if (!f) return HAND_LEGACY_HEIGHT;
         uint8_t head[26];
         int n = f.read(head, sizeof(head));
         f.close();
@@ -563,12 +563,7 @@
             w = *(int32_t*)&head[18];
             h = abs(*(int32_t*)&head[22]);
         }
-        if (w <= 0 || h <= 0) return HAND_HEIGHT;
-
-        float ratio = (float)h / w;
-        float legacyDiff = fabsf(ratio - (float)HAND_LEGACY_HEIGHT / HAND_WIDTH);
-        float currentDiff = fabsf(ratio - (float)HAND_HEIGHT / HAND_WIDTH);
-        return legacyDiff < currentDiff ? HAND_LEGACY_HEIGHT : HAND_HEIGHT;
+        return (w == HAND_WIDTH && h == HAND_HEIGHT) ? HAND_HEIGHT : HAND_LEGACY_HEIGHT;
     }
 
 

@@ -606,15 +606,22 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     }
     return out;
   }
+  // Gespeichert wird im alten Format (HD.lh hoch), solange der Zeiger nicht in
+  // die zusaetzlichen Zeilen oben ragt - so laeuft er auch auf aelterer Firmware.
+
+  // Saved in the old format (HD.lh high) as long as the hand does not reach into
+  // the extra rows at the top - so it also runs on older firmware.
   function encodeBmp(buf) {
-    var rs = Math.floor((W * 2 + 3) / 4) * 4, hs = 66, size = hs + rs * H;
+    var top = H > HD.lh ? H - HD.lh : 0;
+    for (var i = 0; i < top * W; i++) if (buf[i] >= 0) { top = 0; break; }
+    var oh = H - top, rs = Math.floor((W * 2 + 3) / 4) * 4, hs = 66, size = hs + rs * oh;
     var ab = new ArrayBuffer(size), dv = new DataView(ab);
     dv.setUint8(0, 66); dv.setUint8(1, 77); dv.setUint32(2, size, true); dv.setUint32(10, hs, true);
-    dv.setUint32(14, 40, true); dv.setInt32(18, W, true); dv.setInt32(22, -H, true); dv.setUint16(26, 1, true);
-    dv.setUint16(28, 16, true); dv.setUint32(30, 3, true); dv.setUint32(34, rs * H, true);
+    dv.setUint32(14, 40, true); dv.setInt32(18, W, true); dv.setInt32(22, -oh, true); dv.setUint16(26, 1, true);
+    dv.setUint16(28, 16, true); dv.setUint32(30, 3, true); dv.setUint32(34, rs * oh, true);
     dv.setUint32(54, 0xF800, true); dv.setUint32(58, 0x07E0, true); dv.setUint32(62, 0x001F, true);
-    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
-      var v = buf[y * W + x];
+    for (var y = 0; y < oh; y++) for (var x = 0; x < W; x++) {
+      var v = buf[(y + top) * W + x];
       dv.setUint16(hs + y * rs + x * 2, v < 0 ? 0xFFFF : fix565(v), true);
     }
     return new Blob([ab], { type: 'image/bmp' });
