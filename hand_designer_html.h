@@ -23,6 +23,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 .hd .pal span{aspect-ratio:1;cursor:pointer;border-radius:2px}
 .hd .sw.on,.hd .pal span.on{outline:2px solid var(--accent);outline-offset:1px}
 .hd .hex{width:86px;font-family:monospace}
+.hd.stickon .stick{position:sticky;top:var(--hdTop,70px);max-height:calc(100vh - var(--hdTop,70px) - 8px);overflow-y:auto}
 .hd .num{width:62px}
 .hd label{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0}
 .hd .grid2{display:grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center}
@@ -31,7 +32,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 .hd small{display:block;margin:4px 0}
 </style>
 
-<div class="hd">
+<div class="hd" id="hdRoot">
   <div class="card" style="margin-bottom:14px">
     <div class="row" style="justify-content:flex-start;align-items:center">
       <span id="baseInfo"></span>
@@ -45,7 +46,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   </div>
 
   <div class="row">
-    <div class="card" style="max-width:250px">
+    <div class="card stick" style="max-width:250px">
       <h3 id="tPart"></h3>
       <div id="partBtns"></div>
       <h3 id="tTools"></h3>
@@ -85,7 +86,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       <small id="widthHint" style="text-align:center;max-width:220px;margin:4px auto"></small>
     </div>
 
-    <div class="card" style="max-width:300px">
+    <div class="card stick" style="max-width:300px">
       <h3 id="tGen"></h3>
       <div class="grid2">
         <span id="tLen"></span><input type="number" class="num" id="gLen" min="1">
@@ -209,9 +210,26 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   function setZoom(z) {
     Z = Math.max(ZMIN, Math.min(ZMAX, z));
     try { localStorage.setItem('uhr3HdZoom', Z); } catch (e) { }
-    applyZoom(); drawEditor();
+    applyZoom(); drawEditor(); updateSticky();
   }
   applyZoom();
+
+  // Seitliche Karten bleiben beim Scrollen unter der Topbar stehen - nur solange
+  // alle drei Karten nebeneinander passen, sonst wuerden sie den Editor verdecken.
+
+  // Side cards stay put below the topbar while scrolling - only while all three
+  // cards fit side by side, otherwise they would cover the editor.
+  function updateSticky() {
+    var root = $('hdRoot'), cards = root.querySelectorAll('.row > .card');
+    var tb = document.querySelector('.topbar');
+    root.style.setProperty('--hdTop', ((tb ? tb.offsetHeight : 0) + 8) + 'px');
+    root.classList.remove('stickon');
+    var top = cards[0].offsetTop, oneLine = true;
+    for (var i = 1; i < cards.length; i++) if (cards[i].offsetTop !== top) oneLine = false;
+    root.classList.toggle('stickon', oneLine);
+  }
+  window.addEventListener('resize', updateSticky);
+  updateSticky();
   $('zoomOut').onclick = function () { setZoom(Z - 1); };
   $('zoomIn').onclick = function () { setZoom(Z + 1); };
 
