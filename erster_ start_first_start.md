@@ -76,14 +76,14 @@ Soll die Uhr komplett neu eingerichtet werden (z.B. Umzug, neuer Router), gibt e
 
 1. In der Navigation den Punkt **„Zeiger"** öffnen (Seite „Zeigersatz Dateien verwalten").
 2. Anforderungen an die Dateien:
-   - Größe: **21 x 131 Pixel** (bzw. die für dein Gerät angezeigte Größe)
+   - Größe: **21 x 151 Pixel**, Drehpunkt 10 / 120 (160er-Display: 13 x 100, Drehpunkt 6 / 80) – die Seite zeigt die für dein Gerät gültigen Werte an. Das bisherige Format 21 x 131 (13 x 86) wird weiterhin angenommen.
    - Format: **16-Bit-BMP (RGB565)**
    - Ein Zeigersatz besteht aus **drei** Dateien mit **derselben Nummer**, aber unterschiedlicher Endung:
      - `hand_set<N>_hour.bmp` (Stundenzeiger)
      - `hand_set<N>_minute.bmp` (Minutenzeiger)
      - `hand_set<N>_second.bmp` (Sekundenzeiger)
      - Beispiel für Satz 1: `hand_set1_hour.bmp`, `hand_set1_minute.bmp`, `hand_set1_second.bmp`
-   - Der Drehpunkt (Pivot) des Zeigers liegt bei ca. der halben Breite / 77 % der Höhe des Bildes – beim Gestalten des Zeigerbilds darauf achten, damit sich der Zeiger sauber um den Mittelpunkt dreht.
+   - Der Drehpunkt (Pivot) liegt in der halben Breite und im neuen Format bei Zeile 120 (160er: 80) – so kann der Zeiger bis zum Displayrand reichen. Im alten Format 21 x 131 liegt er bei Zeile 100 (160er: 66). Am einfachsten gestaltest du Zeiger mit dem Zeiger-Designer auf derselben Seite, der den Drehpunkt automatisch berücksichtigt.
 3. Dateien über das Upload-Formular auswählen und hochladen.
 4. Der neue Zeigersatz erscheint danach in der Übersicht und kann dort ausgewählt werden.
 
@@ -130,7 +130,7 @@ Im Abschnitt **„Sicherung / Wiederherstellung"**:
 | Weiteres WLAN ergänzen | Web-UI → Tab „WLAN" → „Netzwerk per WPS hinzufügen" |
 | Nur WLAN zurücksetzen (Sets bleiben) | Web-UI → „Werksreset" → „gespeicherte WLAN-Netzwerke zurücksetzen" |
 | Zifferblatt hochladen | Nav → „Zifferblatt" → `face_*.bmp`, 240×240, RGB565 |
-| Zeigersatz hochladen | Nav → „Zeiger" → `hand_set<N>_hour/minute/second.bmp`, 21×131, RGB565 |
+| Zeigersatz hochladen | Nav → „Zeiger" → `hand_set<N>_hour/minute/second.bmp`, 21×151 (alt: 21×131), RGB565 |
 | Uhren-Set anlegen | Nav → „Uhren Sets" → „Erzeuge ein Set aus den aktuellen Einstellungen" |
 
 ---
@@ -212,14 +212,14 @@ If the clock needs to be set up from scratch (e.g. a move, a new router), there 
 
 1. Open **"Hand Set"** in the navigation (the "Manage Hand Set Files" page).
 2. File requirements:
-   - Size: **21 x 131 pixels** (or the size shown for your device)
+   - Size: **21 x 151 pixels**, pivot 10 / 120 (160 display: 13 x 100, pivot 6 / 80) - the page shows the values valid for your device. The previous format 21 x 131 (13 x 86) is still accepted.
    - Format: **16-bit BMP (RGB565)**
    - A hand set consists of **three** files sharing the **same number**, but with different suffixes:
      - `hand_set<N>_hour.bmp` (hour hand)
      - `hand_set<N>_minute.bmp` (minute hand)
      - `hand_set<N>_second.bmp` (second hand)
      - Example for set 1: `hand_set1_hour.bmp`, `hand_set1_minute.bmp`, `hand_set1_second.bmp`
-   - The hand's pivot point sits at roughly half the image width / 77% of its height - keep this in mind when designing the hand graphic, so it rotates cleanly around the center.
+   - The pivot sits at half the width and, in the new format, at row 120 (160 display: 80) - so the hand can reach the display edge. In the old 21 x 131 format it sits at row 100 (160 display: 66). The easiest way is the hand designer on the same page, which takes the pivot into account automatically.
 3. Select and upload the files via the upload form.
 4. The new hand set then appears in the overview and can be selected there.
 
@@ -266,5 +266,5 @@ In the **"Backup / Restore Presets"** section:
 | Add another WiFi network | Web UI → "WLAN" tab → "Add Network via WPS" |
 | Reset WiFi only (presets kept) | Web UI → "Factory Reset" → "reset saved WiFi networks" |
 | Upload a clock face | Nav → "Clock Face" → `face_*.bmp`, 240×240, RGB565 |
-| Upload a hand set | Nav → "Hand Set" → `hand_set<N>_hour/minute/second.bmp`, 21×131, RGB565 |
+| Upload a hand set | Nav → "Hand Set" → `hand_set<N>_hour/minute/second.bmp`, 21×151 (old: 21×131), RGB565 |
 | Create a preset | Nav → "Presets" → "Create Preset from Current Settings" |
