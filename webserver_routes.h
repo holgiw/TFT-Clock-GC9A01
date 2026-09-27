@@ -4173,9 +4173,36 @@
                 }
             }
 
-            String hourB64 = encodePngToBase64(hourSrc, HAND_WIDTH, HAND_HEIGHT);
-            String minuteB64 = encodePngToBase64(minuteSrc, HAND_WIDTH, HAND_HEIGHT);
-            String secondB64 = encodePngToBase64(secondSrc, HAND_WIDTH, HAND_HEIGHT);
+            // Zeiger wie auf dem Display zuschneiden: das Zifferblatt kann
+            // schmalere Zeiger vorgeben (face_x!h!m!s.bmp), die Uhr schneidet
+            // dann mittig zu (siehe pushHandRowCentered() in display.h).
+
+            // Crop the hands like on the display: the clock face can specify
+            // narrower hands (face_x!h!m!s.bmp), the clock then crops them in
+            // the centre (see pushHandRowCentered() in display.h).
+            auto handPng = [](const uint16_t* src, int& w) -> String {
+                if (w <= 0 || w > CLOCK_WIDTH) w = HAND_WIDTH;
+                if (w == HAND_WIDTH) return encodePngToBase64(src, HAND_WIDTH, HAND_HEIGHT);
+                uint16_t* cropped = (uint16_t*)malloc((size_t)w * HAND_HEIGHT * sizeof(uint16_t));
+                if (!cropped) {
+                    w = HAND_WIDTH;
+                    return encodePngToBase64(src, HAND_WIDTH, HAND_HEIGHT);
+                }
+                int off = (w < HAND_WIDTH) ? (HAND_WIDTH - w) / 2 : 0;
+                for (int y = 0; y < HAND_HEIGHT; y++) {
+                    for (int x = 0; x < w; x++) {
+                        int sx = x + off;
+                        cropped[y * w + x] = (sx < HAND_WIDTH) ? src[y * HAND_WIDTH + sx] : TRANSPARENT_COLOR;
+                    }
+                }
+                String png = encodePngToBase64(cropped, w, HAND_HEIGHT);
+                free(cropped);
+                return png;
+            };
+            int hourW = hourHandWidth, minuteW = minuteHandWidth, secondW = secondHandWidth;
+            String hourB64 = handPng(hourSrc, hourW);
+            String minuteB64 = handPng(minuteSrc, minuteW);
+            String secondB64 = handPng(secondSrc, secondW);
 
             if (previewHour) free(previewHour);
             if (previewMinute) free(previewMinute);
@@ -4205,10 +4232,23 @@
             bool smoothSecondActive = getSmoothSecondPref(stationModeActive);
 
             float scaleFactor = (float)previewSize / CLOCK_WIDTH;
-            int scaledHandWidth = (int)(HAND_WIDTH * scaleFactor + 0.5);
-            int scaledHandHeight = (int)(HAND_HEIGHT * scaleFactor + 0.5);
-            int scaledPivotX = (int)((HAND_WIDTH / 2.0) * scaleFactor + 0.5);
-            int scaledPivotY = (int)((HAND_HEIGHT * 0.77) * scaleFactor + 0.5);
+            // Drehpunkt wie setPivot() im Geraet (ganzzahlig: Breite/2, 77 %
+            // der Hoehe), jeweils auf die Pixelmitte - ungerundet (CSS kann
+            // Nachkommastellen), Breite pro Zeiger (Zifferblatt kann sie vorgeben).
+
+            // Pivot like setPivot() on the device (integer: width/2, 77% of the
+            // height), each at the pixel centre - unrounded (CSS accepts
+            // decimals), width per hand (the clock face can specify it).
+            String scaledHandHeight = String(HAND_HEIGHT * scaleFactor, 2);
+            String scaledPivotY = String(((int)(HAND_HEIGHT * 0.77) + 0.5f) * scaleFactor, 2);
+            auto handImg = [&](const char* id, const String& b64, int w) -> String {
+                String scaledW = String(w * scaleFactor, 2);
+                String scaledPivotX = String(((w / 2) + 0.5f) * scaleFactor, 2);
+                return "<img id='" + String(id) + "' src='data:image/png;base64," + b64 +
+                       "' style='position:absolute;left:-" + scaledPivotX + "px;top:-" + scaledPivotY +
+                       "px;width:" + scaledW + "px;height:" + scaledHandHeight +
+                       "px;transform-origin:" + scaledPivotX + "px " + scaledPivotY + "px;'>";
+            };
             // hubSize ist ein Radius, der CSS-Kreis braucht aber den Durchmesser -
             // Bugfix: fehlende Verdopplung liess den Punkt halb so gross wirken.
 
@@ -4248,10 +4288,10 @@
             chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;transform-origin:top left;'>";
             chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;border:3px solid #333;border-radius:50%;background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
-            chunk += "<img id='liveHourHandFull' src='data:image/png;base64," + hourB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
-            chunk += "<img id='liveMinuteHandFull' src='data:image/png;base64," + minuteB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+            chunk += handImg("liveHourHandFull", hourB64, hourW);
+            chunk += handImg("liveMinuteHandFull", minuteB64, minuteW);
             if (showSecond) {
-                chunk += "<img id='liveSecondHandFull' src='data:image/png;base64," + secondB64 + "' style='position:absolute;left:-" + String(scaledPivotX) + "px;top:-" + String(scaledPivotY) + "px;width:" + String(scaledHandWidth) + "px;height:" + String(scaledHandHeight) + "px;transform-origin:" + String(scaledPivotX) + "px " + String(scaledPivotY) + "px;'>";
+                chunk += handImg("liveSecondHandFull", secondB64, secondW);
             }
             chunk += "<div id='liveHubFull' style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
             chunk += "</div>"; // Ende Zifferblatt-Kreis
@@ -4402,7 +4442,8 @@
             // applies outside station-clock mode - there the minute always
             // jumps on change, regardless of smoothMinute.
             chunk += "    var minuteDeg = (smoothMinute && !stationMode) ? (m + s / 60) * 6 : m * 6;";
-            chunk += "    var hourDeg = (h + minuteDeg / 360) * 30;";
+            chunk += "    var hourDeg = (h + m / 60 + s / 3600) * 30;"; // wie im Geraet: Stunde + Minute + Sekunde, unabhaengig vom Minutenstil
+                                                                         // like on the device: hour + minute + second, independent of the minute style
             chunk += "    var secDeg;";
 
             // Wie renderClockFrame() (display.h) seit der Entkopplung:
@@ -7120,6 +7161,10 @@
                 chunk += "}";
                 chunk += "</script><hr>";
 
+                chunk += "<h3>" + translate("Hand Designer") + "</h3>";
+                chunk += "<small>" + translate("Design new hands based on the active hand set") + "</small><br>";
+                chunk += "<a href='/handdesigner'><button type='button'>" + translate("Open Hand Designer") + "</button></a><hr>";
+
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
                 chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + ", 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
@@ -7201,6 +7246,133 @@
             else {
                 webserver.send(400, "text/plain", "Missing set name");
             }
+            });
+
+        // Zeiger-Designer: gemeinsamer Seitenkopf + Editor aus dem Flash
+        // (HAND_DESIGNER_HTML in hand_designer_html.h).
+
+        // Hand designer: shared page header + editor from flash
+        // (HAND_DESIGNER_HTML in hand_designer_html.h).
+        webserver.on("/handdesigner", HTTP_GET, []() {
+            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+            webserver.send(200, "text/html", "");
+
+            String chunk = beginPage();
+            chunk += "<h2>" + translate("Hand Designer") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
+
+            // Satz-IDs wie in /handsets ermitteln (numerisch sortiert) - nur
+            // Zeichen uebernehmen, die in einem JS-String unkritisch sind.
+
+            // Determine set IDs like /handsets does (sorted numerically) -
+            // only keep characters that are harmless inside a JS string.
+            auto jsSafe = [](const String& s) {
+                String out;
+                for (size_t i = 0; i < s.length(); i++) {
+                    char c = s[i];
+                    if (isalnum((unsigned char)c) || c == '-' || c == '.' || c == '/' || c == '_') out += c;
+                }
+                return out;
+            };
+
+            std::map<int, String> numericSets;
+            std::vector<String> otherSets;
+            std::set<String> seenSetIds;
+            File root = LittleFS.open("/");
+            File file = root.openNextFile();
+            while (file) {
+                String name = file.name();
+                if (!file.isDirectory() && name.startsWith("hand_set") && name.endsWith(".bmp")) {
+                    int end = name.indexOf('_', 8);
+                    if (end > 8) {
+                        String setIdStr = jsSafe(name.substring(8, end));
+                        if (setIdStr.length() > 0 && seenSetIds.insert(setIdStr).second) {
+                            bool isNumeric = true;
+                            for (unsigned int k = 0; k < setIdStr.length(); k++) {
+                                if (!isDigit(setIdStr[k])) { isNumeric = false; break; }
+                            }
+                            if (isNumeric) numericSets[setIdStr.toInt()] = setIdStr;
+                            else otherSets.push_back(setIdStr);
+                        }
+                    }
+                }
+                file = root.openNextFile();
+            }
+
+            String setsJs;
+            for (auto& entry : numericSets) setsJs += (setsJs.length() ? ",'" : "'") + entry.second + "'";
+            for (auto& id : otherSets) setsJs += (setsJs.length() ? ",'" : "'") + id + "'";
+
+            char hubHex[8];
+            snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x",
+                     ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
+
+            chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) +
+                     ",px:" + String(HAND_WIDTH / 2) + ",py:" + String((int)(HAND_HEIGHT * 0.77)) +
+                     ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(preferences.getString(PK_HANDSET, "")) +
+                     "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
+                     "',lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
+                     ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}};</script>";
+            webserver.sendContent(chunk);
+            webserver.sendContent_P(HAND_DESIGNER_HTML);
+            webserver.sendContent("</body></html>");
+            webserver.sendContent("");
+            });
+
+        // Eingebauter Standard-Zeiger als BMP - Ausgangspunkt im Designer, da
+        // der Standardsatz nicht in LittleFS liegt, sondern in der Firmware.
+
+        // Built-in default hand as a BMP - starting point in the designer,
+        // since the default set lives in the firmware, not in LittleFS.
+        webserver.on("/api/defaulthand", HTTP_GET, []() {
+            String part = webserver.arg("part");
+            const uint16_t* src = (part == "hour") ? handHour : (part == "minute") ? handMinute : (part == "second") ? handSecond : nullptr;
+            if (!src) {
+                webserver.send(400, "text/plain", "part must be hour, minute or second");
+                return;
+            }
+            size_t size = 0;
+            uint8_t* bmp = encodeBmpToBytes(src, HAND_WIDTH, HAND_HEIGHT, &size);
+            if (!bmp) {
+                webserver.send(500, "text/plain", "Out of memory");
+                return;
+            }
+            webserver.sendHeader("Cache-Control", "no-store");
+            webserver.setContentLength(size);
+            webserver.send(200, "image/bmp", "");
+            webserver.sendContent((const char*)bmp, size);
+            delete[] bmp;
+            });
+
+        // Eingebautes Standard-Zifferblatt in voller Groesse (Designer-Vorschau):
+        // 66-Byte-Header wie encodeBmpToBytes(), Pixel direkt aus dem Flash -
+        // Zeilen sind ohne Auffuellung, da CLOCK_WIDTH * 2 durch 4 teilbar ist.
+
+        // Built-in default clock face at full size (designer preview): 66-byte
+        // header like encodeBmpToBytes(), pixels straight from flash - rows need
+        // no padding since CLOCK_WIDTH * 2 is divisible by 4.
+        webserver.on("/api/defaultface", HTTP_GET, []() {
+            const uint32_t dataSize = (uint32_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2;
+            uint8_t header[66] = { 0 };
+            header[0] = 'B'; header[1] = 'M';
+            *(uint32_t*)&header[2] = 66 + dataSize;
+            *(uint32_t*)&header[10] = 66;
+            *(uint32_t*)&header[14] = 40;
+            *(int32_t*)&header[18] = CLOCK_WIDTH;
+            *(int32_t*)&header[22] = -CLOCK_HEIGHT; // Top-down
+                                                    // top-down
+            *(uint16_t*)&header[26] = 1;
+            *(uint16_t*)&header[28] = 16;
+            *(uint32_t*)&header[30] = 3; // BI_BITFIELDS
+            *(uint32_t*)&header[34] = dataSize;
+            *(uint32_t*)&header[54] = 0xF800;
+            *(uint32_t*)&header[58] = 0x07E0;
+            *(uint32_t*)&header[62] = 0x001F;
+
+            webserver.sendHeader("Cache-Control", "no-store");
+            webserver.setContentLength(66 + dataSize);
+            webserver.send(200, "image/bmp", "");
+            webserver.sendContent((const char*)header, sizeof(header));
+            webserver.sendContent_P((const char*)clockFace, dataSize);
             });
 
         // Handset löschen

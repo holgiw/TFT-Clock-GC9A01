@@ -74,6 +74,8 @@
                                // dial, hands, brightness, touch
 #include "presets_manager.h"   // Presets laden/speichern/wechseln
                                // load/save/switch presets
+#include "hand_designer_html.h" // Zeiger-Designer-Seite (HTML/JS im Flash)
+                                // hand designer page (HTML/JS in flash)
 #include "webserver_routes.h"  // Webinterface (alle HTTP-Routen)
                                // web interface (all HTTP routes)
 #include "system_utils.h"      // Tasten, Logging, Reset, Neustart

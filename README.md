@@ -13,6 +13,7 @@
 
 - Eigene Stunden-, Minuten- und Sekundenzeiger sowie eigene Zifferblätter lassen sich als BMP-Dateien hochladen; Standardsätze sind als Fallback enthalten.
 - Stunden- und Minutenzeiger werden kantengeglättet dargestellt.
+- Zeiger-Designer im Browser (Seite „Zeiger“ → „Zeiger-Designer öffnen“): ausgehend vom gerade aktiven Zeigersatz neue Zeiger gestalten; Änderungen werden als neuer Zeigersatz gespeichert (optional gleich aktiviert) oder überschreiben den aktiven Satz und werden sofort angewendet – Pixel-Editor mit Stift, Linie, Rechteck, Ellipse, Polygon, Füllen, Pipette, freier Farbwahl (Farbpalette, Farbwähler, Hex-Eingabe), Spiegelung an der Mittelachse, Rückgängig und Formgenerator (Länge, Breiten, Gegengewicht, Scheibe), dazu eine Live-Vorschau auf dem aktuellen Zifferblatt. Die Uhr übernimmt dabei automatisch die passende Zeigergröße und den Drehpunkt ihres Displays.
 
 ---
 
@@ -107,6 +108,7 @@
 
 - Custom hour, minute, and second hands, as well as custom clock faces, can be uploaded as BMP files; default sets are included as a fallback.
 - Hour and minute hands are rendered anti-aliased.
+- In-browser hand designer ("Hand Set" page → "Open Hand Designer"): design new hands starting from the currently active hand set; changes are saved as a new hand set (optionally activated right away) or overwrite the active set and are applied immediately - pixel editor with pen, line, rectangle, ellipse, polygon, fill, picker, free colour choice (palette, colour picker, hex input), mirroring at the centre axis, undo and a shape generator (length, widths, counterweight, disc), plus a live preview on the current clock face. The clock automatically applies its display's hand size and pivot point.
 
 ---
 

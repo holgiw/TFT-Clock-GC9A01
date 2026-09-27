@@ -283,9 +283,10 @@
         g = ((g * brightnessFactor) >> 8) & 0x07E0;
         b = ((b * brightnessFactor) >> 8) & 0x001F;
 
-        // Farbwerte zusammenfügen
-        // Combine color values
-        return r | g | b;
+        // Farbwerte zusammenfügen; gedimmtes Reingrün kann genau TRANSPARENT_COLOR ergeben und würde sonst verschwinden
+        // Combine color values; dimmed pure green can hit exactly TRANSPARENT_COLOR and would otherwise vanish
+        uint16_t result = r | g | b;
+        return (result == TRANSPARENT_COLOR) ? 0x0100 : result;
 #endif
     }
 
