@@ -24,7 +24,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 .hd .sw.on,.hd .pal span.on{outline:2px solid var(--accent);outline-offset:1px}
 .hd .hex{width:86px;font-family:monospace}
 .hd.stickon .stick{position:sticky;top:var(--hdTop,70px);max-height:calc(100vh - var(--hdTop,70px) - 8px);overflow-y:auto}
-.hd .num{width:62px}
+.hd .num{width:72px;padding:6px 4px 6px 8px}
 .hd label{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0}
 .hd .grid2{display:grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center}
 .hd .ok{background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:8px 0}
@@ -51,10 +51,12 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       <div id="partBtns"></div>
       <h3 id="tTools"></h3>
       <div id="toolBtns"></div>
+      <small id="toolHint"></small>
       <label><input type="checkbox" id="sym" checked><span id="tSym"></span></label>
       <h3 id="tColor"></h3>
       <input type="color" id="color" value="#000000" style="padding:0;height:32px;width:48px;vertical-align:middle">
       <input type="text" id="colorHex" class="hex" maxlength="7" spellcheck="false" style="vertical-align:middle">
+      <button type="button" class="tb" id="pickBtn" style="vertical-align:middle"></button>
       <small id="colorHint"></small>
       <small id="tStd"></small>
       <div id="swatches"></div>
@@ -72,7 +74,6 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       <span id="tCopy"></span>
       <select id="copySel"></select>
       <button type="button" class="tb" id="copyBtn">OK</button>
-      <small id="polyHint"></small>
     </div>
 
     <div class="card">
@@ -128,8 +129,16 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       confirmReset: 'Alle Aenderungen verwerfen und das aktive Design neu laden?', confirmClear: 'Diesen Zeiger komplett leeren?',
       confirmGen: 'Aktuellen Zeiger durch die erzeugte Form ersetzen?',
       whiteHint: 'Reines Weiss ist transparent - wird automatisch zu Fast-Weiss.',
+      pickBtn: 'Aufnehmen', pickTip: 'Farbe aus einem Pixel aufnehmen - auch per Rechtsklick in die Zeichenflaeche oder Klick in die Vorschau',
       std: 'Standardfarben', pal: 'Palette', free: 'Beliebige Farbe', hexHint: '#RRGGBB oder RGB565 (0xFFFF)',
-      polyHint: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schliesst, Esc bricht ab.',
+      h_pen: 'Stift: Pixel einzeln setzen oder freihand zeichnen.',
+      h_erase: 'Radierer: macht Pixel wieder transparent.', h_line: 'Linie: vom Anfangs- zum Endpunkt ziehen.',
+      h_rect: 'Rahmen: Rechteck-Umriss aufziehen.', h_rectf: 'Rechteck: gefuelltes Rechteck aufziehen.',
+      h_ell: 'Ellipse: Umriss aufziehen - ein Quadrat ergibt einen Kreis.',
+      h_ellf: 'Ellipse gefuellt: gefuellte Ellipse oder Kreis aufziehen.',
+      h_fill: 'Fuellen: faerbt die zusammenhaengende gleichfarbige Flaeche um.',
+      h_pick: 'Pipette: Klick uebernimmt die Farbe des Pixels.',
+      h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schliesst, Esc bricht ab.',
       pos: 'Pixel', pivot: 'Drehpunkt',
       widthHint: 'Das aktuelle Zifferblatt zeigt diesen Zeiger nur {0} px breit - ausgegraute Spalten werden auf der Uhr abgeschnitten.' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', set: 'Set', active: 'active', reset: 'Discard changes',
@@ -147,8 +156,16 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       confirmReset: 'Discard all changes and reload the active design?', confirmClear: 'Clear this hand completely?',
       confirmGen: 'Replace the current hand with the generated shape?',
       whiteHint: 'Pure white is transparent - automatically becomes near-white.',
+      pickBtn: 'Pick', pickTip: 'Pick the colour of a pixel - also by right-clicking the drawing area or clicking the preview',
       std: 'Standard colours', pal: 'Palette', free: 'Any colour', hexHint: '#RRGGBB or RGB565 (0xFFFF)',
-      polyHint: 'Polygon: click points, double-click or click the first point to close, Esc cancels.',
+      h_pen: 'Pen: set single pixels or draw freehand.', h_erase: 'Eraser: makes pixels transparent again.',
+      h_line: 'Line: drag from the start to the end point.', h_rect: 'Frame: drag out a rectangle outline.',
+      h_rectf: 'Rectangle: drag out a filled rectangle.',
+      h_ell: 'Ellipse: drag out an outline - a square gives a circle.',
+      h_ellf: 'Filled ellipse: drag out a filled ellipse or circle.',
+      h_fill: 'Fill: recolours the connected area of the same colour.',
+      h_pick: 'Picker: a click takes over the colour of the pixel.',
+      h_poly: 'Polygon: click points, double-click or click the first point to close, Esc cancels.',
       pos: 'Pixel', pivot: 'Pivot',
       widthHint: 'The current clock face shows this hand only {0} px wide - greyed-out columns are cut off on the clock.' }
   };
@@ -362,12 +379,14 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   function paintValue() { return tool === 'erase' ? TRANSPARENT : color; }
 
   ed.addEventListener('pointerdown', function (ev) {
+    if (ev.button === 2) return;
     var c = cell(ev);
     if (!inGrid(c)) return;
     ed.setPointerCapture(ev.pointerId);
     if (tool === 'pick') {
       var pv = pix[part][c.y * W + c.x];
       if (pv >= 0) { setColor(pv); }
+      pickDone();
       return;
     }
     if (tool === 'fill') {
@@ -448,7 +467,8 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   var partBtn = {}, toolBtn = {};
   PARTS.forEach(function (p) { partBtn[p] = button($('partBtns'), t(p), function () { selectPart(p); }); });
   ['pen', 'erase', 'line', 'rect', 'rectf', 'ell', 'ellf', 'poly', 'fill', 'pick'].forEach(function (k) {
-    toolBtn[k] = button($('toolBtns'), t(k), function () { selectTool(k); });
+    toolBtn[k] = button($('toolBtns'), t(k), function () { pickReturn = null; selectTool(k); });
+    toolBtn[k].title = t('h_' + k);
   });
   function selectPart(p) {
     part = p; polyPts = [];
@@ -459,7 +479,8 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   function selectTool(k) {
     tool = k; polyPts = [];
     Object.keys(toolBtn).forEach(function (q) { toolBtn[q].className = 'tb' + (q === k ? ' on' : ''); });
-    $('polyHint').textContent = k === 'poly' ? t('polyHint') : '';
+    $('pickBtn').className = 'tb' + (k === 'pick' ? ' on' : '');
+    $('toolHint').textContent = t('h_' + k);
     drawEditor();
   }
   // src = das Eingabefeld, aus dem die Farbe kommt - dessen Wert bleibt beim Tippen/Ziehen unangetastet
@@ -571,11 +592,17 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       return ((dv.getUint8(p + 2) >> 3) << 11) | ((dv.getUint8(p + 1) >> 2) << 5) | (dv.getUint8(p) >> 3);
     } };
   }
+  // Alte Zeiger (HD.lh hoch) unten buendig einsetzen - Drehpunkt und Stueck
+  // darunter liegen dann wie im neuen Format, oben bleibt es transparent.
+
+  // Place old hands (HD.lh high) flush at the bottom - pivot and the part
+  // below it then sit like in the new format, the top stays transparent.
   function decodeBmp(ab) {
     var img = parseBmp(ab), out = new Int32Array(N).fill(TRANSPARENT);
-    for (var ty = 0; ty < H; ty++) for (var tx = 0; tx < W; tx++) {
-      var v = img.px(Math.floor(tx * img.w / W), Math.floor(ty * img.h / H));
-      out[ty * W + tx] = (v === 0xFFFF || v === 0x0120) ? TRANSPARENT : v;
+    var off = (img.w === W && img.h === HD.lh && HD.lh < H) ? H - HD.lh : 0, sh = H - off;
+    for (var ty = 0; ty < sh; ty++) for (var tx = 0; tx < W; tx++) {
+      var v = img.px(Math.floor(tx * img.w / W), Math.floor(ty * img.h / sh));
+      out[(ty + off) * W + tx] = (v === 0xFFFF || v === 0x0120) ? TRANSPARENT : v;
     }
     return out;
   }
@@ -764,6 +791,30 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   }
   setInterval(function () { if ($('live').checked && !document.hidden) renderPreview(); }, 1000);
 
+  // Farbe aufnehmen: der Button schaltet einmalig auf die Pipette und danach zurueck,
+  // Rechtsklick in die Zeichenflaeche und Klick in die Vorschau nehmen direkt auf.
+
+  // Pick colour: the button switches to the picker once and back afterwards,
+  // right-click in the drawing area and click in the preview pick directly.
+  var pickReturn = null;
+  function pickDone() { if (pickReturn) { var k = pickReturn; pickReturn = null; selectTool(k); } }
+  $('pickBtn').onclick = function () {
+    if (tool === 'pick') { var k = pickReturn || 'pen'; pickReturn = null; selectTool(k); return; }
+    pickReturn = tool; selectTool('pick');
+  };
+  ed.addEventListener('contextmenu', function (ev) {
+    ev.preventDefault();
+    var c = cell(ev);
+    if (inGrid(c)) { var v = pix[part][c.y * W + c.x]; if (v >= 0) setColor(v); };
+  });
+  pv.style.cursor = 'crosshair';
+  pv.addEventListener('click', function (ev) {
+    var r = pv.getBoundingClientRect();
+    var d = pctx.getImageData(Math.floor((ev.clientX - r.left) * pv.width / r.width), Math.floor((ev.clientY - r.top) * pv.height / r.height), 1, 1).data;
+    setColor(to565('#' + [d[0], d[1], d[2]].map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join('')));
+    pickDone();
+  });
+
   // Beschriftungen
   // Labels
   var labels = { tActivate: 'activate', tPart: 'part', tTools: 'tools', tSym: 'sym',
@@ -771,6 +822,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     tBaseW: 'baseW', tTail: 'tail', tTailW: 'tailW', tDisc: 'disc', tDiscPos: 'discPos', tPreview: 'preview', tLive: 'live' };
   Object.keys(labels).forEach(function (id) { $(id).textContent = t(labels[id]); });
   $('resetBtn').textContent = t('reset'); $('saveBtn').textContent = t('saveBtn'); $('saveCurBtn').textContent = t('saveCurBtn');
+  $('pickBtn').textContent = t('pickBtn'); $('pickBtn').title = t('pickTip');
   $('color').title = t('free'); $('colorHex').placeholder = '#RRGGBB'; $('colorHex').title = t('hexHint');
   $('undoBtn').textContent = t('undo'); $('redoBtn').textContent = t('redo'); $('clearBtn').textContent = t('clear');
   $('genBtn').textContent = t('genBtn');

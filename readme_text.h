@@ -18,6 +18,7 @@ static const char README_HTML_EN[] = R"rawliteral(
 <ul>
 <li>Custom hour, minute and second hands can be uploaded as BMP files; a default set is built in.</li>
 <li>Hand designer in the browser (Hand Set page): start from the active hand set and save your changes as a new hand set or into the active one, with a pixel editor, shape generator, mirroring and live preview.</li>
+<li>Clock face designer in the browser (Clock Face page): start from the active clock face, generate dials, draw, add text (also on an arc and in your own fonts), place a logo or load an image, then save as a new clock face or into the active one, with live preview.</li>
 <li>Hour and minute hands are anti-aliased (3x3 supersampling). They are drawn into a cached composite image that is only rebuilt when an angle actually changes, so the sweeping second hand keeps full frame rate.</li>
 <li>Custom clock faces can be uploaded and selected; a default face is built in.</li>
 </ul>
@@ -114,6 +115,7 @@ static const char README_HTML_DE[] = R"rawliteral(
 <ul>
 <li>Stunden-, Minuten- und Sekundenzeiger lassen sich als BMP-Dateien hochladen; ein Standardsatz ist eingebaut.</li>
 <li>Zeiger-Designer im Browser (Seite Zeiger): ausgehend vom aktiven Zeigersatz gestalten und &Auml;nderungen als neuen Zeigersatz oder in den aktiven speichern, mit Pixel-Editor, Formgenerator, Spiegelung und Live-Vorschau.</li>
+<li>Zifferblatt-Designer im Browser (Seite Zifferblatt): ausgehend vom aktiven Zifferblatt Zifferbl&auml;tter erzeugen, zeichnen, beschriften (auch im Bogen und mit eigenen Schriften), ein Logo setzen oder ein Bild laden und als neues oder in das aktive Zifferblatt speichern, mit Live-Vorschau.</li>
 <li>Stunden- und Minutenzeiger werden kantengegl&auml;ttet gezeichnet (3x3-&Uuml;berabtastung). Sie landen in einem zwischengespeicherten Bild, das nur neu aufgebaut wird, wenn sich ein Winkel wirklich &auml;ndert - der schleichende Sekundenzeiger beh&auml;lt so seine volle Bildrate.</li>
 <li>Eigene Zifferbl&auml;tter k&ouml;nnen hochgeladen und ausgew&auml;hlt werden; ein Standard-Zifferblatt ist eingebaut.</li>
 </ul>

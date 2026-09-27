@@ -13,7 +13,9 @@
 
 - Eigene Stunden-, Minuten- und Sekundenzeiger sowie eigene Zifferblätter lassen sich als BMP-Dateien hochladen; Standardsätze sind als Fallback enthalten.
 - Stunden- und Minutenzeiger werden kantengeglättet dargestellt.
+- Zeiger dürfen vom Drehpunkt bis zum Displayrand reichen: neues Zeigerformat 21 × 151 px mit Drehpunkt 10 / 120 (160er-Display: 13 × 100, Drehpunkt 6 / 80). Zeigersätze im bisherigen Format 21 × 131 (13 × 86) funktionieren unverändert weiter – sie werden beim Laden oben transparent aufgefüllt und beim Hochladen nicht gestreckt.
 - Zeiger-Designer im Browser (Seite „Zeiger“ → „Zeiger-Designer öffnen“): ausgehend vom gerade aktiven Zeigersatz neue Zeiger gestalten; Änderungen werden als neuer Zeigersatz gespeichert (optional gleich aktiviert) oder überschreiben den aktiven Satz und werden sofort angewendet – Pixel-Editor mit Stift, Linie, Rechteck, Ellipse, Polygon, Füllen, Pipette, freier Farbwahl (Farbpalette, Farbwähler, Hex-Eingabe), Spiegelung an der Mittelachse, Rückgängig und Formgenerator (Länge, Breiten, Gegengewicht, Scheibe), dazu eine Live-Vorschau auf dem aktuellen Zifferblatt. Die Uhr übernimmt dabei automatisch die passende Zeigergröße und den Drehpunkt ihres Displays.
+- Zifferblatt-Designer im Browser (Seite „Zifferblatt“ → „Zifferblatt-Designer öffnen“): ausgehend vom aktiven Zifferblatt ein neues gestalten oder das aktive überschreiben und sofort anwenden – Zifferblatt-Generator (Hintergrund, Rand, Stunden- und Minutenstriche, Ziffern 1–12, 12/3/6/9 oder römisch), Pixel-Werkzeuge mit Stiftbreite, Text (gerade, gedreht oder im Bogen, auch mit installierten oder geladenen Schriften), Logo als Stempel, Spiegel- und Dreh-Symmetrie (4-, 12- oder 60-fach), freie Farbwahl, Bild laden (PNG, JPG, BMP …), Zoom und Live-Vorschau mit den aktiven Zeigern. Bei runden Displays ist der unsichtbare Bereich markiert.
 
 ---
 
@@ -108,7 +110,9 @@
 
 - Custom hour, minute, and second hands, as well as custom clock faces, can be uploaded as BMP files; default sets are included as a fallback.
 - Hour and minute hands are rendered anti-aliased.
+- Hands may reach from the pivot to the display edge: new hand format 21 x 151 px with pivot 10 / 120 (160 display: 13 x 100, pivot 6 / 80). Hand sets in the previous format 21 x 131 (13 x 86) keep working unchanged - they are padded transparent at the top when loaded and are not stretched on upload.
 - In-browser hand designer ("Hand Set" page → "Open Hand Designer"): design new hands starting from the currently active hand set; changes are saved as a new hand set (optionally activated right away) or overwrite the active set and are applied immediately - pixel editor with pen, line, rectangle, ellipse, polygon, fill, picker, free colour choice (palette, colour picker, hex input), mirroring at the centre axis, undo and a shape generator (length, widths, counterweight, disc), plus a live preview on the current clock face. The clock automatically applies its display's hand size and pivot point.
+- In-browser clock face designer ("Clock Face" page → "Open Clock Face Designer"): design a new clock face starting from the active one, or overwrite the active one and apply it right away - face generator (background, rim, hour and minute marks, numerals 1-12, 12/3/6/9 or Roman), pixel tools with pen width, text (straight, rotated or on an arc, also with installed or loaded fonts), logo stamp, mirror and rotation symmetry (4, 12 or 60 times), free colour choice, image import (PNG, JPG, BMP ...), zoom and a live preview with the active hands. On round displays the invisible area is marked.
 
 ---
 

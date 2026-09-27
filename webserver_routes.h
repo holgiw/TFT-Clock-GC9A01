@@ -4140,38 +4140,24 @@
 
             String activeHandSet = preferences.getString(PK_HANDSET, "");
             String previewSig = currentPreviewSignature();
-            uint16_t* previewHour = nullptr;
-            uint16_t* previewMinute = nullptr;
-            uint16_t* previewSecond = nullptr;
-            const uint16_t* hourSrc = handHour;
-            const uint16_t* minuteSrc = handMinute;
-            const uint16_t* secondSrc = handSecond;
+            // Alle drei Zeiger im aktuellen Format: Datei (neu oder alt) oder
+            // eingebauter Standard, alte Hoehe oben transparent aufgefuellt.
+
+            // All three hands in the current format: file (new or old) or the
+            // built-in default, old height padded transparent at the top.
             const size_t handPixelCount = (size_t)HAND_WIDTH * HAND_HEIGHT;
-
-            if (activeHandSet != "" && activeHandSet != "default") {
-                String hourPath = "/hand_set" + activeHandSet + "_hour.bmp";
-                String minutePath = "/hand_set" + activeHandSet + "_minute.bmp";
-                String secondPath = "/hand_set" + activeHandSet + "_second.bmp";
-
-                if (LittleFS.exists(hourPath)) {
-                    previewHour = (uint16_t*)malloc(handPixelCount * 2);
-                    if (previewHour && loadHandPixelsForPreview(hourPath.c_str(), previewHour, HAND_WIDTH, HAND_HEIGHT)) {
-                        hourSrc = previewHour;
-                    }
+            bool customHandSet = (activeHandSet != "" && activeHandSet != "default");
+            auto loadPreviewHand = [&](const char* label, const uint16_t* fallback) -> uint16_t* {
+                uint16_t* buf = (uint16_t*)malloc(handPixelCount * 2);
+                if (!buf) return nullptr;
+                if (!customHandSet || !loadHandPixels("/hand_set" + activeHandSet + "_" + label + ".bmp", buf)) {
+                    copyLegacyHand(fallback, buf);
                 }
-                if (LittleFS.exists(minutePath)) {
-                    previewMinute = (uint16_t*)malloc(handPixelCount * 2);
-                    if (previewMinute && loadHandPixelsForPreview(minutePath.c_str(), previewMinute, HAND_WIDTH, HAND_HEIGHT)) {
-                        minuteSrc = previewMinute;
-                    }
-                }
-                if (LittleFS.exists(secondPath)) {
-                    previewSecond = (uint16_t*)malloc(handPixelCount * 2);
-                    if (previewSecond && loadHandPixelsForPreview(secondPath.c_str(), previewSecond, HAND_WIDTH, HAND_HEIGHT)) {
-                        secondSrc = previewSecond;
-                    }
-                }
-            }
+                return buf;
+            };
+            uint16_t* previewHour = loadPreviewHand("hour", handHour);
+            uint16_t* previewMinute = loadPreviewHand("minute", handMinute);
+            uint16_t* previewSecond = loadPreviewHand("second", handSecond);
 
             // Zeiger wie auf dem Display zuschneiden: das Zifferblatt kann
             // schmalere Zeiger vorgeben (face_x!h!m!s.bmp), die Uhr schneidet
@@ -4181,6 +4167,7 @@
             // narrower hands (face_x!h!m!s.bmp), the clock then crops them in
             // the centre (see pushHandRowCentered() in display.h).
             auto handPng = [](const uint16_t* src, int& w) -> String {
+                if (!src) return String();
                 if (w <= 0 || w > CLOCK_WIDTH) w = HAND_WIDTH;
                 if (w == HAND_WIDTH) return encodePngToBase64(src, HAND_WIDTH, HAND_HEIGHT);
                 uint16_t* cropped = (uint16_t*)malloc((size_t)w * HAND_HEIGHT * sizeof(uint16_t));
@@ -4200,9 +4187,9 @@
                 return png;
             };
             int hourW = hourHandWidth, minuteW = minuteHandWidth, secondW = secondHandWidth;
-            String hourB64 = handPng(hourSrc, hourW);
-            String minuteB64 = handPng(minuteSrc, minuteW);
-            String secondB64 = handPng(secondSrc, secondW);
+            String hourB64 = handPng(previewHour, hourW);
+            String minuteB64 = handPng(previewMinute, minuteW);
+            String secondB64 = handPng(previewSecond, secondW);
 
             if (previewHour) free(previewHour);
             if (previewMinute) free(previewMinute);
@@ -4232,15 +4219,15 @@
             bool smoothSecondActive = getSmoothSecondPref(stationModeActive);
 
             float scaleFactor = (float)previewSize / CLOCK_WIDTH;
-            // Drehpunkt wie setPivot() im Geraet (ganzzahlig: Breite/2, 77 %
-            // der Hoehe), jeweils auf die Pixelmitte - ungerundet (CSS kann
-            // Nachkommastellen), Breite pro Zeiger (Zifferblatt kann sie vorgeben).
+            // Drehpunkt wie setPivot() im Geraet (Breite/2, HAND_PIVOT_Y), jeweils
+            // auf die Pixelmitte - ungerundet (CSS kann Nachkommastellen), Breite
+            // pro Zeiger (Zifferblatt kann sie vorgeben).
 
-            // Pivot like setPivot() on the device (integer: width/2, 77% of the
-            // height), each at the pixel centre - unrounded (CSS accepts
-            // decimals), width per hand (the clock face can specify it).
+            // Pivot like setPivot() on the device (width/2, HAND_PIVOT_Y), each at
+            // the pixel centre - unrounded (CSS accepts decimals), width per hand
+            // (the clock face can specify it).
             String scaledHandHeight = String(HAND_HEIGHT * scaleFactor, 2);
-            String scaledPivotY = String(((int)(HAND_HEIGHT * 0.77) + 0.5f) * scaleFactor, 2);
+            String scaledPivotY = String((HAND_PIVOT_Y + 0.5f) * scaleFactor, 2);
             auto handImg = [&](const char* id, const String& b64, int w) -> String {
                 String scaledW = String(w * scaleFactor, 2);
                 String scaledPivotX = String(((w / 2) + 0.5f) * scaleFactor, 2);
@@ -4965,6 +4952,10 @@
 
             if (!anyFile) chunk += "<p>" + translate("No BMP files found in /") + "</p>";
             chunk += "</div><hr>";
+
+            chunk += "<h3>" + translate("Clock Face Designer") + "</h3>";
+            chunk += "<small>" + translate("Design a new clock face based on the active one") + "</small><br>";
+            chunk += "<a href='/facedesigner'><button type='button'>" + translate("Open Clock Face Designer") + "</button></a><hr>";
 
             // Browser laedt neue Faces per HTTPS von GitHub und laedt sie per
             // lokalem HTTP zu /upload hoch - die Uhr braucht nie HTTPS.
@@ -7028,9 +7019,9 @@
             }
 
 
-            String handHourBase64 = encodeBmpToBase64(handHour, HAND_WIDTH, HAND_HEIGHT);
-            String handMinuteBase64 = encodeBmpToBase64(handMinute, HAND_WIDTH, HAND_HEIGHT);
-            String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_HEIGHT);
+            String handHourBase64 = encodeBmpToBase64(handHour, HAND_WIDTH, HAND_LEGACY_HEIGHT);
+            String handMinuteBase64 = encodeBmpToBase64(handMinute, HAND_WIDTH, HAND_LEGACY_HEIGHT);
+            String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_LEGACY_HEIGHT);
 
             // Default-Zeigersatz (eingebaut) - eigener Chunk
             // Default hand set (built-in) - its own chunk
@@ -7166,7 +7157,7 @@
                 chunk += "<a href='/handdesigner'><button type='button'>" + translate("Open Hand Designer") + "</button></a><hr>";
 
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + ", 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(int(HAND_WIDTH / 2)) + " / " + String(int(HAND_HEIGHT * 0.77)) + "<br><br>";
+                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
 
                 chunk += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
@@ -7269,7 +7260,7 @@
                 String out;
                 for (size_t i = 0; i < s.length(); i++) {
                     char c = s[i];
-                    if (isalnum((unsigned char)c) || c == '-' || c == '.' || c == '/' || c == '_') out += c;
+                    if (isalnum((unsigned char)c) || c == '-' || c == '.' || c == '/' || c == '_' || c == '!') out += c;
                 }
                 return out;
             };
@@ -7306,8 +7297,8 @@
             snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x",
                      ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
 
-            chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) +
-                     ",px:" + String(HAND_WIDTH / 2) + ",py:" + String((int)(HAND_HEIGHT * 0.77)) +
+            chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) +
+                     ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
                      ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(preferences.getString(PK_HANDSET, "")) +
                      "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
                      "',lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
@@ -7331,7 +7322,7 @@
                 return;
             }
             size_t size = 0;
-            uint8_t* bmp = encodeBmpToBytes(src, HAND_WIDTH, HAND_HEIGHT, &size);
+            uint8_t* bmp = encodeBmpToBytes(src, HAND_WIDTH, HAND_LEGACY_HEIGHT, &size);
             if (!bmp) {
                 webserver.send(500, "text/plain", "Out of memory");
                 return;
@@ -7373,6 +7364,64 @@
             webserver.send(200, "image/bmp", "");
             webserver.sendContent((const char*)header, sizeof(header));
             webserver.sendContent_P((const char*)clockFace, dataSize);
+            });
+
+        // Zifferblatt-Designer: gemeinsamer Seitenkopf + Editor aus dem Flash
+        // (FACE_DESIGNER_HTML in face_designer_html.h).
+
+        // Clock face designer: shared page header + editor from flash
+        // (FACE_DESIGNER_HTML in face_designer_html.h).
+        webserver.on("/facedesigner", HTTP_GET, []() {
+            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
+            webserver.send(200, "text/html", "");
+
+            String chunk = beginPage();
+            chunk += "<h2>" + translate("Clock Face Designer") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
+
+            // Nur Zeichen uebernehmen, die in einem JS-String unkritisch sind
+            // Only keep characters that are harmless inside a JS string
+            auto jsSafe = [](const String& s) {
+                String out;
+                for (size_t i = 0; i < s.length(); i++) {
+                    char c = s[i];
+                    if (isalnum((unsigned char)c) || c == '-' || c == '.' || c == '/' || c == '_' || c == '!') out += c;
+                }
+                return out;
+            };
+
+            String facesJs;
+            File root = LittleFS.open("/");
+            File file = root.openNextFile();
+            while (file) {
+                String name = file.name();
+                if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
+                    facesJs += (facesJs.length() ? ",'" : "'") + jsSafe(name) + "'";
+                }
+                file = root.openNextFile();
+            }
+
+            char hubHex[8];
+            snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x",
+                     ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
+
+#ifdef ROUND_DISPLAY
+            const char* roundJs = "true";
+#else
+            const char* roundJs = "false";
+#endif
+            long freeBytes = (long)LittleFS.totalBytes() - (long)LittleFS.usedBytes();
+
+            chunk += "<script>var FD={w:" + String(CLOCK_WIDTH) + ",h:" + String(CLOCK_HEIGHT) + ",round:" + String(roundJs) +
+                     ",active:'" + jsSafe(selectedBackground) + "',faces:[" + facesJs + "],free:" + String(freeBytes) +
+                     ",hand:{w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",py:" + String(HAND_PIVOT_Y) +
+                     ",set:'" + jsSafe(preferences.getString(PK_HANDSET, "")) + "'" +
+                     ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
+                     ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
+                     ",lang:'" + jsSafe(currentLanguage) + "'};</script>";
+            webserver.sendContent(chunk);
+            webserver.sendContent_P(FACE_DESIGNER_HTML);
+            webserver.sendContent("</body></html>");
+            webserver.sendContent("");
             });
 
         // Handset löschen
@@ -7753,7 +7802,7 @@
                         else if (uploadFilePath.startsWith("/hand_set")) {
                             DEBUG_PRINTLN("[UPLOAD] Detected Clock Hand upload (from " + webserver.client().remoteIP().toString() + ")");
 
-                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
+                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), HAND_WIDTH, handTargetHeight(uploadFilePath.c_str()))) {
                                 DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                                 uploadSuccess = false;
                                 return;

@@ -76,6 +76,8 @@
                                // load/save/switch presets
 #include "hand_designer_html.h" // Zeiger-Designer-Seite (HTML/JS im Flash)
                                 // hand designer page (HTML/JS in flash)
+#include "face_designer_html.h" // Zifferblatt-Designer-Seite (HTML/JS im Flash)
+                                // clock face designer page (HTML/JS in flash)
 #include "webserver_routes.h"  // Webinterface (alle HTTP-Routen)
                                // web interface (all HTTP routes)
 #include "system_utils.h"      // Tasten, Logging, Reset, Neustart
@@ -935,17 +937,17 @@ void setup() {
         hourHandSprite.createSprite(HAND_WIDTH, HAND_HEIGHT);
         hourHandSprite.setSwapBytes(true);
         hourHandSprite.setColorDepth(16);
-        hourHandSprite.setPivot(HAND_WIDTH / 2, HAND_HEIGHT * 0.77);
+        hourHandSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
         minuteHandSprite.createSprite(HAND_WIDTH, HAND_HEIGHT);
         minuteHandSprite.setSwapBytes(true);
         minuteHandSprite.setColorDepth(16);
-        minuteHandSprite.setPivot(HAND_WIDTH / 2, HAND_HEIGHT * 0.77);
+        minuteHandSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
         secondHandSprite.createSprite(HAND_WIDTH, HAND_HEIGHT);
         secondHandSprite.setSwapBytes(true);
         secondHandSprite.setColorDepth(16);
-        secondHandSprite.setPivot(HAND_WIDTH / 2, HAND_HEIGHT * 0.77);
+        secondHandSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
         loadClockFace();
         loadHandSprites();

@@ -520,6 +520,57 @@
         }
     }
 
+    // Alte Zeiger (HAND_LEGACY_HEIGHT) oben mit transparenten Zeilen auf
+    // HAND_HEIGHT auffuellen - der Drehpunkt liegt dann auf HAND_PIVOT_Y.
+
+    // Pad old hands (HAND_LEGACY_HEIGHT) at the top with transparent rows up
+    // to HAND_HEIGHT - the pivot then sits on HAND_PIVOT_Y.
+    void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) {
+        for (int i = 0; i < HAND_TOP_PAD * HAND_WIDTH; i++) dest[i] = TRANSPARENT_COLOR;
+        memcpy(dest + HAND_TOP_PAD * HAND_WIDTH, legacy, (size_t)HAND_WIDTH * HAND_LEGACY_HEIGHT * sizeof(uint16_t));
+    }
+
+    // Laedt eine Zeigerdatei (BMP/RLEB) im neuen oder alten Format nach 'dest'
+    // (HAND_WIDTH x HAND_HEIGHT). False, wenn keines der beiden Formate passt.
+
+    // Loads a hand file (BMP/RLEB) in the new or old format into 'dest'
+    // (HAND_WIDTH x HAND_HEIGHT). False if neither format matches.
+    bool loadHandPixels(const String& path, uint16_t* dest) {
+        if (loadFaceBmpInto(path, dest, HAND_WIDTH, HAND_HEIGHT)) return true;
+        if (!loadFaceBmpInto(path, dest + HAND_TOP_PAD * HAND_WIDTH, HAND_WIDTH, HAND_LEGACY_HEIGHT)) return false;
+        for (int i = 0; i < HAND_TOP_PAD * HAND_WIDTH; i++) dest[i] = TRANSPARENT_COLOR;
+        return true;
+    }
+
+    // Zielhoehe beim Speichern einer Zeigerdatei: exakt altes oder neues Format
+    // bleibt unskaliert, sonst entscheidet das naeherliegende Seitenverhaeltnis.
+
+    // Target height when storing a hand file: exactly the old or new format stays
+    // unscaled, otherwise the closer aspect ratio decides.
+    int handTargetHeight(const char* path) {
+        File f = LittleFS.open(path, "r");
+        if (!f) return HAND_HEIGHT;
+        uint8_t head[26];
+        int n = f.read(head, sizeof(head));
+        f.close();
+
+        int32_t w = 0, h = 0;
+        if (n >= 12 && isRleFace(head)) {
+            w = *(int32_t*)&head[4];
+            h = *(int32_t*)&head[8];
+        }
+        else if (n == (int)sizeof(head) && head[0] == 'B' && head[1] == 'M') {
+            w = *(int32_t*)&head[18];
+            h = abs(*(int32_t*)&head[22]);
+        }
+        if (w <= 0 || h <= 0) return HAND_HEIGHT;
+
+        float ratio = (float)h / w;
+        float legacyDiff = fabsf(ratio - (float)HAND_LEGACY_HEIGHT / HAND_WIDTH);
+        float currentDiff = fabsf(ratio - (float)HAND_HEIGHT / HAND_WIDTH);
+        return legacyDiff < currentDiff ? HAND_LEGACY_HEIGHT : HAND_HEIGHT;
+    }
+
 
     // Laedt das gewaehlte Zifferblatt (BMP/RLEB, Fallback aufs Standardbild) in
     // clockFaceBuffer, wendet die Helligkeit an und zeichnet in backgroundSprite.
@@ -868,79 +919,6 @@
     }
 
 
-    // Liest eine Zeiger-Bitmap (RLE oder roh) direkt in einen Pixel-Puffer -
-    // fuer die Web-Vorschau des aktiven Zeigersatzes (nicht ueber TFT_eSprite).
-    // Spiegelt die Formaterkennung von loadHandBmp(), schreibt aber ins Array.
-
-    // Reads a hand bitmap (RLE or raw) directly into a pixel buffer - for the
-    // web preview of the active hand set (not via TFT_eSprite). Mirrors the
-    // format detection of loadHandBmp(), but writes into an array.
-
-    bool loadHandPixelsForPreview(const char* filename, uint16_t* outBuffer, int width, int height) {
-        File bmp = LittleFS.open(filename, "r");
-        if (!bmp) return false;
-
-        uint8_t magic[4];
-        if (bmp.read(magic, 4) != 4) { bmp.close(); return false; }
-
-        if (isRleFace(magic)) {
-            uint8_t rest[16];
-            if (bmp.read(rest, 16) != 16) { bmp.close(); return false; }
-            int32_t bmpWidth = *(int32_t*)&rest[0];
-            int32_t bmpHeight = *(int32_t*)&rest[4];
-            uint32_t compressedSize = *(uint32_t*)&rest[8];
-            uint32_t uncompressedSize = *(uint32_t*)&rest[12];
-
-            if (bmpWidth != width || bmpHeight != height || uncompressedSize != (uint32_t)width * height * 2) {
-                bmp.close();
-                return false;
-            }
-
-            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
-            if (!compBuf) { bmp.close(); return false; }
-            if (bmp.read(compBuf, compressedSize) != compressedSize) {
-                free(compBuf); bmp.close(); return false;
-            }
-            bmp.close();
-
-            rleDecode565(compBuf, compressedSize, outBuffer, (size_t)width * height);
-            free(compBuf);
-            return true;
-        }
-        else {
-            bmp.seek(0);
-            uint8_t header[54];
-            if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
-                bmp.close();
-                return false;
-            }
-
-            int32_t bmpWidth = *(int32_t*)&header[18];
-            int32_t bmpHeight = *(int32_t*)&header[22];
-            uint16_t bpp = *(uint16_t*)&header[28];
-            uint32_t offset = *(uint32_t*)&header[10];
-
-            if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
-                bmp.close();
-                return false;
-            }
-
-            bool flip = bmpHeight > 0;
-            bmpHeight = abs(bmpHeight);
-            int rowSize = ((width * 2 + 3) / 4) * 4;
-            bmp.seek(offset);
-
-            for (int y = 0; y < height; y++) {
-                int row = flip ? height - 1 - y : y;
-                if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) { bmp.close(); return false; }
-                memcpy(&outBuffer[row * width], rowBuffer, width * 2);
-            }
-            bmp.close();
-            return true;
-        }
-    }
-
-
     // Schreibt eine Zeiger-Bitmapzeile ins Sprite, mittig zugeschnitten, falls
     // das Sprite (siehe updateHandWidths()) schmaler als das Bitmap ist - haelt
     // den Zeiger so zentriert auf dem Drehpunkt statt rechtsseitig verschoben.
@@ -972,217 +950,48 @@
         clockAssetGeneration++;
 
         String setId = preferences.getString(PK_HANDSET, "");
+        bool customSet = (setId != "" && setId != "default");
 
-        // DEBUG_PRINTLN("[HANDS] Active hand set: " + setId);
+        // Ein Puffer fuer alle drei Zeiger: Datei (neues oder altes Format) oder
+        // eingebauter Standard, die alte Hoehe jeweils oben transparent aufgefuellt.
 
-        bool usedDefault = false;
-        if (setId != "" && setId != "default") {
-            struct HandConfig {
-                String label;
-                TFT_eSprite* sprite;
-                const uint16_t* fallback;
-            } hands[3] = {
-                {"hour", &hourHandSprite, handHour},
-                {"minute", &minuteHandSprite, handMinute},
-                {"second", &secondHandSprite, handSecond}
-            };
-
-            for (auto& h : hands) {
-                String path = "/hand_set" + setId + "_" + h.label + ".bmp";
-            //    DEBUG_PRINTLN("[HANDS] Looking for: " + path);
-
-                if (LittleFS.exists(path)) {
-                    if (!loadHandBmp(h.sprite, path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
-                        for (int y = 0; y < HAND_HEIGHT; y++) {
-
-                            for (int x = 0; x < HAND_WIDTH; x++) {
-                                uint16_t px = h.fallback[y * HAND_WIDTH + x];
-
-                                rowBuffer[x] = setPixelBrightness(px);
-
-                            }
-                            pushHandRowCentered(h.sprite, y, rowBuffer, HAND_WIDTH, nullptr);
-                        }
-                        usedDefault = true;
-                     //   DEBUG_PRINTLN("[HANDS] Failed to load " + h.label + ", fallback used");
-                    }
-                    else {
-                      //  DEBUG_PRINTLN("[HANDS] Loaded " + h.label);
-                    }
-                    // DEBUG_PRINTLN("found");
-                }
-                else {
-                    // Zeilenweise statt in einem Rutsch, damit der mittige
-                    // Zuschnitt fuer schmalere Sprites greift (siehe
-                    // pushHandRowCentered()).
-
-                    // Row by row instead of in one go, so the centre cropping for
-                    // narrower sprites applies (see pushHandRowCentered()).
-                    for (int y = 0; y < HAND_HEIGHT; y++) {
-                        // setPixelBrightness() wie im Zweig oben: sonst bliebe ein per
-                        // Fallback gezeichneter Zeiger bei Helligkeitswechseln heller.
-
-                        // setPixelBrightness() as in the branch above: otherwise a hand
-                        // drawn from the fallback would stay brighter on brightness changes.
-                        for (int x = 0; x < HAND_WIDTH; x++) {
-                            rowBuffer[x] = setPixelBrightness(h.fallback[y * HAND_WIDTH + x]);
-                        }
-                        pushHandRowCentered(h.sprite, y, rowBuffer, HAND_WIDTH, nullptr);
-                    }
-                    usedDefault = true;
-                    // DEBUG_PRINTLN("[HANDS] Missing " + h.label + ", using default");
-                }
-            }
-
-            if (!usedDefault) {
-               // DEBUG_PRINTLN("[HANDS] Loaded handset: " + setId);
-            }
-            else {
-                // DEBUG_PRINTLN("[HANDS] Incomplete set, used default for missing hands");
-            }
-
+        // One buffer for all three hands: file (new or old format) or built-in
+        // default, the old height padded transparent at the top in either case.
+        uint16_t* pix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * sizeof(uint16_t));
+        if (!pix) {
+            DEBUG_PRINTLN("[HANDS] Error: couldnt allocate hand buffer");
+            return;
         }
-        else {
+
+        struct HandConfig {
+            const char* label;
+            TFT_eSprite* sprite;
+            const uint16_t* fallback;
+        } hands[3] = {
+            {"hour", &hourHandSprite, handHour},
+            {"minute", &minuteHandSprite, handMinute},
+            {"second", &secondHandSprite, handSecond}
+        };
+
+        for (auto& h : hands) {
+            bool fromFile = customSet && loadHandPixels("/hand_set" + setId + "_" + h.label + ".bmp", pix);
+            if (!fromFile) copyLegacyHand(h.fallback, pix);
+
+            // Zeilenweise, damit der mittige Zuschnitt fuer schmalere Sprites greift
+            // (siehe pushHandRowCentered()); jede Zeile wird komplett geschrieben.
+
+            // Row by row, so the centre cropping for narrower sprites applies
+            // (see pushHandRowCentered()); every row is written completely.
             for (int y = 0; y < HAND_HEIGHT; y++) {
                 for (int x = 0; x < HAND_WIDTH; x++) {
-                    rowBuffer[x] = setPixelBrightness(handHour[y * HAND_WIDTH + x]);
+                    uint16_t px = pix[y * HAND_WIDTH + x];
+                    if (px == 0xFFFF) px = TRANSPARENT_COLOR;
+                    rowBuffer[x] = setPixelBrightness(px);
                 }
-                pushHandRowCentered(&hourHandSprite, y, rowBuffer, HAND_WIDTH, nullptr);
-
-                for (int x = 0; x < HAND_WIDTH; x++) {
-                    rowBuffer[x] = setPixelBrightness(handMinute[y * HAND_WIDTH + x]);
-                }
-                pushHandRowCentered(&minuteHandSprite, y, rowBuffer, HAND_WIDTH, nullptr);
-
-                for (int x = 0; x < HAND_WIDTH; x++) {
-                    rowBuffer[x] = setPixelBrightness(handSecond[y * HAND_WIDTH + x]);
-                }
-                pushHandRowCentered(&secondHandSprite, y, rowBuffer, HAND_WIDTH, nullptr);
+                pushHandRowCentered(h.sprite, y, rowBuffer, HAND_WIDTH, nullptr);
             }
-
-         //   DEBUG_PRINTLN("[HANDS] No set selected, using defaults");
-
         }
-    }
-
-
-    // Hilfsfunktion zum Laden von Zeiger-BMPs 
-    // Helper function for loading hand BMPs
-
-    bool loadHandBmp(TFT_eSprite* sprite, const char* filename, int width, int height) {
-        File bmp = LittleFS.open(filename, "r");
-        if (!bmp) return false;
-
-        uint8_t magic[4];
-        if (bmp.read(magic, 4) != 4) { bmp.close(); return false; }
-
-        uint16_t* fullImage = nullptr; // nur im RLE-Zweig belegt (Zeiger sind klein genug fuer einen Komplett-Puffer)
-                                       // only used in the RLE branch (hands are small enough for a full buffer)
-        bool flip = false;
-        int32_t bmpWidth = 0, bmpHeight = 0;
-        uint32_t offset = 0;
-        int rowSize = 0;
-
-        if (isRleFace(magic)) {
-            uint8_t rest[16];
-            if (bmp.read(rest, 16) != 16) { bmp.close(); return false; }
-            bmpWidth = *(int32_t*)&rest[0];
-            bmpHeight = *(int32_t*)&rest[4];
-            uint32_t compressedSize = *(uint32_t*)&rest[8];
-            uint32_t uncompressedSize = *(uint32_t*)&rest[12];
-
-            if (bmpWidth != width || bmpHeight != height || uncompressedSize != (uint32_t)width * height * 2) {
-                bmp.close();
-                return false;
-            }
-
-            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
-            if (!compBuf) { bmp.close(); return false; }
-            if (bmp.read(compBuf, compressedSize) != compressedSize) {
-                free(compBuf); bmp.close(); return false;
-            }
-            bmp.close();
-
-            fullImage = (uint16_t*)preferPsramMalloc(uncompressedSize);
-            if (!fullImage) { free(compBuf); return false; }
-            rleDecode565(compBuf, compressedSize, fullImage, (size_t)width * height);
-            free(compBuf);
-
-            flip = false; // RLEB ist immer bereits Top-Down gespeichert
-                          // RLEB is always already stored top-down
-        }
-        else {
-            bmp.seek(0);
-            uint8_t header[54];
-            if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
-                bmp.close();
-                return false;
-            }
-
-            bmpWidth = *(int32_t*)&header[18];
-            bmpHeight = *(int32_t*)&header[22];
-            uint16_t bpp = *(uint16_t*)&header[28];
-            offset = *(uint32_t*)&header[10];
-
-            if (bmpWidth != width || abs(bmpHeight) != height || bpp != 16) {
-                bmp.close();
-                return false;
-            }
-
-            flip = bmpHeight > 0;
-            bmpHeight = abs(bmpHeight);
-            rowSize = ((width * 2 + 3) / 4) * 4;
-            bmp.seek(offset);
-        }
-
-        for (int y = 0; y < height; y++) {
-            int row = flip ? height - 1 - y : y;
-
-            if (fullImage) {
-                memcpy(rowBuffer, &fullImage[row * width], width * 2);
-            }
-            else {
-                // Bei Lesefehler false zurueckgeben statt nur die Schleife zu
-                // verlassen - sonst merkt loadHandSprites() den Fehler nie und
-                // faellt nicht auf den Standard-Zeiger zurueck.
-
-                // Return false on a read error instead of just leaving the loop -
-                // otherwise loadHandSprites() never notices and won't fall
-                // back to the default hand.
-                if (bmp.read((uint8_t*)rowBuffer, rowSize) != rowSize) {
-                    bmp.close();
-                    return false;
-                }
-            }
-
-            uint16_t* pixelData = (uint16_t*)rowBuffer;
-            for (int x = 0; x < width; x++) {
-
-                if (pixelData[x] == 0xFFFF) {
-                    pixelData[x] = TRANSPARENT_COLOR;
-                }
-
-                pixelData[x] = setPixelBrightness(pixelData[x]);
-
-            }
-            // Verengung von TRANSPARENT_COLOR auf uint8_t sieht falsch aus, MUSS
-            // aber so bleiben: mit dem vollen Wert blieben Transparenzpixel beim
-            // Laden schwarz statt transparent (schwarzer Rand um die Zeiger).
-
-            // Narrowing TRANSPARENT_COLOR to uint8_t looks wrong but MUST stay:
-            // with the full value transparent pixels would stay black instead
-            // of transparent when loaded (black fringe around the hands).
-            const uint8_t handTransparent = (uint8_t)TRANSPARENT_COLOR;
-            pushHandRowCentered(sprite, row, (uint16_t*)rowBuffer, width, &handTransparent);
-        }
-
-        if (fullImage) {
-            free(fullImage);
-        }
-        else {
-            bmp.close();
-        }
-        return true;
+        free(pix);
     }
 
 
@@ -3417,7 +3226,7 @@
             size_t sizeBefore = before ? before.size() : 0;
             if (before) before.close();
 
-            if (scaleAndSaveBmp(path.c_str(), path.c_str(), HAND_WIDTH, HAND_HEIGHT)) {
+            if (scaleAndSaveBmp(path.c_str(), path.c_str(), HAND_WIDTH, handTargetHeight(path.c_str()))) {
                 File after = LittleFS.open(path, "r");
                 size_t sizeAfter = after ? after.size() : 0;
                 if (after) after.close();
@@ -4053,27 +3862,18 @@
 
         // 2) Zeiger laden (aus Datei, falls Set vorhanden, sonst eingebauter Standard)
         // 2) Load hands (from file if a set exists, otherwise built-in default)
-        uint16_t* hourPix = nullptr;
-        uint16_t* minutePix = nullptr;
-        uint16_t* secondPix = nullptr;
         bool useCustomSet = (handSetName != "default" && handSetName != "");
-
-        if (useCustomSet) {
-            hourPix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
-            if (hourPix && !loadFaceBmpInto("/hand_set" + handSetName + "_hour.bmp", hourPix, HAND_WIDTH, HAND_HEIGHT)) {
-                free(hourPix); hourPix = nullptr;
+        auto loadPreviewHand = [&](const char* label, const uint16_t* fallback) -> uint16_t* {
+            uint16_t* buf = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
+            if (!buf) return nullptr;
+            if (!useCustomSet || !loadHandPixels("/hand_set" + handSetName + "_" + label + ".bmp", buf)) {
+                copyLegacyHand(fallback, buf);
             }
-            minutePix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
-            if (minutePix && !loadFaceBmpInto("/hand_set" + handSetName + "_minute.bmp", minutePix, HAND_WIDTH, HAND_HEIGHT)) {
-                free(minutePix); minutePix = nullptr;
-            }
-            if (showSecond) {
-                secondPix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
-                if (secondPix && !loadFaceBmpInto("/hand_set" + handSetName + "_second.bmp", secondPix, HAND_WIDTH, HAND_HEIGHT)) {
-                    free(secondPix); secondPix = nullptr;
-                }
-            }
-        }
+            return buf;
+        };
+        uint16_t* hourPix = loadPreviewHand("hour", handHour);
+        uint16_t* minutePix = loadPreviewHand("minute", handMinute);
+        uint16_t* secondPix = showSecond ? loadPreviewHand("second", handSecond) : nullptr;
 
         // 3) Demo-Zeit 10:10:30 - klassischer Uhrenwerbung-Winkel
         // 3) Demo time 10:10:30 - the classic clock-advertisement angle
@@ -4086,25 +3886,23 @@
         float handScale = (float)PREVIEW_SIZE / CLOCK_WIDTH; // Zeiger im gleichen Massstab wie das Zifferblatt
                                                              // hands at the same scale as the clock face
         float pivotX = HAND_WIDTH / 2.0f;
-        float pivotY = HAND_HEIGHT * 0.77f;
+        float pivotY = (float)HAND_PIVOT_Y;
 
-        blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE,
-            hourPix ? hourPix : handHour, HAND_WIDTH, HAND_HEIGHT,
-            pivotX, pivotY, cx, cy, hourAngle, handScale);
-
-        blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE,
-            minutePix ? minutePix : handMinute, HAND_WIDTH, HAND_HEIGHT,
-            pivotX, pivotY, cx, cy, minuteAngle, handScale);
-
-        if (showSecond) {
-            blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE,
-                secondPix ? secondPix : handSecond, HAND_WIDTH, HAND_HEIGHT,
-                pivotX, pivotY, cx, cy, secondAngle, handScale);
+        if (hourPix) {
+            blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE, hourPix, HAND_WIDTH, HAND_HEIGHT,
+                pivotX, pivotY, cx, cy, hourAngle, handScale);
+            free(hourPix);
         }
-
-        if (hourPix) free(hourPix);
-        if (minutePix) free(minutePix);
-        if (secondPix) free(secondPix);
+        if (minutePix) {
+            blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE, minutePix, HAND_WIDTH, HAND_HEIGHT,
+                pivotX, pivotY, cx, cy, minuteAngle, handScale);
+            free(minutePix);
+        }
+        if (secondPix) {
+            blitRotatedHand(canvas, PREVIEW_SIZE, PREVIEW_SIZE, secondPix, HAND_WIDTH, HAND_HEIGHT,
+                pivotX, pivotY, cx, cy, secondAngle, handScale);
+            free(secondPix);
+        }
 
         // 4) Mittelpunkt (Hub) in der angegebenen Farbe/Groesse zeichnen
         // 4) Draw the center hub in the given color/size
@@ -4324,17 +4122,17 @@
         allCreated &= (hourHandSprite.createSprite(hourHandWidth, HAND_HEIGHT) != nullptr);
         hourHandSprite.setSwapBytes(true);
         hourHandSprite.setColorDepth(16);
-        hourHandSprite.setPivot(hourHandWidth / 2, HAND_HEIGHT * 0.77);
+        hourHandSprite.setPivot(hourHandWidth / 2, HAND_PIVOT_Y);
 
         allCreated &= (minuteHandSprite.createSprite(minuteHandWidth, HAND_HEIGHT) != nullptr);
         minuteHandSprite.setSwapBytes(true);
         minuteHandSprite.setColorDepth(16);
-        minuteHandSprite.setPivot(minuteHandWidth / 2, HAND_HEIGHT * 0.77);
+        minuteHandSprite.setPivot(minuteHandWidth / 2, HAND_PIVOT_Y);
 
         allCreated &= (secondHandSprite.createSprite(secondHandWidth, HAND_HEIGHT) != nullptr);
         secondHandSprite.setSwapBytes(true);
         secondHandSprite.setColorDepth(16);
-        secondHandSprite.setPivot(secondHandWidth / 2, HAND_HEIGHT * 0.77);
+        secondHandSprite.setPivot(secondHandWidth / 2, HAND_PIVOT_Y);
 
         handSpritesCreated = allCreated;
         if (!allCreated) {

@@ -108,7 +108,11 @@
 #define CLOCK_HEIGHT 240
 
 #define HAND_WIDTH 21
-#define HAND_HEIGHT 131
+#define HAND_LEGACY_HEIGHT 131
+#define HAND_LEGACY_PIVOT_Y 100 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
+                                // pivot in the old format - existing hand files are drawn around it
+#define HAND_PIVOT_Y 120        // Drehpunkt im neuen Format = Displayradius, Zeiger reicht bis zum Rand
+                                // pivot in the new format = display radius, the hand reaches the edge
 
 #define TFT_TEXT_SIZE 2
 
@@ -152,7 +156,11 @@
 #define CLOCK_HEIGHT 160
 
 #define HAND_WIDTH 13
-#define HAND_HEIGHT 86
+#define HAND_LEGACY_HEIGHT 86
+#define HAND_LEGACY_PIVOT_Y 66 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
+                               // pivot in the old format - existing hand files are drawn around it
+#define HAND_PIVOT_Y 80        // Drehpunkt im neuen Format = Displayradius, Zeiger reicht bis zum Rand
+                               // pivot in the new format = display radius, the hand reaches the edge
 
 #define TFT_TEXT_SIZE 1
 
@@ -191,7 +199,11 @@
 #define CLOCK_HEIGHT 240
 
 #define HAND_WIDTH 21
-#define HAND_HEIGHT 131
+#define HAND_LEGACY_HEIGHT 131
+#define HAND_LEGACY_PIVOT_Y 100 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
+                                // pivot in the old format - existing hand files are drawn around it
+#define HAND_PIVOT_Y 120        // Drehpunkt im neuen Format = Displayradius, Zeiger reicht bis zum Rand
+                                // pivot in the new format = display radius, the hand reaches the edge
 
 #define TFT_TEXT_SIZE 2
 
@@ -201,6 +213,20 @@
     // TFT_eSPI pin/driver settings are missing here (deprecated) - add
     // analogous to the GC9A01 block above if needed.
 #endif
+
+    // Zeigerformat: die Drehpunkte oben je Display fest (Dateiformat, darf sich
+    // nicht aendern); das Stueck unter dem Drehpunkt bleibt wie bisher. Alte
+    // Zeiger (HAND_LEGACY_HEIGHT) werden oben transparent aufgefuellt.
+
+    // Hand format: the pivots above are fixed per display (file format, must
+    // not change); the part below the pivot stays as before. Old hands
+    // (HAND_LEGACY_HEIGHT) are padded transparent at the top.
+#define HAND_TOP_PAD (HAND_PIVOT_Y - HAND_LEGACY_PIVOT_Y)          // 20 bzw. 14
+                                                                   // 20 or 14
+#define HAND_HEIGHT (HAND_LEGACY_HEIGHT + HAND_TOP_PAD)            // 151 bzw. 100
+                                                                   // 151 or 100
+static_assert(HAND_TOP_PAD >= 0, "HAND_PIVOT_Y must not lie above HAND_LEGACY_PIVOT_Y");
+static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the display radius");
 
 
     // System / Debug
