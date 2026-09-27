@@ -120,6 +120,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       <canvas id="pv"></canvas>
       <label><input type="checkbox" id="live" checked><span id="tLive"></span></label>
       <label><input type="checkbox" id="showHands" checked><span id="tShowHands"></span></label>
+      <small id="modeInfo"></small>
     </div>
   </div>
 </div>
@@ -174,6 +175,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       fontAdded: 'Schrift "{0}" hinzugefuegt und ausgewaehlt', fontMissing: 'Die Schrift "{0}" ist auf diesem PC nicht installiert.',
       fontErr: 'Schriftdatei konnte nicht gelesen werden.',
       roundHint: 'Rundes Display: der abgedunkelte Bereich ist auf der Uhr nicht sichtbar.',
+      modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
+      mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
       activate: 'activate new clock face', saveBtn: 'Save as new clock face', name: 'Name:',
@@ -219,6 +222,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       fontAdded: 'Font "{0}" added and selected', fontMissing: 'The font "{0}" is not installed on this PC.',
       fontErr: 'Font file could not be read.',
       roundHint: 'Round display: the darkened area is not visible on the clock.',
+      modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
+      mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       pos: 'Pixel', center: 'Centre' }
   };
   var L = (FD.lang === 'de') ? 'de' : 'en';
@@ -996,11 +1001,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     pctx.save();
     pctx.clearRect(0, 0, S, S);
     if (FD.round) { pctx.beginPath(); pctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); pctx.clip(); }
-    pctx.drawImage(bufCanvas(pix), 0, 0, S, S);
+    if (!pvFace) pvFace = bufCanvas(pix);
+    pctx.drawImage(pvFace, 0, 0, S, S);
     if ($('showHands').checked) {
-      var d = $('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37);
-      var hh = d.getHours() % 12, mm = d.getMinutes(), ss = d.getSeconds();
-      var ang = { hour: (hh + mm / 60 + ss / 3600) * 30, minute: (mm + ss / 60) * 6, second: ss * 6 };
+      var ang = handAngles($('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37), FD.mode);
       PARTS.forEach(function (p) {
         if (!hands[p] || (p === 'second' && !FD.showSec)) return;
         pctx.save();
@@ -1016,11 +1020,39 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     }
     pctx.restore();
   }
+  // Zeigerwinkel wie renderClockFrame() im Geraet: Bahnhofsuhr (Sekunde eilt
+  // und wartet auf der 12), schleichende oder springende Minute und Sekunde.
+
+  // Hand angles like renderClockFrame() on the device: station clock (second
+  // races and waits at 12), smooth or jumping minute and second.
+  function handAngles(d, M) {
+    var h = d.getHours() % 12, m = d.getMinutes(), s = d.getSeconds(), ms = d.getMilliseconds(), sec;
+    M = M || {};
+    if (M.station) {
+      var el = s * 1000 + ms, fast = M.fastMs || 975, tick = Math.floor(el / fast), sub = (el % fast) / fast;
+      sec = Math.min(M.smoothSec ? tick + (1 - Math.cos(Math.PI * Math.sqrt(sub))) / 2 : tick, 60);
+    }
+    else sec = M.smoothSec ? s + ms / 1000 : s;
+    return { hour: (h + m / 60 + s / 3600) * 30, minute: (M.smoothMin && !M.station) ? (m + s / 60) * 6 : m * 6, second: sec * 6 };
+  }
+  function modeText(M) {
+    M = M || {};
+    return t('modeAs') + ' ' + [M.station ? t('mStation') : '', M.smoothSec ? t('mSecSmooth') : t('mSecTick'),
+      (M.smoothMin && !M.station) ? t('mMinSmooth') : t('mMinJump')].filter(Boolean).join(', ');
+  }
+  var pvFace = null;
   function schedulePreview() {
+    pvFace = null;
     if (previewTimer) clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 60);
   }
-  setInterval(function () { if ($('live').checked && $('showHands').checked && !document.hidden) renderPreview(); }, 1000);
+  // Live-Uhrzeit fluessig pro Bildschirmbild, pausiert bei verstecktem Tab
+  // Live time smoothly per display frame, paused while the tab is hidden
+  (function animate() {
+    if ($('live').checked && $('showHands').checked && !document.hidden) renderPreview();
+    requestAnimationFrame(animate);
+  })();
+  $('modeInfo').textContent = modeText(FD.mode);
 
   // Farbe aufnehmen: der Button schaltet einmalig auf die Pipette und danach zurueck,
   // Rechtsklick in die Zeichenflaeche und Klick in die Vorschau nehmen direkt auf.

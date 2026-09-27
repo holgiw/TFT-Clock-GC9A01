@@ -102,6 +102,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       <h3 id="tPreview"></h3>
       <canvas id="pv"></canvas>
       <label><input type="checkbox" id="live" checked><span id="tLive"></span></label>
+      <small id="modeInfo"></small>
       <select id="bgSel"></select>
     </div>
   </div>
@@ -139,6 +140,8 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       h_fill: 'Fuellen: faerbt die zusammenhaengende gleichfarbige Flaeche um.',
       h_pick: 'Pipette: Klick uebernimmt die Farbe des Pixels.',
       h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schliesst, Esc bricht ab.',
+      modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
+      mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       pos: 'Pixel', pivot: 'Drehpunkt',
       widthHint: 'Das aktuelle Zifferblatt zeigt diesen Zeiger nur {0} px breit - ausgegraute Spalten werden auf der Uhr abgeschnitten.' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', set: 'Set', active: 'active', reset: 'Discard changes',
@@ -166,6 +169,8 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       h_fill: 'Fill: recolours the connected area of the same colour.',
       h_pick: 'Picker: a click takes over the colour of the pixel.',
       h_poly: 'Polygon: click points, double-click or click the first point to close, Esc cancels.',
+      modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
+      mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       pos: 'Pixel', pivot: 'Pivot',
       widthHint: 'The current clock face shows this hand only {0} px wide - greyed-out columns are cut off on the clock.' }
   };
@@ -777,9 +782,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     pctx.fillStyle = bg === 'bgLight' ? '#f2f2f2' : '#111';
     pctx.fillRect(0, 0, S, S);
     if (bg === 'bgFace' && faceCanvas) pctx.drawImage(faceCanvas, 0, 0, S, S);
-    var d = $('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37);
-    var hh = d.getHours() % 12, mm = d.getMinutes(), ss = d.getSeconds();
-    var ang = { hour: (hh + mm / 60) * 30, minute: (mm + ss / 60) * 6, second: ss * 6 };
+    var ang = handAngles($('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37), HD.mode);
     PARTS.forEach(function (p) {
       pctx.save();
       pctx.translate(S / 2, S / 2);
@@ -792,11 +795,37 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       pctx.beginPath(); pctx.arc(S / 2, S / 2, HD.hub, 0, Math.PI * 2); pctx.fill();
     }
   }
+  // Zeigerwinkel wie renderClockFrame() im Geraet: Bahnhofsuhr (Sekunde eilt
+  // und wartet auf der 12), schleichende oder springende Minute und Sekunde.
+
+  // Hand angles like renderClockFrame() on the device: station clock (second
+  // races and waits at 12), smooth or jumping minute and second.
+  function handAngles(d, M) {
+    var h = d.getHours() % 12, m = d.getMinutes(), s = d.getSeconds(), ms = d.getMilliseconds(), sec;
+    M = M || {};
+    if (M.station) {
+      var el = s * 1000 + ms, fast = M.fastMs || 975, tick = Math.floor(el / fast), sub = (el % fast) / fast;
+      sec = Math.min(M.smoothSec ? tick + (1 - Math.cos(Math.PI * Math.sqrt(sub))) / 2 : tick, 60);
+    }
+    else sec = M.smoothSec ? s + ms / 1000 : s;
+    return { hour: (h + m / 60 + s / 3600) * 30, minute: (M.smoothMin && !M.station) ? (m + s / 60) * 6 : m * 6, second: sec * 6 };
+  }
+  function modeText(M) {
+    M = M || {};
+    return t('modeAs') + ' ' + [M.station ? t('mStation') : '', M.smoothSec ? t('mSecSmooth') : t('mSecTick'),
+      (M.smoothMin && !M.station) ? t('mMinSmooth') : t('mMinJump')].filter(Boolean).join(', ');
+  }
   function schedulePreview() {
     if (previewTimer) clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 60);
   }
-  setInterval(function () { if ($('live').checked && !document.hidden) renderPreview(); }, 1000);
+  // Live-Uhrzeit fluessig pro Bildschirmbild, pausiert bei verstecktem Tab
+  // Live time smoothly per display frame, paused while the tab is hidden
+  (function animate() {
+    if ($('live').checked && !document.hidden) renderPreview();
+    requestAnimationFrame(animate);
+  })();
+  $('modeInfo').textContent = modeText(HD.mode);
 
   // Farbe aufnehmen: der Button schaltet einmalig auf die Pipette und danach zurueck,
   // Rechtsklick in die Zeichenflaeche und Klick in die Vorschau nehmen direkt auf.

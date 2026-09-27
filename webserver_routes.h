@@ -7297,12 +7297,20 @@
             snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x",
                      ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
 
+            // Zeigerstil wie in /preview, damit die Vorschau sich wie die Uhr bewegt
+            // Hand style like in /preview, so the preview moves like the clock
+            bool modeStation = preferences.getBool(PK_STATION_MODE, true);
+            String modeJs = ",mode:{station:" + String(modeStation ? "true" : "false") +
+                            ",smoothMin:" + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") +
+                            ",smoothSec:" + String(getSmoothSecondPref(modeStation) ? "true" : "false") +
+                            ",fastMs:" + String((int)FAST_SECOND) + "}";
+
             chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) +
                      ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
                      ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(preferences.getString(PK_HANDSET, "")) +
                      "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
                      "',lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
-                     ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}};</script>";
+                     ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}" + modeJs + "};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(HAND_DESIGNER_HTML);
             webserver.sendContent("</body></html>");
@@ -7411,13 +7419,21 @@
 #endif
             long freeBytes = (long)LittleFS.totalBytes() - (long)LittleFS.usedBytes();
 
+            // Zeigerstil wie in /preview, damit die Vorschau sich wie die Uhr bewegt
+            // Hand style like in /preview, so the preview moves like the clock
+            bool modeStation = preferences.getBool(PK_STATION_MODE, true);
+            String modeJs = ",mode:{station:" + String(modeStation ? "true" : "false") +
+                            ",smoothMin:" + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") +
+                            ",smoothSec:" + String(getSmoothSecondPref(modeStation) ? "true" : "false") +
+                            ",fastMs:" + String((int)FAST_SECOND) + "}";
+
             chunk += "<script>var FD={w:" + String(CLOCK_WIDTH) + ",h:" + String(CLOCK_HEIGHT) + ",round:" + String(roundJs) +
                      ",active:'" + jsSafe(selectedBackground) + "',faces:[" + facesJs + "],free:" + String(freeBytes) +
                      ",hand:{w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",py:" + String(HAND_PIVOT_Y) +
                      ",set:'" + jsSafe(preferences.getString(PK_HANDSET, "")) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
-                     ",lang:'" + jsSafe(currentLanguage) + "'};</script>";
+                     ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + "};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(FACE_DESIGNER_HTML);
             webserver.sendContent("</body></html>");
