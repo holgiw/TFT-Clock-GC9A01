@@ -131,48 +131,48 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   var DEF = '/face_default.bmp';
 
   var TX = {
-    de: { base: 'Basis:', builtin: 'Standard (eingebaut)', active: 'aktiv', reset: 'Aenderungen verwerfen',
+    de: { base: 'Basis:', builtin: 'Standard (eingebaut)', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
       activate: 'neues Zifferblatt aktivieren', saveBtn: 'Als neues Zifferblatt speichern', name: 'Name:',
       saveCurBtn: 'Aktuelles Zifferblatt speichern und anwenden', tools: 'Werkzeug', bw: 'Stiftbreite:',
-      pen: 'Stift', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse', ellf: 'Ellipse gefuellt',
-      poly: 'Polygon', fill: 'Fuellen', text: 'Text', pick: 'Pipette', sym: 'Symmetrie:', txtSize: 'Groesse:',
+      pen: 'Stift', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse', ellf: 'Ellipse gef\u00fcllt',
+      poly: 'Polygon', fill: 'F\u00fcllen', text: 'Text', pick: 'Pipette', sym: 'Symmetrie:', txtSize: 'Gr\u00f6\u00dfe:',
       none: 'keine', mx: 'links/rechts gespiegelt', mxy: '4-fach gespiegelt', r4: '4-fach gedreht',
       r12: '12-fach gedreht (Stunden)', r60: '60-fach gedreht (Minuten)',
-      pickBtn: 'Aufnehmen', pickTip: 'Farbe aus einem Pixel aufnehmen - auch per Rechtsklick in die Zeichenflaeche oder Klick in die Vorschau',
+      pickBtn: 'Aufnehmen', pickTip: 'Farbe aus einem Pixel aufnehmen - auch per Rechtsklick in die Zeichenfl\u00e4che oder Klick in die Vorschau',
       color: 'Farbe', std: 'Standardfarben', pal: 'Palette', free: 'Beliebige Farbe', hexHint: '#RRGGBB oder RGB565 (0xFFFF)',
-      edit: 'Bearbeiten', undo: 'Rueckgaengig', redo: 'Wiederholen', clear: 'Alles fuellen',
-      import: 'Bild laden', cover: 'Flaeche fuellen', contain: 'ganz zeigen',
+      edit: 'Bearbeiten', undo: 'R\u00fcckg\u00e4ngig', redo: 'Wiederholen', clear: 'Alles f\u00fcllen',
+      import: 'Bild laden', cover: 'Fl\u00e4che f\u00fcllen', contain: 'ganz zeigen',
       gen: 'Zifferblatt erzeugen', bg: 'Hintergrund', ring: 'Rand', hourM: 'Stundenstriche', minM: 'Minutenstriche',
-      num: 'Ziffern', nSize: 'Ziffern-Groesse', nDist: 'Ziffern Abstand', nFont: 'Schrift',
+      num: 'Ziffern', nSize: 'Ziffern-Gr\u00f6\u00dfe', nDist: 'Ziffern Abstand', nFont: 'Schrift',
       numNone: 'keine', numArabic: '1 - 12', numQuarter: '12, 3, 6, 9', numRoman: 'I - XII',
-      genHint: 'Striche: Laenge und Breite in Pixeln. Abstand: Ziffernmitte bis Rand.', genBtn: 'Erzeugen',
+      genHint: 'Striche: L\u00e4nge und Breite in Pixeln. Abstand: Ziffernmitte bis Rand.', genBtn: 'Erzeugen',
       preview: 'Vorschau', live: 'Live-Uhrzeit', showHands: 'Zeiger',
       saving: 'Speichere...', saved: 'Als neues Zifferblatt "{0}" gespeichert', activated: ' und aktiviert',
       savedCur: '"{0}" gespeichert und angewendet', loading: 'Lade...', loaded: 'Aktives Zifferblatt geladen',
       failed: 'Fehler: ', missing: 'Aktives Zifferblatt nicht lesbar - Standard verwendet',
-      builtinRO: 'Das eingebaute Standard-Zifferblatt kann nicht ueberschrieben werden - bitte als neues Zifferblatt speichern.',
-      badName: 'Name: nur Buchstaben, Ziffern, _ und -, hoechstens 20 Zeichen.',
-      confirmExists: 'Das Zifferblatt "{0}" gibt es schon - ueberschreiben?',
-      confirmReset: 'Alle Aenderungen verwerfen und das aktive Zifferblatt neu laden?',
-      confirmClear: 'Das ganze Zifferblatt mit der aktuellen Farbe fuellen?',
+      builtinRO: 'Das eingebaute Standard-Zifferblatt kann nicht \u00fcberschrieben werden - bitte als neues Zifferblatt speichern.',
+      badName: 'Name: nur Buchstaben, Ziffern, _ und -, h\u00f6chstens 20 Zeichen.',
+      confirmExists: 'Das Zifferblatt "{0}" gibt es schon - \u00fcberschreiben?',
+      confirmReset: 'Alle \u00c4nderungen verwerfen und das aktive Zifferblatt neu laden?',
+      confirmClear: 'Das ganze Zifferblatt mit der aktuellen Farbe f\u00fcllen?',
       confirmGen: 'Aktuelles Zifferblatt durch das erzeugte ersetzen?',
       imgErr: 'Bild konnte nicht gelesen werden.',
       lowSpace: 'Wenig freier Speicher ({0} KB) - ein neues Zifferblatt braucht bis zu {1} KB.',
       h_pen: 'Stift: Pixel einzeln setzen oder freihand zeichnen, in der eingestellten Stiftbreite.',
       h_line: 'Linie: vom Anfangs- zum Endpunkt ziehen.', h_rect: 'Rahmen: Rechteck-Umriss aufziehen.',
-      h_rectf: 'Rechteck: gefuelltes Rechteck aufziehen.',
+      h_rectf: 'Rechteck: gef\u00fclltes Rechteck aufziehen.',
       h_ell: 'Ellipse: Umriss aufziehen - ein Quadrat ergibt einen Kreis.',
-      h_ellf: 'Ellipse gefuellt: gefuellte Ellipse oder Kreis aufziehen.',
-      h_fill: 'Fuellen: faerbt die zusammenhaengende gleichfarbige Flaeche um.',
-      h_pick: 'Pipette: Klick uebernimmt die Farbe des Pixels.',
-      h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schliesst, Esc bricht ab.',
+      h_ellf: 'Ellipse gef\u00fcllt: gef\u00fcllte Ellipse oder Kreis aufziehen.',
+      h_fill: 'F\u00fcllen: f\u00e4rbt die zusammenh\u00e4ngende gleichfarbige Fl\u00e4che um.',
+      h_pick: 'Pipette: Klick \u00fcbernimmt die Farbe des Pixels.',
+      h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schlie\u00dft, Esc bricht ab.',
       h_text: 'Text: gerade - Klick setzt den Text mittig an die Stelle; im Bogen - Klick legt Radius und Mitte des Bogens fest. Einstellungen darunter.',
       h_stamp: 'Logo: unter "Logo" ein Bild laden und die Breite einstellen, dann per Klick mittig an die Stelle setzen.',
       stamp: 'Logo', txtMode: 'Anordnung:', straight: 'gerade', arcTop: 'Bogen oben', arcBottom: 'Bogen unten', txtRot: 'Drehung:',
-      logo: 'Logo', logoW: 'Breite:', logoHint: 'Ideal ist ein PNG mit transparentem Hintergrund. Das Bild bleibt fuer weitere Klicks geladen.',
-      noLogo: 'Zuerst unter "Logo" ein Bild laden.', fonts: 'Eigene Schrift', fontAdd: 'Hinzufuegen', fontPh: 'installierte Schrift',
-      fontFileHint: 'oder Schriftdatei (.ttf, .otf, .woff) laden - gilt bis zum Neuladen der Seite, auch fuer die Ziffern im Generator.',
-      fontAdded: 'Schrift "{0}" hinzugefuegt und ausgewaehlt', fontMissing: 'Die Schrift "{0}" ist auf diesem PC nicht installiert.',
+      logo: 'Logo', logoW: 'Breite:', logoHint: 'Ideal ist ein PNG mit transparentem Hintergrund. Das Bild bleibt f\u00fcr weitere Klicks geladen.',
+      noLogo: 'Zuerst unter "Logo" ein Bild laden.', fonts: 'Eigene Schrift', fontAdd: 'Hinzuf\u00fcgen', fontPh: 'installierte Schrift',
+      fontFileHint: 'oder Schriftdatei (.ttf, .otf, .woff) laden - gilt bis zum Neuladen der Seite, auch f\u00fcr die Ziffern im Generator.',
+      fontAdded: 'Schrift "{0}" hinzugef\u00fcgt und ausgew\u00e4hlt', fontMissing: 'Die Schrift "{0}" ist auf diesem PC nicht installiert.',
       fontErr: 'Schriftdatei konnte nicht gelesen werden.',
       roundHint: 'Rundes Display: der abgedunkelte Bereich ist auf der Uhr nicht sichtbar.',
       modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
@@ -224,9 +224,56 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       roundHint: 'Round display: the darkened area is not visible on the clock.',
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
-      pos: 'Pixel', center: 'Centre' }
+      pos: 'Pixel', center: 'Centre' },
+    fr: { base: 'Base :', builtin: 'Standard (int\u00e9gr\u00e9)', active: 'actif', reset: 'Annuler les modifications',
+      activate: 'activer le nouveau cadran', saveBtn: 'Enregistrer comme nouveau cadran', name: 'Nom :',
+      saveCurBtn: 'Enregistrer et appliquer le cadran actuel', tools: 'Outil', bw: '\u00c9paisseur :', pen: 'Crayon',
+      line: 'Ligne', rect: 'Cadre', rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Ellipse pleine', poly: 'Polygone',
+      fill: 'Remplir', text: 'Texte', pick: 'Pipette', sym: 'Sym\u00e9trie :', txtSize: 'Taille :', none: 'aucune',
+      mx: 'miroir gauche/droite', mxy: 'miroir 4 fois', r4: 'rotation 4 fois', r12: 'rotation 12 fois (heures)',
+      r60: 'rotation 60 fois (minutes)', pickBtn: 'Pr\u00e9lever',
+      pickTip: 'Pr\u00e9lever la couleur d\u2019un pixel - aussi par clic droit dans la zone de dessin ou clic dans l\u2019aper\u00e7u',
+      color: 'Couleur', std: 'Couleurs standard', pal: 'Palette', free: 'Couleur libre',
+      hexHint: '#RRGGBB ou RGB565 (0xFFFF)', edit: 'Modifier', undo: 'Annuler', redo: 'R\u00e9tablir', clear: 'Tout remplir',
+      import: 'Charger une image', cover: 'remplir la surface', contain: 'afficher en entier', gen: 'G\u00e9n\u00e9rer un cadran',
+      bg: 'Fond', ring: 'Bord', hourM: 'Traits des heures', minM: 'Traits des minutes', num: 'Chiffres',
+      nSize: 'Taille des chiffres', nDist: 'Distance des chiffres', nFont: 'Police', numNone: 'aucun',
+      numArabic: '1 - 12', numQuarter: '12, 3, 6, 9', numRoman: 'I - XII',
+      genHint: 'Traits : longueur et largeur en pixels. Distance : du centre du chiffre au bord.', genBtn: 'G\u00e9n\u00e9rer',
+      preview: 'Aper\u00e7u', live: 'Heure en direct', showHands: 'Aiguilles', saving: 'Enregistrement...',
+      saved: 'Enregistr\u00e9 comme nouveau cadran "{0}"', activated: ' et activ\u00e9', savedCur: '"{0}" enregistr\u00e9 et appliqu\u00e9',
+      loading: 'Chargement...', loaded: 'Cadran actif charg\u00e9', failed: 'Erreur : ',
+      missing: 'Cadran actif illisible - standard utilis\u00e9',
+      builtinRO: 'Le cadran standard int\u00e9gr\u00e9 ne peut pas \u00eatre \u00e9cras\u00e9 - veuillez l\u2019enregistrer comme nouveau cadran.',
+      badName: 'Nom : lettres, chiffres, _ et - uniquement, 20 caract\u00e8res au maximum.',
+      confirmExists: 'Le cadran "{0}" existe d\u00e9j\u00e0 - l\u2019\u00e9craser ?',
+      confirmReset: 'Annuler toutes les modifications et recharger le cadran actif ?',
+      confirmClear: 'Remplir tout le cadran avec la couleur actuelle ?',
+      confirmGen: 'Remplacer le cadran actuel par le cadran g\u00e9n\u00e9r\u00e9 ?', imgErr: 'L\u2019image n\u2019a pas pu \u00eatre lue.',
+      lowSpace: 'Peu d\u2019espace libre ({0} Ko) - un nouveau cadran n\u00e9cessite jusqu\u2019\u00e0 {1} Ko.',
+      h_pen: 'Crayon : placer des pixels un par un ou dessiner \u00e0 main lev\u00e9e, avec l\u2019\u00e9paisseur choisie.',
+      h_line: 'Ligne : tirer du point de d\u00e9part au point d\u2019arriv\u00e9e.',
+      h_rect: 'Cadre : tracer le contour d\u2019un rectangle.', h_rectf: 'Rectangle : tracer un rectangle plein.',
+      h_ell: 'Ellipse : tracer un contour - un carr\u00e9 donne un cercle.',
+      h_ellf: 'Ellipse pleine : tracer une ellipse ou un cercle plein.',
+      h_fill: 'Remplir : recolore la zone contigu\u00eb de m\u00eame couleur.',
+      h_pick: 'Pipette : un clic reprend la couleur du pixel.',
+      h_poly: 'Polygone : cliquer les points, double-clic ou clic sur le premier point pour fermer, \u00c9chap pour annuler.',
+      h_text: 'Texte : droit - un clic place le texte centr\u00e9 \u00e0 cet endroit ; en arc - un clic fixe le rayon et le centre de l\u2019arc. R\u00e9glages ci-dessous.',
+      h_stamp: 'Logo : charger une image sous "Logo" et r\u00e9gler sa largeur, puis un clic la place centr\u00e9e \u00e0 cet endroit.',
+      stamp: 'Logo', txtMode: 'Disposition :', straight: 'droit', arcTop: 'arc en haut', arcBottom: 'arc en bas',
+      txtRot: 'Rotation :', logo: 'Logo', logoW: 'Largeur :',
+      logoHint: 'Id\u00e9al : un PNG \u00e0 fond transparent. L\u2019image reste charg\u00e9e pour d\u2019autres clics.',
+      noLogo: 'Chargez d\u2019abord une image sous "Logo".', fonts: 'Police personnelle', fontAdd: 'Ajouter',
+      fontPh: 'police install\u00e9e',
+      fontFileHint: 'ou charger un fichier de police (.ttf, .otf, .woff) - valable jusqu\u2019au rechargement de la page, aussi pour les chiffres du g\u00e9n\u00e9rateur.',
+      fontAdded: 'Police "{0}" ajout\u00e9e et s\u00e9lectionn\u00e9e', fontMissing: 'La police "{0}" n\u2019est pas install\u00e9e sur ce PC.',
+      fontErr: 'Le fichier de police n\u2019a pas pu \u00eatre lu.',
+      roundHint: '\u00c9cran rond : la zone assombrie n\u2019est pas visible sur l\u2019horloge.', modeAs: 'Comme sur l\u2019horloge :',
+      mStation: 'la seconde attend \u00e0 12', mSecSmooth: 'seconde fluide', mSecTick: 'seconde saccad\u00e9e',
+      mMinSmooth: 'minute fluide', mMinJump: 'la minute saute', pos: 'Pixel', center: 'Centre' }
   };
-  var L = (FD.lang === 'de') ? 'de' : 'en';
+  var L = TX[FD.lang] ? FD.lang : 'en';
   function t(k, a, b) {
     var s = TX[L][k] || TX.en[k] || k;
     if (a !== undefined) s = s.replace('{0}', a);
@@ -962,14 +1009,15 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
 
   // Zeiger-BMP: Weiss und 0x0120 sind transparent (wie loadHandSprites() im Geraet)
   // Hand BMP: white and 0x0120 are transparent (like loadHandSprites() on the device)
-  // Alte Zeiger (FD.hand.lh hoch) unten buendig, wie loadHandPixels() im Geraet
-  // Old hands (FD.hand.lh high) flush at the bottom, like loadHandPixels() on the device
+  // Gueltige Formate mittig und unten buendig, wie placeHand() im Geraet
+  // Valid formats centred and flush at the bottom, like placeHand() on the device
   function decodeHand(ab) {
     var img = parseBmp(ab), out = new Int32Array(HW * HH).fill(-1);
-    var off = (img.w === HW && img.h === FD.hand.lh && FD.hand.lh < HH) ? HH - FD.hand.lh : 0, sh = HH - off;
-    for (var y = 0; y < sh; y++) for (var x = 0; x < HW; x++) {
-      var v = img.px(Math.floor(x * img.w / HW), Math.floor(y * img.h / sh));
-      out[(y + off) * HW + x] = (v === 0xFFFF || v === 0x0120) ? -1 : v;
+    var known = (img.w === HW || img.w === FD.hand.lw) && (img.h === HH || img.h === FD.hand.lh);
+    var sw = known ? img.w : HW, sh = known ? img.h : HH, ox = (HW - sw) >> 1, oy = HH - sh;
+    for (var y = 0; y < sh; y++) for (var x = 0; x < sw; x++) {
+      var v = img.px(Math.floor(x * img.w / sw), Math.floor(y * img.h / sh));
+      out[(y + oy) * HW + x + ox] = (v === 0xFFFF || v === 0x0120) ? -1 : v;
     }
     return out;
   }

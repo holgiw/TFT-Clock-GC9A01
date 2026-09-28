@@ -520,41 +520,75 @@
         }
     }
 
-    // Alte Zeiger (HAND_LEGACY_HEIGHT) oben mit transparenten Zeilen auf
-    // HAND_HEIGHT auffuellen - der Drehpunkt liegt dann auf HAND_PIVOT_Y.
+    // Zeigerbild (w x h, je altes oder neues Mass) waagerecht mittig und unten
+    // buendig in 'dest' (HAND_WIDTH x HAND_HEIGHT) setzen, der Rest transparent -
+    // Drehpunkt und Stueck unter dem Drehpunkt liegen dann wie im neuen Format.
 
-    // Pad old hands (HAND_LEGACY_HEIGHT) at the top with transparent rows up
-    // to HAND_HEIGHT - the pivot then sits on HAND_PIVOT_Y.
-    void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) {
-        for (int i = 0; i < HAND_TOP_PAD * HAND_WIDTH; i++) dest[i] = TRANSPARENT_COLOR;
-        memcpy(dest + HAND_TOP_PAD * HAND_WIDTH, legacy, (size_t)HAND_WIDTH * HAND_LEGACY_HEIGHT * sizeof(uint16_t));
+    // Put a hand image (w x h, old or new size each) horizontally centred and
+    // flush at the bottom into 'dest' (HAND_WIDTH x HAND_HEIGHT), the rest
+    // transparent - pivot and the part below it then sit like in the new format.
+    void placeHand(const uint16_t* src, int w, int h, uint16_t* dest) {
+        int ox = (HAND_WIDTH - w) / 2, oy = HAND_HEIGHT - h;
+        for (int i = 0; i < HAND_WIDTH * HAND_HEIGHT; i++) dest[i] = TRANSPARENT_COLOR;
+        for (int y = 0; y < h; y++) memcpy(dest + (y + oy) * HAND_WIDTH + ox, src + y * w, (size_t)w * sizeof(uint16_t));
     }
 
-    // Laedt eine Zeigerdatei (BMP/RLEB) im neuen oder alten Format nach 'dest'
-    // (HAND_WIDTH x HAND_HEIGHT). False, wenn keines der beiden Formate passt.
+    // Eingebaute Standardzeiger liegen im alten Format vor
+    // Built-in default hands are in the old format
+    void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) {
+        placeHand(legacy, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT, dest);
+    }
 
-    // Loads a hand file (BMP/RLEB) in the new or old format into 'dest'
-    // (HAND_WIDTH x HAND_HEIGHT). False if neither format matches.
+    // Laedt eine Zeigerdatei (BMP/RLEB) in einem der vier gueltigen Formate (Breite
+    // und Hoehe je alt oder neu) nach 'dest'. False, wenn keines passt.
+
+    // Loads a hand file (BMP/RLEB) in one of the four valid formats (width and
+    // height old or new each) into 'dest'. False if none matches.
     bool loadHandPixels(const String& path, uint16_t* dest) {
         if (loadFaceBmpInto(path, dest, HAND_WIDTH, HAND_HEIGHT)) return true;
-        if (!loadFaceBmpInto(path, dest + HAND_TOP_PAD * HAND_WIDTH, HAND_WIDTH, HAND_LEGACY_HEIGHT)) return false;
-        for (int i = 0; i < HAND_TOP_PAD * HAND_WIDTH; i++) dest[i] = TRANSPARENT_COLOR;
-        return true;
+        const int formats[3][2] = {
+            { HAND_WIDTH, HAND_LEGACY_HEIGHT }, { HAND_LEGACY_WIDTH, HAND_HEIGHT }, { HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT }
+        };
+        uint16_t* tmp = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * sizeof(uint16_t));
+        if (!tmp) return false;
+        bool ok = false;
+        for (const auto& fm : formats) {
+            if (loadFaceBmpInto(path, tmp, fm[0], fm[1])) {
+                placeHand(tmp, fm[0], fm[1], dest);
+                ok = true;
+                break;
+            }
+        }
+        free(tmp);
+        return ok;
     }
 
-    // Zielhoehe beim Speichern einer Zeigerdatei: nur exakt das neue Format
-    // bleibt neu, alles andere wird wie frueher auf das alte Format skaliert.
+    // Zielgroesse beim Speichern einer Zeigerdatei: eines der vier gueltigen
+    // Formate bleibt unskaliert, alles andere wird wie frueher aufs alte skaliert.
 
-    // Target height when storing a hand file: only exactly the new format stays
-    // new, everything else is scaled to the old format as before.
-    int handTargetHeight(const char* path) {
+    // Target size when storing a hand file: one of the four valid formats stays
+    // unscaled, everything else is scaled to the old format as before.
+    void handTargetSize(const char* path, int& outW, int& outH) {
+        outW = HAND_LEGACY_WIDTH;
+        outH = HAND_LEGACY_HEIGHT;
+        int32_t w, h;
+        if (readImageSize(path, w, h) && isValidHandSize(w, h)) {
+            outW = w;
+            outH = h;
+        }
+    }
+
+    // Breite und Hoehe aus dem Kopf einer BMP- oder RLEB-Datei, ohne Pixel zu lesen
+    // Width and height from the header of a BMP or RLEB file, without reading pixels
+    bool readImageSize(const char* path, int32_t& w, int32_t& h) {
+        w = 0;
+        h = 0;
         File f = LittleFS.open(path, "r");
-        if (!f) return HAND_LEGACY_HEIGHT;
+        if (!f) return false;
         uint8_t head[26];
         int n = f.read(head, sizeof(head));
         f.close();
 
-        int32_t w = 0, h = 0;
         if (n >= 12 && isRleFace(head)) {
             w = *(int32_t*)&head[4];
             h = *(int32_t*)&head[8];
@@ -563,7 +597,22 @@
             w = *(int32_t*)&head[18];
             h = abs(*(int32_t*)&head[22]);
         }
-        return (w == HAND_WIDTH && h == HAND_HEIGHT) ? HAND_HEIGHT : HAND_LEGACY_HEIGHT;
+        return w > 0 && h > 0;
+    }
+
+    bool isValidHandSize(int32_t w, int32_t h) {
+        return (w == HAND_WIDTH || w == HAND_LEGACY_WIDTH) && (h == HAND_HEIGHT || h == HAND_LEGACY_HEIGHT);
+    }
+
+    // Kurzbezeichnung des Zeigerformats fuer den Dateimanager
+    // Short label of the hand format for the file manager
+    String handFormatLabel(const String& path) {
+        int32_t w, h;
+        if (!readImageSize(path.c_str(), w, h)) return "";
+        if (!isValidHandSize(w, h)) return translate("unsupported size - default hand is used");
+        if (w == HAND_LEGACY_WIDTH && h == HAND_LEGACY_HEIGHT) return translate("old format");
+        if (w == HAND_WIDTH && h == HAND_HEIGHT) return translate("new format");
+        return (w == HAND_WIDTH) ? translate("new width") : translate("new length");
     }
 
 
@@ -3230,7 +3279,9 @@
             size_t sizeBefore = before ? before.size() : 0;
             if (before) before.close();
 
-            if (scaleAndSaveBmp(path.c_str(), path.c_str(), HAND_WIDTH, handTargetHeight(path.c_str()))) {
+            int targetW, targetH;
+            handTargetSize(path.c_str(), targetW, targetH);
+            if (scaleAndSaveBmp(path.c_str(), path.c_str(), targetW, targetH)) {
                 File after = LittleFS.open(path, "r");
                 size_t sizeAfter = after ? after.size() : 0;
                 if (after) after.close();

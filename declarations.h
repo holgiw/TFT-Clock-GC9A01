@@ -104,9 +104,13 @@
     void resetHandsToDefault() ;
     void pushHandRowCentered(TFT_eSprite* sprite, int row, uint16_t* rowPixels, int srcWidth, const uint8_t* transparentColor) ;
     void loadHandSprites() ;
+    void placeHand(const uint16_t* src, int w, int h, uint16_t* dest) ;
     void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) ;
     bool loadHandPixels(const String& path, uint16_t* dest) ;
-    int handTargetHeight(const char* path) ;
+    void handTargetSize(const char* path, int& outW, int& outH) ;
+    bool readImageSize(const char* path, int32_t& w, int32_t& h) ;
+    bool isValidHandSize(int32_t w, int32_t h) ;
+    String handFormatLabel(const String& path) ;
     float shortestAngleDiff(float from, float to) ;
     int prepareClockFaceCache() ;
     int faceOrientationFor(uint8_t rotation) ;

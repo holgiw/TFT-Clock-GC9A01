@@ -65,7 +65,8 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       <h3 id="tEdit"></h3>
       <button type="button" class="tb" id="undoBtn"></button>
       <button type="button" class="tb" id="redoBtn"></button>
-      <button type="button" class="tb" id="clearBtn"></button><br>
+      <button type="button" class="tb" id="clearBtn"></button>
+      <button type="button" class="tb" id="blurAllBtn"></button><br>
       <span id="tShift"></span>
       <button type="button" class="tb" data-shift="0,-1">&#8593;</button>
       <button type="button" class="tb" data-shift="0,1">&#8595;</button>
@@ -115,31 +116,35 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   var TRANSPARENT = -1;
 
   var TX = {
-    de: { base: 'Basis:', builtin: 'Standard (eingebaut)', set: 'Satz', active: 'aktiv', reset: 'Aenderungen verwerfen',
+    de: { base: 'Basis:', builtin: 'Standard (eingebaut)', set: 'Satz', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
       activate: 'neues Design aktivieren', saveBtn: 'Als neues Design speichern', part: 'Zeiger', hour: 'Stunde', minute: 'Minute', second: 'Sekunde', tools: 'Werkzeug',
       pen: 'Stift', erase: 'Radierer', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse',
-      ellf: 'Ellipse gefuellt', poly: 'Polygon', fill: 'Fuellen', pick: 'Pipette', sym: 'Spiegeln an der Mittelachse',
-      color: 'Farbe', edit: 'Bearbeiten', undo: 'Rueckgaengig', redo: 'Wiederholen', clear: 'Leeren', shift: 'Verschieben:',
-      copy: 'Kopieren nach:', gen: 'Form erzeugen', len: 'Laenge', tipW: 'Spitze breit', baseW: 'Breite am Drehpunkt',
+      ellf: 'Ellipse gef\u00fcllt', circ: 'Kreis', circf: 'Kreis gef\u00fcllt', radius: 'Radius', poly: 'Polygon', fill: 'F\u00fcllen', blur: 'Weichzeichnen', pick: 'Pipette', sym: 'Spiegeln an der Mittelachse',
+      color: 'Farbe', edit: 'Bearbeiten', undo: 'R\u00fcckg\u00e4ngig', redo: 'Wiederholen', clear: 'Leeren', shift: 'Verschieben:',
+      copy: 'Kopieren nach:', gen: 'Form erzeugen', len: 'L\u00e4nge', tipW: 'Spitze breit', baseW: 'Breite am Drehpunkt',
       tail: 'Gegengewicht', tailW: 'Gegengewicht breit', disc: 'Scheibe (Durchm.)', discPos: 'Scheibe Abstand',
       genBtn: 'Erzeugen', preview: 'Vorschau', live: 'Live-Uhrzeit', bgFace: 'Zifferblatt', bgDark: 'dunkel',
       bgLight: 'hell', saving: 'Speichere...', saved: 'Als neues Design Satz {0} gespeichert', activated: ' und aktiviert',
       saveCurBtn: 'Aktuelles Design speichern und anwenden', savedCur: 'Satz {0} gespeichert und angewendet',
-      builtinRO: 'Das eingebaute Standard-Design kann nicht ueberschrieben werden - bitte als neues Design speichern.',
+      builtinRO: 'Das eingebaute Standard-Design kann nicht \u00fcberschrieben werden - bitte als neues Design speichern.',
       loading: 'Lade...', loaded: 'Aktives Design geladen', failed: 'Fehler: ', missing: 'fehlt - Standard verwendet',
-      confirmReset: 'Alle Aenderungen verwerfen und das aktive Design neu laden?', confirmClear: 'Diesen Zeiger komplett leeren?',
+      confirmReset: 'Alle \u00c4nderungen verwerfen und das aktive Design neu laden?', confirmClear: 'Diesen Zeiger komplett leeren?',
       confirmGen: 'Aktuellen Zeiger durch die erzeugte Form ersetzen?',
-      whiteHint: 'Reines Weiss ist transparent - wird automatisch zu Fast-Weiss.',
-      pickBtn: 'Aufnehmen', pickTip: 'Farbe aus einem Pixel aufnehmen - auch per Rechtsklick in die Zeichenflaeche oder Klick in die Vorschau',
+      whiteHint: 'Reines Wei\u00df ist transparent - wird automatisch zu Fast-Wei\u00df.',
+      pickBtn: 'Aufnehmen', pickTip: 'Farbe aus einem Pixel aufnehmen - auch per Rechtsklick in die Zeichenfl\u00e4che oder Klick in die Vorschau',
       std: 'Standardfarben', pal: 'Palette', free: 'Beliebige Farbe', hexHint: '#RRGGBB oder RGB565 (0xFFFF)',
       h_pen: 'Stift: Pixel einzeln setzen oder freihand zeichnen.',
       h_erase: 'Radierer: macht Pixel wieder transparent.', h_line: 'Linie: vom Anfangs- zum Endpunkt ziehen.',
-      h_rect: 'Rahmen: Rechteck-Umriss aufziehen.', h_rectf: 'Rechteck: gefuelltes Rechteck aufziehen.',
-      h_ell: 'Ellipse: Umriss aufziehen - ein Quadrat ergibt einen Kreis.',
-      h_ellf: 'Ellipse gefuellt: gefuellte Ellipse oder Kreis aufziehen.',
-      h_fill: 'Fuellen: faerbt die zusammenhaengende gleichfarbige Flaeche um.',
-      h_pick: 'Pipette: Klick uebernimmt die Farbe des Pixels.',
-      h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schliesst, Esc bricht ab.',
+      h_rect: 'Rahmen: Rechteck-Umriss aufziehen.', h_rectf: 'Rechteck: gef\u00fclltes Rechteck aufziehen.',
+      h_ell: 'Ellipse: im Mittelpunkt ansetzen und ziehen - waagerechter und senkrechter Abstand sind die Halbachsen.',
+      h_ellf: 'Ellipse gef\u00fcllt: im Mittelpunkt ansetzen und ziehen, wie Ellipse.',
+      h_circ: 'Kreis: im Mittelpunkt ansetzen und ziehen - der Abstand zur Maus ist der Radius, der Kreis ist exakt rund.',
+      h_circf: 'Kreis gef\u00fcllt: im Mittelpunkt ansetzen und ziehen, wie Kreis.',
+      h_fill: 'F\u00fcllen: f\u00e4rbt die zusammenh\u00e4ngende gleichfarbige Fl\u00e4che um.',
+      h_pick: 'Pipette: Klick \u00fcbernimmt die Farbe des Pixels.',
+      h_blur: 'Weichzeichnen: \u00fcber den Zeiger ziehen - mischt die Farben benachbarter Zeigerpixel, mehrfach \u00fcberstreichen verst\u00e4rkt. Die Au\u00dfenkante gl\u00e4ttet die Uhr beim Zeichnen selbst.',
+      blurAll: 'Ganzen Zeiger weichzeichnen',
+      h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schlie\u00dft, Esc bricht ab.',
       modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       pos: 'Pixel', pivot: 'Drehpunkt',
@@ -147,7 +152,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     en: { base: 'Based on:', builtin: 'Default (built-in)', set: 'Set', active: 'active', reset: 'Discard changes',
       activate: 'activate new design', saveBtn: 'Save as new design', part: 'Hand', hour: 'Hour', minute: 'Minute', second: 'Second', tools: 'Tool',
       pen: 'Pen', erase: 'Eraser', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse',
-      ellf: 'Filled ellipse', poly: 'Polygon', fill: 'Fill', pick: 'Picker', sym: 'Mirror at the centre axis',
+      ellf: 'Filled ellipse', circ: 'Circle', circf: 'Filled circle', radius: 'Radius', poly: 'Polygon', fill: 'Fill', blur: 'Blur', pick: 'Picker', sym: 'Mirror at the centre axis',
       color: 'Colour', edit: 'Edit', undo: 'Undo', redo: 'Redo', clear: 'Clear', shift: 'Move:',
       copy: 'Copy to:', gen: 'Generate shape', len: 'Length', tipW: 'Tip width', baseW: 'Width at pivot',
       tail: 'Counterweight', tailW: 'Counterweight width', disc: 'Disc (diameter)', discPos: 'Disc distance',
@@ -164,17 +169,60 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       h_pen: 'Pen: set single pixels or draw freehand.', h_erase: 'Eraser: makes pixels transparent again.',
       h_line: 'Line: drag from the start to the end point.', h_rect: 'Frame: drag out a rectangle outline.',
       h_rectf: 'Rectangle: drag out a filled rectangle.',
-      h_ell: 'Ellipse: drag out an outline - a square gives a circle.',
-      h_ellf: 'Filled ellipse: drag out a filled ellipse or circle.',
+      h_ell: 'Ellipse: start at the centre and drag - horizontal and vertical distance are the semi-axes.',
+      h_ellf: 'Filled ellipse: start at the centre and drag, like ellipse.',
+      h_circ: 'Circle: start at the centre and drag - the distance to the mouse is the radius, the circle is exactly round.',
+      h_circf: 'Filled circle: start at the centre and drag, like circle.',
       h_fill: 'Fill: recolours the connected area of the same colour.',
       h_pick: 'Picker: a click takes over the colour of the pixel.',
+      h_blur: 'Blur: drag over the hand - mixes the colours of neighbouring hand pixels, stroking again strengthens it. The clock smooths the outer edge itself when drawing.',
+      blurAll: 'Blur whole hand',
       h_poly: 'Polygon: click points, double-click or click the first point to close, Esc cancels.',
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       pos: 'Pixel', pivot: 'Pivot',
-      widthHint: 'The current clock face shows this hand only {0} px wide - greyed-out columns are cut off on the clock.' }
+      widthHint: 'The current clock face shows this hand only {0} px wide - greyed-out columns are cut off on the clock.' },
+    fr: { base: 'Base :', builtin: 'Standard (int\u00e9gr\u00e9)', set: 'Jeu', active: 'actif',
+      reset: 'Annuler les modifications', activate: 'activer le nouveau design',
+      saveBtn: 'Enregistrer comme nouveau design', part: 'Aiguille', hour: 'Heures', minute: 'Minutes',
+      second: 'Secondes', tools: 'Outil', pen: 'Crayon', erase: 'Gomme', line: 'Ligne', rect: 'Cadre',
+      rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Ellipse pleine', circ: 'Cercle', circf: 'Cercle plein',
+      radius: 'Rayon', poly: 'Polygone', fill: 'Remplir', blur: 'Flouter', pick: 'Pipette',
+      sym: 'Sym\u00e9trie par l\u2019axe central', color: 'Couleur', edit: 'Modifier', undo: 'Annuler', redo: 'R\u00e9tablir',
+      clear: 'Effacer', shift: 'D\u00e9placer :', copy: 'Copier vers :', gen: 'G\u00e9n\u00e9rer une forme', len: 'Longueur',
+      tipW: 'Largeur de la pointe', baseW: 'Largeur au pivot', tail: 'Contrepoids', tailW: 'Largeur du contrepoids',
+      disc: 'Disque (diam\u00e8tre)', discPos: 'Distance du disque', genBtn: 'G\u00e9n\u00e9rer', preview: 'Aper\u00e7u',
+      live: 'Heure en direct', bgFace: 'Cadran', bgDark: 'sombre', bgLight: 'clair', saving: 'Enregistrement...',
+      saved: 'Enregistr\u00e9 comme nouveau design, jeu {0}', activated: ' et activ\u00e9',
+      saveCurBtn: 'Enregistrer et appliquer le design actuel', savedCur: 'Jeu {0} enregistr\u00e9 et appliqu\u00e9',
+      builtinRO: 'Le design standard int\u00e9gr\u00e9 ne peut pas \u00eatre \u00e9cras\u00e9 - veuillez l\u2019enregistrer comme nouveau design.',
+      loading: 'Chargement...', loaded: 'Design actif charg\u00e9', failed: 'Erreur : ',
+      missing: 'manquante - standard utilis\u00e9',
+      confirmReset: 'Annuler toutes les modifications et recharger le design actif ?',
+      confirmClear: 'Effacer enti\u00e8rement cette aiguille ?',
+      confirmGen: 'Remplacer l\u2019aiguille actuelle par la forme g\u00e9n\u00e9r\u00e9e ?',
+      whiteHint: 'Le blanc pur est transparent - il devient automatiquement presque blanc.', pickBtn: 'Pr\u00e9lever',
+      pickTip: 'Pr\u00e9lever la couleur d\u2019un pixel - aussi par clic droit dans la zone de dessin ou clic dans l\u2019aper\u00e7u',
+      std: 'Couleurs standard', pal: 'Palette', free: 'Couleur libre', hexHint: '#RRGGBB ou RGB565 (0xFFFF)',
+      h_pen: 'Crayon : placer des pixels un par un ou dessiner \u00e0 main lev\u00e9e.',
+      h_erase: 'Gomme : rend les pixels de nouveau transparents.',
+      h_line: 'Ligne : tirer du point de d\u00e9part au point d\u2019arriv\u00e9e.',
+      h_rect: 'Cadre : tracer le contour d\u2019un rectangle.', h_rectf: 'Rectangle : tracer un rectangle plein.',
+      h_ell: 'Ellipse : partir du centre et tirer - les distances horizontale et verticale sont les demi-axes.',
+      h_ellf: 'Ellipse pleine : partir du centre et tirer, comme l\u2019ellipse.',
+      h_circ: 'Cercle : partir du centre et tirer - la distance \u00e0 la souris est le rayon, le cercle est parfaitement rond.',
+      h_circf: 'Cercle plein : partir du centre et tirer, comme le cercle.',
+      h_fill: 'Remplir : recolore la zone contigu\u00eb de m\u00eame couleur.',
+      h_pick: 'Pipette : un clic reprend la couleur du pixel.',
+      h_blur: 'Flouter : passer sur l\u2019aiguille - m\u00e9lange les couleurs des pixels voisins de l\u2019aiguille, repasser renforce l\u2019effet. L\u2019horloge lisse elle-m\u00eame le bord ext\u00e9rieur en dessinant.',
+      blurAll: 'Flouter toute l\u2019aiguille',
+      h_poly: 'Polygone : cliquer les points, double-clic ou clic sur le premier point pour fermer, \u00c9chap pour annuler.',
+      modeAs: 'Comme sur l\u2019horloge :', mStation: 'la seconde attend \u00e0 12', mSecSmooth: 'seconde fluide',
+      mSecTick: 'seconde saccad\u00e9e', mMinSmooth: 'minute fluide', mMinJump: 'la minute saute', pos: 'Pixel',
+      pivot: 'Pivot',
+      widthHint: 'Le cadran actuel n\u2019affiche cette aiguille que sur {0} px de large - les colonnes gris\u00e9es sont coup\u00e9es sur l\u2019horloge.' }
   };
-  var L = (HD.lang === 'de') ? 'de' : 'en';
+  var L = TX[HD.lang] ? HD.lang : 'en';
   function t(k, a) { var s = TX[L][k] || TX.en[k] || k; return a === undefined ? s : s.replace('{0}', a); }
   function $(id) { return document.getElementById(id); }
 
@@ -321,14 +369,23 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++)
       if (filled || x === x0 || x === x1 || y === y0 || y === y1) plot(buf, x, y, v);
   }
-  function ellOn(buf, a, b, v, filled) {
-    var x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
-    var cx = (x0 + x1 + 1) / 2, cy = (y0 + y1 + 1) / 2, rx = (x1 - x0 + 1) / 2, ry = (y1 - y0 + 1) / 2;
+  // Ellipse/Kreis um die Mitte des Startpixels: Halbachsen rx/ry in Pixeln
+  // (0,5 = nur das Mittelpixel), dadurch immer symmetrisch zum Mittelpunkt.
+
+  // Ellipse/circle around the centre of the start pixel: semi-axes rx/ry in
+  // pixels (0.5 = the centre pixel only), so always symmetric to the centre.
+  function ellOn(buf, c, rx, ry, v, filled) {
+    var cx = c.x + 0.5, cy = c.y + 0.5;
     function inside(x, y) { var u = (x + 0.5 - cx) / rx, w = (y + 0.5 - cy) / ry; return u * u + w * w <= 1; }
-    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+    for (var y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (var x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
       if (!inside(x, y)) continue;
       if (filled || !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) plot(buf, x, y, v);
     }
+  }
+  function shapeRadii(a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y;
+    if (tool === 'circ' || tool === 'circf') { var r = Math.round(Math.sqrt(dx * dx + dy * dy)) + 0.5; return { rx: r, ry: r }; }
+    return { rx: Math.abs(dx) + 0.5, ry: Math.abs(dy) + 0.5 };
   }
   function discOn(buf, cx, cy, d, v) {
     var r = d / 2;
@@ -383,6 +440,37 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   function inGrid(c) { return c.x >= 0 && c.y >= 0 && c.x < W && c.y < H; }
   function paintValue() { return tool === 'erase' ? TRANSPARENT : color; }
 
+  // Weichzeichnen: jedes deckende Pixel wird zum Mittel seiner deckenden 3x3-
+  // Nachbarn - transparente bleiben aussen vor, die Umrisskante bleibt scharf
+  // (die glaettet die Uhr beim Zeichnen ohnehin, siehe blitHandAntiAliased()).
+
+  // Blur: every opaque pixel becomes the mean of its opaque 3x3 neighbours -
+  // transparent ones are left out, the outline stays sharp (the clock smooths
+  // it when drawing anyway, see blitHandAntiAliased()).
+  function blurPixel(src, x, y) {
+    var r = 0, g = 0, b = 0, n = 0;
+    for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+      var nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      var v = src[ny * W + nx];
+      if (v < 0) continue;
+      var c = rgbOf(v), wgt = (dx === 0 && dy === 0) ? 2 : 1;
+      r += c[0] * wgt; g += c[1] * wgt; b += c[2] * wgt; n += wgt;
+    }
+    return fix565((Math.round(r / n * 31 / 255) << 11) | (Math.round(g / n * 63 / 255) << 5) | Math.round(b / n * 31 / 255));
+  }
+  function blurAt(buf, cx, cy) {
+    var src = buf.slice();
+    function one(px) {
+      for (var y = cy - 1; y <= cy + 1; y++) for (var x = px - 1; x <= px + 1; x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H || src[y * W + x] < 0) continue;
+        buf[y * W + x] = blurPixel(src, x, y);
+      }
+    }
+    one(cx);
+    if ($('sym').checked && W - 1 - cx !== cx) one(W - 1 - cx);
+  }
+
   ed.addEventListener('pointerdown', function (ev) {
     if (ev.button === 2) return;
     var c = cell(ev);
@@ -408,6 +496,14 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       drawEditor();
       return;
     }
+    if (tool === 'blur') {
+      pushUndo();
+      blurAt(pix[part], c.x, c.y);
+      setDirty(true);
+      drag = { start: c, last: c };
+      drawEditor();
+      return;
+    }
     if (tool === 'pen' || tool === 'erase') {
       pushUndo();
       plot(pix[part], c.x, c.y, paintValue());
@@ -423,6 +519,20 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     $('posInfo').textContent = inGrid(c) ? t('pos') + ' ' + c.x + ' / ' + c.y + '   (' + t('pivot') + ' ' + PX + ' / ' + PY + ')' : '';
     if (!drag) return;
     c.x = Math.max(0, Math.min(W - 1, c.x)); c.y = Math.max(0, Math.min(H - 1, c.y));
+    if (/^(ell|circ)f?$/.test(tool)) {
+      var rr = shapeRadii(drag.start, c);
+      $('posInfo').textContent += '   ' + t('radius') + ' ' + (rr.rx === rr.ry ? rr.rx - 0.5 : (rr.rx - 0.5) + ' / ' + (rr.ry - 0.5));
+    }
+    if (tool === 'blur') {
+      // Nur bei neuer Zelle, sonst wuerde Stillhalten immer weiter verwischen
+      // Only on a new cell, otherwise holding still would keep smearing
+      if (c.x !== drag.last.x || c.y !== drag.last.y) {
+        blurAt(pix[part], c.x, c.y);
+        drag.last = c;
+        drawEditor();
+      }
+      return;
+    }
     if (tool === 'pen' || tool === 'erase') {
       lineOn(pix[part], drag.last.x, drag.last.y, c.x, c.y, paintValue());
       drag.last = c;
@@ -434,7 +544,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   });
   ed.addEventListener('pointerup', function () {
     if (!drag) return;
-    if (tool === 'pen' || tool === 'erase') { drag = null; schedulePreview(); return; }
+    if (tool === 'pen' || tool === 'erase' || tool === 'blur') { drag = null; schedulePreview(); return; }
     var b = shapeBuf(drag.start, drag.last);
     drag = null;
     commit(b);
@@ -451,8 +561,10 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     if (tool === 'line') lineOn(buf, a.x, a.y, b.x, b.y, v);
     else if (tool === 'rect') rectOn(buf, a, b, v, false);
     else if (tool === 'rectf') rectOn(buf, a, b, v, true);
-    else if (tool === 'ell') ellOn(buf, a, b, v, false);
-    else if (tool === 'ellf') ellOn(buf, a, b, v, true);
+    else if (/^(ell|circ)f?$/.test(tool)) {
+      var rr = shapeRadii(a, b);
+      ellOn(buf, a, rr.rx, rr.ry, v, tool.slice(-1) === 'f');
+    }
     return buf;
   }
   function closePoly() {
@@ -471,7 +583,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   }
   var partBtn = {}, toolBtn = {};
   PARTS.forEach(function (p) { partBtn[p] = button($('partBtns'), t(p), function () { selectPart(p); }); });
-  ['pen', 'erase', 'line', 'rect', 'rectf', 'ell', 'ellf', 'poly', 'fill', 'pick'].forEach(function (k) {
+  ['pen', 'erase', 'line', 'rect', 'rectf', 'ell', 'ellf', 'circ', 'circf', 'poly', 'fill', 'blur', 'pick'].forEach(function (k) {
     toolBtn[k] = button($('toolBtns'), t(k), function () { pickReturn = null; selectTool(k); });
     toolBtn[k].title = t('h_' + k);
   });
@@ -540,6 +652,11 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   $('clearBtn').onclick = function () {
     if (confirm(t('confirmClear'))) commit(new Int32Array(N).fill(TRANSPARENT));
   };
+  $('blurAllBtn').onclick = function () {
+    var src = pix[part], out = src.slice();
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (src[y * W + x] >= 0) out[y * W + x] = blurPixel(src, x, y);
+    commit(out);
+  };
   Array.prototype.forEach.call(document.querySelectorAll('.hd [data-shift]'), function (b) {
     b.onclick = function () {
       var d = b.getAttribute('data-shift').split(','), dx = +d[0], dy = +d[1];
@@ -597,36 +714,42 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       return ((dv.getUint8(p + 2) >> 3) << 11) | ((dv.getUint8(p + 1) >> 2) << 5) | (dv.getUint8(p) >> 3);
     } };
   }
-  // Alte Zeiger (HD.lh hoch) unten buendig einsetzen - Drehpunkt und Stueck
-  // darunter liegen dann wie im neuen Format, oben bleibt es transparent.
+  // Gueltige Formate (Breite HD.lw/W, Hoehe HD.lh/H) waagerecht mittig und unten
+  // buendig einsetzen wie placeHand() im Geraet, andere Groessen auf W x H skalieren.
 
-  // Place old hands (HD.lh high) flush at the bottom - pivot and the part
-  // below it then sit like in the new format, the top stays transparent.
+  // Place valid formats (width HD.lw/W, height HD.lh/H) horizontally centred and
+  // flush at the bottom like placeHand() on the device, scale other sizes to W x H.
   function decodeBmp(ab) {
     var img = parseBmp(ab), out = new Int32Array(N).fill(TRANSPARENT);
-    var off = (img.w === W && img.h === HD.lh && HD.lh < H) ? H - HD.lh : 0, sh = H - off;
-    for (var ty = 0; ty < sh; ty++) for (var tx = 0; tx < W; tx++) {
-      var v = img.px(Math.floor(tx * img.w / W), Math.floor(ty * img.h / sh));
-      out[(ty + off) * W + tx] = (v === 0xFFFF || v === 0x0120) ? TRANSPARENT : v;
+    var known = (img.w === W || img.w === HD.lw) && (img.h === H || img.h === HD.lh);
+    var sw = known ? img.w : W, sh = known ? img.h : H, ox = (W - sw) >> 1, oy = H - sh;
+    for (var ty = 0; ty < sh; ty++) for (var tx = 0; tx < sw; tx++) {
+      var v = img.px(Math.floor(tx * img.w / sw), Math.floor(ty * img.h / sh));
+      out[(ty + oy) * W + tx + ox] = (v === 0xFFFF || v === 0x0120) ? TRANSPARENT : v;
     }
     return out;
   }
-  // Gespeichert wird im alten Format (HD.lh hoch), solange der Zeiger nicht in
-  // die zusaetzlichen Zeilen oben ragt - so laeuft er auch auf aelterer Firmware.
+  // Hoehe und Breite bleiben im alten Mass (HD.lh, HD.lw), solange der Zeiger
+  // nicht in die zusaetzlichen Zeilen oben bzw. Spalten seitlich ragt - so laeuft
+  // er auch auf aelterer Firmware.
 
-  // Saved in the old format (HD.lh high) as long as the hand does not reach into
-  // the extra rows at the top - so it also runs on older firmware.
+  // Height and width stay at the old size (HD.lh, HD.lw) as long as the hand does
+  // not reach into the extra rows at the top or columns at the sides - so it also
+  // runs on older firmware.
   function encodeBmp(buf) {
-    var top = H > HD.lh ? H - HD.lh : 0;
+    var top = H > HD.lh ? H - HD.lh : 0, side = W > HD.lw ? (W - HD.lw) >> 1 : 0;
     for (var i = 0; i < top * W; i++) if (buf[i] >= 0) { top = 0; break; }
-    var oh = H - top, rs = Math.floor((W * 2 + 3) / 4) * 4, hs = 66, size = hs + rs * oh;
+    for (var y = 0; y < H && side; y++) for (var x = 0; x < W; x++) {
+      if ((x < side || x >= W - side) && buf[y * W + x] >= 0) { side = 0; break; }
+    }
+    var ow = W - 2 * side, oh = H - top, rs = Math.floor((ow * 2 + 3) / 4) * 4, hs = 66, size = hs + rs * oh;
     var ab = new ArrayBuffer(size), dv = new DataView(ab);
     dv.setUint8(0, 66); dv.setUint8(1, 77); dv.setUint32(2, size, true); dv.setUint32(10, hs, true);
-    dv.setUint32(14, 40, true); dv.setInt32(18, W, true); dv.setInt32(22, -oh, true); dv.setUint16(26, 1, true);
+    dv.setUint32(14, 40, true); dv.setInt32(18, ow, true); dv.setInt32(22, -oh, true); dv.setUint16(26, 1, true);
     dv.setUint16(28, 16, true); dv.setUint32(30, 3, true); dv.setUint32(34, rs * oh, true);
     dv.setUint32(54, 0xF800, true); dv.setUint32(58, 0x07E0, true); dv.setUint32(62, 0x001F, true);
-    for (var y = 0; y < oh; y++) for (var x = 0; x < W; x++) {
-      var v = buf[(y + top) * W + x];
+    for (y = 0; y < oh; y++) for (x = 0; x < ow; x++) {
+      var v = buf[(y + top) * W + x + side];
       dv.setUint16(hs + y * rs + x * 2, v < 0 ? 0xFFFF : fix565(v), true);
     }
     return new Blob([ab], { type: 'image/bmp' });
@@ -861,6 +984,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   $('pickBtn').textContent = t('pickBtn'); $('pickBtn').title = t('pickTip');
   $('color').title = t('free'); $('colorHex').placeholder = '#RRGGBB'; $('colorHex').title = t('hexHint');
   $('undoBtn').textContent = t('undo'); $('redoBtn').textContent = t('redo'); $('clearBtn').textContent = t('clear');
+  $('blurAllBtn').textContent = t('blurAll');
   $('genBtn').textContent = t('genBtn');
 
   // Start

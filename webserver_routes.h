@@ -2558,8 +2558,32 @@
             html += "<form action='/scalebmp_run' method='GET'>";
             html += translate("Source") + ": <input name = 'src' value = '/" + src + "' readonly><br>";
             html += translate("Target") + ": <input name = 'dst' value = '/scaled_" + src + "'><br>";
-            html += translate("Width") + ": <input name='w' type='number' value='" + String(CLOCK_WIDTH) + "' required><br>";
-            html += translate("Height") + ": <input name = 'h' type = 'number' value = '" + String(CLOCK_HEIGHT) + "' required><br>";
+            // Zeigerdateien: aktuelle Groesse vorschlagen statt der Zifferblattgroesse -
+            // eine andere Groesse verzerrt den Zeiger und verschiebt den Drehpunkt.
+
+            // Hand files: suggest the current size instead of the clock-face size -
+            // a different size distorts the hand and shifts the pivot.
+            int32_t suggestW = CLOCK_WIDTH, suggestH = CLOCK_HEIGHT;
+            String scalePath = webserver.arg("file");
+            if (!scalePath.startsWith("/")) scalePath = "/" + scalePath;
+            bool isHandFile = scalePath.startsWith("/hand_set");
+            if (isHandFile) {
+                int32_t fileW, fileH;
+                if (readImageSize(scalePath.c_str(), fileW, fileH)) {
+                    suggestW = fileW;
+                    suggestH = fileH;
+                }
+                else {
+                    suggestW = HAND_LEGACY_WIDTH;
+                    suggestH = HAND_LEGACY_HEIGHT;
+                }
+            }
+            html += translate("Width") + ": <input name='w' type='number' value='" + String(suggestW) + "' required><br>";
+            html += translate("Height") + ": <input name = 'h' type = 'number' value = '" + String(suggestH) + "' required><br>";
+            if (isHandFile) {
+                html += "<small>" + translate("Hands: keep the current size, other sizes distort the hand and shift the pivot") + " (" +
+                        String(HAND_LEGACY_WIDTH) + "/" + String(HAND_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "/" + String(HAND_HEIGHT) + ")</small><br>";
+            }
             html += "<button type='submit'>" + translate("Scale and Save") + "</button></form>";
             html += "<br><br>";
             // html += generateNavigation(); // Navigation einfügen
@@ -3259,6 +3283,16 @@
                 size_t fileSize = f ? f.size() : 0;
                 if (f) f.close();
                 String info = getBmpInfo(name);
+
+                // Zeigerdateien mit Formatangabe: in einem Satz sind verschiedene
+                // gueltige Groessen normal (der Designer speichert so klein wie moeglich).
+
+                // Hand files with a format label: different valid sizes within one set
+                // are normal (the designer saves as small as possible).
+                if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
+                    String label = handFormatLabel(openPath);
+                    if (label.length()) info += " (" + label + ")";
+                }
                 chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
                 chunk += "<td align=right>" + String(info) + "</td>";
                 chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
@@ -7021,9 +7055,9 @@
             }
 
 
-            String handHourBase64 = encodeBmpToBase64(handHour, HAND_WIDTH, HAND_LEGACY_HEIGHT);
-            String handMinuteBase64 = encodeBmpToBase64(handMinute, HAND_WIDTH, HAND_LEGACY_HEIGHT);
-            String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_WIDTH, HAND_LEGACY_HEIGHT);
+            String handHourBase64 = encodeBmpToBase64(handHour, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
+            String handMinuteBase64 = encodeBmpToBase64(handMinute, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
+            String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
 
             // Default-Zeigersatz (eingebaut) - eigener Chunk
             // Default hand set (built-in) - its own chunk
@@ -7165,7 +7199,7 @@
                 chunk += "<a href='/handdesigner'><button type='button'>" + translate("Open Hand Designer") + "</button></a><hr>";
 
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
+                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
 
                 chunk += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
@@ -7313,7 +7347,7 @@
                             ",smoothSec:" + String(getSmoothSecondPref(modeStation) ? "true" : "false") +
                             ",fastMs:" + String((int)FAST_SECOND) + "}";
 
-            chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) +
+            chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) +
                      ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
                      ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(preferences.getString(PK_HANDSET, "")) +
                      "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
@@ -7338,7 +7372,7 @@
                 return;
             }
             size_t size = 0;
-            uint8_t* bmp = encodeBmpToBytes(src, HAND_WIDTH, HAND_LEGACY_HEIGHT, &size);
+            uint8_t* bmp = encodeBmpToBytes(src, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT, &size);
             if (!bmp) {
                 webserver.send(500, "text/plain", "Out of memory");
                 return;
@@ -7437,7 +7471,7 @@
 
             chunk += "<script>var FD={w:" + String(CLOCK_WIDTH) + ",h:" + String(CLOCK_HEIGHT) + ",round:" + String(roundJs) +
                      ",active:'" + jsSafe(selectedBackground) + "',faces:[" + facesJs + "],free:" + String(freeBytes) +
-                     ",hand:{w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",py:" + String(HAND_PIVOT_Y) +
+                     ",hand:{w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) + ",py:" + String(HAND_PIVOT_Y) +
                      ",set:'" + jsSafe(preferences.getString(PK_HANDSET, "")) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
@@ -7826,7 +7860,9 @@
                         else if (uploadFilePath.startsWith("/hand_set")) {
                             DEBUG_PRINTLN("[UPLOAD] Detected Clock Hand upload (from " + webserver.client().remoteIP().toString() + ")");
 
-                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), HAND_WIDTH, handTargetHeight(uploadFilePath.c_str()))) {
+                            int targetW, targetH;
+                            handTargetSize(uploadFilePath.c_str(), targetW, targetH);
+                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), targetW, targetH)) {
                                 DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                                 uploadSuccess = false;
                                 return;

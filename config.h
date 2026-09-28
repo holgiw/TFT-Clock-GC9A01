@@ -125,7 +125,9 @@
 #define CLOCK_WIDTH 240
 #define CLOCK_HEIGHT 240
 
-#define HAND_WIDTH 21
+#define HAND_LEGACY_WIDTH 21
+#define HAND_WIDTH 25          // Zeigerbreite neues Format, alte Zeiger (21) werden seitlich aufgefuellt
+                               // hand width new format, old hands (21) are padded at the sides
 #define HAND_LEGACY_HEIGHT 131
 #define HAND_LEGACY_PIVOT_Y 100 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
                                 // pivot in the old format - existing hand files are drawn around it
@@ -173,7 +175,9 @@
 #define CLOCK_WIDTH 160
 #define CLOCK_HEIGHT 160
 
-#define HAND_WIDTH 13
+#define HAND_LEGACY_WIDTH 13
+#define HAND_WIDTH 15          // Zeigerbreite neues Format, alte Zeiger (13) werden seitlich aufgefuellt
+                               // hand width new format, old hands (13) are padded at the sides
 #define HAND_LEGACY_HEIGHT 86
 #define HAND_LEGACY_PIVOT_Y 66 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
                                // pivot in the old format - existing hand files are drawn around it
@@ -216,7 +220,9 @@
 #define CLOCK_WIDTH 240
 #define CLOCK_HEIGHT 240
 
-#define HAND_WIDTH 21
+#define HAND_LEGACY_WIDTH 21
+#define HAND_WIDTH 25          // Zeigerbreite neues Format, alte Zeiger (21) werden seitlich aufgefuellt
+                               // hand width new format, old hands (21) are padded at the sides
 #define HAND_LEGACY_HEIGHT 131
 #define HAND_LEGACY_PIVOT_Y 100 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
                                 // pivot in the old format - existing hand files are drawn around it
@@ -232,18 +238,22 @@
     // analogous to the GC9A01 block above if needed.
 #endif
 
-    // Zeigerformat: die Drehpunkte oben je Display fest (Dateiformat, darf sich
-    // nicht aendern); das Stueck unter dem Drehpunkt bleibt wie bisher. Alte
-    // Zeiger (HAND_LEGACY_HEIGHT) werden oben transparent aufgefuellt.
+    // Zeigerformat: Drehpunkte und Breiten oben je Display fest (Dateiformat, darf
+    // sich nicht aendern); Drehpunkt-Spalte ist die halbe Breite. Alte Zeiger werden
+    // oben (HAND_TOP_PAD) und seitlich (HAND_SIDE_PAD) transparent aufgefuellt.
 
-    // Hand format: the pivots above are fixed per display (file format, must
-    // not change); the part below the pivot stays as before. Old hands
-    // (HAND_LEGACY_HEIGHT) are padded transparent at the top.
+    // Hand format: pivots and widths above are fixed per display (file format, must
+    // not change); the pivot column is half the width. Old hands are padded
+    // transparent at the top (HAND_TOP_PAD) and at the sides (HAND_SIDE_PAD).
 #define HAND_TOP_PAD (HAND_PIVOT_Y - HAND_LEGACY_PIVOT_Y)          // 20 bzw. 14
                                                                    // 20 or 14
 #define HAND_HEIGHT (HAND_LEGACY_HEIGHT + HAND_TOP_PAD)            // 151 bzw. 100
                                                                    // 151 or 100
+#define HAND_SIDE_PAD ((HAND_WIDTH - HAND_LEGACY_WIDTH) / 2)       // 2 bzw. 1
+                                                                   // 2 or 1
 static_assert(HAND_TOP_PAD >= 0, "HAND_PIVOT_Y must not lie above HAND_LEGACY_PIVOT_Y");
+static_assert(HAND_WIDTH >= HAND_LEGACY_WIDTH && (HAND_WIDTH - HAND_LEGACY_WIDTH) % 2 == 0,
+              "HAND_WIDTH must be HAND_LEGACY_WIDTH plus an even number, so the pivot column stays centred");
 static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the display radius");
 
 
