@@ -85,6 +85,8 @@ Commit-Betreffen zusammengefasst.
   Prüffragen ohne gefundene Uhr, Hinweis auf die Gruppe `dialout` bei fehlenden Rechten; unterstützt
   `esptool` ab v5 und `esptool.py`). Aufruf `bash flashESP.sh` oder `bash flashESP.sh 0` für
   `/dev/ttyACM0`; die manuellen esptool-Befehle stehen weiter in der Readme.
+- `flashESP.bat`/`flashESP.sh`: Schlägt das Flashen fehl, erklären beide, wie der ESP32-S2 von Hand
+  in den Bootmodus gebracht wird (Boot halten und dann USB anstecken bzw. Reset+Boot).
   Der ESP32-S2 hat zwei COM-Ports (laufend bzw. Download-Modus): Eine laufende Uhr startet
   `port.ps1` wie die Arduino IDE per 1200-Baud-Signal in den Download-Modus neu und flasht über
   den dann neu erscheinenden Port. Die Port-Logik liegt in `port.ps1` neben `flashESP.bat`. Die
