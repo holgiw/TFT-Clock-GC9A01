@@ -155,7 +155,6 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       confirmExists: 'Das Zifferblatt "{0}" gibt es schon - \u00fcberschreiben?',
       confirmReset: 'Alle \u00c4nderungen verwerfen und das aktive Zifferblatt neu laden?',
       confirmClear: 'Das ganze Zifferblatt mit der aktuellen Farbe f\u00fcllen?',
-      confirmGen: 'Aktuelles Zifferblatt durch das erzeugte ersetzen?',
       imgErr: 'Bild konnte nicht gelesen werden.',
       lowSpace: 'Wenig freier Speicher ({0} KB) - ein neues Zifferblatt braucht bis zu {1} KB.',
       h_pen: 'Stift: Pixel einzeln setzen oder freihand zeichnen, in der eingestellten Stiftbreite.',
@@ -202,7 +201,6 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       confirmExists: 'The clock face "{0}" already exists - overwrite?',
       confirmReset: 'Discard all changes and reload the active clock face?',
       confirmClear: 'Fill the whole clock face with the current colour?',
-      confirmGen: 'Replace the current clock face with the generated one?',
       imgErr: 'Image could not be read.',
       lowSpace: 'Little free space ({0} KB) - a new clock face needs up to {1} KB.',
       h_pen: 'Pen: set single pixels or draw freehand, at the chosen pen width.',
@@ -249,7 +247,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       confirmExists: 'Le cadran "{0}" existe d\u00e9j\u00e0 - l\u2019\u00e9craser ?',
       confirmReset: 'Annuler toutes les modifications et recharger le cadran actif ?',
       confirmClear: 'Remplir tout le cadran avec la couleur actuelle ?',
-      confirmGen: 'Remplacer le cadran actuel par le cadran g\u00e9n\u00e9r\u00e9 ?', imgErr: 'L\u2019image n\u2019a pas pu \u00eatre lue.',
+      imgErr: 'L\u2019image n\u2019a pas pu \u00eatre lue.',
       lowSpace: 'Peu d\u2019espace libre ({0} Ko) - un nouveau cadran n\u00e9cessite jusqu\u2019\u00e0 {1} Ko.',
       h_pen: 'Crayon : placer des pixels un par un ou dessiner \u00e0 main lev\u00e9e, avec l\u2019\u00e9paisseur choisie.',
       h_line: 'Ligne : tirer du point de d\u00e9part au point d\u2019arriv\u00e9e.',
@@ -854,7 +852,6 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   Object.keys(genDef).forEach(function (id) { $(id).value = genDef[id]; });
   function num(id) { return Math.max(0, +$(id).value || 0); }
   $('genBtn').onclick = function () {
-    if (!confirm(t('confirmGen'))) return;
     var c = newCanvas(W, H), x = c.getContext('2d');
     x.fillStyle = $('gBg').value; x.fillRect(0, 0, W, H);
     var ring = num('gRing');

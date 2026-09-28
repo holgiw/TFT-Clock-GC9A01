@@ -22,6 +22,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 .hd .pal{display:grid;grid-template-columns:repeat(16,1fr);gap:1px;max-width:224px;margin:2px 0 4px}
 .hd .pal span{aspect-ratio:1;cursor:pointer;border-radius:2px}
 .hd .sw.on,.hd .pal span.on{outline:2px solid var(--accent);outline-offset:1px}
+.hd .sw.transp{background:repeating-conic-gradient(#2b3138 0% 25%,#1f252b 0% 50%) 50%/8px 8px}
 .hd .hex{width:86px;font-family:monospace}
 .hd.stickon .stick{position:sticky;top:var(--hdTop,70px);max-height:calc(100vh - var(--hdTop,70px) - 8px);overflow-y:auto}
 .hd .num{width:72px;padding:6px 4px 6px 8px}
@@ -131,6 +132,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       confirmReset: 'Alle \u00c4nderungen verwerfen und das aktive Design neu laden?', confirmClear: 'Diesen Zeiger komplett leeren?',
       confirmGen: 'Aktuellen Zeiger durch die erzeugte Form ersetzen?',
       whiteHint: 'Reines Wei\u00df ist transparent - wird automatisch zu Fast-Wei\u00df.',
+      transp: 'Transparent', transpHint: 'Transparent gew\u00e4hlt: alle Werkzeuge zeichnen durchsichtige Pixel, wie der Radierer.',
       pickBtn: 'Aufnehmen', pickTip: 'Farbe aus einem Pixel aufnehmen - auch per Rechtsklick in die Zeichenfl\u00e4che oder Klick in die Vorschau',
       std: 'Standardfarben', pal: 'Palette', free: 'Beliebige Farbe', hexHint: '#RRGGBB oder RGB565 (0xFFFF)',
       h_pen: 'Stift: Pixel einzeln setzen oder freihand zeichnen.',
@@ -164,6 +166,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       confirmReset: 'Discard all changes and reload the active design?', confirmClear: 'Clear this hand completely?',
       confirmGen: 'Replace the current hand with the generated shape?',
       whiteHint: 'Pure white is transparent - automatically becomes near-white.',
+      transp: 'Transparent', transpHint: 'Transparent selected: all tools draw see-through pixels, like the eraser.',
       pickBtn: 'Pick', pickTip: 'Pick the colour of a pixel - also by right-clicking the drawing area or clicking the preview',
       std: 'Standard colours', pal: 'Palette', free: 'Any colour', hexHint: '#RRGGBB or RGB565 (0xFFFF)',
       h_pen: 'Pen: set single pixels or draw freehand.', h_erase: 'Eraser: makes pixels transparent again.',
@@ -202,6 +205,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       confirmClear: 'Effacer enti\u00e8rement cette aiguille ?',
       confirmGen: 'Remplacer l\u2019aiguille actuelle par la forme g\u00e9n\u00e9r\u00e9e ?',
       whiteHint: 'Le blanc pur est transparent - il devient automatiquement presque blanc.', pickBtn: 'Pr\u00e9lever',
+      transp: 'Transparent', transpHint: 'Transparent s\u00e9lectionn\u00e9 : tous les outils dessinent des pixels transparents, comme la gomme.',
       pickTip: 'Pr\u00e9lever la couleur d\u2019un pixel - aussi par clic droit dans la zone de dessin ou clic dans l\u2019aper\u00e7u',
       std: 'Couleurs standard', pal: 'Palette', free: 'Couleur libre', hexHint: '#RRGGBB ou RGB565 (0xFFFF)',
       h_pen: 'Crayon : placer des pixels un par un ou dessiner \u00e0 main lev\u00e9e.',
@@ -478,7 +482,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     ed.setPointerCapture(ev.pointerId);
     if (tool === 'pick') {
       var pv = pix[part][c.y * W + c.x];
-      if (pv >= 0) { setColor(pv); }
+      setColor(pv);
       pickDone();
       return;
     }
@@ -602,20 +606,26 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   }
   // src = das Eingabefeld, aus dem die Farbe kommt - dessen Wert bleibt beim Tippen/Ziehen unangetastet
   // src = the input the colour comes from - its value stays untouched while typing/dragging
+  // TRANSPARENT (-1) ist eine waehlbare "Farbe": alle Werkzeuge schreiben dann
+  // durchsichtige Pixel (Stift, Formen, Fuellen, Polygon, Formgenerator).
+
+  // TRANSPARENT (-1) is a selectable "colour": all tools then write see-through
+  // pixels (pen, shapes, fill, polygon, shape generator).
   function setColor(v, src) {
-    color = fix565(v);
-    if (src !== 'picker') $('color').value = hexOf(color);
-    if (src !== 'hex') $('colorHex').value = hexOf(color);
-    $('colorHint').textContent = (v === 0xFFFF) ? t('whiteHint') : '';
+    color = v < 0 ? TRANSPARENT : fix565(v);
+    if (src !== 'picker' && color >= 0) $('color').value = hexOf(color);
+    if (src !== 'hex') $('colorHex').value = color < 0 ? t('transp') : hexOf(color);
+    $('colorHint').textContent = (v === 0xFFFF) ? t('whiteHint') : (color < 0 ? t('transpHint') : '');
     colorCells.forEach(function (c) { c.classList.toggle('on', +c.dataset.v === color); });
   }
   $('color').addEventListener('input', function () { setColor(to565(this.value), 'picker'); });
   $('colorHex').addEventListener('input', function () {
     var h = this.value.trim();
     if (/^#?[0-9a-f]{6}$/i.test(h)) setColor(to565(h.charAt(0) === '#' ? h : '#' + h), 'hex');
+    else if (h.toLowerCase() === t('transp').toLowerCase()) setColor(TRANSPARENT, 'hex');
     else if (/^0x[0-9a-f]{1,4}$/i.test(h)) setColor(parseInt(h, 16), 'hex');
   });
-  $('colorHex').addEventListener('change', function () { this.value = hexOf(color); });
+  $('colorHex').addEventListener('change', function () { this.value = color < 0 ? t('transp') : hexOf(color); });
   var colorCells = [];
   function addCell(parent, cls, v) {
     var c = document.createElement('span');
@@ -625,6 +635,12 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     parent.appendChild(c); colorCells.push(c);
   }
   [0x0000, 0x4208, 0x8410, 0xF800, 0xB000, 0xFD20, 0xC618, 0xFFDF, 0x001F, 0x07E0].forEach(function (v) { addCell($('swatches'), 'sw', v); });
+  (function () {
+    var c = document.createElement('span');
+    c.className = 'sw transp'; c.title = t('transp'); c.dataset.v = TRANSPARENT;
+    c.onclick = function () { setColor(TRANSPARENT); };
+    $('swatches').appendChild(c); colorCells.push(c);
+  })();
 
   // Palette: Graustufen, 16 Farbtoene in 7 Helligkeiten, 2 Reihen gedeckte Toene - alles
   // bereits auf RGB565 gerundet, damit die Palette genau die Farben der Uhr zeigt.
@@ -964,7 +980,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   ed.addEventListener('contextmenu', function (ev) {
     ev.preventDefault();
     var c = cell(ev);
-    if (inGrid(c)) { var v = pix[part][c.y * W + c.x]; if (v >= 0) setColor(v); };
+    if (inGrid(c)) setColor(pix[part][c.y * W + c.x]);
   });
   pv.style.cursor = 'crosshair';
   pv.addEventListener('click', function (ev) {
