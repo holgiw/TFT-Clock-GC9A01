@@ -12,7 +12,7 @@ Wenn der ESP bereits eine Vorgängerversion der Uhr hatte diesen Block ausführe
 
 ########################################################
 	ESP32-S2 am PC per USB anstecken..
-	start.bat starten - die laufende Uhr wird automatisch in den Download-Modus gebracht
+	flashESP.bat starten - die laufende Uhr wird automatisch in den Download-Modus gebracht
 	(der ESP32-S2 hat dann eine andere COM Schnittstelle, meist COM4 laufend / COM3 im Download-Modus).
 
 ########################################################
@@ -34,9 +34,9 @@ ODER
 ########################################################
 
 
-Danach im DOS Fenster im ausgepackten Verzeichnis start.bat mit der Nummer der COM Schnittstelle aufrufen, z.B. "start.bat 3" für COM3 - das flasht den ESP32 S2.
-Ohne Nummer (z.B. per Doppelklick) listet start.bat alle COM Schnittstellen auf, markiert angeschlossene Uhren (Download-Modus bzw. laufend) und fragt nach der Schnittstelle - bei genau einer gefundenen Uhr genügt Enter.
-Ist an der gewählten Schnittstelle eine laufende Uhr, startet start.bat sie wie die Arduino IDE (1200 Baud) in den Download-Modus neu und flasht über die dann neu erscheinende COM Schnittstelle. start.bat und port.ps1 müssen im selben Verzeichnis liegen.
+Danach im DOS Fenster im ausgepackten Verzeichnis flashESP.bat mit der Nummer der COM Schnittstelle aufrufen, z.B. "flashESP.bat 3" für COM3 - das flasht den ESP32 S2.
+Ohne Nummer (z.B. per Doppelklick) listet flashESP.bat alle COM Schnittstellen auf, markiert angeschlossene Uhren (Download-Modus bzw. laufend) und fragt nach der Schnittstelle - bei genau einer gefundenen Uhr genügt Enter.
+Ist an der gewählten Schnittstelle eine laufende Uhr, startet flashESP.bat sie wie die Arduino IDE (1200 Baud) in den Download-Modus neu und flasht über die dann neu erscheinende COM Schnittstelle. flashESP.bat und port.ps1 müssen im selben Verzeichnis liegen.
 
 SSID einstellen:
 	Am WLan Router WPS einschalten (Menü, Taster)
@@ -148,7 +148,7 @@ If the ESP already had a previous version of the clock, run this block:
 
 ########################################################
 	Connect the ESP32-S2 to the PC via USB..
-	run start.bat - the running clock is switched to download mode automatically
+	run flashESP.bat - the running clock is switched to download mode automatically
 	(the ESP32-S2 then has a different COM port, usually COM4 running / COM3 in download mode).
 
 ########################################################
@@ -170,9 +170,9 @@ OR
 ########################################################
 
 
-Then, in the Command Prompt in the unpacked folder, run start.bat with the COM port number, e.g. "start.bat 3" for COM3 - this flashes the ESP32-S2.
-Without a number (e.g. by double-click) start.bat lists all COM ports, marks connected clocks (download mode or running) and asks for the port - with exactly one clock found, Enter is enough.
-If a running clock is on the selected port, start.bat restarts it into download mode like the Arduino IDE (1200 baud) and flashes via the COM port that then appears. start.bat and port.ps1 must be in the same folder.
+Then, in the Command Prompt in the unpacked folder, run flashESP.bat with the COM port number, e.g. "flashESP.bat 3" for COM3 - this flashes the ESP32-S2.
+Without a number (e.g. by double-click) flashESP.bat lists all COM ports, marks connected clocks (download mode or running) and asks for the port - with exactly one clock found, Enter is enough.
+If a running clock is on the selected port, flashESP.bat restarts it into download mode like the Arduino IDE (1200 baud) and flashes via the COM port that then appears. flashESP.bat and port.ps1 must be in the same folder.
 
 Setting the SSID:
 	Enable WPS on the WiFi router (via button or menu).
