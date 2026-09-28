@@ -1,8 +1,8 @@
-    // howl@gmx.de - Stationsuhr
+    // howl-clock@gmx.de - Stationsuhr
     // ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01, TFT_eSPI 2.5.34
     // DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
-    // howl@gmx.de - station clock
+    // howl-clock@gmx.de - station clock
     // ESP32-S2 Mini (built as Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01, TFT_eSPI 2.5.34
     // DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 

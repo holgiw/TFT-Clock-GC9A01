@@ -30,6 +30,7 @@ Commit-Betreffen zusammengefasst.
 - Zifferblatt-Designer: „Erzeugen“ ersetzt das Zifferblatt ohne Rückfrage (mit „Rückgängig“
   zurückholbar).
 - Zifferblatt-Designer: „Name:“ und das Eingabefeld bleiben in einer Zeile.
+- Kontaktadresse auf Status- und Info-Seite: howl-clock@gmx.de.
 - Neue Screenshots der Weboberfläche, getrennt nach Sprache in `screenshots/de/` und
   `screenshots/en/` (PNG, englische Dateinamen im Ordner `en/`): Uhr-Einstellungen, Helligkeit,
   Vorschau, Uhren-Sets, Zifferblatt, Zeiger, Zeiger- und Zifferblatt-Designer, Dateimanager.

@@ -3782,7 +3782,7 @@
             }
             chunk += "</ul>";
             chunk += "</br>";
-            chunk += "<li>Contact: <a href='mailto:howl@gmx.de'>howl@gmx.de</a></li>";
+            chunk += "<li>Contact: <a href='mailto:howl-clock@gmx.de'>howl-clock@gmx.de</a></li>";
 
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
 
@@ -5482,7 +5482,7 @@
             }
             chunk += "</ul>";
             chunk += "</br>";
-            chunk += "<li>Contact: <a href='mailto:howl@gmx.de'>howl@gmx.de</a></li>";
+            chunk += "<li>Contact: <a href='mailto:howl-clock@gmx.de'>howl-clock@gmx.de</a></li>";
             chunk += "<li>Project: <a href='" GITHUB_REPO_URL "' target='_blank'>GitHub</a></li>";
             chunk += "</ul>";
             chunk += "</div>"; // Ende .card
