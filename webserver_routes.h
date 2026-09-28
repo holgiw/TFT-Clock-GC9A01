@@ -3523,7 +3523,8 @@
 
             chunk += "<li>TFT Driver: " + tftType + "</li>";
 
-            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
+            chunk += "<li>TFT Size: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</li>"; // CLOCK_* statt TFT_* (beim GC9D01 von TFT_eSPI auf 240 ueberschrieben)
+                                                                                                       // CLOCK_* instead of TFT_* (overridden to 240 by TFT_eSPI on the GC9D01)
 
             chunk += "<br>";
 
@@ -5043,16 +5044,19 @@
             chunk += "}";
             chunk += "</script><hr>";
 
-            // Hinweis und Download-Link für die ZIP-Datei
-            // Notice and download link for the ZIP file
-            if (TFT_WIDTH == 240) {
+            // Hinweis und Download-Link für die ZIP-Datei - CLOCK_WIDTH statt
+            // TFT_WIDTH: <TFT_eSPI.h> setzt TFT_WIDTH auch beim GC9D01 auf 240.
+
+            // Notice and download link for the ZIP file - CLOCK_WIDTH instead of
+            // TFT_WIDTH: <TFT_eSPI.h> sets TFT_WIDTH to 240 even on the GC9D01.
+            if (CLOCK_WIDTH == 240) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
                 chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
                 chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
             }
 
-            if (TFT_WIDTH == 160) {
+            if (CLOCK_WIDTH == 160) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
                 chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
@@ -5253,7 +5257,8 @@
 
             chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
             chunk += "<li>TFT Driver: " + tftType + "</li>";
-            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
+            chunk += "<li>TFT Size: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</li>"; // CLOCK_* statt TFT_*, siehe oben
+                                                                                                       // CLOCK_* instead of TFT_*, see above
             chunk += "<br>";
 
             webserver.sendContent(chunk);

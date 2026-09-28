@@ -136,32 +136,30 @@
 
 #define TFT_TEXT_SIZE 2
 
-    // TFT_eSPI-Referenzkonfiguration (Arduino IDE!) - wirkt nicht automatisch
-    // auf die Bibliothek; muss einmalig in deren User_Setup_Select.h
-    // eingebunden werden (Redirect auf diesen Block).
+    // TFT_eSPI-Referenzkonfiguration - NUR Dokumentation, wirkt nicht auf die
+    // Bibliothek. Wirksam ist deren eigene Einstellung (User_Setup_Select.h ->
+    // User_Setups/Setup304_ESP32S2_GC9A01_GC9D01.h); die Werte hier spiegeln
+    // genau diese Datei. Aenderungen dort vornehmen und hier nachziehen.
+    // <TFT_eSPI.h> ueberschreibt diese Defines im Sketch ohnehin wieder.
+    // Belegung laut PCB-Referenz: 7 scl, 11 sda, 33 dc, 5 rst.
 
-    // TFT_eSPI reference config (Arduino IDE!) - does not automatically
-    // affect the library; must be included once into its
-    // User_Setup_Select.h (redirect to this block).
+    // TFT_eSPI reference config - documentation ONLY, has no effect on the
+    // library. What takes effect is its own setup (User_Setup_Select.h ->
+    // User_Setups/Setup304_ESP32S2_GC9A01_GC9D01.h); the values here mirror
+    // exactly that file. Make changes there and update this block to match.
+    // <TFT_eSPI.h> overrides these defines in the sketch anyway.
+    // Mapping per PCB reference: 7 scl, 11 sda, 33 dc, 5 rst.
 #define GC9A01_DRIVER
-#define TFT_MOSI  6
-#define TFT_SCLK  4
-#define TFT_CS    -1  // manuelle CS-Steuerung aktiv (siehe CS_1 oben) - muss auch in User_Setup.h -1 sein
-                      // manual CS control active (see CS_1 above) - must also be -1 in User_Setup.h
-#define TFT_DC    10  // Data/Command
-#define TFT_RST   0   // Reset
-#define TFT_BL    5   // Backlight (Bibliothekseigene Steuerung, zusaetzlich zu Pin 3/TFT_Backlight fuer eigene PWM-Helligkeit)
-                      // Backlight (library's own control, in addition to pin 3/TFT_Backlight for our own PWM brightness)
+#define TFT_MOSI  11
+#define TFT_SCLK  7
+#define TFT_CS    -1  // manuelle CS-Steuerung aktiv (siehe CS_1 oben) - in Setup304 ebenfalls -1
+                      // manual CS control active (see CS_1 above) - also -1 in Setup304
+#define TFT_DC    33  // Data/Command
+#define TFT_RST   5   // Reset
+                      // Hintergrundbeleuchtung: Pin 3, eigene PWM ueber TFT_Backlight (oben)
+                      // backlight: pin 3, own PWM via TFT_Backlight (above)
 #define LOAD_GLCD
-#define LOAD_FONT2
-#define LOAD_FONT4
-#define LOAD_FONT6
-#define LOAD_FONT7
-#define LOAD_FONT8
-#define LOAD_GFXFF
-#define SMOOTH_FONT
-#define SPI_FREQUENCY       27000000
-#define SPI_READ_FREQUENCY  20000000
+#define SPI_FREQUENCY       60000000
 #endif
 
 #ifdef GC9D01
@@ -192,22 +190,13 @@
     // GC9D01 is driven electrically/at the driver level like GC9A01 - pin/
     // driver settings therefore identical to the GC9A01 block above.
 #define GC9A01_DRIVER
-#define TFT_MOSI  6
-#define TFT_SCLK  4
+#define TFT_MOSI  11
+#define TFT_SCLK  7
 #define TFT_CS    -1
-#define TFT_DC    10
-#define TFT_RST   0
-#define TFT_BL    5
+#define TFT_DC    33
+#define TFT_RST   5
 #define LOAD_GLCD
-#define LOAD_FONT2
-#define LOAD_FONT4
-#define LOAD_FONT6
-#define LOAD_FONT7
-#define LOAD_FONT8
-#define LOAD_GFXFF
-#define SMOOTH_FONT
-#define SPI_FREQUENCY       27000000
-#define SPI_READ_FREQUENCY  20000000
+#define SPI_FREQUENCY       60000000
 #endif
 
 #ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt

@@ -55,6 +55,15 @@ Commit-Betreffen zusammengefasst.
 - README und Einrichtungsanleitung auf 25 × 151 aktualisiert.
 
 ### Behoben
+- `config.h`: TFT-Referenzblock nannte falsche Pins (SCLK 4 / MOSI 6 / DC 10 / RST 0 – SCLK 4
+  wäre sogar ADC_GND gewesen) und veraltete Schrift-/Takt-Defines. Jetzt Spiegel der tatsächlich
+  wirksamen TFT_eSPI-Einstellung `Setup304_ESP32S2_GC9A01_GC9D01.h`: SCLK 7, MOSI 11, DC 33,
+  RST 5, nur GLCD-Schrift, 60 MHz. Reine Dokumentation – die Firmware verhält sich unverändert,
+  da `<TFT_eSPI.h>` diese Defines ohnehin mit den Werten der Bibliothek überschreibt. Dieselben
+  Pins auch in `readme.txt` und den readme-Dateien der `build_*`-Ordner korrigiert.
+- GC9D01: Status- und Info-Seite zeigten „TFT Size: 240 x 240“, und auf der Zifferblatt-Seite
+  wurde die 240er-ZIP statt `faces_handsets_160.zip` angeboten – `<TFT_eSPI.h>` setzt
+  `TFT_WIDTH` auch beim GC9D01 auf 240. Beides nutzt jetzt `CLOCK_WIDTH`/`CLOCK_HEIGHT`.
 - Status- und Info-Seite: „daywindow“ zeigte das Ende eine Stunde zu spät (z. B. 7:00 - 23:00 bei
   eingestelltem 7–22). Die Helligkeitslogik rechnet mit Ende exklusiv (Stunde < Ende), die Anzeige
   addierte aber 1 und las die Preferences mit anderen Standardwerten (8/20 statt 7/21). Jetzt aus

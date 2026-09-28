@@ -64,13 +64,13 @@ Unbedingt auf die Beschriftung achten (VCC, GND usw.)
 Pinbelegung ESP32
 
 TFT (Display 1, Pflicht):
-	TFT_SCLK: 4
-	TFT_MOSI: 6
-	TFT_DC: 10
-	TFT_RST: 0
-	TFT_BL: 5 (Hintergrundbeleuchtung, nur bei GC9D01 bzw. GC9A01_WITH_BACKLIGHT relevant)
+	TFT_SCLK: 7
+	TFT_MOSI: 11
+	TFT_DC: 33
+	TFT_RST: 5
+	TFT_Backlight: 3 (Hintergrundbeleuchtung, nur bei GC9D01 bzw. GC9A01_WITH_BACKLIGHT relevant)
 
-Chip-Select (wird vom Sketch manuell angesteuert, NICHT von der TFT_eSPI-Bibliothek - dort muss TFT_CS in der User_Setup.h auf -1 gesetzt sein):
+Chip-Select (wird vom Sketch manuell angesteuert, NICHT von der TFT_eSPI-Bibliothek - dort steht TFT_CS in Setup304_ESP32S2_GC9A01_GC9D01.h auf -1):
 	CS_1 (Display 1): 12
 	CS_2 (Display 2, optional - in der Weboberfläche die Rotation von Display 2 von "nicht angeschlossen (n.a.)" auf einen Winkel stellen; Standard ist n.a.): 18
 
@@ -208,13 +208,13 @@ Be sure to pay close attention to the labeling (VCC, GND, etc.)
 ESP32 Pin Assignment
 
 TFT (Display 1, required):
-	TFT_SCLK: 4
-	TFT_MOSI: 6
-	TFT_DC: 10
-	TFT_RST: 0
-	TFT_BL: 5 (backlight, only relevant for GC9D01 / GC9A01_WITH_BACKLIGHT)
+	TFT_SCLK: 7
+	TFT_MOSI: 11
+	TFT_DC: 33
+	TFT_RST: 5
+	TFT_Backlight: 3 (backlight, only relevant for GC9D01 / GC9A01_WITH_BACKLIGHT)
 
-Chip select (driven manually by the sketch, NOT by the TFT_eSPI library - its User_Setup.h must have TFT_CS set to -1):
+Chip select (driven manually by the sketch, NOT by the TFT_eSPI library - TFT_CS is set to -1 in its Setup304_ESP32S2_GC9A01_GC9D01.h):
 	CS_1 (Display 1): 12
 	CS_2 (Display 2, optional - in the web interface, change Display 2's rotation from "not connected (n.a.)" to an angle; default is n.a.): 18
 
