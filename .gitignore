@@ -363,3 +363,16 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# --- uhr3 / Arduino / Visual Micro ---
+# Visual Micro Zustandsdateien und VS-Projektdateien (lokal, nicht versioniert)
+__vm/
+uhr3.vcxproj
+uhr3.vcxproj.filters
+# Build-Nebenprodukte; nur die Flash-Dateien in build_<Display>/ werden eingecheckt
+*.ino.elf
+*.ino.map
+*_flashed.bin
+/uhr3.ino.*.bin
+/build_*.zip
+/esp32.esp32.*.zip

@@ -61,3 +61,15 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# uhr3: Binärdateien und Windows-Batch explizit
+###############################################################################
+*.bin   binary
+*.exe   binary
+*.bmp   binary
+*.zip   binary
+*.lay6  binary
+*.ckt   binary
+*.stl   binary
+*.bat   text eol=crlf

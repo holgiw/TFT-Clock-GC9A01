@@ -63,6 +63,18 @@ Commit-Betreffen zusammengefasst.
   ab 2^24 ms rundete die 24-Bit-Mantisse, der Zeitstempel lag dann 1 ms in der Zukunft und die
   unsigned-Differenz lief über. Jetzt ganzzahlig und vorzeichenbehaftet gerechnet. (Ohne Fix wäre
   der Schritt ab ca. 12 Tagen Laufzeit dauerhaft falsch gewesen, 1024 statt 975 ms.)
+- Anleitungen in den `build_*`-Ordnern (`readme.txt`, `liesmich.txt`) nannten noch das feste
+  AP-Passwort `clock123` und den alten 10-s-WLAN-Reset. Jetzt wie die `readme.txt` im Hauptordner:
+  Passwort pro Gerät auf dem Display, Werksreset nach 15 s. (Im Backlight-Build ohne die neuere
+  Display-2-Beschreibung, weil dessen Firmware vom 2026-09-10 stammt.)
+
+### Repository
+- Git-Historie bereinigt: alte Build-Artefakte (`build/` mit `.elf`/`.map`/`merged.bin`, alte
+  `build_*.zip`, frühere Versionen der `.bin` in `build_*`), `uhr3.ino.lolin_s2_pico.bin` im
+  Hauptordner, `__vm/`, `uhr3.vcxproj(.filters)` sowie `pictures/uhr3.mp4`, `uhr3.bmp` und alte
+  `TFT_eSPI.zip`-Stände entfernt. Bestehende Klone müssen neu geklont werden.
+- `__vm/` und `uhr3.vcxproj(.filters)` werden nicht mehr versioniert (bleiben lokal), ebenso
+  `.map`, `.elf` und `*_flashed.bin`; `.gitattributes` markiert Binärdateien und `.bat` (CRLF).
 
 ## 2026-09-27
 
