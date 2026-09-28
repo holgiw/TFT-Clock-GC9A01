@@ -4935,6 +4935,7 @@
             chunk += "<a href='/setbackground?file=face_default.bmp'>";
             chunk += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
             chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (" + translate("active") + ")" : "");
+            chunk += "<br><a href='/setbackground?file=face_default.bmp&designer=1'>" + translate("Designer") + "</a>";
             chunk += "</div>";
 
             webserver.sendContent(chunk);
@@ -4980,6 +4981,7 @@
                 chunk += "<a href='/setbackground?file=" + safeShortName + "'>";
                 chunk += "<img src='/facepreview?file=" + safeName + "' style='width:80px;height:80px;border:1px solid #ccc'>";
                 chunk += "</a><br>" + escapeHtmlText(displayName) + String(isActive ? " (" + translate("active") + ")" : "");
+                chunk += "<br><a href='/setbackground?file=" + safeShortName + "&designer=1'>" + translate("Designer") + "</a>";
                 chunk += "<br><a href='/rename_form?file=" + safeName + "&from=listfilesFaces'>" + translate("Rename") + "</a> ";
                 chunk += "<a href='/delete?file=" + safeName + "&from=listfilesFaces' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
@@ -4998,10 +5000,6 @@
 
             if (!anyFile) chunk += "<p>" + translate("No BMP files found in /") + "</p>";
             chunk += "</div><hr>";
-
-            chunk += "<h3>" + translate("Clock Face Designer") + "</h3>";
-            chunk += "<small>" + translate("Design a new clock face based on the active one") + "</small><br>";
-            chunk += "<a href='/facedesigner'><button type='button'>" + translate("Open Clock Face Designer") + "</button></a><hr>";
 
             // Browser laedt neue Faces per HTTPS von GitHub und laedt sie per
             // lokalem HTTP zu /upload hoch - die Uhr braucht nie HTTPS.
@@ -6725,6 +6723,12 @@
                 String file = webserver.arg("file");
             //    file.replace(".", "");
                 if (!file.startsWith("/")) file = "/" + file;
+                // designer=1: Link "Designer" - der Designer baut immer auf dem
+                // aktiven Zifferblatt auf, daher erst aktivieren, dann oeffnen.
+
+                // designer=1: "Designer" link - the designer always builds on the
+                // active clock face, so activate first, then open it.
+                String faceTarget = webserver.arg("designer") == "1" ? "/facedesigner" : "/listfilesFaces?msg=Clock%20face%20selected";
 
                 if (file == "/face_default.bmp") {
                     selectedBackground = file;
@@ -6732,7 +6736,7 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    redirectTo("/listfilesFaces?msg=Clock%20face%20selected");
+                    redirectTo(faceTarget);
                     return;
                 }
 
@@ -6743,7 +6747,7 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    redirectTo("/listfilesFaces?msg=Clock%20face%20selected");
+                    redirectTo(faceTarget);
                     return;
                 }
             }
@@ -7075,6 +7079,7 @@
             chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
             chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handSecondBase64 + "'>";
             chunk += "</a><br>0" + String(defaultSetActive ? " (" + translate("active") + ")" : "");
+            chunk += "<br><a href='/sethandset?set=default&designer=1'>" + translate("Designer") + "</a>";
             chunk += "</div>";
             webserver.sendContent(chunk);
 
@@ -7101,6 +7106,7 @@
                 chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + escapeHtmlText(minutePath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
                 chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + escapeHtmlText(secondPath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
                 chunk += "</a><br>" + safeSetId + (setId == activeSet ? " (" + translate("active") + ")" : "");
+                chunk += "<br><a href='/sethandset?set=" + safeSetId + "&designer=1'>" + translate("Designer") + "</a>";
                 chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
                 webserver.sendContent(chunk);
@@ -7201,10 +7207,6 @@
                 chunk += "}";
                 chunk += "</script><hr>";
 
-                chunk += "<h3>" + translate("Hand Designer") + "</h3>";
-                chunk += "<small>" + translate("Design new hands based on the active hand set") + "</small><br>";
-                chunk += "<a href='/handdesigner'><button type='button'>" + translate("Open Hand Designer") + "</button></a><hr>";
-
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
                 chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + " + translate("no.") + " + _hour, _minute " + translate("or") + " _second.bmp</code>, " + translate("e.g.") + " <code>hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
@@ -7281,7 +7283,13 @@
                 loadClockFace();
                 loadHandSprites();
                 updateClock();
-                redirectTo("/handsets?msg=Hand%20set%20selected");
+                // designer=1: Link "Designer" - der Designer baut
+                // immer auf dem aktiven Satz auf, daher erst aktivieren, dann oeffnen.
+
+                // designer=1: "Designer" link - the designer always builds
+                // on the active set, so activate first, then open it.
+                if (webserver.arg("designer") == "1") redirectTo("/handdesigner");
+                else redirectTo("/handsets?msg=Hand%20set%20selected");
             }
             else {
                 webserver.send(400, "text/plain", "Missing set name");

@@ -27,6 +27,11 @@ Commit-Betreffen zusammengefasst.
 - Beide Designer: vollständige französische Übersetzung (bisher Englisch bei Sprache Französisch).
 
 ### Geändert
+- Zeiger- und Zifferblatt-Seite: unter jedem Zeigersatz bzw. Zifferblatt (auch dem eingebauten)
+  ein Link „Designer“. Er aktiviert den Satz bzw. das Zifferblatt und öffnet direkt den Designer,
+  der immer auf dem aktiven Stand aufbaut (`/sethandset?…&designer=1`,
+  `/setbackground?…&designer=1`). Der bisherige Abschnitt „Zeiger-/Zifferblatt-Designer öffnen“
+  unten auf den Seiten entfällt.
 - Zifferblatt-Designer: „Erzeugen“ ersetzt das Zifferblatt ohne Rückfrage (mit „Rückgängig“
   zurückholbar).
 - Zifferblatt-Designer: „Name:“ und das Eingabefeld bleiben in einer Zeile.
