@@ -55,6 +55,10 @@ Commit-Betreffen zusammengefasst.
 - README und Einrichtungsanleitung auf 25 × 151 aktualisiert.
 
 ### Behoben
+- Backlight-Builds (GC9D01, GC9A01_WITH_BACKLIGHT): Der Erststart speicherte 255 als oberen
+  ADC-Schwellwert, das Formularfeld erlaubt aber nur 0–100 – mit Fotowiderstand ließ der Browser
+  das Helligkeitsformular nicht mehr absenden. Vorgabe jetzt 100 (gleiche Wirkung, der Lichtwert
+  erreicht nie über 100 %), gespeicherte Werte werden beim Start auf 0–100 begrenzt.
 - `config.h`: TFT-Referenzblock nannte falsche Pins (SCLK 4 / MOSI 6 / DC 10 / RST 0 – SCLK 4
   wäre sogar ADC_GND gewesen) und veraltete Schrift-/Takt-Defines. Jetzt Spiegel der tatsächlich
   wirksamen TFT_eSPI-Einstellung `Setup304_ESP32S2_GC9A01_GC9D01.h`: SCLK 7, MOSI 11, DC 33,

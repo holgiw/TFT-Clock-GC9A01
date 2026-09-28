@@ -613,7 +613,8 @@ void setup() {
 
 #if defined (GC9D01)  || defined (GC9A01_WITH_BACKLIGHT)
             preferences.putInt(PK_LOW_THRESHOLD, 1);
-            preferences.putInt(PK_HIGH_THRESHOLD, 255);
+            preferences.putInt(PK_HIGH_THRESHOLD, 100); // 100 statt 255: Formularfeld erlaubt nur 0-100, Lichtwert (5-100 %) ueberschreitet 100 nie
+                                                        // 100 instead of 255: the form field only allows 0-100, the light value (5-100 %) never exceeds 100
 #else
             preferences.putInt(PK_LOW_THRESHOLD, 40);
             preferences.putInt(PK_HIGH_THRESHOLD, 60);
@@ -749,8 +750,12 @@ void setup() {
         hubColor = tft.color565((hubColorRgb >> 16) & 0xFF, (hubColorRgb >> 8) & 0xFF, hubColorRgb & 0xFF);
         hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
 
-        lowThreshold = preferences.getInt(PK_LOW_THRESHOLD, 40);
-        highThreshold = preferences.getInt(PK_HIGH_THRESHOLD, 60);
+        // Auf 0-100 begrenzen: fruehere Backlight-Erststarts speicherten 255, das
+        // Formularfeld (max 100) liesse sich damit gar nicht mehr absenden.
+        // Clamp to 0-100: earlier backlight first starts stored 255, which would
+        // make the form field (max 100) impossible to submit.
+        lowThreshold = constrain(preferences.getInt(PK_LOW_THRESHOLD, 40), 0, 100);
+        highThreshold = constrain(preferences.getInt(PK_HIGH_THRESHOLD, 60), 0, 100);
         minBrightness = preferences.getUChar(PK_MIN_BRIGHTNESS, 100);
         maxBrightness = preferences.getUChar(PK_MAX_BRIGHTNESS, 255);
 
