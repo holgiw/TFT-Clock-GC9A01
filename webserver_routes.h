@@ -711,6 +711,21 @@
     }
 
 
+    // Tagesfenster wie in updateBrightness() (display.h): Stunde >= Start und < Ende,
+    // also Ende exklusiv; aus den Laufzeitwerten statt aus den Preferences, deren
+    // Ladedefaults (7/21) sich von frueheren Anzeige-Defaults (8/20) unterschieden.
+
+    // Day window like in updateBrightness() (display.h): hour >= start and < end,
+    // i.e. end exclusive; from the runtime values instead of the preferences, whose
+    // load defaults (7/21) differed from earlier display defaults (8/20).
+    String dayWindowText() {
+        if (brightStartHour == brightEndHour) return "off (start = end)";
+        String text = String(brightStartHour) + ":00 - " + String(brightEndHour) + ":00";
+        if (brightStartHour > brightEndHour) text += " (over midnight)";
+        return text;
+    }
+
+
     // Kurze Zeile mit LittleFS-Speichernutzung, reiner Inline-Text ohne
     // umschliessendes Element - der Aufrufer bettet ihn je nach Layout ein.
 
@@ -3760,11 +3775,7 @@
             chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
             chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
 
-            uint16_t brightEnd = preferences.getUChar(PK_BRIGHT_END_HOUR, 20);
-            brightEnd += 1;
-            if (brightEnd > 23) brightEnd = 0;
-
-            chunk += "<li><b>daywindow</b>: " + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 8)) + ":00 - " + String(brightEnd) + ":00</li>";
+            chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
 
             if (preferences.getBool(PK_USE_ADC, true)) {
                 chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
@@ -5460,11 +5471,7 @@
             chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
             chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
 
-            uint16_t brightEndPanel = preferences.getUChar(PK_BRIGHT_END_HOUR, 20);
-            brightEndPanel += 1;
-            if (brightEndPanel > 23) brightEndPanel = 0;
-
-            chunk += "<li><b>daywindow</b>: " + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 8)) + ":00 - " + String(brightEndPanel) + ":00</li>";
+            chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
 
             if (preferences.getBool(PK_USE_ADC, true)) {
                 chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";

@@ -235,6 +235,7 @@
     String fileManagerReturnTarget(const String& from) ; // /delete- und /rename-Rueckspring-Ziel anhand des "from"-Parameters (siehe webserver_routes.h)
                                                          // /delete and /rename return target based on the "from" parameter (see webserver_routes.h)
     String escapeJsonText(const String& text) ;
+    String dayWindowText() ;
     String generateStorageInfo(size_t used, size_t total, bool forceEnglish = false) ;
     String generateFlashMessage() ;
     String generateNavigation() ;

@@ -50,6 +50,10 @@ Commit-Betreffen zusammengefasst.
 - README und Einrichtungsanleitung auf 25 × 151 aktualisiert.
 
 ### Behoben
+- Status- und Info-Seite: „daywindow“ zeigte das Ende eine Stunde zu spät (z. B. 7:00 - 23:00 bei
+  eingestelltem 7–22). Die Helligkeitslogik rechnet mit Ende exklusiv (Stunde < Ende), die Anzeige
+  addierte aber 1 und las die Preferences mit anderen Standardwerten (8/20 statt 7/21). Jetzt aus
+  den Laufzeitwerten, mit Hinweis bei Fenster über Mitternacht bzw. „off“ bei Start = Ende.
 - Fest englische Texte übersetzt: „Size (Pixel)“ und „File“ auf der Zeiger-Seite, „Uploading...
   please wait“ und „Upload BMP“ beim Hochladen, Namensschema der Zeigerdateien („Nr.“, „oder“,
   „z. B.“). Die Überschrift der Uhren-Sets hieß „Manage Uhren Sets“, jetzt „Uhren Sets verwalten“.
