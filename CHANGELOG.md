@@ -78,7 +78,8 @@ Commit-Betreffen zusammengefasst.
   nimmt die COM-Schnittstelle als Parameter (`flashESP.bat 3` für COM3, auch `flashESP.bat COM3`).
   Ohne Parameter listet sie alle COM-Schnittstellen auf und markiert angeschlossene Uhren an der
   USB-Kennung (Espressif 303A; 0002 = Download-Modus); bei genau einer Uhr wird deren Port ohne Rückfrage
-  verwendet, sonst wird nach der Nummer gefragt.
+  verwendet, sonst wird nach der Nummer gefragt. Ohne gefundene Uhr erscheinen Prüffragen
+  (Uhr im Gerätemanager mit COM-Port? Datenkabel statt reinem Ladekabel?).
   Der ESP32-S2 hat zwei COM-Ports (laufend bzw. Download-Modus): Eine laufende Uhr startet
   `port.ps1` wie die Arduino IDE per 1200-Baud-Signal in den Download-Modus neu und flasht über
   den dann neu erscheinenden Port. Die Port-Logik liegt in `port.ps1` neben `flashESP.bat`. Die
