@@ -3633,6 +3633,7 @@
 #endif
 
 
+            chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
 #ifndef TFT_Backlight 
             chunk += "<li>TFT_Backlight: none</li>";
 #else
@@ -5346,6 +5347,7 @@
             }
 #endif
 
+            chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
 #ifndef TFT_Backlight
             chunk += "<li>TFT_Backlight: none</li>";
 #else
@@ -7091,7 +7093,13 @@
             chunk += "<label>" + translate("Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)") + ":</label><br><input name = 'color' value = '" + String(hubColorRgb, HEX) + "'><br>";
             chunk += "<button type='submit'>" + translate("Apply") + "</button></form><hr>";
 
-            if (used + 5818 > total) {
+            // Platz fuer eine unkomprimierte Zeigerdatei im neuen Format - so landet
+            // der Upload zuerst auf LittleFS, bevor er RLE-komprimiert wird.
+
+            // Room for one uncompressed hand file in the new format - that is how
+            // the upload first lands on LittleFS before it is RLE-compressed.
+            const size_t handUploadBytes = 66 + (size_t)((HAND_WIDTH * 2 + 3) / 4 * 4) * HAND_HEIGHT;
+            if (used + handUploadBytes > total) {
                 chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new hand sets! Free up some space first") + ".</div><br><br>";
             }
             else {

@@ -22,6 +22,24 @@
    //#define GC9D01
     //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt / DEPRECATED - no longer maintained, GC9A01 is preferred
 
+    // Displaytyp als Klartext - steht auf den Info-Seiten und damit in jeder
+    // .bin, so ist ein Build eindeutig zuzuordnen (Suche nach "UHR3_BUILD_DISPLAY=").
+
+    // Display type as plain text - shown on the info pages and therefore in
+    // every .bin, so a build can be identified (search for "UHR3_BUILD_DISPLAY=").
+#if defined(GC9A01_WITH_BACKLIGHT)
+#define BUILD_DISPLAY_NAME "GC9A01_WITH_BACKLIGHT"
+#elif defined(GC9D01)
+#define BUILD_DISPLAY_NAME "GC9D01"
+#elif defined(ILI9341)
+#define BUILD_DISPLAY_NAME "ILI9341"
+#elif defined(GC9A01)
+#define BUILD_DISPLAY_NAME "GC9A01"
+#else
+#error "Kein Display gewaehlt / no display selected"
+#endif
+#define BUILD_DISPLAY_MARKER "UHR3_BUILD_DISPLAY=" BUILD_DISPLAY_NAME
+
     // Pin-Belegung: ESP32-S2 (Lolin S2 Pico)
     // Pin mapping: ESP32-S2 (Lolin S2 Pico)
 #ifdef ESP32_S2  // Lolin S2 Pico
