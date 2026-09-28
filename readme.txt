@@ -12,7 +12,7 @@ Wenn der ESP bereits eine Vorgängerversion der Uhr hatte diesen Block ausführe
 
 ########################################################
 	ESP32-S2 am PC per USB anstecken..
-	In der start.bat Schnittstelle auf COM4 stellen
+	start.bat 4 verwenden (COM4)
 
 ########################################################
 
@@ -33,8 +33,8 @@ ODER
 ########################################################
 
 
-In der Batch Datei start.bat muss evtl. die serielle COM Schnittstelle angepasst und gespeichert werden (COM3/COM4).
-Danach ist im DOS Fenster die start.bat auszuführen und flasht den ESP32 S2.
+Danach im DOS Fenster im ausgepackten Verzeichnis start.bat mit der Nummer der COM Schnittstelle aufrufen, z.B. "start.bat 3" für COM3 - das flasht den ESP32 S2.
+Ohne Nummer (z.B. per Doppelklick) listet start.bat alle COM Schnittstellen auf, markiert angeschlossene Uhren (Download-Modus bzw. laufend) und fragt nach der Schnittstelle - bei genau einer gefundenen Uhr genügt Enter.
 
 SSID einstellen:
 	Am WLan Router WPS einschalten (Menü, Taster)
@@ -146,7 +146,7 @@ If the ESP already had a previous version of the clock, run this block:
 
 ########################################################
 	Connect the ESP32-S2 to the PC via USB..
-	In start.bat, set the interface to COM4
+	use start.bat 4 (COM4)
 
 ########################################################
 
@@ -167,8 +167,8 @@ OR
 ########################################################
 
 
-In the batch file start.bat, the serial COM port may need to be adjusted and saved (COM3/COM4).
-Then run start.bat in the Command Prompt to flash the ESP32-S2.
+Then, in the Command Prompt in the unpacked folder, run start.bat with the COM port number, e.g. "start.bat 3" for COM3 - this flashes the ESP32-S2.
+Without a number (e.g. by double-click) start.bat lists all COM ports, marks connected clocks (download mode or running) and asks for the port - with exactly one clock found, Enter is enough.
 
 Setting the SSID:
 	Enable WPS on the WiFi router (via button or menu).

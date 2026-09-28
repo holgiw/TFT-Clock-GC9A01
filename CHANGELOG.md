@@ -74,6 +74,11 @@ Commit-Betreffen zusammengefasst.
   Display-2-Beschreibung, weil dessen Firmware vom 2026-09-10 stammt.)
 
 ### Repository
+- `start.bat` in allen `build_*`-Ordnern nimmt die COM-Schnittstelle als Parameter (`start.bat 3`
+  für COM3, auch `start.bat COM3`). Ohne Parameter listet sie alle COM-Schnittstellen auf und
+  markiert angeschlossene Uhren an der USB-Kennung (Espressif 303A; 0002 = Download-Modus) – es
+  wird dabei nichts an die Geräte gesendet; bei genau einer Uhr genügt Enter. Die bisherigen
+  `start_COM3.bat`/`start_COM4.bat` im GC9D01-Ordner entfallen, Readmes entsprechend angepasst.
 - Git-Historie bereinigt: alte Build-Artefakte (`build/` mit `.elf`/`.map`/`merged.bin`, alte
   `build_*.zip`, frühere Versionen der `.bin` in `build_*`), `uhr3.ino.lolin_s2_pico.bin` im
   Hauptordner, `__vm/`, `uhr3.vcxproj(.filters)` sowie `pictures/uhr3.mp4`, `uhr3.bmp` und alte
