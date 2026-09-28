@@ -80,6 +80,11 @@ Commit-Betreffen zusammengefasst.
   USB-Kennung (Espressif 303A; 0002 = Download-Modus); bei genau einer Uhr wird deren Port ohne Rückfrage
   verwendet, sonst wird nach der Nummer gefragt. Ohne gefundene Uhr erscheinen Prüffragen
   (Uhr im Gerätemanager mit COM-Port? Datenkabel statt reinem Ladekabel?).
+- Linux: neues `flashESP.sh` in allen `build_*`-Ordnern mit derselben Logik wie `flashESP.bat`
+  (Uhr-Erkennung per USB-Kennung über `udevadm` bzw. `/sys`, 1200-Baud-Neustart per `stty`,
+  Prüffragen ohne gefundene Uhr, Hinweis auf die Gruppe `dialout` bei fehlenden Rechten; unterstützt
+  `esptool` ab v5 und `esptool.py`). Aufruf `bash flashESP.sh` oder `bash flashESP.sh 0` für
+  `/dev/ttyACM0`; die manuellen esptool-Befehle stehen weiter in der Readme.
   Der ESP32-S2 hat zwei COM-Ports (laufend bzw. Download-Modus): Eine laufende Uhr startet
   `port.ps1` wie die Arduino IDE per 1200-Baud-Signal in den Download-Modus neu und flasht über
   den dann neu erscheinenden Port. Die Port-Logik liegt in `port.ps1` neben `flashESP.bat`. Die

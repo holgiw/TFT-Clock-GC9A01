@@ -119,8 +119,16 @@ dmesg | tail -n 20
 # in das heruntergeladene Archiv stellen, z.b.
 cd esp32.esp32.lolin_s2_pico/
 
-# ESP im Bootmodus (Reset und Boot drücken, Reset loslassen und Boot kurz danach loslassen)
+# ESP flashen - flashESP.sh sucht die Uhr selbst (USB-Kennung 303a) und nimmt sie
+# ohne Rückfrage, wenn genau eine gefunden wird. Eine laufende Uhr wird automatisch
+# in den Download-Modus gebracht (der ESP32-S2 hat dann eine andere Schnittstelle).
+# Wird keine Uhr gefunden, gibt es Prüffragen (dmesg/lsusb, Datenkabel statt Ladekabel).
+bash flashESP.sh
 
+# oder mit fester Schnittstelle: 0 = /dev/ttyACM0 (auch ttyACM0 oder /dev/ttyACM0)
+bash flashESP.sh 0
+
+# manuell (ESP im Bootmodus: Reset und Boot drücken, Reset loslassen und Boot kurz danach loslassen)
 # hier serielle Schnittstelle anpassen
 # optional: Chip löschen (nicht empfohlen)
 esptool --port /dev/ttyACM0 erase_flash
@@ -255,8 +263,16 @@ dmesg | tail -n 20
 # change into the downloaded archive directory, e.g.
 cd esp32.esp32.lolin_s2_pico/
 
-# put the ESP into boot mode (press Reset and Boot, release Reset, then release Boot shortly after)
+# flash the ESP - flashESP.sh finds the clock itself (USB id 303a) and uses it
+# without asking if exactly one is found. A running clock is switched to download
+# mode automatically (the ESP32-S2 then has a different port).
+# If no clock is found, it asks troubleshooting questions (dmesg/lsusb, data cable instead of charging cable).
+bash flashESP.sh
 
+# or with a fixed port: 0 = /dev/ttyACM0 (also ttyACM0 or /dev/ttyACM0)
+bash flashESP.sh 0
+
+# manually (ESP in boot mode: press Reset and Boot, release Reset, then release Boot shortly after)
 # adjust the serial port here
 # optional: erase the chip (not recommended)
 esptool --port /dev/ttyACM0 erase_flash
