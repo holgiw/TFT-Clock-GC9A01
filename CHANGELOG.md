@@ -29,6 +29,11 @@ Commit-Betreffen zusammengefasst.
 ### Geändert
 - Zifferblatt-Designer: „Erzeugen“ ersetzt das Zifferblatt ohne Rückfrage (mit „Rückgängig“
   zurückholbar).
+- Zifferblatt-Designer: „Name:“ und das Eingabefeld bleiben in einer Zeile.
+- Neue Screenshots der Weboberfläche, getrennt nach Sprache in `screenshots/de/` und
+  `screenshots/en/` (PNG, englische Dateinamen im Ordner `en/`): Uhr-Einstellungen, Helligkeit,
+  Vorschau, Uhren-Sets, Zifferblatt, Zeiger, Zeiger- und Zifferblatt-Designer, Dateimanager.
+  Alle bisherigen JPG-Screenshots entfernt.
 - Zeiger-Designer: Ellipsen und Kreise werden vom Mittelpunkt aus aufgezogen; die Anzeige unter
   der Zeichenfläche nennt den Radius.
 - Zeiger-Designer speichert jeden Zeiger so klein wie möglich (Breite und Höhe im alten Maß,
@@ -44,6 +49,10 @@ Commit-Betreffen zusammengefasst.
 - README und Einrichtungsanleitung auf 25 × 151 aktualisiert.
 
 ### Behoben
+- Fest englische Texte übersetzt: „Size (Pixel)“ und „File“ auf der Zeiger-Seite, „Uploading...
+  please wait“ und „Upload BMP“ beim Hochladen, Namensschema der Zeigerdateien („Nr.“, „oder“,
+  „z. B.“). Die Überschrift der Uhren-Sets hieß „Manage Uhren Sets“, jetzt „Uhren Sets verwalten“.
+  Status- und Info-Seite bleiben bewusst englisch (`forceEnglish`).
 - Bahnhofsuhr-Modus: Sekundenzeiger sprang ab ca. 4,7 h Laufzeit gelegentlich für ein Bild eine
   Sekunde vor und wieder zurück. Ursache: `stationLastMillis` (uint32) wurde per float fortgeschrieben;
   ab 2^24 ms rundete die 24-Bit-Mantisse, der Zeitstempel lag dann 1 ms in der Zukunft und die

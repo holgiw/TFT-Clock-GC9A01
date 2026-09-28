@@ -44,7 +44,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       <button type="button" class="tb" id="resetBtn"></button>
       <span style="flex:1"></span>
       <button type="button" id="saveCurBtn"></button>
-      <span id="tName"></span><input type="text" id="faceName" maxlength="20" spellcheck="false" style="width:130px">
+      <label><span id="tName"></span><input type="text" id="faceName" maxlength="20" spellcheck="false" style="width:130px"></label>
       <label><input type="checkbox" id="activate" checked><span id="tActivate"></span></label>
       <button type="button" id="saveBtn"></button>
     </div>

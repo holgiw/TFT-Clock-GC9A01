@@ -5065,7 +5065,7 @@
                 chunk += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
 
                 chunk += "<button type='submit'>" + translate("Upload") + " BMP</button>";
-                chunk += "<div id='progress' style='display:none;'>Uploading... please wait</div>";
+                chunk += "<div id='progress' style='display:none;'>" + translate("Uploading... please wait") + "</div>";
                 chunk += "<script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><br>";
             }
 
@@ -6692,7 +6692,7 @@
         // Upload-Formular anzeigen
         // Show upload form
         webserver.on("/upload", HTTP_GET, []() {
-            String uploadFormHtml = "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>Upload BMP</button><div id='progress' style='display:none;'>Uploading... please wait</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'><button type='button'>" + translate("Back") + "</button></a>";
+            String uploadFormHtml = "<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit='showProgress()'><input type='file' name='upload' accept='.bmp' multiple required><br><br><button type='submit'>" + translate("Upload") + " BMP</button><div id='progress' style='display:none;'>" + translate("Uploading... please wait") + "</div><script>function showProgress(){document.getElementById('progress').style.display='block';}</script></form><br><a href='/listfilesFaces'><button type='button'>" + translate("Back") + "</button></a>";
             webserver.send(200, "text/html", simpleMessagePage(translate("Upload"), uploadFormHtml));
             });
 
@@ -7123,7 +7123,7 @@
             uint32_t hubColorRgb = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
             chunk += "<h2>" + translate("Centre point") + "</h2><form action = '/setcenter' method = 'POST'>";
-            chunk += "<label>Size (Pixel):</label><br><input name='size' type='number' min='0' max='50' value='" + String(hubSize) + "'><br>";
+            chunk += "<label>" + translate("Size (pixels)") + ":</label><br><input name='size' type='number' min='0' max='50' value='" + String(hubSize) + "'><br>";
             chunk += "<label>" + translate("Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)") + ":</label><br><input name = 'color' value = '" + String(hubColorRgb, HEX) + "'><br>";
             chunk += "<button type='submit'>" + translate("Apply") + "</button></form><hr>";
 
@@ -7199,10 +7199,10 @@
                 chunk += "<a href='/handdesigner'><button type='button'>" + translate("Open Hand Designer") + "</button></a><hr>";
 
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + no + _hour, _minute or _second.bmp e.g.hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
+                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + " + translate("no.") + " + _hour, _minute " + translate("or") + " _second.bmp</code>, " + translate("e.g.") + " <code>hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
 
-                chunk += "File: <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
+                chunk += translate("File") + ": <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
                 chunk += "<button type='submit'>" + translate("Upload to Set") + "</button></form>";
             }
             chunk += "<br><br>";
