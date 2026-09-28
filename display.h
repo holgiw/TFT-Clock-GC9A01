@@ -1508,9 +1508,17 @@
             }
             else {
 
-            if (!stationWaiting && currentMillis - stationLastMillis >= stationStepMs) {
+            // Ganzzahlig und vorzeichenbehaftet rechnen: uint32 += float rundete ab ~4,7 h
+            // Laufzeit (24-Bit-Mantisse), der Zeitstempel lag dann 1 ms in der Zukunft und
+            // der Sekundenzeiger sprang fuer ein Bild einen Schritt vor und wieder zurueck.
+
+            // Compute as integer and signed: uint32 += float rounded from ~4.7 h uptime
+            // (24-bit mantissa), the timestamp then lay 1 ms in the future and the second
+            // hand jumped one step ahead for one frame and back again.
+            const uint32_t stationStepWholeMs = (uint32_t)(stationStepMs + 0.5f);
+            if (!stationWaiting && (int32_t)(currentMillis - stationLastMillis) >= (int32_t)stationStepWholeMs) {
                 stationTick++;
-                stationLastMillis += stationStepMs;
+                stationLastMillis += stationStepWholeMs;
 
                 if (stationTick >= 60) {
                     stationTick = 60;
@@ -1569,7 +1577,8 @@
                 }
             }
 
-            float subTick = (float)(currentMillis - stationLastMillis) / stationStepMs;
+            float subTick = (float)(int32_t)(currentMillis - stationLastMillis) / (float)stationStepWholeMs;
+            if (subTick < 0.0f) subTick = 0.0f;
 
             // Auf 1.0 begrenzen statt auf 0.0 zurueckzusetzen: bei einem zu
             // spaeten Frame ist der Zeiger mindestens am Ende des Schritts,
