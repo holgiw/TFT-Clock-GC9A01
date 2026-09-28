@@ -75,6 +75,8 @@ Commit-Betreffen zusammengefasst.
   `TFT_eSPI.zip`-Stände entfernt. Bestehende Klone müssen neu geklont werden.
 - `__vm/` und `uhr3.vcxproj(.filters)` werden nicht mehr versioniert (bleiben lokal), ebenso
   `.map`, `.elf` und `*_flashed.bin`; `.gitattributes` markiert Binärdateien und `.bat` (CRLF).
+- Zeigersätze 5–9, 12 und 13 aus `graphic/` und aus `faces_handsets_160/240.zip` entfernt
+  (240er: Sätze 5–9, 12, 13; 160er: `hand_set9_minute.bmp`).
 
 ## 2026-09-27
 
