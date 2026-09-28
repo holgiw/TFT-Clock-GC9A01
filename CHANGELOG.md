@@ -70,8 +70,10 @@ Commit-Betreffen zusammengefasst.
   der Schritt ab ca. 12 Tagen Laufzeit dauerhaft falsch gewesen, 1024 statt 975 ms.)
 - Anleitungen in den `build_*`-Ordnern (`readme.txt`, `liesmich.txt`) nannten noch das feste
   AP-Passwort `clock123` und den alten 10-s-WLAN-Reset. Jetzt wie die `readme.txt` im Hauptordner:
-  Passwort pro Gerät auf dem Display, Werksreset nach 15 s. (Im Backlight-Build ohne die neuere
-  Display-2-Beschreibung, weil dessen Firmware vom 2026-09-10 stammt.)
+  Passwort pro Gerät auf dem Display, Werksreset nach 15 s.
+- Alle drei Builds neu erstellt (GC9A01, GC9D01, GC9A01_WITH_BACKLIGHT; ESP32-Core 3.3.12). Das
+  Backlight-Build war vorher vom 2026-09-10 und hatte keinen Build-Marker; seine `readme.txt`
+  entspricht jetzt wieder der im Hauptordner.
 
 ### Repository
 - Die Flash-Batch in den `build_*`-Ordnern heißt jetzt `flashESP.bat` (bisher `start.bat`) und
