@@ -14,6 +14,16 @@ Commit-Betreffen zusammengefasst.
 - Status- und Info-Seite nennen die Grafikbibliothek samt Version („Graphics Library: TFT_eSPI
   2.5.43“, aus `TFT_ESPI_VERSION`).
 
+### Behoben
+- Eine Uhr mit Hintergrundbeleuchtung (GC9D01, GC9A01 mit Backlight) blieb bei der Einrichtung
+  dunkel: ohne gültige Uhrzeit greift das Tagesfenster nicht, ohne (hellen) Lichtsensor fiel die
+  Helligkeit auf `minBrightness` (mit Backlight ab Werk 5 von 255). Auch der Access-Point-Modus
+  wurde in der nächsten `loop()`-Runde wieder abgedunkelt. Jetzt volle Helligkeit, solange seit dem
+  Start noch keine gültige Uhrzeit vorlag, sowie während WPS-Suche und Access Point
+  (`updateBrightness()` in `display.h`).
+- GC9D01-Build: der Build vom 2026-09-29 (Commit `1e5622b`) war mit dem GC9A01-Treiber von TFT_eSPI
+  gebaut, das Display blieb damit schwarz. Neu gebaut mit `GC9D01_DRIVER`.
+
 ### Geändert
 - Flash-Anleitung für Windows in `readme.txt` (Hauptordner und `build_*`) und `liesmich.txt` auf
   das aktuelle `flashESP.bat` umgestellt: Uhr anstecken, `flashESP.bat` per Doppelklick – es findet

@@ -2298,6 +2298,7 @@
         // reason during the brief NTP-sync-induced system time invalidation
         // (see updateClock()/setupNTP()).
         static bool withinDayWindow = false;
+        static bool timeEverValid = false; // seit dem Start je eine gueltige Uhrzeit / valid time ever since boot
 
         // struct tm timeinfo;
         struct tm freshTimeinfo;
@@ -2313,6 +2314,7 @@
         if (getLocalTime(&freshTimeinfo, 0)) {
             timeinfo = freshTimeinfo; // nur bei Erfolg uebernehmen, siehe updateClock()
                                       // only adopt on success, see updateClock()
+            timeEverValid = true;
             int h = freshTimeinfo.tm_hour;
             if (brightStartHour <= brightEndHour) {
                 // normaler Bereich z.B. 8..20
@@ -2383,7 +2385,24 @@
         bool rocrailBrightnessActive = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
                                         (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
 
-        if (rocrailBrightnessActive) {
+        // Einrichtung: noch nie eine gueltige Uhrzeit (Tag/Nacht unbekannt,
+        // die Uhr zeigt ohnehin noch keine Zeit), WPS-Suche oder Access Point
+        // -> volle Helligkeit, damit Meldungen und AP-Passwort lesbar sind.
+        // Sonst blieb eine neue Uhr ohne WLAN und ohne hellen Lichtsensor auf
+        // minBrightness - mit Backlight (5 von 255) praktisch dunkel (GC9D01).
+
+        // Setup: never a valid time yet (day/night unknown, the clock shows no
+        // time anyway), WPS search or access point -> full brightness so that
+        // messages and the AP password are readable. Otherwise a new clock
+        // without WiFi and without a bright light sensor stayed at
+        // minBrightness - with a backlight (5 of 255) practically dark (GC9D01).
+        bool setupBrightness = !timeEverValid || softAPIP || wpsPending;
+
+        if (setupBrightness) {
+            targetBrightness = maxBrightness;
+            currentBrightness = maxBrightness;
+        }
+        else if (rocrailBrightnessActive) {
             targetBrightness = rocrailBrightness;
 #ifdef TFT_Backlight
             // sanfte Anpassung wie beim Zeitfenster/ADC unten, statt eines
