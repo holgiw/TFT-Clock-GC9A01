@@ -6,6 +6,10 @@ Neueste Einträge oben.
 ## 2026-09-29
 
 ### Geändert
+- `erster_ start_first_start.md` an Firmware und Flash-Tool angeglichen: Ablauf beim Flashen (erst Uhr
+  suchen, Displaytyp vorgewählt, PC-WLAN übernehmen), Seiten- und Knopfnamen (Zeigersätze verwalten, Set
+  hochladen, Presets sichern / wiederherstellen, Werkseinstellungen → Gespeicherte Netzwerke zurücksetzen),
+  Komplettsicherung, Displaytyp ändern, `setTime` in der Kurzübersicht.
 - `CONTRIBUTING.md` aktualisiert: Board/Core-Version, PSRAM fest an, Builds nach `build_uhr4/`, drei
   Displaytypen (ILI9341 gestrichen), Dateitabelle um Designer, Rocrail und `build_defs.h` ergänzt,
   Übersetzungsregel: identische deutsche Texte ohne Eintrag.

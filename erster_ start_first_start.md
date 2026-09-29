@@ -14,10 +14,11 @@ Diese Anleitung beschreibt den Ersteinrichtungs-Assistenten Schritt für Schritt
 
 Wird die Uhr mit `flashESP.bat` (Windows, per Doppelklick) bzw. `bash flashESP.sh` (Linux) geflasht, ist die Einrichtung meist schon erledigt:
 
-1. Zuerst fragt das Skript, welches **Display** die Uhr hat (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01). Das ist bei einer neuen Uhr wichtig – mit falschem Displaytyp zeigt das Display nichts Lesbares an.
-2. Danach sucht das Skript die WLANs in der Umgebung und listet alle **2,4-GHz-Netze** (die Uhr kann kein 5 GHz), das Netz des PCs ist markiert. Nummer oder Name eingeben, dann das **Passwort zweimal** (verdeckt, es wird nirgends gespeichert).
-3. Erst dann flasht das Skript die Uhr und sendet ihr danach ohne weiteren Eingriff Displaytyp und WLAN per USB. Sie startet neu und verbindet sich direkt mit dem WLAN – weiter mit Schritt 1.3, Punkt 4.
-4. Zuletzt bekommt die Uhr die **Uhrzeit des PCs** – sie läuft damit sofort richtig, auch ohne WLAN, DCF77 und RTC. Nur die Uhrzeit setzen, ohne zu flashen: `setTime.bat` (Windows, Doppelklick) bzw. `bash setTime.sh` (Linux).
+1. Zuerst sucht das Skript die Uhr am USB (bei genau einer Uhr ohne Rückfrage).
+2. Dann fragt es, welches **Display** die Uhr hat (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01). Läuft auf der Uhr schon uhr4, ist ihr eingestellter Displaytyp vorgewählt (Enter behält ihn). Das ist bei einer neuen Uhr wichtig – mit falschem Displaytyp zeigt das Display nichts Lesbares an. Später lässt sich der Displaytyp jederzeit in der Weboberfläche ändern (Tab **„Uhr Einstellungen“**, Auswahl **„Display-Typ“**).
+3. Danach sucht das Skript die WLANs in der Umgebung und listet alle **2,4-GHz-Netze** (die Uhr kann kein 5 GHz), das Netz des PCs ist markiert. Ist der PC selbst mit einem 2,4-GHz-Netz verbunden, bietet das Skript an, dessen **Namen und Passwort zu übernehmen** (Enter = ja). Sonst Nummer oder Name eingeben, dann das **Passwort zweimal** (verdeckt, es wird nirgends gespeichert).
+4. Erst dann flasht das Skript die Uhr und sendet ihr danach ohne weiteren Eingriff Displaytyp und WLAN per USB. Sie startet neu und verbindet sich direkt mit dem WLAN – weiter mit Schritt 1.3, Punkt 4.
+5. Zuletzt bekommt die Uhr die **Uhrzeit des PCs** – sie läuft damit sofort richtig, auch ohne WLAN, DCF77 und RTC. Nur die Uhrzeit setzen, ohne zu flashen: `setTime.bat` (Windows, Doppelklick) bzw. `bash setTime.sh` (Linux).
 
 Wird das WLAN dort mit Enter übersprungen, geht es wie unten beschrieben per WPS oder Accesspoint weiter.
 
@@ -62,7 +63,7 @@ Ist die Uhr bereits mit dem Heim-WLAN verbunden, lässt sich jederzeit über die
 
 Soll die Uhr komplett neu eingerichtet werden (z.B. Umzug, neuer Router), gibt es zwei Wege:
 
-- **Über die Weboberfläche (empfohlen):** Seite **„Werksreset"** → Option **„gespeicherte WLAN-Netzwerke zurücksetzen"** auswählen. Bei Zugriff aus dem eigenen (privaten) Heimnetz – der normale Fall bei dieser Anleitung – wird sofort zurückgesetzt, ohne weitere Bestätigung. Nur bei Zugriff von außerhalb des Heimnetzes (z. B. über eine Port-Weiterleitung/DMZ) erscheint stattdessen groß und mittig ein 3-stelliger Bestätigungscode auf dem Display der Uhr (Form `_123_`), der zur Bestätigung auf der sich öffnenden Seite eingegeben werden muss (Schutz davor, dass diese Aktion aus der Ferne ohne physischen Zugriff auf die Uhr ausgelöst wird). Löscht nur die WLAN-Zugangsdaten, alle Zifferblätter/Zeigersätze/Presets bleiben erhalten. Die Uhr geht danach wieder in den WPS-/Accesspoint-Modus (siehe 1.1).
+- **Über die Weboberfläche (empfohlen):** Seite **„Werkseinstellungen"** → **„Gespeicherte Netzwerke zurücksetzen"**. Bei Zugriff aus dem eigenen (privaten) Heimnetz – der normale Fall bei dieser Anleitung – wird sofort zurückgesetzt, ohne weitere Bestätigung. Nur bei Zugriff von außerhalb des Heimnetzes (z. B. über eine Port-Weiterleitung/DMZ) erscheint stattdessen groß und mittig ein 3-stelliger Bestätigungscode auf dem Display der Uhr (Form `_123_`), der zur Bestätigung auf der sich öffnenden Seite eingegeben werden muss (Schutz davor, dass diese Aktion aus der Ferne ohne physischen Zugriff auf die Uhr ausgelöst wird). Löscht nur die WLAN-Zugangsdaten, alle Zifferblätter/Zeigersätze/Presets bleiben erhalten. Die Uhr geht danach wieder in den WPS-/Accesspoint-Modus (siehe 1.1).
 - **Über den Taster am Gerät (BUTTON bzw. eingebauter BOOT-Taster):** Kurz gedrückt zeigt er den Namen des aktuell verbundenen WLANs an. Wird er **länger als 10 Sekunden** gehalten, erscheint auf dem Display ein roter **„Factory Reset in N secs"**-Countdown – bis zu diesem Punkt passiert noch nichts, loslassen bricht harmlos ab. Wird er **länger als 15 Sekunden** durchgehend gehalten, löst das einen **vollständigen Werksreset** aus (WLAN **und** alle hochgeladenen Zifferblätter/Zeigersätze/Presets werden gelöscht).
 
   ⚠️ **Der Taster hat keine Zwischenstufe „nur WLAN löschen"** – für ein reines WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets bitte den Weg über die Weboberfläche (siehe oben) nutzen, sofern die Uhr noch erreichbar ist.
@@ -85,7 +86,7 @@ Soll die Uhr komplett neu eingerichtet werden (z.B. Umzug, neuer Router), gibt e
 
 ## 3. Eigene Zeigersätze hochladen
 
-1. In der Navigation den Punkt **„Zeiger"** öffnen (Seite „Zeigersatz Dateien verwalten").
+1. In der Navigation den Punkt **„Zeiger"** öffnen (Seite „Zeigersätze verwalten").
 2. Anforderungen an die Dateien:
    - Größe: **25 x 151 Pixel**, Drehpunkt 12 / 120 (160er-Display: 15 x 100, Drehpunkt 7 / 80) – die Seite zeigt die für dein Gerät gültigen Werte an. Das bisherige Format 21 x 131 (13 x 86) und jede Mischung aus alter und neuer Breite bzw. Höhe wird weiterhin angenommen.
    - Format: **16-Bit-BMP (RGB565)**
@@ -94,8 +95,8 @@ Soll die Uhr komplett neu eingerichtet werden (z.B. Umzug, neuer Router), gibt e
      - `hand_set<N>_minute.bmp` (Minutenzeiger)
      - `hand_set<N>_second.bmp` (Sekundenzeiger)
      - Beispiel für Satz 1: `hand_set1_hour.bmp`, `hand_set1_minute.bmp`, `hand_set1_second.bmp`
-   - Der Drehpunkt (Pivot) liegt in der halben Breite und im neuen Format bei Zeile 120 (160er: 80) – so kann der Zeiger bis zum Displayrand reichen. Im alten Format 21 x 131 liegt er bei Spalte 10 / Zeile 100 (160er: 6 / 66). Am einfachsten gestaltest du Zeiger mit dem Zeiger-Designer auf derselben Seite, der den Drehpunkt automatisch berücksichtigt.
-3. Dateien über das Upload-Formular auswählen und hochladen.
+   - Der Drehpunkt (Pivot) liegt in der halben Breite und im neuen Format bei Zeile 120 (160er: 80) – so kann der Zeiger bis zum Displayrand reichen. Im alten Format 21 x 131 liegt er bei Spalte 10 / Zeile 100 (160er: 6 / 66). Am einfachsten gestaltest du Zeiger mit dem Zeiger-Designer (Link **„Designer"** unter jedem Zeigersatz), der den Drehpunkt automatisch berücksichtigt.
+3. Im Abschnitt **„Neuen Zeigersatz hochladen"** die Dateien auswählen und auf **„Set hochladen"** klicken.
 4. Der neue Zeigersatz erscheint danach in der Übersicht und kann dort ausgewählt werden.
 
 ---
@@ -106,7 +107,7 @@ Ein „Uhren-Set" (Preset) speichert die **aktuell aktive Kombination** aus Ziff
 
 ### 4.1 Ein neues Uhren-Set anlegen
 
-1. Zuerst über die anderen Tabs/Seiten (Zifferblatt, Zeiger, Helligkeit-/Zifferblatt-Einstellungen) genau die Kombination einstellen, die gespeichert werden soll.
+1. Zuerst über die anderen Seiten und Tabs (Zifferblatt, Zeiger, Tabs „Uhr Einstellungen" und „Helligkeit") genau die Kombination einstellen, die gespeichert werden soll.
 2. In der Navigation **„Uhren Sets"** öffnen.
 3. Im Abschnitt **„Erstelle neues Set"** auf den Button **„Erzeuge ein Set aus den aktuellen Einstellungen"** klicken.
 4. Das neue Set erscheint in der Liste (alphabetisch einsortiert) unter einem automatisch vergebenen Namen.
@@ -124,12 +125,14 @@ Jedes Set in der Liste hat eigene Links/Buttons zum Umbenennen und Löschen (mit
 
 ### 4.4 Sichern und Wiederherstellen
 
-Im Abschnitt **„Sicherung / Wiederherstellung"**:
+Im Abschnitt **„Presets sichern / wiederherstellen"**:
 
-- **„Presets in Datei speichern"** lädt alle Uhren-Sets als Datei herunter (Backup).
-- Über das Datei-Auswahlfeld darunter lässt sich eine zuvor gesicherte Datei wieder hochladen, um die Sets wiederherzustellen bzw. zu ergänzen.
+- **„Presets als Datei speichern"** lädt alle Uhren-Sets als Datei herunter (Backup).
+- **„Presets aus Datei laden"** spielt eine zuvor gesicherte Datei wieder ein, um die Sets wiederherzustellen bzw. zu ergänzen.
 
-**Hinweis:** Ist die Liste beim allerersten Aufruf der Seite noch komplett leer, bietet die Uhr an, eine Reihe empfohlener Beispiel-Sets direkt von GitHub zu laden – dafür ist eine bestehende Internetverbindung nötig.
+**Beispiel-Sets:** Über **„Presets von GitHub laden"** lassen sich jederzeit empfohlene Uhren-Sets direkt von GitHub laden; ist die Liste beim ersten Aufruf noch leer, bietet die Uhr das auch von selbst an. Dafür ist eine bestehende Internetverbindung nötig.
+
+**Komplettsicherung der ganzen Uhr:** Die Seite **„Sicherung"** (in der Navigation, nur aus dem eigenen Heimnetz) sichert alle Einstellungen, Uhren-Sets, Zifferblätter und Zeigersätze in **einer** Datei. Diese lässt sich auf derselben oder einer anderen Uhr mit gleichem Displaytyp wiederherstellen. WLAN-Zugangsdaten werden nur auf Wunsch mitgesichert (verschlüsselt, aber mit einem in jeder Firmware gleichen Schlüssel – also nicht sicher).
 
 ---
 
@@ -139,10 +142,13 @@ Im Abschnitt **„Sicherung / Wiederherstellung"**:
 |---|---|
 | WLAN erstmalig einrichten | Beim Flashen: `flashESP` fragt Displaytyp und WLAN ab → sonst WPS abwarten → sonst AP `clock123`, Passwort `clocksetup` → `http://192.168.4.1` |
 | Weiteres WLAN ergänzen | Web-UI → Tab „WLAN" → „Netzwerk per WPS hinzufügen" |
-| Nur WLAN zurücksetzen (Sets bleiben) | Web-UI → „Werksreset" → „gespeicherte WLAN-Netzwerke zurücksetzen" |
+| Nur WLAN zurücksetzen (Sets bleiben) | Web-UI → „Werkseinstellungen" → „Gespeicherte Netzwerke zurücksetzen" |
+| Displaytyp ändern | Web-UI → Tab „Uhr Einstellungen" → „Display-Typ" |
 | Zifferblatt hochladen | Nav → „Zifferblatt" → `face_*.bmp`, 240×240, RGB565 |
 | Zeigersatz hochladen | Nav → „Zeiger" → `hand_set<N>_hour/minute/second.bmp`, 25×151 (alt: 21×131), RGB565 |
 | Uhren-Set anlegen | Nav → „Uhren Sets" → „Erzeuge ein Set aus den aktuellen Einstellungen" |
+| Alles sichern (auch auf andere Uhr) | Nav → „Sicherung" |
+| Nur die Uhrzeit vom PC setzen | `setTime.bat` / `bash setTime.sh` |
 
 ---
 ---
@@ -161,10 +167,11 @@ This guide walks through the first-time setup wizard step by step: setup via USB
 
 If the clock is flashed with `flashESP.bat` (Windows, by double-click) or `bash flashESP.sh` (Linux), the setup is usually already done:
 
-1. First the script asks which **display** the clock has (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01). This matters for a new clock - with the wrong display type the display shows nothing readable.
-2. Then the script scans for nearby WiFi networks and lists all **2.4 GHz networks** (the clock cannot use 5 GHz), marking the PC's network. Enter number or name, then the **password twice** (hidden, stored nowhere).
-3. Only then does the script flash the clock and afterwards, without further intervention, send it display type and WiFi via USB. It restarts and connects to the WiFi directly - continue with step 1.3, item 4.
-4. Finally the clock gets the **PC's time** - so it runs correctly right away, even without WiFi, DCF77 and RTC. To only set the time without flashing: `setTime.bat` (Windows, double-click) or `bash setTime.sh` (Linux).
+1. First the script finds the clock on USB (without asking if there is exactly one clock).
+2. Then it asks which **display** the clock has (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01). If the clock already runs uhr4, its configured display type is preselected (Enter keeps it). This matters for a new clock - with the wrong display type the display shows nothing readable. The display type can be changed later at any time in the web interface (**"Clock Setup"** tab, **"Display type"** selection).
+3. Then the script scans for nearby WiFi networks and lists all **2.4 GHz networks** (the clock cannot use 5 GHz), marking the PC's network. If the PC itself is connected to a 2.4 GHz network, the script offers to **take over its name and password** (Enter = yes). Otherwise enter number or name, then the **password twice** (hidden, stored nowhere).
+4. Only then does the script flash the clock and afterwards, without further intervention, send it display type and WiFi via USB. It restarts and connects to the WiFi directly - continue with step 1.3, item 4.
+5. Finally the clock gets the **PC's time** - so it runs correctly right away, even without WiFi, DCF77 and RTC. To only set the time without flashing: `setTime.bat` (Windows, double-click) or `bash setTime.sh` (Linux).
 
 If the WiFi is skipped there with Enter, continue via WPS or access point as described below.
 
@@ -209,7 +216,7 @@ Once the clock is connected to your home WiFi, you can add **another** network v
 
 If the clock needs to be set up from scratch (e.g. a move, a new router), there are two ways:
 
-- **Via the web interface (recommended):** Go to the **"Factory Reset"** page → option **"reset saved WiFi networks"**. When accessed from your own (private) home network - the normal case for this guide - it resets immediately, with no further confirmation. Only when accessed from outside the home network (e.g. via a port forward/DMZ) does a 3-digit confirmation code appear instead, large and centered on the clock's display (shown as `_123_`), which must be entered on the page that opens to confirm (protects against this action being triggered remotely without physical access to the clock). This only erases the WiFi credentials; all clock faces/hand sets/presets are kept. The clock then goes back into WPS/access point mode (see 1.1).
+- **Via the web interface (recommended):** Go to the **"Factory Reset"** page → **"Reset Saved Networks"**. When accessed from your own (private) home network - the normal case for this guide - it resets immediately, with no further confirmation. Only when accessed from outside the home network (e.g. via a port forward/DMZ) does a 3-digit confirmation code appear instead, large and centered on the clock's display (shown as `_123_`), which must be entered on the page that opens to confirm (protects against this action being triggered remotely without physical access to the clock). This only erases the WiFi credentials; all clock faces/hand sets/presets are kept. The clock then goes back into WPS/access point mode (see 1.1).
 - **Via the button on the device (BUTTON, or the built-in Boot button):** A brief press shows the name of the currently connected WiFi network. Holding it for **more than 10 seconds** shows a red **"Factory Reset in N secs"** countdown on the display - up to this point nothing happens yet, releasing it aborts harmlessly. Holding it continuously for **more than 15 seconds** triggers a **full factory reset** (WiFi **and** all uploaded clock faces/hand sets/presets are erased).
 
   ⚠️ **The button has no in-between "WiFi only" tier** - for a WiFi-only reset without losing your own clock faces/hand sets/presets, use the web interface path described above instead, provided the clock is still reachable.
@@ -232,7 +239,7 @@ If the clock needs to be set up from scratch (e.g. a move, a new router), there 
 
 ## 3. Uploading Custom Hand Sets
 
-1. Open **"Hand Set"** in the navigation (the "Manage Hand Set Files" page).
+1. Open **"Hand Set"** in the navigation (the "Manage Clock Hand Sets" page).
 2. File requirements:
    - Size: **25 x 151 pixels**, pivot 12 / 120 (160 display: 15 x 100, pivot 7 / 80) - the page shows the values valid for your device. The previous format 21 x 131 (13 x 86) and any mix of old and new width and height are still accepted.
    - Format: **16-bit BMP (RGB565)**
@@ -241,8 +248,8 @@ If the clock needs to be set up from scratch (e.g. a move, a new router), there 
      - `hand_set<N>_minute.bmp` (minute hand)
      - `hand_set<N>_second.bmp` (second hand)
      - Example for set 1: `hand_set1_hour.bmp`, `hand_set1_minute.bmp`, `hand_set1_second.bmp`
-   - The pivot sits at half the width and, in the new format, at row 120 (160 display: 80) - so the hand can reach the display edge. In the old 21 x 131 format it sits at column 10 / row 100 (160 display: 6 / 66). The easiest way is the hand designer on the same page, which takes the pivot into account automatically.
-3. Select and upload the files via the upload form.
+   - The pivot sits at half the width and, in the new format, at row 120 (160 display: 80) - so the hand can reach the display edge. In the old 21 x 131 format it sits at column 10 / row 100 (160 display: 6 / 66). The easiest way is the hand designer (**"Designer"** link below each hand set), which takes the pivot into account automatically.
+3. In the **"Upload New Hand Set"** section, choose the files and click **"Upload to Set"**.
 4. The new hand set then appears in the overview and can be selected there.
 
 ---
@@ -253,7 +260,7 @@ A preset stores the **currently active combination** of clock face, hand set, hu
 
 ### 4.1 Creating a new preset
 
-1. First, set up exactly the combination you want to save using the other tabs/pages (Clock Face, Hand Set, Brightness/Clock Setup settings).
+1. First, set up exactly the combination you want to save using the other pages and tabs (Clock Face, Hand Set, "Clock Setup" and "Brightness" tabs).
 2. Open **"Presets"** in the navigation.
 3. In the **"Create New Preset"** section, click the **"Create Preset from Current Settings"** button.
 4. The new preset appears in the list (sorted alphabetically) under an automatically assigned name.
@@ -274,9 +281,11 @@ Each preset in the list has its own links/buttons for renaming and deleting (wit
 In the **"Backup / Restore Presets"** section:
 
 - **"Save Presets to File"** downloads all presets as a file (backup).
-- The file picker below it lets you upload a previously saved file again, to restore or add to the presets.
+- **"Load Presets from File"** uploads a previously saved file again, to restore or add to the presets.
 
-**Note:** If the list is still completely empty the very first time the page is opened, the clock offers to load a set of recommended sample presets directly from GitHub - this requires an existing internet connection.
+**Sample presets:** **"Load Presets from GitHub"** loads recommended presets directly from GitHub at any time; if the list is still empty on the first visit, the clock also offers this by itself. This requires an existing internet connection.
+
+**Full backup of the whole clock:** The **"Backup"** page (in the navigation, only from your own home network) saves all settings, presets, clock faces and hand sets in **one** file. It can be restored on the same or another clock with the same display type. WiFi credentials are only included on request (encrypted, but with a key that is the same in every firmware - so not secure).
 
 ---
 
@@ -286,7 +295,10 @@ In the **"Backup / Restore Presets"** section:
 |---|---|
 | Set up WiFi for the first time | When flashing: `flashESP` asks for display type and WiFi → otherwise wait for WPS → otherwise AP `clock123`, password `clocksetup` → `http://192.168.4.1` |
 | Add another WiFi network | Web UI → "WLAN" tab → "Add Network via WPS" |
-| Reset WiFi only (presets kept) | Web UI → "Factory Reset" → "reset saved WiFi networks" |
+| Reset WiFi only (presets kept) | Web UI → "Factory Reset" → "Reset Saved Networks" |
+| Change the display type | Web UI → "Clock Setup" tab → "Display type" |
 | Upload a clock face | Nav → "Clock Face" → `face_*.bmp`, 240×240, RGB565 |
 | Upload a hand set | Nav → "Hand Set" → `hand_set<N>_hour/minute/second.bmp`, 25×151 (old: 21×131), RGB565 |
 | Create a preset | Nav → "Presets" → "Create Preset from Current Settings" |
+| Back up everything (also for another clock) | Nav → "Backup" |
+| Only set the time from the PC | `setTime.bat` / `bash setTime.sh` |
