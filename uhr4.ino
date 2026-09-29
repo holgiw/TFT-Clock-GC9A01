@@ -397,7 +397,14 @@ void setup() {
         // status polling, as recommended in Espressif's WPS example.
         WiFi.onEvent(onWpsEvent);
 
+        // Jahr 0 (1900) = "noch keine Uhrzeit", die Zeiger stehen bis dahin
+        // auf der Startzeit (siehe START_TIME_* in config.h)
+        // Year 0 (1900) = "no time yet", until then the hands show the start
+        // time (see START_TIME_* in config.h)
         memset(&timeinfo, 0, sizeof(timeinfo));
+        timeinfo.tm_hour = START_TIME_HOUR;
+        timeinfo.tm_min = START_TIME_MIN;
+        timeinfo.tm_sec = START_TIME_SEC;
 
         if (loggingEnabled) {
             unsigned long serialStart = millis();
@@ -1412,7 +1419,36 @@ void setup() {
         }
 #endif
 
-        if (WiFi.getMode() == WIFI_STA || rtcOk == RTC_AVAILABLE || dcfTimeFound) {
+        // Im Access-Point-Modus (kein WLAN) nach AP_INFO_SHOW_MS ebenfalls die
+        // Uhr zeigen - ohne Zeitquelle laeuft sie ab der Startzeit (siehe
+        // updateClock()). Beim Wechsel einmal komplett neu zeichnen, damit die
+        // AP-Anzeige verschwindet.
+        // In access point mode (no WiFi) also show the clock after
+        // AP_INFO_SHOW_MS - without a time source it runs from the start time
+        // (see updateClock()). Redraw completely once on the switch so the AP
+        // screen disappears.
+        // Eigener Zeitstempel statt softAPIPstart: den setzt die Weboberflaeche
+        // bei jedem Zugriff zurueck (15-Minuten-Neustart), die Uhr soll dabei
+        // aber weiterlaufen.
+        // Own timestamp instead of softAPIPstart: the web interface resets that
+        // on every access (15-minute restart), but the clock should keep running.
+        static unsigned long apSinceMillis = 0;
+        static bool apSeen = false;
+        if (softAPIP && !apSeen) {
+            apSeen = true;
+            apSinceMillis = millis();
+        }
+        bool apClockDue = softAPIP && (millis() - apSinceMillis >= AP_INFO_SHOW_MS);
+        static bool apClockShown = false;
+        if (apClockDue && !apClockShown) {
+            apClockShown = true;
+            firstRun = true;
+            firstRun2 = true;
+            clockFrameDirty[0] = true;
+            clockFrameDirty[1] = true;
+        }
+
+        if (WiFi.getMode() == WIFI_STA || rtcOk == RTC_AVAILABLE || dcfTimeFound || apClockDue) {
 
         // checkFactoryResetCodePending() zeichnet bei Bedarf den Bestaetigungs-
         // code (siehe system_utils.h) und haelt das Zifferblatt dabei bewusst
@@ -1586,7 +1622,17 @@ void setup() {
         // again in the meantime, without anyone filling in the captive
         // portal by hand. Was commented out before (dead feature) and
         // therefore never actually did anything.
-        if (softAPIP == true) {
+        // Nur mit gespeicherten WLAN-Netzen - ohne gibt es nichts neu zu
+        // versuchen, der Neustart wuerde die laufende Uhr nur alle 15 Minuten
+        // fuer den WPS-Versuch unterbrechen.
+        // Only with stored WiFi networks - without, there is nothing to retry,
+        // the restart would just interrupt the running clock every 15 minutes
+        // for the WPS attempt.
+        bool anyWifiStored = false;
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (wifiSsid[i].length() > 0) { anyWifiStored = true; break; }
+        }
+        if (softAPIP == true && anyWifiStored) {
             if (millis() - softAPIPstart > WAIT_15m) {
                 DEBUG_PRINTLN("[WiFi] 15 minutes in AP mode without configuration - restarting to retry WiFi");
                 espReboot();

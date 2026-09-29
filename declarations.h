@@ -30,6 +30,7 @@
                                                                                             // calls connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (see wifi_manager.h)
     void animateCursor(int x, int y, int delayMs) ;
     void showWlanCredentials(String wlan) ;
+    void showApInfo() ; // Access-Point-Zugangsdaten auf dem Display / access point credentials on the display
     void eraseWiFiConfig() ;
     void startWiFiScan() ;
     void collectStrongestNetworks(int totalFound) ;

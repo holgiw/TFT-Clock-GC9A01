@@ -2805,11 +2805,28 @@
         }
         else {
             // Noch nie eine gueltige Zeit gesehen (z.B. ganz am Anfang nach
-            // dem Boot) - wie bisher auf die RTC zurueckfallen.
+            // dem Boot) - wie bisher auf die RTC zurueckfallen. Ohne RTC ab
+            // der Startzeit (START_TIME_* in config.h) weiterlaufen, gezaehlt
+            // ab dem ersten Aufruf. Jahr bleibt 0 (1900) = "noch keine Zeit",
+            // die Systemzeit wird nicht gesetzt - die erste echte Zeit (USB,
+            // NTP, DCF77, RTC) uebernimmt sofort (Zeigeranimation).
 
             // Never seen a valid time yet (e.g. right after boot) - fall
-            // back to the RTC as before.
+            // back to the RTC as before. Without an RTC keep running from the
+            // start time (START_TIME_* in config.h), counted from the first
+            // call. The year stays 0 (1900) = "no time yet", the system time
+            // is not set - the first real time (USB, NTP, DCF77, RTC) takes
+            // over right away (hand animation).
             loadTimeFromRTC();
+            if (rtcOk != RTC_AVAILABLE) {
+                static unsigned long fallbackStartMillis = millis();
+                unsigned long t = (unsigned long)START_TIME_HOUR * 3600UL + START_TIME_MIN * 60UL + START_TIME_SEC
+                                + (millis() - fallbackStartMillis) / 1000UL;
+                timeinfo.tm_hour = (t / 3600UL) % 24UL;
+                timeinfo.tm_min = (t / 60UL) % 60UL;
+                timeinfo.tm_sec = t % 60UL;
+                timeinfo.tm_year = 0;
+            }
         }
 
 
@@ -2885,8 +2902,8 @@
         // beim naechsten Bahnhofsuhr-Minutenwechsel per Resync korrigiert -
         // sichtbar als "Sekundenzeiger stimmt anfangs nicht, springt erst nach
         // einer Weile auf den richtigen Wert". Sobald timeinfo zum ERSTEN Mal
-        // plausibel wird (Jahr >= 2000 - auch der 12:00-Notfallwert aus
-        // handleNTPFailure() zaehlt dazu, siehe dort), daher einmalig
+        // plausibel wird (Jahr >= 2000 - die weiterlaufende Startzeit ohne
+        // Zeitquelle zaehlt NICHT dazu, Jahr 0), daher einmalig
         // firstRun/firstRun2 erneut auf true setzen, damit sich die Animation
         // sauber auf die jetzt gueltige Zeit neu einstellt. Betrifft nur den
         // Bahnhofsuhr-Modus - tickende/sanfte Darstellung im Normalmodus leiten
@@ -2904,8 +2921,8 @@
         // resync at the next station-clock minute change - visible as "the
         // second hand doesn't match at first, only jumps to the right value
         // after a while". So, once timeinfo becomes plausible for the FIRST
-        // time (year >= 2000 - the 12:00 emergency value from
-        // handleNTPFailure() counts too, see there), force firstRun/firstRun2
+        // time (year >= 2000 - the running start time without a time source
+        // does NOT count, year 0), force firstRun/firstRun2
         // back to true once, so the animation cleanly re-baselines on the now
         // valid time. Only affects station-clock mode - ticking/smooth
         // rendering in normal mode derives its position fresh from timeinfo

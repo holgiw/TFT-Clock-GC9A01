@@ -17,6 +17,18 @@ Neueste Einträge oben.
   Restweg eingerechnet (max. ~1,3° pro Bild), ein großer Sprung spät in der Animation startet sie neu.
 
 ### Geändert
+- Neuer Build in `build_uhr4` (Startzeit 10:10:30, Uhr im Access-Point-Modus); Release `v4`: `uhr4_flash.zip` erneuert.
+- **Uhr läuft auch im Access-Point-Modus:** Ohne WLAN (nach dem 2-minütigen WPS-Versuch) zeigte das Display
+  bisher dauerhaft nur die Access-Point-Daten – `updateClock()` lief nur mit WLAN, RTC oder DCF77. Jetzt
+  erscheinen die AP-Daten 2 Minuten (`AP_INFO_SHOW_MS` in `config.h`), danach läuft die Uhr (ohne Zeitquelle
+  ab 10:10:30). Der Access Point bleibt aktiv, ein kurzer Tasterdruck zeigt die AP-Daten erneut
+  (`showApInfo()`). Der Neustart nach 15 Minuten im AP-Modus erfolgt nur noch, wenn WLAN-Netze gespeichert
+  sind – sonst gibt es nichts neu zu versuchen.
+- **Startzeit 10:10:30 statt 12:00:00, Uhr läuft ohne Zeitquelle weiter:** Solange noch keine Uhrzeit aus
+  NTP/DCF77/RTC/USB vorliegt, startet die Anzeige bei 10:10:30 (klassische Uhrmacher-Stellung) und läuft ab dort
+  weiter (vorher standen die Zeiger auf 12:00:00). Die Systemzeit wird dabei nicht gesetzt, die erste echte Zeit
+  übernimmt sofort. `handleNTPFailure()` setzt ohne bekannte Zeit keine Ersatzzeit (12:00) mehr. Einstellbar über
+  `START_TIME_HOUR/MIN/SEC` in `config.h`.
 - README: Rocrail-Haken sitzt im Tab „Uhr Einstellungen“ (nicht Zeit-Tab), Navigationspunkte wie auf der
   Uhr (Uhren Sets, Dateimanager, DCF77, Werkseinstellungen), Abschnitt Hardware um zweites Display, RTC,
   DCF77-Empfänger und Taster ergänzt.
@@ -82,6 +94,18 @@ Newest entries on top.
   into the remaining way (max. ~1.3° per frame), a large jump late in the animation restarts it.
 
 ### Changed
+- New build in `build_uhr4` (start time 10:10:30, clock in access point mode); release `v4`: `uhr4_flash.zip` renewed.
+- **Clock also runs in access point mode:** Without WiFi (after the 2-minute WPS attempt) the display used to
+  show only the access point details permanently - `updateClock()` only ran with WiFi, RTC or DCF77. Now the AP
+  details are shown for 2 minutes (`AP_INFO_SHOW_MS` in `config.h`), then the clock runs (from 10:10:30 without
+  a time source). The access point stays active, a short button press shows the AP details again
+  (`showApInfo()`). The restart after 15 minutes in AP mode now only happens when WiFi networks are stored -
+  otherwise there is nothing to retry.
+- **Start time 10:10:30 instead of 12:00:00, clock keeps running without a time source:** As long as no time
+  from NTP/DCF77/RTC/USB is available yet, the display starts at 10:10:30 (classic watchmaker position) and keeps
+  running from there (previously the hands stood at 12:00:00). The system time is not set, the first real time
+  takes over right away. `handleNTPFailure()` no longer sets a substitute time (12:00) without a known time.
+  Adjustable via `START_TIME_HOUR/MIN/SEC` in `config.h`.
 - README: the Rocrail checkbox is in the "Clock Setup" tab (not the Time tab), navigation items as on the
   clock (Presets, File Manager, DCF77, Factory Reset), hardware section extended with second display, RTC,
   DCF77 receiver and button.

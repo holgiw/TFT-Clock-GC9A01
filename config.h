@@ -393,6 +393,31 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
     // are normal rounding, not worth an unnecessary I2C write.
 #define RTC_UPDATE_MIN_DRIFT_SEC 2
 
+    // Startzeit der Anzeige, solange noch keine Uhrzeit aus NTP/DCF77/RTC/USB
+    // vorliegt (klassische Uhrmacher-Stellung 10:10:30 statt 12:00:00). Die
+    // Uhr laeuft ab dem Start von dort aus weiter (updateClock() in
+    // display.h), bis eine echte Zeit kommt - die Systemzeit bleibt dabei
+    // ungueltig (NTP-Server schweigt, Einrichtungs-Helligkeit bleibt).
+
+    // Start time of the display as long as no time from NTP/DCF77/RTC/USB is
+    // available yet (classic watchmaker position 10:10:30 instead of
+    // 12:00:00). The clock keeps running from there after boot (updateClock()
+    // in display.h) until a real time arrives - the system time stays invalid
+    // meanwhile (NTP server stays silent, setup brightness stays).
+#define START_TIME_HOUR 10
+#define START_TIME_MIN  10
+#define START_TIME_SEC  30
+
+    // So lange zeigt das Display nach dem Start des Access Points (kein WLAN)
+    // dessen Zugangsdaten, danach laeuft die Uhr (ohne Zeitquelle ab der
+    // Startzeit). Der Access Point bleibt aktiv, ein kurzer Tasterdruck zeigt
+    // die Daten erneut.
+    // For this long after starting the access point (no WiFi) the display
+    // shows its credentials, then the clock runs (from the start time without
+    // a time source). The access point stays active, a short button press
+    // shows the credentials again.
+#define AP_INFO_SHOW_MS (2 * WAIT_1m)
+
     // Versuche PRO WLAN-Netzwerk beim Boot (siehe connectWiFiAtBoot() in
     // uhr4.ino), bevor mit dem naechsten Netzwerk weitergemacht bzw. ganz
     // aufgegeben wird (-> WPS/Access-Point) - ein einzelner fehlgeschlagener

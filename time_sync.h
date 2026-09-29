@@ -1625,8 +1625,14 @@
     }
 
 
-    // Behandelt NTP-Sync-Fehler: nutzt die letzte bekannte Zeit oder setzt 12:00 Uhr.
-    // Handles NTP sync failure: uses the last known time or sets 12:00.
+    // Behandelt NTP-Sync-Fehler: nutzt die letzte bekannte Zeit. Ohne jede
+    // Zeit wird bewusst KEINE Ersatzzeit gesetzt - die Anzeige laeuft ab der
+    // Startzeit weiter (START_TIME_* in config.h, updateClock() in display.h),
+    // bis USB, NTP, DCF77 oder die RTC eine echte Zeit liefern.
+    // Handles NTP sync failure: uses the last known time. Without any time,
+    // deliberately NO substitute time is set - the display keeps running from
+    // the start time (START_TIME_* in config.h, updateClock() in display.h)
+    // until USB, NTP, DCF77 or the RTC deliver a real time.
 
     void handleNTPFailure() {
         DEBUG_PRINTLN("[NTP] Handling NTP synchronization failure..");
@@ -1650,22 +1656,7 @@
             DEBUG_PRINTLN("[NTP] Using last known time: " + String(timeStr));
         }
         else {
-            // Wenn keine gültige Zeit verfügbar ist, auf 12:00 Uhr setzen
-            // If no valid time is available, set it to 12:00
-            DEBUG_PRINTLN("[NTP] No valid time available. Setting time to 12:00");
-            localTime.tm_hour = 12;
-            localTime.tm_min = 0;
-            localTime.tm_sec = 0;
-            localTime.tm_year = BUILD_YEAR - 1900; // Firmware-Build-Jahr statt fest codiertem Wert - bleibt so auch in
-                                                   // kommenden Jahren richtig, ohne bei jedem Release manuell nachgezogen werden zu muessen.
-                                                  // firmware build year instead of a hardcoded value - stays correct in
-                                                  // future years too, without needing to be bumped manually on every release.
-            localTime.tm_mon = 0;    // Januar
-                                    // January
-            localTime.tm_mday = 1;   // 1. Tag des Monats
-                                    // 1st day of the month
-            setTimeStruct(localTime, "[NTP]"); // Funktion, um die Zeit zu setzen
-                                              // function to set the time
+            DEBUG_PRINTLN("[NTP] No valid time available - display keeps running from the start time");
         }
         // Wiederholung ergibt sich aus dem periodischen NTP-Aufruf in loop();
         // fallen alle Server aus, springt derselbe Aufrufer per

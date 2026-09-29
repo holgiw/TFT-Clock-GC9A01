@@ -375,6 +375,30 @@
     }
 
 
+    // Zugangsdaten des Access Points auf dem Display: nach dem Start fuer
+    // AP_INFO_SHOW_MS (danach laeuft die Uhr, siehe loop() in uhr4.ino) und
+    // erneut bei kurzem Tasterdruck (showWlanCredentials()).
+    // Access point credentials on the display: after starting for
+    // AP_INFO_SHOW_MS (the clock runs afterwards, see loop() in uhr4.ino) and
+    // again on a short button press (showWlanCredentials()).
+
+    void showApInfo() {
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
+            tft.println("AccessPoint active");
+            tft.setCursor(10, (CLOCK_HEIGHT / 2));
+            tft.println(String(AP_SSID) + " " + apPassword);
+            tft.setCursor(10, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
+
+            tft.print("http://");
+            tft.println(WiFi.softAPIP());
+        );
+    }
+
+
     void startAP() {
         if (useBacklight && backlightAttached) ledcWrite(TFT_Backlight, 255); // Einrichtungsmodus: volle Helligkeit
                                                                               // setup mode: full brightness
@@ -590,20 +614,7 @@
         WiFi.scanDelete();
 
         clearTFT();
-
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
-            tft.println("AccessPoint active");
-            tft.setCursor(10, (CLOCK_HEIGHT / 2));
-            tft.println(String(AP_SSID) + " " + apPassword);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
-
-            tft.print("http://");
-            tft.println(WiFi.softAPIP());
-        );
+        showApInfo();
 
         softAPIP = true;
         softAPIPstart = millis();
@@ -855,6 +866,13 @@
     // Display WiFi parameters on the TFT
 
     void showWlanCredentials(String wlan) {
+        // Im Access-Point-Modus dessen Zugangsdaten zeigen (Taster, siehe checkButton())
+        // In access point mode show its credentials (button, see checkButton())
+        if (softAPIP && WiFi.status() != WL_CONNECTED) {
+            showApInfo();
+            return;
+        }
+
         int versionCursorX = (CLOCK_WIDTH < 240) ? 20 : 60; // kleines Display (GC9D01): weiter links
                                                             // small display (GC9D01): further left
         DRAW_ON_BOTH_DISPLAYS(
