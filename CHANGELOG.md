@@ -17,6 +17,9 @@ Neueste Einträge oben.
   Restweg eingerechnet (max. ~1,3° pro Bild), ein großer Sprung spät in der Animation startet sie neu.
 
 ### Geändert
+- README: Rocrail-Haken sitzt im Tab „Uhr Einstellungen“ (nicht Zeit-Tab), Navigationspunkte wie auf der
+  Uhr (Uhren Sets, Dateimanager, DCF77, Werkseinstellungen), Abschnitt Hardware um zweites Display, RTC,
+  DCF77-Empfänger und Taster ergänzt.
 - `CHANGELOG.md` zweisprachig (deutsch/englisch). Kopfkommentar von `build_uhr4/port.ps1` korrigiert
   (wird von `clocksetup.ps1` aufgerufen, nicht von `flashESP.bat`).
 - `flashESP.sh`/`setTime.sh`: prüfen vor dem Senden per `fuser`, ob ein anderes Programm (z. B. serieller
@@ -79,6 +82,9 @@ Newest entries on top.
   into the remaining way (max. ~1.3° per frame), a large jump late in the animation restarts it.
 
 ### Changed
+- README: the Rocrail checkbox is in the "Clock Setup" tab (not the Time tab), navigation items as on the
+  clock (Presets, File Manager, DCF77, Factory Reset), hardware section extended with second display, RTC,
+  DCF77 receiver and button.
 - `CHANGELOG.md` bilingual (German/English). Header comment of `build_uhr4/port.ps1` corrected (it is
   called by `clocksetup.ps1`, not by `flashESP.bat`).
 - `flashESP.sh`/`setTime.sh`: before sending, check via `fuser` whether another program (e.g. a serial

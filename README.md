@@ -54,7 +54,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 6. Weboberfläche
 
-- Dunkel gestaltete Einstellungszentrale mit Tabs (WLAN, Uhr Einstellungen, Helligkeit, NTP Zeitzone, Status, Log; Rocrail bei aktivierter Anbindung); dateilastige Seiten (Presets, Zifferblatt, Zeiger, Dateiverwaltung, Vorschau, Sicherung, Werksreset) separat über die Navigation erreichbar.
+- Dunkel gestaltete Einstellungszentrale mit Tabs (WLAN, Uhr Einstellungen, Helligkeit, NTP Zeitzone, Status, Log; Rocrail bei aktivierter Anbindung); weitere Seiten (Vorschau, Uhren Sets, Zifferblatt, Zeiger, Dateimanager, DCF77, Sicherung, Werkseinstellungen) separat über die Navigation erreichbar.
 - Mehrsprachig (Deutsch, Englisch).
 - Zusätzliche Zifferblätter, Zeigersätze und Presets lassen sich direkt von GitHub herunterladen.
 - Rocrail-Tab für die Modellzeit-Anbindung - siehe Abschnitt 11.
@@ -77,8 +77,10 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 9. Hardware-Integration
 
-- Kompatibel mit dem ESP32-S2.
-- Fotowiderstand zur Helligkeitsmessung.
+- ESP32-S2 (Lolin S2 Pico) mit rundem TFT-Display (GC9A01 oder GC9D01); Pinbelegung siehe `build_uhr4/readme.txt`, Platine im Ordner `PCB`.
+- Fotowiderstand zur Helligkeitsmessung (wird beim Start automatisch erkannt).
+- Optional: zweites, baugleiches Display (eigener Chip-Select), RTC DS3231 (hält die Uhrzeit auch ohne WLAN über Stromausfälle hinweg), DCF77-Empfänger (Funkuhr-Zeit ohne Internet).
+- Taster (zusätzlich auch der eingebaute Boot-Taster): kurz gedrückt zeigt die Uhr das verbundene WLAN, länger als 15 Sekunden gehalten löst er einen vollständigen Werksreset aus (ab 10 Sekunden erscheint ein Countdown, Loslassen bricht ab).
 
 ---
 
@@ -99,7 +101,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 11. Rocrail-Modellzeit
 
-- Optionale Verbindung zu einem [Rocrail](https://wiki.rocrail.net/)-Server (Modelleisenbahn-Steuerungssoftware): die Zeiger können statt der echten Zeit die "Fast Clock" (Modellzeit) des Servers anzeigen, aktiviert über einen Schalter auf dem Zeit-Tab.
+- Optionale Verbindung zu einem [Rocrail](https://wiki.rocrail.net/)-Server (Modelleisenbahn-Steuerungssoftware): die Zeiger können statt der echten Zeit die "Fast Clock" (Modellzeit) des Servers anzeigen, aktiviert über den Haken „Rocrail“ im Tab „Uhr Einstellungen“.
 - Bis zu 15 Serveradressen können hinterlegt werden (wie bei den NTP-Servern erscheint nach dem letzten Eintrag immer automatisch ein neuer, leerer Platz); ein Radio-Button je Zeile legt den aktiven Server fest. Verbindungsversuche starten sofort (beim Speichern, Aktivieren oder Neustart), statt auf das reguläre, einmal pro Minute wiederkehrende Zeitfenster zu warten.
 - Bleiben Updates länger als 2 Minuten aus, läuft die Uhr mit der normalen NTP-/RTC-/DCF77-Zeit weiter, statt bei einer veralteten Modellzeit hängen zu bleiben. Die Modellzeit läuft mit Rocrails eigenem Beschleunigungsfaktor (dem "Divider"); die Bahnhofsuhr-Sekundenzeiger-Animation skaliert entsprechend mit, statt sich abzuschalten (oberhalb eines Schwellwerts wird der Sekundenzeiger ganz ausgeblendet).
 - Der Tab zeigt zu Diagnosezwecken einen Live-Verbindungsstatus, den Divider und die aktuelle Modellzeit; für jeden Server lässt sich zusätzlich ein Anlagenname zur eigenen Orientierung eintragen.
@@ -160,7 +162,7 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 6. Web Interface
 
-- Dark-themed settings hub with tabs (WiFi Settings, Clock Setup, Brightness, NTP Timezone, Status, Log; Rocrail when the connection is enabled); file-heavy pages (Presets, Clock Face, Hand Set, File Manager, Preview, Backup, Factory Reset) reachable separately via the navigation bar.
+- Dark-themed settings hub with tabs (WiFi Settings, Clock Setup, Brightness, NTP Timezone, Status, Log; Rocrail when the connection is enabled); further pages (Preview, Presets, Clock Face, Hand Set, File Manager, DCF77, Backup, Factory Reset) reachable separately via the navigation bar.
 - Multi-language (German, English).
 - Additional clock faces, hand sets, and presets can be downloaded directly from GitHub.
 - Rocrail tab for the model-time connection - see section 11.
@@ -183,8 +185,10 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 9. Hardware Integration
 
-- Compatible with the ESP32-S2.
-- Photoresistor for brightness measurement.
+- ESP32-S2 (Lolin S2 Pico) with a round TFT display (GC9A01 or GC9D01); pinout see `build_uhr4/readme.txt`, PCB in the `PCB` folder.
+- Photoresistor for brightness measurement (detected automatically at startup).
+- Optional: a second, identical display (own chip select), RTC DS3231 (keeps the time across power loss even without WiFi), DCF77 receiver (radio clock time without internet).
+- Button (the built-in Boot button works too): a short press shows the connected WiFi, holding it for more than 15 seconds triggers a full factory reset (a countdown appears from 10 seconds, releasing aborts).
 
 ---
 
@@ -205,7 +209,7 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 11. Rocrail Model Time
 
-- Optional connection to a [Rocrail](https://wiki.rocrail.net/) server (model-railroad control software): the hands can display the server's "fast clock" (model time) instead of the real time, enabled via a switch on the Time tab.
+- Optional connection to a [Rocrail](https://wiki.rocrail.net/) server (model-railroad control software): the hands can display the server's "fast clock" (model time) instead of the real time, enabled via the "Rocrail" checkbox in the "Clock Setup" tab.
 - Up to 15 server addresses can be stored (like the NTP servers, a new empty slot always appears automatically after the last entry); a radio button per row selects the active server. Connection attempts start immediately (on save, enable, or restart) instead of waiting for the regular once-a-minute retry window.
 - If updates stop coming in for more than 2 minutes, the clock falls back to the normal NTP/RTC/DCF77 time instead of getting stuck on a stale model time. Model time runs at Rocrail's own acceleration factor (the "divider"); the station-clock second-hand animation scales with it instead of switching off (above a threshold the second hand is hidden entirely).
 - The tab shows a live connection status, the divider and the current model time for diagnostics; each server can also be given a layout name for your own reference.
