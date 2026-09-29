@@ -11,7 +11,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 ## 1. Unterstützung mehrerer TFT-Displays
 
 - Unterstützte Displays: GC9A01 (240 × 240) und GC9D01 (160 × 160) – eine Firmware für beide, der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01 – wie in `flashESP`; beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
-- Zweites, baugleiches Display optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus, Bestätigungscodes) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
+- Zweites, baugleiches Display optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
 
 ---
 
@@ -46,8 +46,8 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 - Bis zu 15 WLAN-Netzwerke, Einrichtung auch per WPS, automatischer Reconnect, anpassbarer Hostname.
 - Ersteinrichtung direkt beim Flashen: `flashESP.bat`/`flashESP.sh` fragen Displaytyp und WLAN ab (alle sichtbaren 2,4-GHz-Netze zur Auswahl, Passwort verdeckt) und senden beides per USB an die Uhr, zuletzt die Uhrzeit des PCs. Nur die Uhrzeit setzen (ohne Flashen, z.B. für eine Uhr ohne WLAN, DCF77 und RTC): `setTime.bat`/`setTime.sh`. Alternativ per WPS oder über den Einrichtungs-Access-Point (SSID `clock123`, Passwort `clocksetup`).
-- Überschreiben oder Wechseln des aktuell verbundenen WLAN-Netzwerks wird bei Zugriff aus dem privaten (Heim-)Netzwerk direkt ausgeführt; bei Zugriff aus einem nicht-privaten Netzwerk (z. B. über eine Port-Weiterleitung/DMZ) ist stattdessen die Bestätigung eines auf dem Display angezeigten Codes nötig. Löschen eines WLAN-Netzwerks (aktiv oder nicht) sowie alle sonstigen Änderungen an nicht aktiven Netzwerken sind dagegen grundsätzlich nur aus einem privaten Netzwerk möglich, ganz ohne Code-Option.
-- NTP mit DCF77 als Fallback für die Zeitsynchronisation; die Uhr agiert selbst auch als NTP-Server für andere Geräte im Netzwerk, antwortet dabei aber nur auf Anfragen aus einem privaten Netzwerk und erst, sobald eine gültige Uhrzeit ermittelt wurde.
+- Hinzufügen, Überschreiben, Wechseln und Löschen von WLAN-Netzwerken wird direkt ausgeführt. Die Weboberfläche unterscheidet nicht zwischen Zugriff aus dem Heimnetz und von außen – die Uhr daher nicht per Port-Weiterleitung/DMZ aus dem Internet erreichbar machen.
+- NTP mit DCF77 als Fallback für die Zeitsynchronisation; die Uhr agiert selbst auch als NTP-Server für andere Geräte im Netzwerk, antwortet dabei, sobald eine gültige Uhrzeit ermittelt wurde.
 - Bis zu 15 eigene NTP-Server hinterlegbar; ist keiner konfiguriert (oder werden alle gelöscht), fällt die Uhr automatisch auf `pool.ntp.org` und `ptbtime1.ptb.de` zurück. Sind die konfigurierten Server nicht erreichbar, werden diese beiden zusätzlich als letzter Fallback versucht.
 
 ---
@@ -63,7 +63,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 7. Dateiverwaltung mit LittleFS
 
-- Zifferblätter und Zeiger werden komprimiert gespeichert; Dateien lassen sich über die Weboberfläche hoch-/herunterladen, umbenennen und löschen. Hochladen, Umbenennen und Löschen sind dabei nur bei Zugriff aus einem privaten Netzwerk möglich (Schutz vor Fernzugriff, z. B. über eine Portweiterleitung).
+- Zifferblätter und Zeiger werden komprimiert gespeichert; Dateien lassen sich über die Weboberfläche hoch-/herunterladen, umbenennen und löschen.
 - Optionales Logging, einsehbar im Log-Tab mit Dateiauswahl (Dropdown zeigt alle vorhandenen Logdateien, neueste vorausgewählt) und Auto-Refresh.
 
 ---
@@ -85,11 +85,11 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 ## 10. Erweiterte Funktionen
 
 - Laufzeit-Anzeige: zeigt die Laufzeit der Uhr seit dem letzten Neustart.
-- Neustart-Funktion: erlaubt einen Neustart der Uhr über die Weboberfläche, nur bei Zugriff aus einem privaten Netzwerk.
+- Neustart-Funktion: erlaubt einen Neustart der Uhr über die Weboberfläche.
 - BMP-Skalierung: hochgeladene BMP-Dateien können auf die Displaygröße skaliert werden.
 - API-Schnittstelle
-- Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe/-größe, Sekundenzeiger sichtbar und Stil, Bahnhofsmodus, sanfter Minutenzeiger, Zeitzone und Helligkeitseinstellungen) - einzeln umbenenn- und löschbar (nur bei Zugriff aus einem privaten Netzwerk), alphabetisch sortiert in der Liste; alle Presets lassen sich in eine Datei sichern und später wiederherstellen; sind alle 50 Plätze belegt, erscheint eine Warnung.
-- Komplettsicherung (Seite „Sicherung“, nur aus einem privaten Netzwerk): alle Einstellungen, Presets, Zifferblätter und Zeigersätze in einer Datei, wiederherstellbar auf dieser oder einer anderen Uhr mit gleichem Displaytyp. WLAN-Zugangsdaten nur auf Wunsch und dann verschlüsselt – mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist, also nicht sicher. Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben unverändert; eine falsche oder beschädigte Datei ändert nichts.
+- Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe/-größe, Sekundenzeiger sichtbar und Stil, Bahnhofsmodus, sanfter Minutenzeiger, Zeitzone und Helligkeitseinstellungen) - einzeln umbenenn- und löschbar, alphabetisch sortiert in der Liste; alle Presets lassen sich in eine Datei sichern und später wiederherstellen; sind alle 50 Plätze belegt, erscheint eine Warnung.
+- Komplettsicherung (Seite „Sicherung“): alle Einstellungen, Presets, Zifferblätter und Zeigersätze in einer Datei, wiederherstellbar auf dieser oder einer anderen Uhr mit gleichem Displaytyp. WLAN-Zugangsdaten nur auf Wunsch und dann verschlüsselt – mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist, also nicht sicher. Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben unverändert; eine falsche oder beschädigte Datei ändert nichts.
 - Das Löschen eines Zifferblatts oder Zeigersatzes entfernt automatisch alle Presets, die darauf verwiesen haben; wird der gerade aktive Zeigersatz gelöscht, fällt die Uhr automatisch auf den eingebauten Standard zurück.
 - DCF77 wird unterstützt: robuster Empfang auch bei schwachem oder gestörtem Signal (Impulse werden über ein Sekundenraster statt reiner Zählung platziert, sodass fehlende Impulse nicht die folgenden Bits verschieben), funktioniert unabhängig von der Signalpolarität; ein gestörtes Telegramm kann nie eine falsche Zeit setzen.
 - Live-Seite (/dcf77) zeigt den Bit-Fortschritt des aktuellen Telegramms und das letzte dekodierte Telegramm zur Diagnose.
@@ -117,7 +117,7 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 ## 1. Support for Multiple TFT Displays
 
 - Supported displays: GC9A01 (240 × 240) and GC9D01 (160 × 160) – one firmware for both, the display type is a setting ("Clock Setup" tab: GC9A01 without / with backlight (BL) on pin 3, GC9D01 – as in `flashESP`; when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
-- A second, identical display can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode, confirmation codes) still appear on both displays until the clock takes over (the settings page notes this).
+- A second, identical display can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock takes over (the settings page notes this).
 
 ---
 
@@ -152,8 +152,8 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 - Up to 15 WiFi networks, WPS setup, automatic reconnect, customizable hostname.
 - First-time setup directly when flashing: `flashESP.bat`/`flashESP.sh` ask for the display type and a WiFi network (all visible 2.4 GHz networks for selection, password entered hidden) and send both to the clock via USB, finally the PC's time. To only set the time (without flashing, e.g. for a clock without WiFi, DCF77 and RTC): `setTime.bat`/`setTime.sh`. Alternatively via WPS or the setup access point (SSID `clock123`, password `clocksetup`).
-- Overwriting or switching away from the currently connected WiFi network is executed directly when accessed from the private (home) network; when accessed from a non-private network (e.g. via a port forward/DMZ), confirming a code shown on the display is required instead. Deleting a WiFi network (active or not), as well as any other changes to non-active networks, is only possible from a private network in general, with no code option at all.
-- NTP with DCF77 as a fallback for time sync; the clock also acts as an NTP server for other devices on the network, but only answers requests from a private network and only once a valid time has been determined.
+- Adding, overwriting, switching and deleting WiFi networks is executed directly. The web interface does not distinguish between access from the home network and from outside - so do not expose the clock to the internet via a port forward/DMZ.
+- NTP with DCF77 as a fallback for time sync; the clock also acts as an NTP server for other devices on the network, answering once a valid time has been determined.
 - Up to 15 custom NTP servers can be stored; if none are configured (or all are deleted), the clock automatically falls back to `pool.ntp.org` and `ptbtime1.ptb.de`. If the configured servers are unreachable, these two are additionally tried as a last-resort fallback.
 
 ---
@@ -169,7 +169,7 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 7. File Management with LittleFS
 
-- Clock faces and hands are stored compressed; files can be uploaded, downloaded, renamed, and deleted via the web interface. Uploading, renaming, and deleting are only possible when accessing the clock from a private network (protection against remote access, e.g. via a port forward).
+- Clock faces and hands are stored compressed; files can be uploaded, downloaded, renamed, and deleted via the web interface.
 - Optional logging, viewable in the Log tab with a file selector (dropdown shows all existing log files, newest preselected) and auto-refresh.
 
 ---
@@ -191,11 +191,11 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 ## 10. Advanced Features
 
 - Uptime Display: Shows the clock's runtime since the last restart.
-- Reboot Function: Allows restarting the clock via the web interface, only when accessing from a private network.
+- Reboot Function: Allows restarting the clock via the web interface.
 - BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
 - API Interface
-- Up to 50 presets (face, hand set, hub color/size, second hand visibility and style, station mode, smooth minute hand, time zone and brightness settings) - individually renameable and deletable (only when accessing from a private network), sorted alphabetically in the list; back up all presets to a file and restore them later; a warning is shown once all 50 slots are full.
-- Full backup (Backup page, only from a private network): all settings, presets, clock faces and hand sets in one file, restorable on this or another clock with the same display type. WiFi credentials only on request and then encrypted – with a key that is the same in every uhr4 firmware, so not secure. Display type, rotation, backlight and light sensor of the target clock stay unchanged; a wrong or damaged file changes nothing.
+- Up to 50 presets (face, hand set, hub color/size, second hand visibility and style, station mode, smooth minute hand, time zone and brightness settings) - individually renameable and deletable, sorted alphabetically in the list; back up all presets to a file and restore them later; a warning is shown once all 50 slots are full.
+- Full backup (Backup page): all settings, presets, clock faces and hand sets in one file, restorable on this or another clock with the same display type. WiFi credentials only on request and then encrypted – with a key that is the same in every uhr4 firmware, so not secure. Display type, rotation, backlight and light sensor of the target clock stay unchanged; a wrong or damaged file changes nothing.
 - Deleting a clock face or hand set automatically removes any presets that referenced it; deleting the currently active hand set automatically falls back to the built-in default.
 - DCF77 supported: robust reception even with a weak or disturbed signal (pulses are placed on a one-second grid instead of relying on pure counting, so missing pulses don't shift the following bits), works regardless of signal polarity; a disturbed telegram can never set a wrong time.
 - Live page (/dcf77) shows the bit progress of the current telegram and the last decoded telegram for diagnostics.

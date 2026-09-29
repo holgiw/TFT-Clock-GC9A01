@@ -1722,25 +1722,42 @@
     // HAND_MOVE_MS auf dem kuerzesten Weg (auch rueckwaerts) ans Ziel, mit
     // sanftem Anfahren und Abbremsen. Normale Bewegungen (Tick, Minutenschritt,
     // schwingende Zeiger) liegen unter HAND_MOVE_THRESHOLD_DEG und bleiben
-    // unveraendert. Die Richtung wird beim Start festgelegt, damit ein
-    // weiterlaufendes Ziel (Sekundenzeiger) sie bei ~180 Grad nicht umkehrt.
+    // unveraendert.
+    // Gerechnet wird mit dem Abstand zum Ziel (offset), der ueber die Zeit
+    // auf 0 schrumpft (Smoothstep). Bewegt sich das Ziel waehrend der
+    // Animation (weiterlaufender Sekundenzeiger oder die NTP-Korrektur kurz
+    // nach dem Start, z.B. +7 s), bleibt der Zeiger zunaechst stehen und der
+    // Unterschied wird in den Restweg eingerechnet - frueher sprang der
+    // Zeiger dabei um den entsprechenden Anteil (sichtbarer Ruckler ~1 s
+    // nach dem Start). Kommt ein grosser Sprung erst spaet in der Animation,
+    // beginnt sie neu, statt den Rest in wenigen Bildern nachzuholen. Die
+    // Richtung ergibt sich aus dem Vorzeichen des Abstands und kehrt sich
+    // daher auch bei ~180 Grad nicht um.
 
     // Hand movement on large jumps: when the clock gets a time for the first
     // time (all hands stand at 12 until then), the time gets corrected or the
     // Rocrail model time jumps, the hands move to their target in HAND_MOVE_MS
     // along the shortest path (also backwards), easing in and out. Normal
     // movements (tick, minute step, sweeping hands) stay below
-    // HAND_MOVE_THRESHOLD_DEG and are unchanged. The direction is fixed at the
-    // start so a still-moving target (second hand) cannot reverse it near
-    // 180 degrees.
+    // HAND_MOVE_THRESHOLD_DEG and are unchanged.
+    // The computation works on the distance to the target (offset), which
+    // shrinks to 0 over time (smoothstep). If the target moves during the
+    // animation (a still-running second hand, or the NTP correction shortly
+    // after boot, e.g. +7 s), the hand stays where it is at first and the
+    // difference is folded into the remaining way - before, the hand jumped
+    // by the corresponding share (a visible jerk ~1 s after boot). If a large
+    // jump only comes late in the animation, it restarts instead of catching
+    // up the rest in a few frames. The direction follows from the sign of the
+    // offset and therefore does not reverse near 180 degrees either.
 
     const float HAND_MOVE_THRESHOLD_DEG = 10.0f;
     const unsigned long HAND_MOVE_MS = 3000;
 
     struct HandMove {
         bool active = false;
-        float from = 0.0f;
-        float dir = 1.0f;
+        float offset = 0.0f;      // angezeigt - Ziel, ungewrappt / shown minus target, unwrapped
+        float lastTarget = 0.0f;
+        float lastRemain = 1.0f;  // Restanteil (1 - Smoothstep) im letzten Bild / remaining share in the last frame
         unsigned long startMillis = 0;
     };
 
@@ -1750,23 +1767,40 @@
     }
 
     float animateHand(HandMove& m, float shown, float target, unsigned long now) {
-        float diff = shortestAngleDiff(shown, target);
         if (!m.active) {
+            float diff = shortestAngleDiff(shown, target);
             if (fabsf(diff) <= HAND_MOVE_THRESHOLD_DEG) return target;
             m.active = true;
-            m.from = shown;
-            m.dir = (diff < 0.0f) ? -1.0f : 1.0f;
+            m.offset = -diff;
+            m.lastTarget = target;
+            m.lastRemain = 1.0f;
             m.startMillis = now;
+            return shown;
         }
+
+        // Zielbewegung seit dem letzten Bild auffangen: der Zeiger bleibt, wo er ist
+        // Absorb the target's movement since the last frame: the hand stays where it is
+        float jump = shortestAngleDiff(m.lastTarget, target);
+        m.lastTarget = target;
+        m.offset -= jump;
+        if (fabsf(jump) > HAND_MOVE_THRESHOLD_DEG && m.lastRemain < 0.5f) {
+            m.startMillis = now; // grosser Sprung spaet in der Animation: neu beginnen / large jump late in the animation: restart
+            m.lastRemain = 1.0f;
+        }
+
         float p = (float)(now - m.startMillis) / (float)HAND_MOVE_MS;
         if (p >= 1.0f) {
             m.active = false;
             return target;
         }
-        float total = shortestAngleDiff(m.from, target);
-        if (total * m.dir < 0.0f && fabsf(total) > 90.0f) total += 360.0f * m.dir; // Richtung beibehalten / keep direction
-        float eased = p * p * (3.0f - 2.0f * p);                                    // Smoothstep
-        return wrapAngle(m.from + total * eased);
+        float remain = 1.0f - p * p * (3.0f - 2.0f * p); // 1 - Smoothstep
+        if (remain <= 0.0f) { // Rundung kurz vor p = 1 / rounding just before p = 1
+            m.active = false;
+            return target;
+        }
+        m.offset *= remain / m.lastRemain;
+        m.lastRemain = remain;
+        return wrapAngle(target + m.offset);
     }
 
     static float lastHourAngle = 0.0f;

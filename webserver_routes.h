@@ -391,7 +391,19 @@
         return true;
     }
 
+    // Pruefung abgeschaltet: jeder Zugriff gilt als aus dem privaten Netz -
+    // alle Aktionen sind ohne Einschraenkung und ohne Bestaetigungscode
+    // erlaubt. Die Aufrufstellen bleiben unveraendert; zum Wiedereinschalten
+    // nur PRIVATE_NETWORK_CHECK auf true setzen.
+    // Check disabled: every access counts as coming from the private network -
+    // all actions are allowed without restriction and without a confirmation
+    // code. The call sites stay unchanged; to re-enable, just set
+    // PRIVATE_NETWORK_CHECK to true.
+    constexpr bool PRIVATE_NETWORK_CHECK = false;
+
     bool isPrivateNetworkIp(IPAddress ip) {
+        if (!PRIVATE_NETWORK_CHECK) return true;
+
         wifi_mode_t mode = WiFi.getMode();
 
         if ((mode == WIFI_STA || mode == WIFI_AP_STA) && WiFi.status() == WL_CONNECTED) {

@@ -63,7 +63,7 @@ Ist die Uhr bereits mit dem Heim-WLAN verbunden, lässt sich jederzeit über die
 
 Soll die Uhr komplett neu eingerichtet werden (z.B. Umzug, neuer Router), gibt es zwei Wege:
 
-- **Über die Weboberfläche (empfohlen):** Seite **„Werkseinstellungen"** → **„Gespeicherte Netzwerke zurücksetzen"**. Bei Zugriff aus dem eigenen (privaten) Heimnetz – der normale Fall bei dieser Anleitung – wird sofort zurückgesetzt, ohne weitere Bestätigung. Nur bei Zugriff von außerhalb des Heimnetzes (z. B. über eine Port-Weiterleitung/DMZ) erscheint stattdessen groß und mittig ein 3-stelliger Bestätigungscode auf dem Display der Uhr (Form `_123_`), der zur Bestätigung auf der sich öffnenden Seite eingegeben werden muss (Schutz davor, dass diese Aktion aus der Ferne ohne physischen Zugriff auf die Uhr ausgelöst wird). Löscht nur die WLAN-Zugangsdaten, alle Zifferblätter/Zeigersätze/Presets bleiben erhalten. Die Uhr geht danach wieder in den WPS-/Accesspoint-Modus (siehe 1.1).
+- **Über die Weboberfläche (empfohlen):** Seite **„Werkseinstellungen"** → **„Gespeicherte Netzwerke zurücksetzen"**. Es wird nach einer Sicherheitsabfrage sofort zurückgesetzt. Löscht nur die WLAN-Zugangsdaten, alle Zifferblätter/Zeigersätze/Presets bleiben erhalten. Die Uhr geht danach wieder in den WPS-/Accesspoint-Modus (siehe 1.1).
 - **Über den Taster am Gerät (BUTTON bzw. eingebauter BOOT-Taster):** Kurz gedrückt zeigt er den Namen des aktuell verbundenen WLANs an. Wird er **länger als 10 Sekunden** gehalten, erscheint auf dem Display ein roter **„Factory Reset in N secs"**-Countdown – bis zu diesem Punkt passiert noch nichts, loslassen bricht harmlos ab. Wird er **länger als 15 Sekunden** durchgehend gehalten, löst das einen **vollständigen Werksreset** aus (WLAN **und** alle hochgeladenen Zifferblätter/Zeigersätze/Presets werden gelöscht).
 
   ⚠️ **Der Taster hat keine Zwischenstufe „nur WLAN löschen"** – für ein reines WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets bitte den Weg über die Weboberfläche (siehe oben) nutzen, sofern die Uhr noch erreichbar ist.
@@ -132,7 +132,7 @@ Im Abschnitt **„Presets sichern / wiederherstellen"**:
 
 **Beispiel-Sets:** Über **„Presets von GitHub laden"** lassen sich jederzeit empfohlene Uhren-Sets direkt von GitHub laden; ist die Liste beim ersten Aufruf noch leer, bietet die Uhr das auch von selbst an. Dafür ist eine bestehende Internetverbindung nötig.
 
-**Komplettsicherung der ganzen Uhr:** Die Seite **„Sicherung"** (in der Navigation, nur aus dem eigenen Heimnetz) sichert alle Einstellungen, Uhren-Sets, Zifferblätter und Zeigersätze in **einer** Datei. Diese lässt sich auf derselben oder einer anderen Uhr mit gleichem Displaytyp wiederherstellen. WLAN-Zugangsdaten werden nur auf Wunsch mitgesichert (verschlüsselt, aber mit einem in jeder Firmware gleichen Schlüssel – also nicht sicher).
+**Komplettsicherung der ganzen Uhr:** Die Seite **„Sicherung"** (in der Navigation) sichert alle Einstellungen, Uhren-Sets, Zifferblätter und Zeigersätze in **einer** Datei. Diese lässt sich auf derselben oder einer anderen Uhr mit gleichem Displaytyp wiederherstellen. WLAN-Zugangsdaten werden nur auf Wunsch mitgesichert (verschlüsselt, aber mit einem in jeder Firmware gleichen Schlüssel – also nicht sicher).
 
 ---
 
@@ -216,7 +216,7 @@ Once the clock is connected to your home WiFi, you can add **another** network v
 
 If the clock needs to be set up from scratch (e.g. a move, a new router), there are two ways:
 
-- **Via the web interface (recommended):** Go to the **"Factory Reset"** page → **"Reset Saved Networks"**. When accessed from your own (private) home network - the normal case for this guide - it resets immediately, with no further confirmation. Only when accessed from outside the home network (e.g. via a port forward/DMZ) does a 3-digit confirmation code appear instead, large and centered on the clock's display (shown as `_123_`), which must be entered on the page that opens to confirm (protects against this action being triggered remotely without physical access to the clock). This only erases the WiFi credentials; all clock faces/hand sets/presets are kept. The clock then goes back into WPS/access point mode (see 1.1).
+- **Via the web interface (recommended):** Go to the **"Factory Reset"** page → **"Reset Saved Networks"**. It resets immediately after a confirmation prompt. This only erases the WiFi credentials; all clock faces/hand sets/presets are kept. The clock then goes back into WPS/access point mode (see 1.1).
 - **Via the button on the device (BUTTON, or the built-in Boot button):** A brief press shows the name of the currently connected WiFi network. Holding it for **more than 10 seconds** shows a red **"Factory Reset in N secs"** countdown on the display - up to this point nothing happens yet, releasing it aborts harmlessly. Holding it continuously for **more than 15 seconds** triggers a **full factory reset** (WiFi **and** all uploaded clock faces/hand sets/presets are erased).
 
   ⚠️ **The button has no in-between "WiFi only" tier** - for a WiFi-only reset without losing your own clock faces/hand sets/presets, use the web interface path described above instead, provided the clock is still reachable.
@@ -285,7 +285,7 @@ In the **"Backup / Restore Presets"** section:
 
 **Sample presets:** **"Load Presets from GitHub"** loads recommended presets directly from GitHub at any time; if the list is still empty on the first visit, the clock also offers this by itself. This requires an existing internet connection.
 
-**Full backup of the whole clock:** The **"Backup"** page (in the navigation, only from your own home network) saves all settings, presets, clock faces and hand sets in **one** file. It can be restored on the same or another clock with the same display type. WiFi credentials are only included on request (encrypted, but with a key that is the same in every firmware - so not secure).
+**Full backup of the whole clock:** The **"Backup"** page (in the navigation) saves all settings, presets, clock faces and hand sets in **one** file. It can be restored on the same or another clock with the same display type. WiFi credentials are only included on request (encrypted, but with a key that is the same in every firmware - so not secure).
 
 ---
 
