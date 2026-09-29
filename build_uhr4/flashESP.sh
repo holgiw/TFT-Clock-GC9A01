@@ -184,6 +184,53 @@ ask_wifi() {
     done
 }
 
+# Andere Programme, die die Schnittstelle offen haben (z.B. ein serieller
+# Monitor). Unter Linux duerfen mehrere Programme dieselbe Schnittstelle
+# gleichzeitig oeffnen - es gibt also keinen Fehler, aber der Monitor kann die
+# Antworten der Uhr wegschnappen. Gibt "Name (PID)"-Liste aus, leer wenn frei
+# oder fuser (Paket psmisc) fehlt. Nur VOR dem eigenen Oeffnen aufrufen, sonst
+# erscheint dieses Skript selbst in der Liste.
+# Other programs that have the port open (e.g. a serial monitor). On Linux
+# several programs may open the same port at the same time - so there is no
+# error, but the monitor can snatch the clock's replies. Prints a "name (PID)"
+# list, empty if free or fuser (package psmisc) is missing. Only call BEFORE
+# opening the port ourselves, otherwise this script shows up in the list.
+port_users() {
+    local pid name out=""
+    command -v fuser >/dev/null 2>&1 || return 0
+    for pid in $(fuser "$1" 2>/dev/null); do
+        pid=${pid//[!0-9]/}
+        [ -z "$pid" ] || [ "$pid" = "$$" ] && continue
+        name=$(ps -o comm= -p "$pid" 2>/dev/null)
+        [ -z "$name" ] && continue # inzwischen beendet / exited meanwhile
+        out="$out $name ($pid)"
+    done
+    echo "${out# }"
+}
+
+# Meldet einmal (BUSY_SHOWN), wenn die Schnittstelle belegt ist; merkt sich in
+# BUSY_PORT, ob sie beim letzten Blick belegt war.
+# Reports once (BUSY_SHOWN) if the port is in use; remembers in BUSY_PORT
+# whether it was in use at the last check.
+BUSY_SHOWN=""
+BUSY_PORT=""
+check_port_busy() {
+    local users
+    users=$(port_users "$1")
+    if [ -n "$users" ]; then
+        BUSY_PORT="$1"
+        if [ "$BUSY_SHOWN" != "$1" ]; then
+            BUSY_SHOWN="$1"
+            echo "$1 ist von einem anderen Programm geoeffnet: $users"
+            echo "  z.B. serieller Monitor (Arduino IDE, screen, minicom) - bitte schliessen, sonst gehen Antworten der Uhr verloren."
+            echo "$1 is opened by another program: $users"
+            echo "  e.g. a serial monitor (Arduino IDE, screen, minicom) - please close it, otherwise the clock's replies get lost."
+        fi
+    else
+        BUSY_PORT=""
+    fi
+}
+
 # Sendet einen Befehl und wartet bis 3 s auf "UHR4 OK ..." bzw. "UHR4 ERROR ...",
 # Ergebnis in REPLY_LINE (leer = keine Antwort).
 # Sends a command and waits up to 3 s for "UHR4 OK ..." or "UHR4 ERROR ...",
@@ -228,7 +275,7 @@ send_setup() {
         # Clock present but no reply for 45 s: firmware without USB setup
         # (older than this flashESP version) - give up.
         [ -z "$port_seen" ] && port_seen=$SECONDS
-        if [ $((SECONDS - port_seen)) -gt 45 ]; then
+        if [ -z "$BUSY_PORT" ] && [ $((SECONDS - port_seen)) -gt 45 ]; then
             WIFI_PASS=""
             echo "Die Uhr antwortet nicht - ihre Firmware kennt die Einrichtung per USB noch nicht."
             echo "Displaytyp und WLAN dann in der Weboberflaeche einstellen."
@@ -238,6 +285,7 @@ send_setup() {
         fi
         # -hupcl: beim Schliessen DTR nicht fallen lassen (kein Neustart der Uhr)
         # -hupcl: do not drop DTR on close (no restart of the clock)
+        check_port_busy "$dev"
         if ! { stty -F "$dev" 115200 raw -echo -hupcl && exec 3<>"$dev"; } 2>/dev/null; then
             sleep 0.5
             continue
@@ -274,6 +322,10 @@ send_setup() {
         return 0
     done
     WIFI_PASS=""
+    if [ -n "$BUSY_PORT" ]; then
+        echo "$BUSY_PORT ist weiterhin von einem anderen Programm geoeffnet - bitte schliessen und flashESP.sh erneut starten."
+        echo "$BUSY_PORT is still opened by another program - please close it and run flashESP.sh again."
+    fi
     echo "Keine Antwort von der Uhr. Displaytyp und WLAN dann in der Weboberflaeche einstellen"
     echo "oder flashESP.sh erneut starten. Programme mit offener Schnittstelle (z.B. seriellen Monitor) schliessen."
     echo "No reply from the clock. Set display type and WiFi in the web interface"
@@ -304,7 +356,8 @@ send_time() {
         # Uhr da, antwortet aber 20 s lang nicht: Firmware ohne "UHR4 TIME"
         # Clock present but no reply for 20 s: firmware without "UHR4 TIME"
         [ -z "$port_seen" ] && port_seen=$SECONDS
-        [ $((SECONDS - port_seen)) -gt 20 ] && break
+        [ -z "$BUSY_PORT" ] && [ $((SECONDS - port_seen)) -gt 20 ] && break
+        check_port_busy "$dev"
         if ! { stty -F "$dev" 115200 raw -echo -hupcl && exec 3<>"$dev"; } 2>/dev/null; then
             sleep 0.5
             continue
@@ -319,6 +372,11 @@ send_time() {
         exec 3>&-
         sleep 0.5
     done
+    if [ -n "$BUSY_PORT" ]; then
+        echo "Uhrzeit nicht gesetzt: $BUSY_PORT ist weiterhin von einem anderen Programm geoeffnet - bitte schliessen und erneut starten."
+        echo "Time not set: $BUSY_PORT is still opened by another program - please close it and start again."
+        return 1
+    fi
     echo "Uhrzeit nicht gesetzt: keine Antwort (Firmware ohne diese Funktion?). Programme mit offener Schnittstelle schliessen."
     echo "Time not set: no reply (firmware without this function?). Close programs using the port."
     return 1
@@ -346,6 +404,7 @@ query_clock_info() {
     local dev="$1"
     [ -n "$dev" ] || dev=$(find_running_port) || return 1
     echo "Frage die Uhr auf $dev nach ihrem Displaytyp ... / asking the clock on $dev for its display type ..."
+    check_port_busy "$dev"
     { stty -F "$dev" 115200 raw -echo -hupcl && exec 3<>"$dev"; } 2>/dev/null || return 1
     if send_command "UHR4 INFO"; then
         case "$REPLY_LINE" in
@@ -431,7 +490,7 @@ if [ "$1" = "--time" ]; then
         echo "  sudo usermod -a -G dialout \$USER"
         exit 1
     fi
-    send_time "$dev" 15
+    send_time "$dev" 30
     exit $?
 fi
 
