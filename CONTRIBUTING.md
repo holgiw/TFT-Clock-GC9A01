@@ -7,10 +7,14 @@ that makes them much easier to review and merge.
 ## Hardware & Build Environment
 
 - Target: **ESP32-S2** only (limited RAM - see "Memory constraints" below)
-- Arduino IDE, partition scheme: **"No OTA, 2MB APP / 2MB SPIFFS"**
-- **PSRAM: Enabled** in board settings
-- Displays: GC9A01 (240x240) or GC9D01 (160x160) - one firmware for both, the
-  type is a setting in the web UI ("Clock Setup" tab, takes effect after a restart).
+- Board: **LOLIN S2 PICO** (esp32 Arduino core, built with 3.3.12), partition
+  scheme: **"No OTA, 2MB APP / 2MB SPIFFS"**. PSRAM is always on for this
+  board (`BOARD_HAS_PSRAM` in the board definition, no menu option).
+- Release builds (`uhr4.ino.bin`, `.bootloader.bin`, `.partitions.bin`,
+  `.merged.bin`) go directly into `build_uhr4/` - `flashESP.bat`/`flashESP.sh`
+  flash exactly those files.
+- Displays: GC9A01 (240x240, without or with backlight on pin 3) or GC9D01
+  (160x160) - one firmware for all, the type is a setting in the web UI ("Clock Setup" tab, takes effect after a restart).
   Dimensions per type live in `DISPLAY_GEOMETRY` (`config.h`); `CLOCK_WIDTH`,
   `HAND_WIDTH` etc. read the active type at runtime, so never use them in array
   sizes, `static_assert` or `#if`. ILI9341 support was dropped.
@@ -25,7 +29,7 @@ clear responsibility:
 | File | Responsibility |
 |---|---|
 | `config.h` | Display geometry per type, hardware pins, constants |
-| `lgfx_config.h` | LovyanGFX device: SPI bus, GC9A01 panel, init sequence |
+| `lgfx_config.h` | LovyanGFX device: SPI bus, GC9A01 and GC9D01 panels (own init sequences) |
 | `globals.h` | Global variables and shared state |
 | `declarations.h` | Forward declarations for every function (see below) |
 | `translation.h` | UI translations (DE) |
@@ -35,8 +39,12 @@ clear responsibility:
 | `presets_manager.h` | Preset storage/retrieval logic |
 | `backup.h` | Full backup/restore (TAR), WiFi encryption |
 | `webserver_routes.h` | All HTTP routes and generated HTML |
+| `face_designer_html.h` | Clock face designer (browser page, HTML/JS) |
+| `hand_designer_html.h` | Hand designer (browser page, HTML/JS) |
+| `rocrail_client.h` | Rocrail model time connection |
 | `system_utils.h` | Heap monitoring, misc helpers |
 | `prefs_keys.h` | `Preferences` (NVS) key name constants |
+| `build_defs.h` | Build date/year from `__DATE__`/`__TIME__` |
 
 **Any new function needs a matching forward declaration in
 `declarations.h`** - the project relies on this instead of reordering
@@ -69,9 +77,13 @@ clear responsibility:
   text. (`&nbsp;` *inside* a translated phrase is fine when it's part of
   keeping that specific phrase from wrapping awkwardly, e.g. narrow nav
   labels.)
-- **Every `translate("...")` call needs a German entry.** Before submitting a PR, verify there are no missing
-  translations (extract every `translate("...")` key used across the
-  `.ino`/`.h` files and confirm each exists in `translationTable`).
+- **Every `translate("...")` call needs a German entry - unless the German
+  text is identical** (e.g. "Status", "Log", "Version"): `translate()` returns
+  the key when there is no entry, so identical entries are deliberately left
+  out. Before submitting a PR, verify there are no missing translations
+  (extract every `translate("...")` key used across the `.ino`/`.h` files and
+  confirm each exists in `translationTable` or reads the same in German), and
+  remove entries whose key is no longer used anywhere.
 - Keep the key itself in English, matching the fallback text shown when
   the interface language is English.
 
@@ -105,7 +117,7 @@ Please check:
 - [ ] Braces `{`/`}` balance in every file you touched
 - [ ] Preprocessor directives (`#if`/`#ifdef`/`#ifndef`/`#endif`) balance
 - [ ] Every `translate("...")` call has a matching German entry in
-      `translation.h`
+      `translation.h` (unless the German text is identical)
 - [ ] No raw non-ASCII characters were introduced into `translation.h`
       (use HTML entities - see above)
 - [ ] The sketch still compiles for the ESP32-S2 board/partition scheme
@@ -118,6 +130,7 @@ Please check:
 ## Reporting Issues
 
 When reporting a bug, please include:
-- Board variant and display (GC9A01/GC9D01/ILI9341 [deprecated])
+- Board variant and display type (GC9A01 without backlight, GC9A01 with
+  backlight on pin 3, or GC9D01) and the firmware version/build date
 - Steps to reproduce
 - Serial monitor output if the device crashed or behaved unexpectedly
