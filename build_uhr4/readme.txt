@@ -73,11 +73,11 @@ ODER
 	Findet er keinen WPS Router, geht er in den Accesspoint Mode.
 	Dann bitte mit dem WLAN Netzwerk SSID clock123 verbinden - Passwort clocksetup (steht auch auf dem Display der Uhr) - es öffnet sich meist automatisch ein Browserfenster (Captive Portal), ansonsten im Browser die angezeigte IP mit HTTP aufrufen, z.b. http://192.168.4.1
 	Achtung, nur HTTP verwendenden, HTTPs funktioniert nicht!
-	Mit SAVE werden die geänderten Werte für das WLAN übermittelt und gespeichert.
-	RESET startet die Uhr neu.
+	Mit "speichern" werden die WLAN-Daten übermittelt und gespeichert, danach startet die Uhr von
+	selbst neu und verbindet sich mit dem WLAN.
 
-Wird der Taster (BUTTON, siehe Pinbelegung) beim Einschalten kurz gedrückt, zeigt die Uhr das aktuell verbundene WLAN an. Wird er länger als 10 Sekunden gehalten, startet auf dem Display ein roter "Factory Reset"-Countdown - bis zu diesem Punkt passiert noch nichts, Loslassen bricht harmlos ab. Erst wenn er länger als 15 Sekunden durchgehend gehalten wird, löst das einen vollständigen Werksreset aus: dabei werden WLAN-Zugangsdaten UND alle hochgeladenen Zifferblätter/Zeigersätze/Presets gelöscht (kein reines "nur WLAN löschen" mehr). Alternativ funktioniert dafür auch der eingebaute Boot-Taster (BOOT_BUTTON). Nach einem Werksreset geht die Uhr wieder in den WPS-/AccessPoint-Modus.
-Für ein WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets stattdessen über die Weboberfläche die Werksreset-Seite nutzen ("gespeicherte WLAN-Netzwerke zurücksetzen").
+Wird der Taster (BUTTON, siehe Pinbelegung) im laufenden Betrieb kurz gedrückt, zeigt die Uhr das aktuell verbundene WLAN an. Wird er länger als 10 Sekunden gehalten, startet auf dem Display ein roter "Factory Reset"-Countdown - bis zu diesem Punkt passiert noch nichts, Loslassen bricht harmlos ab. Erst wenn er länger als 15 Sekunden durchgehend gehalten wird, löst das einen vollständigen Werksreset aus: dabei werden WLAN-Zugangsdaten UND alle hochgeladenen Zifferblätter/Zeigersätze/Presets gelöscht (kein reines "nur WLAN löschen" mehr). Alternativ funktioniert dafür auch der eingebaute Boot-Taster (BOOT_BUTTON). Nach einem Werksreset geht die Uhr wieder in den WPS-/AccessPoint-Modus.
+Für ein WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets stattdessen in der Weboberfläche die Seite "Werkseinstellungen" nutzen ("Gespeicherte Netzwerke zurücksetzen").
 
 Displaytyp (GC9A01 240x240 oder GC9D01 160x160):
 	Eine Firmware für beide Displays, der Typ ist eine Einstellung. Festlegen:
@@ -163,10 +163,12 @@ cd build_uhr4/
 # Wird keine Uhr gefunden, gibt es Prüffragen (dmesg/lsusb, Datenkabel statt Ladekabel).
 bash flashESP.sh
 
-# flashESP.sh fragt zuerst den Displaytyp ab (1 = GC9A01 ohne Hintergrundbeleuchtung (BL),
-# 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01, Enter = unverändert), danach das WLAN (2,4-GHz-Netze
-# per nmcli, Passwort verdeckt, Enter = überspringen) und sendet nach dem Flashen beides per USB
-# an die Uhr, zuletzt die Uhrzeit des PCs.
+# Wie unter Windows: flashESP.sh sucht zuerst die Uhr, fragt dann den Displaytyp ab
+# (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01,
+# Enter = unverändert; bei einer laufenden uhr4 ist ihr Typ vorgewählt), danach das WLAN
+# (2,4-GHz-Netze per nmcli, Passwort verdeckt, Enter = überspringen; ist der PC mit einem
+# 2,4-GHz-Netz verbunden, bietet es an, Name und Passwort zu übernehmen). Nach dem Flashen
+# sendet es beides per USB an die Uhr, zuletzt die Uhrzeit des PCs.
 
 # nur die Uhrzeit des PCs an die laufende Uhr senden (ohne Flashen)
 bash setTime.sh
@@ -198,7 +200,8 @@ esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bo
 
 
 1. After downloading, unpack the .zip file into a directory.
-   flashESP.bat, port.ps1, esptool.exe and the .bin files must be in the same directory.
+   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe and the .bin files must be
+   in the same directory.
 
 2. Connect the clock (ESP32-S2) to the PC via USB - with a data cable, not just a charging cable.
 
@@ -253,7 +256,7 @@ OR
 
 
 Setting the SSID:
-	Easiest right when flashing: flashESP.bat asks for the WiFi after flashing and transfers it
+	Easiest right when flashing: flashESP.bat asks for the WiFi before flashing and transfers it
 	via USB (see above, step 3). Otherwise:
 
 	Enable WPS on the WiFi router (via button or menu).
@@ -265,11 +268,11 @@ OR
 	If it does not find a WPS router, it switches to Access Point mode.
 	In that case, please connect to the WiFi network SSID clock123 - password clocksetup (also shown on the clock's display) - a browser window (captive portal) usually opens automatically, otherwise open the displayed IP address in your browser using HTTP, e.g. http://192.168.4.1
 	Note: only use HTTP, HTTPS does not work!
-	SAVE transmits and stores the changed WiFi settings.
-	RESET restarts the clock.
+	"Save" transmits and stores the WiFi settings, then the clock restarts by itself and connects
+	to the WiFi.
 
-If the button (BUTTON, see pinout) is pressed briefly while powering on, the clock shows the currently connected WiFi network. If held down for more than 10 seconds, a red "Factory Reset" countdown starts on the display - up to that point nothing happens yet, releasing it aborts harmlessly. Only holding it continuously for more than 15 seconds triggers a full factory reset: this erases the WiFi credentials AND all uploaded clock faces/hand sets/presets (there is no longer a "WiFi only" reset tier). The built-in Boot button (BOOT_BUTTON) works the same way. After a factory reset, the clock goes back into WPS/Access Point mode.
-For a WiFi-only reset without losing your own clock faces/hand sets/presets, use the Factory Reset page in the web interface instead ("reset saved WiFi networks").
+If the button (BUTTON, see pinout) is pressed briefly during operation, the clock shows the currently connected WiFi network. If held down for more than 10 seconds, a red "Factory Reset" countdown starts on the display - up to that point nothing happens yet, releasing it aborts harmlessly. Only holding it continuously for more than 15 seconds triggers a full factory reset: this erases the WiFi credentials AND all uploaded clock faces/hand sets/presets (there is no longer a "WiFi only" reset tier). The built-in Boot button (BOOT_BUTTON) works the same way. After a factory reset, the clock goes back into WPS/Access Point mode.
+For a WiFi-only reset without losing your own clock faces/hand sets/presets, use the "Factory Reset" page in the web interface instead ("Reset Saved Networks").
 
 Display type (GC9A01 240x240 or GC9D01 160x160):
 	One firmware for both displays, the type is a setting. Set it:
@@ -355,10 +358,12 @@ cd build_uhr4/
 # If no clock is found, it asks troubleshooting questions (dmesg/lsusb, data cable instead of charging cable).
 bash flashESP.sh
 
-# flashESP.sh first asks for the display type (1 = GC9A01 without backlight (BL),
-# 2 = GC9A01 with BL on pin 3, 3 = GC9D01, Enter = unchanged), then for the WiFi (2.4 GHz
-# networks via nmcli, password hidden, Enter = skip) and after flashing sends both to the
-# clock via USB, finally the PC's time.
+# As on Windows: flashESP.sh first finds the clock, then asks for the display type
+# (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01,
+# Enter = unchanged; for a running uhr4 its type is preselected), then for the WiFi
+# (2.4 GHz networks via nmcli, password hidden, Enter = skip; if the PC is connected to a
+# 2.4 GHz network, it offers to take over its name and password). After flashing it sends
+# both to the clock via USB, finally the PC's time.
 
 # only send the PC's time to the running clock (without flashing)
 bash setTime.sh
