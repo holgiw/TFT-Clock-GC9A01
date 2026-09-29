@@ -1,4 +1,5 @@
-# Ermittelt den COM-Port zum Flashen der Uhr, Aufruf aus flashESP.bat.
+# Ermittelt den COM-Port zum Flashen der Uhr, Aufruf aus clocksetup.ps1 (zuerst mit
+# -NoSwitch nur zum Suchen, danach zum Umschalten in den Download-Modus).
 # Rueckgabe als Exit-Code: Portnummer (3 = COM3) oder 0 = abbrechen.
 #
 # Der ESP32-S2 meldet sich mit ZWEI verschiedenen COM-Ports: laufend (Arduino
@@ -6,7 +7,8 @@
 # wird sie wie in der Arduino IDE per 1200-Baud-Signal in den Download-Modus
 # neu gestartet und anschliessend der dann neu erscheinende Port verwendet.
 #
-# Determines the COM port for flashing the clock, called from flashESP.bat.
+# Determines the COM port for flashing the clock, called from clocksetup.ps1 (first
+# with -NoSwitch only to find it, then to switch into download mode).
 # Returned as exit code: port number (3 = COM3) or 0 = abort.
 #
 # The ESP32-S2 shows up with TWO different COM ports: running (Arduino
