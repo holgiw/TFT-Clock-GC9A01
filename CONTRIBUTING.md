@@ -10,7 +10,7 @@ that makes them much easier to review and merge.
 - Arduino IDE, partition scheme: **"No OTA, 2MB APP / 2MB SPIFFS"**
 - **PSRAM: Enabled** in board settings
 - Displays: GC9A01 (240x240) or GC9D01 (160x160) - one firmware for both, the
-  type is a setting in the web UI (clock face tab, takes effect after a restart).
+  type is a setting in the web UI ("Clock Setup" tab, takes effect after a restart).
   Dimensions per type live in `DISPLAY_GEOMETRY` (`config.h`); `CLOCK_WIDTH`,
   `HAND_WIDTH` etc. read the active type at runtime, so never use them in array
   sizes, `static_assert` or `#if`. ILI9341 support was dropped.

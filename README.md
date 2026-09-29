@@ -10,7 +10,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 1. Unterstützung mehrerer TFT-Displays
 
-- Unterstützte Displays: GC9A01 (240 × 240) und GC9D01 (160 × 160) – eine Firmware für beide, der Displaytyp ist eine Einstellung (Zifferblatt-Tab: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01 – wie in `flashESP`; beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
+- Unterstützte Displays: GC9A01 (240 × 240) und GC9D01 (160 × 160) – eine Firmware für beide, der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01 – wie in `flashESP`; beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
 - Zweites, baugleiches Display optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus, Bestätigungscodes) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
 
 ---
@@ -29,13 +29,15 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 - Sanfter Minutenzeiger: bewegt sich gleichmäßig statt in 1-Minuten-Schritten zu springen.
 - Bahnhofsuhr-Modus: der Sekundenzeiger läuft in 58,5 Sekunden um und pausiert kurz oben auf der 12, wie bei einer klassischen Bahnhofsuhr.
+- Zeitsprünge (Start, erste gültige Uhrzeit, Zeitumstellung, Rocrail): die Zeiger laufen in 3 Sekunden sanft auf dem kürzesten Weg zur neuen Zeit, auch rückwärts, statt zu springen.
 
 ---
 
 ## 4. Helligkeitssteuerung
 
 - Automatische Helligkeit über einen Fotowiderstand mit einstellbaren Schwellwerten, alternativ manuell einstellbar.
-- Optionale Hintergrundbeleuchtung per PWM an Pin 3 (Helligkeits-Tab, beim GC9D01 ab Werk an): gedimmt wird dann über die Beleuchtung statt über dunklere Pixel.
+- Optionale Hintergrundbeleuchtung per PWM an Pin 3 (Displaytyp „GC9A01 mit BL“ oder GC9D01; der Haken „Hintergrundbeleuchtung regeln“ im Helligkeits-Tab erscheint nur bei diesen Displays): gedimmt wird dann über die Beleuchtung statt über dunklere Pixel.
+- Während der Einrichtung (noch keine gültige Uhrzeit, Access Point oder WPS aktiv) leuchtet das Display immer mit voller Helligkeit.
 - Bei Rocrail-Verbindung kann die Helligkeit stattdessen vom Server übernommen werden - siehe Abschnitt 11.
 
 ---
@@ -52,8 +54,8 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 6. Weboberfläche
 
-- Dunkel gestaltete Einstellungszentrale mit Tabs (Status, WLAN, Uhr, Helligkeit, Zeit); dateilastige Seiten (Presets, Zifferblatt, Zeiger, Dateiverwaltung, Vorschau, Sicherung, Werksreset) separat über die Navigation erreichbar.
-- Mehrsprachig (Deutsch, Englisch); Info-Seite mit Projektbeschreibung und Kontakt.
+- Dunkel gestaltete Einstellungszentrale mit Tabs (WLAN, Uhr Einstellungen, Helligkeit, NTP Zeitzone, Status, Log; Rocrail bei aktivierter Anbindung); dateilastige Seiten (Presets, Zifferblatt, Zeiger, Dateiverwaltung, Vorschau, Sicherung, Werksreset) separat über die Navigation erreichbar.
+- Mehrsprachig (Deutsch, Englisch).
 - Zusätzliche Zifferblätter, Zeigersätze und Presets lassen sich direkt von GitHub herunterladen.
 - Rocrail-Tab für die Modellzeit-Anbindung - siehe Abschnitt 11.
 
@@ -114,7 +116,7 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 1. Support for Multiple TFT Displays
 
-- Supported displays: GC9A01 (240 × 240) and GC9D01 (160 × 160) – one firmware for both, the display type is a setting (clock face tab: GC9A01 without / with backlight (BL) on pin 3, GC9D01 – as in `flashESP`; when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
+- Supported displays: GC9A01 (240 × 240) and GC9D01 (160 × 160) – one firmware for both, the display type is a setting ("Clock Setup" tab: GC9A01 without / with backlight (BL) on pin 3, GC9D01 – as in `flashESP`; when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
 - A second, identical display can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode, confirmation codes) still appear on both displays until the clock takes over (the settings page notes this).
 
 ---
@@ -133,13 +135,15 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 - Smooth Minute Mode: the minute hand moves smoothly instead of jumping in 1-minute increments.
 - Train Station Mode: the second hand completes its round in 58.5 seconds and briefly pauses at the top on the 12, like a classic railway clock.
+- Time jumps (boot, first valid time, DST change, Rocrail): the hands move smoothly within 3 seconds along the shortest path to the new time, backwards too, instead of jumping.
 
 ---
 
 ## 4. Brightness Control
 
 - Automatic brightness via a photoresistor with configurable thresholds, or manual control.
-- Optional backlight control via PWM on pin 3 (Brightness tab, on by default for the GC9D01): dimming then happens via the backlight instead of darker pixels.
+- Optional backlight control via PWM on pin 3 (display type "GC9A01 with BL" or GC9D01; the "Backlight control" checkbox in the Brightness tab only appears for these displays): dimming then happens via the backlight instead of darker pixels.
+- During setup (no valid time yet, access point or WPS active) the display always runs at full brightness.
 - When connected to Rocrail, brightness can be taken over from the server instead - see section 11.
 
 ---
@@ -156,8 +160,8 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 6. Web Interface
 
-- Dark-themed settings hub with tabs (Status, WLAN, Clock Setup, Brightness, Time); file-heavy pages (Presets, Clock Face, Hand Set, File Manager, Preview, Backup, Factory Reset) reachable separately via the navigation bar.
-- Multi-language (German, English); Info page with project description and contact details.
+- Dark-themed settings hub with tabs (WiFi Settings, Clock Setup, Brightness, NTP Timezone, Status, Log; Rocrail when the connection is enabled); file-heavy pages (Presets, Clock Face, Hand Set, File Manager, Preview, Backup, Factory Reset) reachable separately via the navigation bar.
+- Multi-language (German, English).
 - Additional clock faces, hand sets, and presets can be downloaded directly from GitHub.
 - Rocrail tab for the model-time connection - see section 11.
 

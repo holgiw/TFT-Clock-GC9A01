@@ -82,7 +82,7 @@ Für ein WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets
 Displaytyp (GC9A01 240x240 oder GC9D01 160x160):
 	Eine Firmware für beide Displays, der Typ ist eine Einstellung. Festlegen:
 	- beim Flashen: flashESP.bat fragt ihn ab (siehe oben, Schritt 3),
-	- in der Weboberfläche: Tab "Zifferblatt", Auswahl "Display-Typ" mit denselben drei Einträgen
+	- in der Weboberfläche: Tab "Uhr Einstellungen", Auswahl "Display-Typ" mit denselben drei Einträgen
 	  wie flashESP (GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01); beim Wechsel
 	  zwischen GC9A01 und GC9D01 startet die Uhr neu,
 	- beim Umstieg von uhr3 automatisch: uhr3 (ab 2026-09-29) vermerkt, für welches Display es
@@ -104,7 +104,7 @@ TFT (Display 1, Pflicht):
 	TFT_MOSI: 11
 	TFT_DC: 33
 	TFT_RST: 5
-	TFT_Backlight: 3 (Hintergrundbeleuchtung, nur wenn "Hintergrundbeleuchtung regeln (Pin 3)" im Helligkeits-Tab eingeschaltet ist - beim GC9D01 ab Werk an)
+	TFT_Backlight: 3 (Hintergrundbeleuchtung, nur wenn "Hintergrundbeleuchtung regeln (Pin 3)" im Helligkeits-Tab eingeschaltet ist - beim GC9D01 und Displaytyp "GC9A01 mit BL" ab Werk an)
 
 Chip-Select (wird vom Sketch manuell angesteuert, NICHT von der LovyanGFX-Bibliothek - pin_cs ist in lgfx_config.h auf -1 gesetzt):
 	CS_1 (Display 1): 12
@@ -274,7 +274,7 @@ For a WiFi-only reset without losing your own clock faces/hand sets/presets, use
 Display type (GC9A01 240x240 or GC9D01 160x160):
 	One firmware for both displays, the type is a setting. Set it:
 	- when flashing: flashESP.bat asks for it (see above, step 3),
-	- in the web interface: "Clock Face" tab, "Display type" selection with the same three entries
+	- in the web interface: "Clock Setup" tab, "Display type" selection with the same three entries
 	  as flashESP (GC9A01 without / with backlight (BL) on pin 3, GC9D01); switching between
 	  GC9A01 and GC9D01 restarts the clock,
 	- automatically when switching from uhr3: uhr3 (from 2026-09-29) records which display it was
@@ -296,7 +296,7 @@ TFT (Display 1, required):
 	TFT_MOSI: 11
 	TFT_DC: 33
 	TFT_RST: 5
-	TFT_Backlight: 3 (backlight, only if "Backlight control (pin 3)" is enabled in the brightness tab - on by default for GC9D01)
+	TFT_Backlight: 3 (backlight, only if "Backlight control (pin 3)" is enabled in the brightness tab - on by default for GC9D01 and display type "GC9A01 with BL")
 
 Chip select (driven manually by the sketch, NOT by the LovyanGFX library - pin_cs is set to -1 in lgfx_config.h):
 	CS_1 (Display 1): 12
