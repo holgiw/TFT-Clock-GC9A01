@@ -1,44 +1,79 @@
 #pragma once
+
     // Reihenfolge: zuerst Prozessor-/Display-Auswahl (Pins, Display-Masse),
     // danach die restlichen Werte nach Modul sortiert.
     // tft/webserver/preferences/dnsServer/udp/rtc/DCF77-Variablen: nur in globals.h.
+    // Board-Auswahl (Prozessor, TFT-Typ)
+    // Board selection (processor, TFT type)
 
     // Order: processor/display selection (pins, display dimensions) first,
     // then the rest sorted by module.
     // tft/webserver/preferences/dnsServer/udp/rtc/DCF77 variables: only in globals.h.
-
-    // Board-Auswahl (Prozessor, TFT-Typ)
-    // Board selection (processor, TFT type)
-
     // Prozessor
     // Processor
+
 #define ESP32_S2  //nur ESP32-S2 unterstuetzt
                   // only ESP32-S2 supported
 
-    // TFT auswaehlen
-    // select TFT
-#define GC9A01
-    //#define GC9A01_WITH_BACKLIGHT
-   //#define GC9D01
-    //#define ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt, GC9A01 wird bevorzugt / DEPRECATED - no longer maintained, GC9A01 is preferred
+    // Displaytyp: KEIN #define mehr - GC9A01 (240x240) oder GC9D01 (160x160)
+    // ist eine Einstellung (PK_DISPLAY_TYPE, Zifferblatt-Tab "Display-Typ", wirkt
+    // nach Neustart). Eine Firmware fuer alle Varianten; die Masse je Typ
+    // stehen in DISPLAY_GEOMETRY weiter unten. DISPLAY_TYPE_DEFAULT legt nur
+    // die Werkseinstellung fest. Hintergrundbeleuchtung: ebenfalls eine
+    // Einstellung (useBacklight, Helligkeits-Tab).
 
-    // Displaytyp als Klartext - steht auf den Info-Seiten und damit in jeder
-    // .bin, so ist ein Build eindeutig zuzuordnen (Suche nach "UHR3_BUILD_DISPLAY=").
+    // Display type: NO #define anymore - GC9A01 (240x240) or GC9D01 (160x160)
+    // is a setting (PK_DISPLAY_TYPE, clock face tab "display type", takes effect
+    // after a restart). One firmware for all variants; the dimensions per
+    // type are in DISPLAY_GEOMETRY further below. DISPLAY_TYPE_DEFAULT only
+    // sets the factory default. Backlight: also a setting (useBacklight,
+    // brightness tab).
+#define DISPLAY_TYPE_GC9A01 0
+#define DISPLAY_TYPE_GC9D01 1
+#define DISPLAY_TYPE_COUNT  2
+#define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_GC9A01
 
-    // Display type as plain text - shown on the info pages and therefore in
-    // every .bin, so a build can be identified (search for "UHR3_BUILD_DISPLAY=").
-#if defined(GC9A01_WITH_BACKLIGHT)
-#define BUILD_DISPLAY_NAME "GC9A01_WITH_BACKLIGHT"
-#elif defined(GC9D01)
-#define BUILD_DISPLAY_NAME "GC9D01"
-#elif defined(ILI9341)
-#define BUILD_DISPLAY_NAME "ILI9341"
-#elif defined(GC9A01)
-#define BUILD_DISPLAY_NAME "GC9A01"
-#else
-#error "Kein Display gewaehlt / no display selected"
+#if defined(GC9A01) || defined(GC9D01) || defined(GC9A01_WITH_BACKLIGHT) || defined(ILI9341)
+#error "Displaytyp wird nicht mehr per #define gewaehlt - Einstellung im Zifferblatt-Tab / display type is no longer chosen via #define - setting in the clock face tab"
 #endif
-#define BUILD_DISPLAY_MARKER "UHR3_BUILD_DISPLAY=" BUILD_DISPLAY_NAME
+
+    // Build-Kennung - steht auf den Info-Seiten und damit in jeder .bin
+    // (Suche nach "UHR4_BUILD_DISPLAY="). Seit der Laufzeitauswahl enthaelt
+    // jedes Build beide Displaytypen.
+
+    // Build marker - shown on the info pages and therefore in every .bin
+    // (search for "UHR4_BUILD_DISPLAY="). Since runtime selection, every build
+    // contains both display types.
+#define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01+GC9D01"
+
+    // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Daten in
+    // Sicherungen (backup.h). Muss in allen uhr4-Firmwares gleich sein, damit
+    // eine Sicherung auf einer anderen Uhr wiederhergestellt werden kann.
+    // Aendern macht WLAN-Daten aelterer Sicherungen unlesbar. Schuetzt die
+    // Datei, nicht gegen jemanden, der diesen Schluessel aus Quelltext oder
+    // Firmware ausliest.
+
+    // Internal key (AES-256, 64 hex characters) for the WiFi data in backups
+    // (backup.h). Must be the same in all uhr4 firmwares so a backup can be
+    // restored on another clock. Changing it makes the WiFi data of older
+    // backups unreadable. Protects the file, not against someone who reads
+    // this key from the source code or firmware.
+#define BACKUP_WIFI_KEY "ade1b6a09c1f5b970301983cddf75b160e99f45a70771438015f88eddbc3d174"
+
+    // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Passwoerter
+    // in den Einstellungen (NVS, storeWifiPass() in wifi_manager.h): ein
+    // Speicherabzug per esptool zeigt sie so nicht im Klartext. Schutz nur
+    // gegen blosses Durchsehen - der Schluessel steckt in derselben Firmware.
+    // Muss in allen uhr4-Firmwares gleich sein (Sicherungen enthalten die
+    // verschluesselten Werte). Aendern macht gespeicherte Passwoerter unlesbar.
+
+    // Internal key (AES-256, 64 hex characters) for the WiFi passwords in the
+    // settings (NVS, storeWifiPass() in wifi_manager.h): a flash dump via
+    // esptool does not show them in plain text. Protects only against simply
+    // looking through - the key is in the same firmware. Must be the same in
+    // all uhr4 firmwares (backups contain the encrypted values). Changing it
+    // makes stored passwords unreadable.
+#define WIFI_STORE_KEY "06c92514eb89bb624df9f3f7b291777edd2b44adf583e3ac403d916992664bdd"
 
     // Pin-Belegung: ESP32-S2 (Lolin S2 Pico)
     // Pin mapping: ESP32-S2 (Lolin S2 Pico)
@@ -66,17 +101,27 @@
 #define SDA_PIN 39
 #define SCL_PIN 37
 
-    // SPI-CS Display 1 - manuell gesteuert (setCS1()/setCS2() in display.h),
-    // nicht mehr automatisch von TFT_eSPI. Muss deshalb hier UND in
+    // TFT-SPI (beide Displays am selben Bus) - wird in lgfx_config.h
+    // verwendet, an der LovyanGFX-Bibliothek selbst ist nichts einzustellen.
+    // Belegung laut PCB-Referenz: 7 scl, 11 sda, 33 dc, 5 rst.
 
-    // User_Setup.h der Bibliothek auf -1 stehen, sonst "stehlen" sich beide
-    // Displays bei unterschiedlicher Rotation gegenseitig Bilddaten.
+    // TFT SPI (both displays on the same bus) - used in lgfx_config.h,
+    // nothing has to be configured inside the LovyanGFX library itself.
+    // Mapping per PCB reference: 7 scl, 11 sda, 33 dc, 5 rst.
+#define TFT_SCLK  7
+#define TFT_MOSI  11
+#define TFT_DC    33  // Data/Command
+#define TFT_RST   5   // Reset
+#define TFT_SPI_FREQUENCY 40000000 // hoechster ganzzahliger Teiler von 80 MHz unter den frueheren 60 MHz
+                                   // highest integer divider of 80 MHz below the former 60 MHz
+
+    // SPI-CS Display 1 - manuell gesteuert (setCS1()/setCS2() in display.h),
+    // LovyanGFX bekommt pin_cs = -1 (lgfx_config.h). Beide Displays haengen
+    // an einem Geraet, der CS-Wechsel waehlt nur den Chip aus.
 
     // SPI CS for display 1 - driven manually (setCS1()/setCS2() in
-    // display.h), no longer automatically by TFT_eSPI. Must therefore be -1
-
-    // here AND in the library's User_Setup.h, otherwise the two displays
-    // "steal" each other's frame data when rotated differently.
+    // display.h), LovyanGFX gets pin_cs = -1 (lgfx_config.h). Both displays
+    // hang off one device, switching CS only selects the chip.
 #define CS_1    12
 
     // SPI-CS Display 2 (baugleich) - bei der Uhranzeige nur bedient, solange die Rotation von Display 2 nicht "n.a." ist.
@@ -101,149 +146,166 @@
 #define DCF77_INTERRUPT 0
 #define DCF77_DATAPIN 35
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
+    // Hintergrundbeleuchtung - ob Pin 3 per PWM geregelt wird, entscheidet
+    // die Einstellung useBacklight (globals.h), nicht mehr das Build.
+
+    // Backlight - whether pin 3 is PWM-controlled is decided by the
+    // useBacklight setting (globals.h), no longer by the build.
 #define TFT_Backlight 3  // Hintergrundbeleuchtung
                          // Backlight
 #define BACKLIGHT_CHANNEL 0  // PWM-Kanal
                              // PWM channel
 #define BACKLIGHT_FREQ 5000
 #define BACKLIGHT_RESOLUTION 8
-#endif
 
 #endif
 
-    // Display: Dimensionen je Zifferblatt-Typ
-    // Display: dimensions per dial type
-#if defined GC9A01 || defined(GC9A01_WITH_BACKLIGHT)
-#include "graphic/240/clock_default.h"
+    // Display: Masse und Standardgrafiken je Displaytyp. Beide Grafiksaetze
+    // sind in der Firmware (eigene Namensraeume, da gleiche Array-Namen) -
+    // ausgewaehlt wird zur Laufzeit ueber displayGeom (globals.h,
+    // loadDisplayType() in display.h). Die Zifferblaetter sind RLE-komprimiert
+    // (~33 statt ~166 KB), die kleinen Zeiger nicht. Erzeugt von
+    // graphic/make_rle_defaults.py aus clock_default.h - nach einer Aenderung
+    // an clock_default.h das Skript erneut laufen lassen. Das Zifferblatt wird
+    // bei Bedarf entpackt (decodeDefaultFace()/allocDefaultFace() in display.h).
+
+    // Display: dimensions and default graphics per display type. Both
+    // graphics sets are in the firmware (own namespaces, since the array
+    // names are identical) - selected at runtime via displayGeom (globals.h,
+    // loadDisplayType() in display.h). The clock faces are RLE-compressed
+    // (~33 instead of ~166 KB), the small hands aren't. Generated by
+    // graphic/make_rle_defaults.py from clock_default.h - rerun the script
+    // after changing clock_default.h. The clock face is unpacked on demand
+    // (decodeDefaultFace()/allocDefaultFace() in display.h).
+namespace gfx240 {
+#include "graphic/240/clock_default_rle.h"
+}
+namespace gfx160 {
+#include "graphic/160/clock_default_rle.h"
+}
+
+struct RleImage {
+    const uint8_t* data;  // RLE-Datenstrom (rleEncode565()-Format)
+                          // RLE data stream (rleEncode565() format)
+    uint32_t size;        // Bytes
+    uint32_t pixels;      // Pixel nach dem Entpacken
+                          // pixels after unpacking
+};
+#define RLE_IMAGE(ns, name) { ns::name##Rle, sizeof(ns::name##Rle), ns::name##Pixels }
 
 #define ROUND_DISPLAY // rundes Display - Kreismaskierung der Ecken (siehe scaleAndSaveBmp() in display.h)
                       // round display - circular corner masking (see scaleAndSaveBmp() in display.h)
-#define TFT_WIDTH 240
-#define TFT_HEIGHT 240
 
-#define CLOCK_WIDTH 240
-#define CLOCK_HEIGHT 240
+    // Zeigerformat: Drehpunkte und Breiten je Display fest (Dateiformat, darf
+    // sich nicht aendern); Drehpunkt-Spalte ist die halbe Breite. Alte Zeiger
+    // werden oben (HAND_TOP_PAD) und seitlich (HAND_SIDE_PAD) transparent
+    // aufgefuellt. handPivotY = Displayradius, der Zeiger reicht bis zum Rand.
 
-#define HAND_LEGACY_WIDTH 21
-#define HAND_WIDTH 25          // Zeigerbreite neues Format, alte Zeiger (21) werden seitlich aufgefuellt
-                               // hand width new format, old hands (21) are padded at the sides
-#define HAND_LEGACY_HEIGHT 131
-#define HAND_LEGACY_PIVOT_Y 100 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
-                                // pivot in the old format - existing hand files are drawn around it
-#define HAND_PIVOT_Y 120        // Drehpunkt im neuen Format = Displayradius, Zeiger reicht bis zum Rand
-                                // pivot in the new format = display radius, the hand reaches the edge
-
-#define TFT_TEXT_SIZE 2
-
-    // TFT_eSPI-Referenzkonfiguration - NUR Dokumentation, wirkt nicht auf die
-    // Bibliothek. Wirksam ist deren eigene Einstellung (User_Setup_Select.h ->
-    // User_Setups/Setup304_ESP32S2_GC9A01_GC9D01.h); die Werte hier spiegeln
-    // genau diese Datei. Aenderungen dort vornehmen und hier nachziehen.
-    // <TFT_eSPI.h> ueberschreibt diese Defines im Sketch ohnehin wieder.
-    // Belegung laut PCB-Referenz: 7 scl, 11 sda, 33 dc, 5 rst.
-
-    // TFT_eSPI reference config - documentation ONLY, has no effect on the
-    // library. What takes effect is its own setup (User_Setup_Select.h ->
-    // User_Setups/Setup304_ESP32S2_GC9A01_GC9D01.h); the values here mirror
-    // exactly that file. Make changes there and update this block to match.
-    // <TFT_eSPI.h> overrides these defines in the sketch anyway.
-    // Mapping per PCB reference: 7 scl, 11 sda, 33 dc, 5 rst.
-#define GC9A01_DRIVER
-#define TFT_MOSI  11
-#define TFT_SCLK  7
-#define TFT_CS    -1  // manuelle CS-Steuerung aktiv (siehe CS_1 oben) - in Setup304 ebenfalls -1
-                      // manual CS control active (see CS_1 above) - also -1 in Setup304
-#define TFT_DC    33  // Data/Command
-#define TFT_RST   5   // Reset
-                      // Hintergrundbeleuchtung: Pin 3, eigene PWM ueber TFT_Backlight (oben)
-                      // backlight: pin 3, own PWM via TFT_Backlight (above)
-#define LOAD_GLCD
-#define SPI_FREQUENCY       60000000
-#endif
-
-#ifdef GC9D01
-#include "graphic/160/clock_default.h"
-
-#define ROUND_DISPLAY // rundes Display - Kreismaskierung der Ecken (siehe scaleAndSaveBmp() in display.h)
-                      // round display - circular corner masking (see scaleAndSaveBmp() in display.h)
-#define TFT_WIDTH 160
-#define TFT_HEIGHT 160
-
-#define CLOCK_WIDTH 160
-#define CLOCK_HEIGHT 160
-
-#define HAND_LEGACY_WIDTH 13
-#define HAND_WIDTH 15          // Zeigerbreite neues Format, alte Zeiger (13) werden seitlich aufgefuellt
-                               // hand width new format, old hands (13) are padded at the sides
-#define HAND_LEGACY_HEIGHT 86
-#define HAND_LEGACY_PIVOT_Y 66 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
-                               // pivot in the old format - existing hand files are drawn around it
-#define HAND_PIVOT_Y 80        // Drehpunkt im neuen Format = Displayradius, Zeiger reicht bis zum Rand
-                               // pivot in the new format = display radius, the hand reaches the edge
-
-#define TFT_TEXT_SIZE 1
-
-    // GC9D01 wird elektrisch/treiberseitig wie GC9A01 angesteuert - Pin-/
-    // Treibereinstellungen daher identisch zum GC9A01-Block oben.
-
-    // GC9D01 is driven electrically/at the driver level like GC9A01 - pin/
-    // driver settings therefore identical to the GC9A01 block above.
-#define GC9A01_DRIVER
-#define TFT_MOSI  11
-#define TFT_SCLK  7
-#define TFT_CS    -1
-#define TFT_DC    33
-#define TFT_RST   5
-#define LOAD_GLCD
-#define SPI_FREQUENCY       60000000
-#endif
-
-#ifdef ILI9341 // DEPRECATED - nicht mehr aktiv gepflegt
-               // DEPRECATED - no longer maintained
-#include "graphic/240/clock_default.h"
-
-#define TFT_WIDTH 240
-#define TFT_HEIGHT 320
-
-#define CLOCK_WIDTH 240
-#define CLOCK_HEIGHT 240
-
-#define HAND_LEGACY_WIDTH 21
-#define HAND_WIDTH 25          // Zeigerbreite neues Format, alte Zeiger (21) werden seitlich aufgefuellt
-                               // hand width new format, old hands (21) are padded at the sides
-#define HAND_LEGACY_HEIGHT 131
-#define HAND_LEGACY_PIVOT_Y 100 // Drehpunkt im alten Format - vorhandene Zeigerdateien sind darauf gezeichnet
-                                // pivot in the old format - existing hand files are drawn around it
-#define HAND_PIVOT_Y 120        // Drehpunkt im neuen Format = Displayradius, Zeiger reicht bis zum Rand
-                                // pivot in the new format = display radius, the hand reaches the edge
-
-#define TFT_TEXT_SIZE 2
-
-    // TFT_eSPI-Pin-/Treibereinstellungen fehlen hier (deprecated) - bei
-    // Bedarf analog zum GC9A01-Block oben ergaenzen.
-
-    // TFT_eSPI pin/driver settings are missing here (deprecated) - add
-    // analogous to the GC9A01 block above if needed.
-#endif
-
-    // Zeigerformat: Drehpunkte und Breiten oben je Display fest (Dateiformat, darf
-    // sich nicht aendern); Drehpunkt-Spalte ist die halbe Breite. Alte Zeiger werden
-    // oben (HAND_TOP_PAD) und seitlich (HAND_SIDE_PAD) transparent aufgefuellt.
-
-    // Hand format: pivots and widths above are fixed per display (file format, must
+    // Hand format: pivots and widths are fixed per display (file format, must
     // not change); the pivot column is half the width. Old hands are padded
     // transparent at the top (HAND_TOP_PAD) and at the sides (HAND_SIDE_PAD).
+    // handPivotY = display radius, the hand reaches the edge.
+struct DisplayGeometry {
+    const char* name;
+    int clock;             // Zifferblatt = Displayausschnitt, quadratisch
+                           // clock face = display area, square
+    int handLegacyWidth;   // alte Zeigerbreite (Dateiformat)
+                           // old hand width (file format)
+    int handWidth;         // neue Zeigerbreite
+                           // new hand width
+    int handLegacyHeight;
+    int handLegacyPivotY;  // Drehpunkt im alten Format
+                           // pivot in the old format
+    int handPivotY;        // Drehpunkt im neuen Format
+                           // pivot in the new format
+    int textSize;          // Status-/Boottext
+                           // status/boot text
+    int centerSize;        // Werkseinstellung Nabe
+                           // factory default hub size
+    bool backlightDefault; // Werkseinstellung useBacklight: GC9D01 immer an Pin 3 verdrahtet
+                           // factory default useBacklight: GC9D01 always wired to pin 3
+    bool swRotation;       // Hardware-Rotation wirkungslos -> Software-Rotation (mit PSRAM)
+                           // hardware rotation ineffective -> software rotation (with PSRAM)
+    RleImage face;         // Standard-Zifferblatt, clock x clock, RLE
+                           // default clock face, clock x clock, RLE
+    const uint16_t* hour;  // Standardzeiger im alten Format (handLegacyWidth x handLegacyHeight), unkomprimiert
+                           // default hands in the old format (handLegacyWidth x handLegacyHeight), uncompressed
+    const uint16_t* minute;
+    const uint16_t* second;
+    uint32_t handPixels;   // Pixel je Standardzeiger (fuer die Pruefung unten)
+                           // pixels per default hand (for the check below)
+};
+
+constexpr DisplayGeometry DISPLAY_GEOMETRY[DISPLAY_TYPE_COUNT] = {
+    // name      clock legW  W  legH legPiv piv text hub   BL     swRot
+    { "GC9A01",  240,  21,  25, 131, 100,  120,  2,  6,  false, false,
+      RLE_IMAGE(gfx240, clockFace), gfx240::handHour, gfx240::handMinute, gfx240::handSecond,
+      sizeof(gfx240::handHour) / sizeof(uint16_t) },
+    { "GC9D01",  160,  13,  15,  86,  66,   80,  1,  3,  true,  true,
+      RLE_IMAGE(gfx160, clockFace), gfx160::handHour, gfx160::handMinute, gfx160::handSecond,
+      sizeof(gfx160::handHour) / sizeof(uint16_t) },
+};
+
+    // Alle drei Standardzeiger je Typ muessen gleich gross sein - handPixels
+    // wird nur am Stundenzeiger gemessen.
+    // All three default hands per type must be the same size - handPixels is
+    // only measured on the hour hand.
+static_assert(sizeof(gfx240::handHour) == sizeof(gfx240::handMinute) && sizeof(gfx240::handHour) == sizeof(gfx240::handSecond) &&
+              sizeof(gfx160::handHour) == sizeof(gfx160::handMinute) && sizeof(gfx160::handHour) == sizeof(gfx160::handSecond),
+              "default hands of one display type differ in size");
+
+    // Obergrenzen ueber alle Typen - fuer fest dimensionierte Puffer
+    // (rowBuffer in globals.h).
+    // Upper bounds across all types - for fixed-size buffers (rowBuffer in globals.h).
+#define CLOCK_MAX 240
+
+constexpr bool displayGeometryValid(const DisplayGeometry& g) {
+    return g.handPivotY >= g.handLegacyPivotY                                       // HAND_TOP_PAD >= 0
+        && g.handWidth >= g.handLegacyWidth && (g.handWidth - g.handLegacyWidth) % 2 == 0 // Drehpunkt-Spalte bleibt mittig / pivot column stays centred
+        && g.handPivotY <= g.clock / 2                                              // Drehpunkt innerhalb des Radius / pivot inside the radius
+        && g.clock <= CLOCK_MAX
+        && g.face.pixels == (uint32_t)(g.clock * g.clock)                           // Standardgrafiken passen zur Groesse / default graphics match the size
+        && g.handPixels == (uint32_t)(g.handLegacyWidth * g.handLegacyHeight);
+}
+static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
+              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9D01]),
+              "DISPLAY_GEOMETRY: hand pivot/width/clock size inconsistent");
+
+    // Bisherige Konstanten-Namen bleiben erhalten, zeigen aber auf den zur
+    // Laufzeit gewaehlten Typ (displayGeom, globals.h) - daher NICHT in
+    // Array-Groessen, static_assert oder #if verwenden.
+
+    // The former constant names stay, but point to the type selected at
+    // runtime (displayGeom, globals.h) - so do NOT use them in array sizes,
+    // static_assert or #if.
+#define CLOCK_WIDTH         (displayGeom->clock)
+#define CLOCK_HEIGHT        (displayGeom->clock)
+#define TFT_WIDTH           CLOCK_WIDTH
+#define TFT_HEIGHT          CLOCK_HEIGHT
+#define HAND_LEGACY_WIDTH   (displayGeom->handLegacyWidth)
+#define HAND_WIDTH          (displayGeom->handWidth)
+#define HAND_LEGACY_HEIGHT  (displayGeom->handLegacyHeight)
+#define HAND_LEGACY_PIVOT_Y (displayGeom->handLegacyPivotY)
+#define HAND_PIVOT_Y        (displayGeom->handPivotY)
+#define TFT_TEXT_SIZE       (displayGeom->textSize)
+#define BACKLIGHT_DEFAULT   (displayGeom->backlightDefault)
+    // Standardzeiger direkt aus dem Flash. Das Standard-Zifferblatt ist
+    // RLE-komprimiert und hat bewusst KEIN solches Makro - decodeDefaultFace()/
+    // allocDefaultFace() (display.h) entpacken es nur bei Bedarf ins Ziel.
+
+    // Default hands straight from flash. The default clock face is
+    // RLE-compressed and deliberately has NO such macro - decodeDefaultFace()/
+    // allocDefaultFace() (display.h) unpack it into the target only when needed.
+#define handHour            (displayGeom->hour)
+#define handMinute          (displayGeom->minute)
+#define handSecond          (displayGeom->second)
+
 #define HAND_TOP_PAD (HAND_PIVOT_Y - HAND_LEGACY_PIVOT_Y)          // 20 bzw. 14
                                                                    // 20 or 14
 #define HAND_HEIGHT (HAND_LEGACY_HEIGHT + HAND_TOP_PAD)            // 151 bzw. 100
                                                                    // 151 or 100
 #define HAND_SIDE_PAD ((HAND_WIDTH - HAND_LEGACY_WIDTH) / 2)       // 2 bzw. 1
                                                                    // 2 or 1
-static_assert(HAND_TOP_PAD >= 0, "HAND_PIVOT_Y must not lie above HAND_LEGACY_PIVOT_Y");
-static_assert(HAND_WIDTH >= HAND_LEGACY_WIDTH && (HAND_WIDTH - HAND_LEGACY_WIDTH) % 2 == 0,
-              "HAND_WIDTH must be HAND_LEGACY_WIDTH plus an even number, so the pivot column stays centred");
-static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the display radius");
 
 
     // System / Debug
@@ -280,9 +342,9 @@ static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the di
     // Macro instead of function since it's used before display.h is included (wifi_manager.h).
 #define DRAW_ON_BOTH_DISPLAYS(...) \
     do { \
-        { TFT_eSPI& tft = beginStatusDraw(1); __VA_ARGS__ } \
+        { lgfx::LovyanGFX& tft = beginStatusDraw(1); __VA_ARGS__ } \
         endStatusDraw(1); \
-        { TFT_eSPI& tft = beginStatusDraw(2); __VA_ARGS__ } \
+        { lgfx::LovyanGFX& tft = beginStatusDraw(2); __VA_ARGS__ } \
         endStatusDraw(2); \
         setCSIdle(); \
     } while (0)
@@ -332,25 +394,31 @@ static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the di
 #define RTC_UPDATE_MIN_DRIFT_SEC 2
 
     // Versuche PRO WLAN-Netzwerk beim Boot (siehe connectWiFiAtBoot() in
-    // uhr3.ino), bevor mit dem naechsten Netzwerk weitergemacht bzw. ganz
+    // uhr4.ino), bevor mit dem naechsten Netzwerk weitergemacht bzw. ganz
     // aufgegeben wird (-> WPS/Access-Point) - ein einzelner fehlgeschlagener
     // Verbindungsversuch (z.B. Router kurz beschaeftigt) soll das gefundene
     // Netzwerk nicht gleich verwerfen.
 
     // Attempts PER WiFi network at boot (see connectWiFiAtBoot() in
-    // uhr3.ino), before moving on to the next network or giving up entirely
+    // uhr4.ino), before moving on to the next network or giving up entirely
     // (-> WPS/access point) - a single failed connection attempt (e.g. the
     // router being briefly busy) shouldn't discard a network that was found.
 #define WIFI_CONNECT_ATTEMPTS 2
 
-    // Access-Point (Einrichtungsmodus): SSID ist bewusst fest/gleich (steht
-    // in der Anleitung); Passwort wird pro Geraet aus den letzten 4 MAC-Bytes
-    // gebildet (startAP() in wifi_manager.h) statt wie frueher fest "clock123".
+    // Access-Point (Einrichtungsmodus): SSID und Passwort fest in der Firmware
+    // - stehen in der Anleitung und auf dem Display, die Einrichtung klappt so
+    // auch, wenn das Display (noch) nichts Lesbares zeigt. Das Passwort ist
+    // damit auf jeder Uhr gleich; wer das nicht will, setzt hier ein eigenes.
+    // WPA2 verlangt 8 bis 63 Zeichen.
 
-    // Access point (setup mode): SSID is deliberately fixed/identical (it's
-    // in the manual); password is derived per device from the last 4 MAC
-    // bytes (startAP() in wifi_manager.h) instead of the old fixed "clock123".
+    // Access point (setup mode): SSID and password fixed in the firmware -
+    // they are in the manual and on the display, so setup also works if the
+    // display shows nothing readable (yet). The password is therefore the same
+    // on every clock; set your own here if you don't want that. WPA2 requires
+    // 8 to 63 characters.
 #define AP_SSID "clock123"
+#define AP_PASSWORD "clocksetup"
+static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP_PASSWORD: WPA2 verlangt 8-63 Zeichen / WPA2 requires 8-63 characters");
 
 #define WAIT_1s 1000 // 1 Sekunde in Millisekunden
                      // 1 second in milliseconds
@@ -463,20 +531,19 @@ static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the di
     // unveraendert loggen (siehe startR2rnetDebugListener() in rocrail_client.h).
     // Dient NUR der Analyse des Antwortformats - echte R2RNet-Discovery wurde
     // entfernt (siehe Kommentar am Kopf von rocrail_client.h).
+    // 224.0.1.20:8051 ist laut wiki.rocrail.net die tatsaechliche R2RNet-
+    // Adresse - 224.0.0.1 (zuvor hier) ist die reservierte "All Hosts"-
+    // Gruppe (RFC 1112), fuer die ein expliziter IGMP-Join meist scheitert.
 
     // Diagnostic: listen on the R2RNet multicast group and log every
     // received packet unchanged (see startR2rnetDebugListener() in
     // rocrail_client.h). ONLY for analyzing the reply format - actual
     // R2RNet discovery was removed (see the comment at the top of
     // rocrail_client.h).
-
-    // 224.0.1.20:8051 ist laut wiki.rocrail.net die tatsaechliche R2RNet-
-    // Adresse - 224.0.0.1 (zuvor hier) ist die reservierte "All Hosts"-
-    // Gruppe (RFC 1112), fuer die ein expliziter IGMP-Join meist scheitert.
-
     // 224.0.1.20:8051 is the actual R2RNet address per wiki.rocrail.net -
     // 224.0.0.1 (previously here) is the reserved "All Hosts" group
     // (RFC 1112), for which an explicit IGMP join usually fails.
+
 #define R2RNET_DEBUG_MULTICAST_IP "224.0.1.20"
 #define R2RNET_DEBUG_MULTICAST_PORT 8051
 #define R2RNET_DEBUG_PACKET_BUFFER_SIZE 512
@@ -505,15 +572,14 @@ static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the di
 
     // Rausch-Filter fuer den Bit-Fortschritt (processDcf77Bits() in
     // time_sync.h): sehr kurze Stoerflanken (Prellen) sind deutlich kuerzer
-
     // als jeder echte Zustand (kuerzester: ~100ms). Flanken unter diesem Wert
     // werden verworfen, ohne den Referenzzeitpunkt zu verschieben.
 
     // Noise filter for the bit progress (processDcf77Bits() in time_sync.h):
     // very short spurious edges (bounce) are much shorter than any genuine
-
     // state (shortest: ~100ms). Edges below this value are discarded without
     // shifting the reference timestamp.
+
 #define DCF77_BIT_NOISE_IGNORE_MS 70
 
     // Sekundenraster-Dekoder: Impulsabstand ist bei DCF77 immer ein
@@ -560,24 +626,24 @@ static_assert(HAND_PIVOT_Y <= CLOCK_HEIGHT / 2, "HAND_PIVOT_Y larger than the di
 
     // Maximalalter des letzten dekodierten Telegramms, um noch als
     // Zeitquelle zu gelten (applyDcf77DecodedTime() in time_sync.h) - ein
-
     // aelteres Telegramm ist unproblematisch, da die verstrichene Zeit ueber
     // millis() exakt nachgerechnet wird.
 
     // Max age of the last decoded telegram to still count as a time source
     // (applyDcf77DecodedTime() in time_sync.h) - an older telegram is fine,
     // since the elapsed time is added back precisely via millis().
+
 #define DCF77_DECODED_MAX_AGE (10 * WAIT_1m)
 
-    // Dauer des LED-Aufblitzens pro DCF77-Impuls (loop() in uhr3.ino) -
+    // Dauer des LED-Aufblitzens pro DCF77-Impuls (loop() in uhr4.ino) -
     // bewusst ein Blitz mit fester Abschaltzeit statt toggleLED(), da sonst
     // der Endzustand von der (geraden/ungeraden) Impulsanzahl abhinge.
 
-    // Duration of the LED flash per DCF77 pulse (loop() in uhr3.ino) -
+    // Duration of the LED flash per DCF77 pulse (loop() in uhr4.ino) -
     // deliberately a flash with a fixed switch-off time instead of
-
     // toggleLED(), since the final state would otherwise depend on whether
     // the pulse count was even or odd.
+
 #define DCF77_LED_BLINK_MS 80
 
     // Geschwindigkeit des Sekundenzeigers im Bahnhofsuhr-Modus: 60*975ms =

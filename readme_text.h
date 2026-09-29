@@ -10,7 +10,7 @@
 static const char README_HTML_EN[] = R"rawliteral(
 <h2>1. Support for Multiple TFT Displays</h2>
 <ul>
-<li>Supported displays: GC9A01, GC9D01, ILI9341 (deprecated).</li>
+<li>Supported displays: GC9A01 (240x240) and GC9D01 (160x160) - one firmware for both, selectable in the clock face tab (&quot;Display type&quot;: GC9A01 without / with backlight (BL) on pin 3, GC9D01).</li>
 <li>An optional second, identical display can be driven on its own chip-select pin (CS2) on the shared SPI bus. Each display has its own rotation setting, so both can be mounted in different orientations. A display that is not connected is set to &quot;n.a.&quot; - it then stays black and the clock face is neither drawn nor calculated for it (default: display 1 at 0&deg;, display 2 n.a.). Status and boot messages (boot, access point mode, confirmation codes) appear on both displays until the clock takes over, each correctly rotated (n.a. counts as 0&deg;).</li>
 </ul>
 
@@ -19,7 +19,7 @@ static const char README_HTML_EN[] = R"rawliteral(
 <li>Custom hour, minute and second hands can be uploaded as BMP files; a default set is built in.</li>
 <li>Hand designer in the browser (Hand Set page): start from the active hand set and save your changes as a new hand set or into the active one, with a pixel editor, shape generator, mirroring and live preview.</li>
 <li>Clock face designer in the browser (Clock Face page): start from the active clock face, generate dials, draw, add text (also on an arc and in your own fonts), place a logo or load an image, then save as a new clock face or into the active one, with live preview.</li>
-<li>Hour and minute hands are anti-aliased (3x3 supersampling). They are drawn into a cached composite image that is only rebuilt when an angle actually changes, so the sweeping second hand keeps full frame rate.</li>
+<li>All hands are drawn anti-aliased (LovyanGFX). Hour and minute hands are drawn into a cached composite image that is only rebuilt when an angle actually changes, so the sweeping second hand keeps full frame rate.</li>
 <li>Custom clock faces can be uploaded and selected; a default face is built in.</li>
 </ul>
 
@@ -34,11 +34,13 @@ static const char README_HTML_EN[] = R"rawliteral(
 <li>Automatic brightness from a photoresistor, with configurable thresholds and gamma.</li>
 <li>A daily time window can force full brightness regardless of ambient light.</li>
 <li>Manual brightness control if no photoresistor is detected.</li>
+<li>Optional backlight control via PWM on pin 3 (setting on the Brightness tab, on by default for the GC9D01): the display is dimmed via its backlight instead of darkening the pixels.</li>
 </ul>
 
 <h2>5. WiFi, mDNS and Time Synchronization</h2>
 <ul>
 <li>Up to 15 WiFi networks. Scanning shows signal strength and encryption; the strongest networks are kept and listed first.</li>
+<li>First-time setup directly when flashing: flashESP.bat/flashESP.sh ask for the display type and a WiFi network (all visible 2.4 GHz networks for selection, password entered hidden) and send both to the clock via USB, finally the PC's time. To only set the time (without flashing): setTime.bat/setTime.sh. Alternatively via WPS or the setup access point (SSID clock123, password clocksetup).</li>
 <li>Hostname and all WiFi settings live on the WLAN tab, which opens automatically when no known network is reachable.</li>
 <li>Automatic reconnect, individual networks deletable, and WPS setup with a single button; overwriting or switching away from the currently connected network is executed directly when accessed from the private network, but requires confirming a code shown on the display when accessed from a non-private network (e.g. via a port forward/DMZ). Deleting a network (active or not), and any other changes to non-active networks, is only possible from a private network in general, with no code option at all.</li>
 <li>The clock is reachable at http://&lt;hostname&gt;.local via mDNS; the link is only offered when mDNS actually started.</li>
@@ -61,8 +63,8 @@ static const char README_HTML_EN[] = R"rawliteral(
 <h2>7. Web Interface</h2>
 <ul>
 <li>Dark-themed settings hub: Status, WLAN, Clock Setup, Brightness, Time/NTP and Log are tabs on one page.</li>
-<li>Separate pages for Presets, Clock Face, Hand Set, File Manager, Live Preview, DCF77 and Factory Reset.</li>
-<li>Multi-language interface: German, English, French.</li>
+<li>Separate pages for Presets, Clock Face, Hand Set, File Manager, Live Preview, DCF77, Backup and Factory Reset.</li>
+<li>Multi-language interface: German, English.</li>
 <li>Live status bar with clock and status dots for time, RTC, DCF77 and ambient light, updated every few seconds.</li>
 <li>Additional clock faces, hand sets and presets can be downloaded from GitHub; missing dependencies are fetched automatically.</li>
 <li>Factory reset with separate options: everything, clock faces, hand sets, presets or saved WiFi networks.</li>
@@ -84,7 +86,8 @@ static const char README_HTML_EN[] = R"rawliteral(
 
 <h2>10. Further Features</h2>
 <ul>
-<li>Up to 50 presets (face, hand set, hub color and size, second hand) - renameable, deletable (only from a private network), sorted alphabetically, with backup and restore.</li>
+<li>Up to 50 presets (face, hand set, hub color and size, second hand visibility and style, station mode, smooth minute hand, time zone and brightness settings) - renameable, deletable (only from a private network), sorted alphabetically, with backup and restore.</li>
+<li>Full backup (Backup page, only from a private network): all settings, presets, clock faces and hand sets in one file, restorable on this or another clock with the same display type. WiFi credentials only on request and then encrypted - with a key that is the same in every uhr4 firmware, so not secure. Display type, rotation, backlight and light sensor of the target clock stay unchanged; a wrong or damaged file changes nothing.</li>
 <li>Deleting a face or hand set removes any presets referring to it; deleting the active hand set falls back to the default.</li>
 <li>Uploaded BMP files can be scaled to the display size.</li>
 <li>Uptime display, reboot from the web interface (only from a private network), weekly preventive restart.</li>
@@ -107,7 +110,7 @@ static const char README_HTML_EN[] = R"rawliteral(
 static const char README_HTML_DE[] = R"rawliteral(
 <h2>1. Unterst&uuml;tzte TFT-Displays</h2>
 <ul>
-<li>Unterst&uuml;tzt werden GC9A01, GC9D01 und ILI9341 (nicht mehr gepflegt).</li>
+<li>Unterst&uuml;tzt werden GC9A01 (240x240) und GC9D01 (160x160) - eine Firmware f&uuml;r beide, Auswahl im Zifferblatt-Tab (&bdquo;Display-Typ&ldquo;: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01).</li>
 <li>Ein optionales zweites, baugleiches Display kann &uuml;ber einen eigenen Chip-Select-Pin (CS2) am gemeinsamen SPI-Bus angesteuert werden. Jedes Display hat seine eigene Rotationseinstellung, beide k&ouml;nnen also unterschiedlich eingebaut sein. Ein nicht angeschlossenes Display wird auf &quot;n.a.&quot; gestellt - es bleibt dann schwarz, Zifferblatt und Zeiger werden daf&uuml;r weder gezeichnet noch berechnet (Standard: Display 1 mit 0&deg;, Display 2 n.a.). Status- und Startmeldungen (Start, Access-Point-Modus, Best&auml;tigungscodes) erscheinen bis zum Uhrstart auf beiden Displays, jeweils korrekt gedreht (n.a. z&auml;hlt als 0&deg;).</li>
 </ul>
 
@@ -116,7 +119,7 @@ static const char README_HTML_DE[] = R"rawliteral(
 <li>Stunden-, Minuten- und Sekundenzeiger lassen sich als BMP-Dateien hochladen; ein Standardsatz ist eingebaut.</li>
 <li>Zeiger-Designer im Browser (Seite Zeiger): ausgehend vom aktiven Zeigersatz gestalten und &Auml;nderungen als neuen Zeigersatz oder in den aktiven speichern, mit Pixel-Editor, Formgenerator, Spiegelung und Live-Vorschau.</li>
 <li>Zifferblatt-Designer im Browser (Seite Zifferblatt): ausgehend vom aktiven Zifferblatt Zifferbl&auml;tter erzeugen, zeichnen, beschriften (auch im Bogen und mit eigenen Schriften), ein Logo setzen oder ein Bild laden und als neues oder in das aktive Zifferblatt speichern, mit Live-Vorschau.</li>
-<li>Stunden- und Minutenzeiger werden kantengegl&auml;ttet gezeichnet (3x3-&Uuml;berabtastung). Sie landen in einem zwischengespeicherten Bild, das nur neu aufgebaut wird, wenn sich ein Winkel wirklich &auml;ndert - der schleichende Sekundenzeiger beh&auml;lt so seine volle Bildrate.</li>
+<li>Alle Zeiger werden kantengegl&auml;ttet gezeichnet (LovyanGFX). Stunden- und Minutenzeiger landen in einem zwischengespeicherten Bild, das nur neu aufgebaut wird, wenn sich ein Winkel wirklich &auml;ndert - der schleichende Sekundenzeiger beh&auml;lt so seine volle Bildrate.</li>
 <li>Eigene Zifferbl&auml;tter k&ouml;nnen hochgeladen und ausgew&auml;hlt werden; ein Standard-Zifferblatt ist eingebaut.</li>
 </ul>
 
@@ -131,11 +134,13 @@ static const char README_HTML_DE[] = R"rawliteral(
 <li>Automatische Helligkeit &uuml;ber einen Fotowiderstand, mit einstellbaren Schwellen und Gamma-Korrektur.</li>
 <li>Ein t&auml;gliches Zeitfenster kann unabh&auml;ngig vom Umgebungslicht volle Helligkeit erzwingen.</li>
 <li>Ohne erkannten Fotowiderstand l&auml;sst sich die Helligkeit von Hand einstellen.</li>
+<li>Optionale Hintergrundbeleuchtung per PWM an Pin 3 (Einstellung im Helligkeits-Tab, beim GC9D01 ab Werk an): das Display wird &uuml;ber die Beleuchtung gedimmt statt &uuml;ber dunklere Pixel.</li>
 </ul>
 
 <h2>5. WLAN, mDNS und Zeitsynchronisation</h2>
 <ul>
 <li>Bis zu 15 WLAN-Netzwerke. Der Scan zeigt Signalst&auml;rke und Verschl&uuml;sselung; die st&auml;rksten Netze werden behalten und zuerst gelistet.</li>
+<li>Ersteinrichtung direkt beim Flashen: flashESP.bat/flashESP.sh fragen Displaytyp und WLAN ab (alle sichtbaren 2,4-GHz-Netze zur Auswahl, Passwort verdeckt) und senden beides per USB an die Uhr, zuletzt die Uhrzeit des PCs. Nur die Uhrzeit setzen (ohne Flashen): setTime.bat/setTime.sh. Alternativ per WPS oder &uuml;ber den Einrichtungs-Access-Point (SSID clock123, Passwort clocksetup).</li>
 <li>Hostname und alle WLAN-Einstellungen liegen auf dem WLAN-Tab, das automatisch &ouml;ffnet, wenn kein bekanntes Netz erreichbar ist.</li>
 <li>Automatischer Reconnect, einzeln l&ouml;schbare Netzwerke und WPS-Einrichtung per Knopfdruck; das &Uuml;berschreiben oder Wechseln weg vom aktuell verbundenen Netzwerk wird bei Zugriff aus dem privaten Netzwerk direkt ausgefuehrt, verlangt bei Zugriff aus einem nicht-privaten Netzwerk (z.B. ueber eine Port-Weiterleitung/DMZ) aber die Best&auml;tigung eines auf dem Display angezeigten Codes. Das L&ouml;schen eines Netzwerks (aktiv oder nicht) sowie alle sonstigen &Auml;nderungen an nicht aktiven Netzwerken sind dagegen grunds&auml;tzlich nur aus einem privaten Netzwerk m&ouml;glich, ganz ohne Code-Option.</li>
 <li>Die Uhr ist per mDNS unter http://&lt;hostname&gt;.local erreichbar; der Link wird nur angeboten, wenn mDNS tats&auml;chlich gestartet ist.</li>
@@ -158,8 +163,8 @@ static const char README_HTML_DE[] = R"rawliteral(
 <h2>7. Weboberfl&auml;che</h2>
 <ul>
 <li>Dunkel gehaltene Einstellungsseite: Status, WLAN, Uhr-Einstellungen, Helligkeit, Zeit/NTP und Log sind Tabs auf einer Seite.</li>
-<li>Eigene Seiten f&uuml;r Presets, Zifferblatt, Zeigersatz, Dateimanager, Live-Vorschau, DCF77 und Werkseinstellungen.</li>
-<li>Mehrsprachige Oberfl&auml;che: Deutsch, Englisch, Franz&ouml;sisch.</li>
+<li>Eigene Seiten f&uuml;r Presets, Zifferblatt, Zeigersatz, Dateimanager, Live-Vorschau, DCF77, Sicherung und Werkseinstellungen.</li>
+<li>Mehrsprachige Oberfl&auml;che: Deutsch, Englisch.</li>
 <li>Statusleiste mit Uhrzeit und Statuspunkten f&uuml;r Zeit, RTC, DCF77 und Umgebungslicht, die sich alle paar Sekunden aktualisieren.</li>
 <li>Weitere Zifferbl&auml;tter, Zeigers&auml;tze und Presets lassen sich von GitHub laden; fehlende Abh&auml;ngigkeiten werden automatisch mitgeholt.</li>
 <li>Werkseinstellungen mit getrennten Optionen: alles, Zifferbl&auml;tter, Zeigers&auml;tze, Presets oder gespeicherte WLAN-Netzwerke.</li>
@@ -181,7 +186,8 @@ static const char README_HTML_DE[] = R"rawliteral(
 
 <h2>10. Weitere Funktionen</h2>
 <ul>
-<li>Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe und -gr&ouml;&szlig;e, Sekundenzeiger) - umbenennbar, l&ouml;schbar (nur aus einem privaten Netzwerk), alphabetisch sortiert, mit Sicherung und Wiederherstellung.</li>
+<li>Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe und -gr&ouml;&szlig;e, Sekundenzeiger sichtbar und Stil, Bahnhofsmodus, sanfter Minutenzeiger, Zeitzone und Helligkeitseinstellungen) - umbenennbar, l&ouml;schbar (nur aus einem privaten Netzwerk), alphabetisch sortiert, mit Sicherung und Wiederherstellung.</li>
+<li>Komplettsicherung (Seite Sicherung, nur aus einem privaten Netzwerk): alle Einstellungen, Presets, Zifferbl&auml;tter und Zeigers&auml;tze in einer Datei, wiederherstellbar auf dieser oder einer anderen Uhr mit gleichem Displaytyp. WLAN-Zugangsdaten nur auf Wunsch und dann verschl&uuml;sselt - mit einem Schl&uuml;ssel, der in jeder uhr4-Firmware gleich ist, also nicht sicher. Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben unver&auml;ndert; eine falsche oder besch&auml;digte Datei &auml;ndert nichts.</li>
 <li>Wird ein Zifferblatt oder Zeigersatz gel&ouml;scht, verschwinden die Presets, die darauf verweisen; beim aktiven Zeigersatz wird auf den Standard zur&uuml;ckgeschaltet.</li>
 <li>Hochgeladene BMP-Dateien k&ouml;nnen auf die Displaygr&ouml;&szlig;e skaliert werden.</li>
 <li>Anzeige der Laufzeit, Neustart &uuml;ber die Weboberfl&auml;che (nur aus einem privaten Netzwerk), w&ouml;chentlicher vorbeugender Neustart.</li>
@@ -201,102 +207,6 @@ static const char README_HTML_DE[] = R"rawliteral(
 </ul>
 )rawliteral";
 
-static const char README_HTML_FR[] = R"rawliteral(
-<h2>1. &Eacute;crans TFT pris en charge</h2>
-<ul>
-<li>&Eacute;crans pris en charge&nbsp;: GC9A01, GC9D01, ILI9341 (obsol&egrave;te).</li>
-<li>Un second &eacute;cran identique peut &ecirc;tre pilot&eacute; via sa propre broche de s&eacute;lection (CS2) du bus SPI partag&eacute;. Chaque &eacute;cran a sa propre rotation, les deux peuvent donc &ecirc;tre mont&eacute;s diff&eacute;remment. Un &eacute;cran non raccord&eacute; se r&egrave;gle sur &quot;n.a.&quot; - il reste alors noir et le cadran et les aiguilles ne sont ni dessin&eacute;s ni calcul&eacute;s pour lui (par d&eacute;faut : &eacute;cran 1 &agrave; 0&deg;, &eacute;cran 2 n.a.). Les messages d&#39;&eacute;tat et de d&eacute;marrage (d&eacute;marrage, mode point d&#39;acc&egrave;s, codes de confirmation) s&#39;affichent sur les deux &eacute;crans jusqu&#39;&agrave; ce que l&#39;horloge prenne le relais, correctement orient&eacute;s (n.a. compte comme 0&deg;).</li>
-</ul>
-
-<h2>2. Aiguilles et cadrans personnalis&eacute;s</h2>
-<ul>
-<li>Les aiguilles des heures, des minutes et la trotteuse peuvent &ecirc;tre t&eacute;l&eacute;charg&eacute;es en BMP&nbsp;; un jeu par d&eacute;faut est int&eacute;gr&eacute;.</li>
-<li>Les aiguilles des heures et des minutes sont liss&eacute;es (sur&eacute;chantillonnage 3x3). Elles sont dessin&eacute;es dans une image mise en cache, reconstruite uniquement lorsqu&#39;un angle change r&eacute;ellement - la trotteuse conserve ainsi sa fluidit&eacute;.</li>
-<li>Des cadrans personnalis&eacute;s peuvent &ecirc;tre t&eacute;l&eacute;charg&eacute;s et s&eacute;lectionn&eacute;s&nbsp;; un cadran par d&eacute;faut est int&eacute;gr&eacute;.</li>
-</ul>
-
-<h2>3. Minute fluide et mode gare</h2>
-<ul>
-<li>Minute fluide&nbsp;: l&#39;aiguille des minutes avance en continu au lieu de sauter une fois par minute.</li>
-<li>Mode gare&nbsp;: la trotteuse avance en 60 pas, acc&eacute;l&egrave;re et freine &agrave; chaque pas, effectue son tour en 58,5&nbsp;s puis attend le changement de minute sur le 12 - comme l&#39;horloge de gare d&#39;origine.</li>
-</ul>
-
-<h2>4. R&eacute;glage de la luminosit&eacute;</h2>
-<ul>
-<li>Luminosit&eacute; automatique par photor&eacute;sistance, avec seuils et correction gamma r&eacute;glables.</li>
-<li>Une plage horaire quotidienne peut imposer la luminosit&eacute; maximale ind&eacute;pendamment de la lumi&egrave;re ambiante.</li>
-<li>R&eacute;glage manuel si aucune photor&eacute;sistance n&#39;est d&eacute;tect&eacute;e.</li>
-</ul>
-
-<h2>5. WiFi, mDNS et synchronisation de l&#39;heure</h2>
-<ul>
-<li>Jusqu&#39;&agrave; 15 r&eacute;seaux WiFi. Le balayage indique la puissance du signal et le chiffrement&nbsp;; les r&eacute;seaux les plus forts sont conserv&eacute;s et list&eacute;s en premier.</li>
-<li>Le nom d&#39;h&ocirc;te et tous les param&egrave;tres WiFi se trouvent sur l&#39;onglet WLAN, qui s&#39;ouvre automatiquement si aucun r&eacute;seau connu n&#39;est joignable.</li>
-<li>Reconnexion automatique, suppression individuelle des r&eacute;seaux et configuration WPS en un bouton&nbsp;; le remplacement ou le changement depuis le r&eacute;seau actuellement connect&eacute; est ex&eacute;cut&eacute; directement en cas d&#39;acc&egrave;s depuis le r&eacute;seau priv&eacute;, mais exige la confirmation d&#39;un code affich&eacute; sur l&#39;&eacute;cran en cas d&#39;acc&egrave;s depuis un r&eacute;seau non priv&eacute; (par ex. via une redirection de port/DMZ). La suppression d&#39;un r&eacute;seau (actif ou non), ainsi que toute autre modification des r&eacute;seaux non actifs, n&#39;est possible que depuis un r&eacute;seau priv&eacute;, sans aucune option de code.</li>
-<li>L&#39;horloge est joignable via mDNS &agrave; http://&lt;hostname&gt;.local&nbsp;; le lien n&#39;est propos&eacute; que si mDNS a r&eacute;ellement d&eacute;marr&eacute;.</li>
-<li>NTP est prioritaire et v&eacute;rifi&eacute; toutes les 6 heures, avec une nouvelle tentative par serveur avant de passer au suivant&nbsp;; si aucun serveur n&#39;est configur&eacute;, ou si les serveurs configur&eacute;s sont inaccessibles, pool.ntp.org et ptbtime1.ptb.de servent de solution de repli int&eacute;gr&eacute;e.</li>
-<li>Si NTP est indisponible, le dernier t&eacute;l&eacute;gramme DCF77 valide prend le relais, &agrave; condition que sa parit&eacute; soit correcte et qu&#39;il ait au plus 10 minutes - le temps &eacute;coul&eacute; depuis est ajout&eacute;.</li>
-<li>Le RTC est r&eacute;gl&eacute; au d&eacute;marrage et p&eacute;riodiquement par la source qui a r&eacute;ellement abouti.</li>
-<li>L&#39;horloge est elle-m&ecirc;me serveur NTP sur le port 123. Elle ne r&eacute;pond qu&#39;aux demandes provenant d&#39;un r&eacute;seau priv&eacute;, et seulement d&egrave;s que sa propre heure est valide, quelle qu&#39;en soit la source.</li>
-</ul>
-
-<h2>6. R&eacute;ception DCF77</h2>
-<ul>
-<li>L&#39;entr&eacute;e du r&eacute;cepteur est lue sur les deux fronts et &eacute;valu&eacute;e uniquement par la dur&eacute;e qui les s&eacute;pare&nbsp;: les deux polarit&eacute;s de signal fonctionnent sans aucun r&eacute;glage.</li>
-<li>Les impulsions sont plac&eacute;es sur une grille d&#39;une seconde&nbsp;: une seconde mal re&ccedil;ue ne laisse un trou qu&#39;&agrave; sa propre place, sans d&eacute;caler les bits suivants.</li>
-<li>La marque de minute (la 59e seconde, la seule sans impulsion) est d&eacute;termin&eacute;e statistiquement sur plusieurs minutes plut&ocirc;t qu&#39;&agrave; partir d&#39;une seule pause de deux secondes - c&#39;est ce qui rend la r&eacute;ception possible lorsque des secondes manquent.</li>
-<li>Les bits manquants sont reconstruits l&agrave; o&ugrave; le protocole le permet (bits fixes, paire heure d&#39;&eacute;t&eacute;/hiver, un bit par groupe de parit&eacute;). Un tel t&eacute;l&eacute;gramme n&#39;est accept&eacute; que s&#39;il correspond au pr&eacute;c&eacute;dent plus les minutes &eacute;coul&eacute;es.</li>
-<li>Un t&eacute;l&eacute;gramme n&#39;est accept&eacute; que si les bits fixes, les trois parit&eacute;s et les plages de valeurs concordent&nbsp;: un t&eacute;l&eacute;gramme perturb&eacute; ne peut donc pas r&eacute;gler une heure fausse.</li>
-<li>La page /dcf77 affiche la progression des bits, le dernier t&eacute;l&eacute;gramme d&eacute;cod&eacute; et des valeurs de diagnostic jusqu&#39;aux dur&eacute;es d&#39;impulsion brutes.</li>
-</ul>
-
-<h2>7. Interface web</h2>
-<ul>
-<li>Interface sombre&nbsp;: &Eacute;tat, WLAN, r&eacute;glages de l&#39;horloge, luminosit&eacute;, heure/NTP et journal sont des onglets d&#39;une m&ecirc;me page.</li>
-<li>Pages s&eacute;par&eacute;es pour les pr&eacute;r&eacute;glages, le cadran, les aiguilles, le gestionnaire de fichiers, l&#39;aper&ccedil;u en direct, DCF77 et la r&eacute;initialisation d&#39;usine.</li>
-<li>Interface multilingue&nbsp;: allemand, anglais, fran&ccedil;ais.</li>
-<li>Barre d&#39;&eacute;tat avec l&#39;heure et des points d&#39;&eacute;tat pour l&#39;heure, le RTC, DCF77 et la lumi&egrave;re ambiante, actualis&eacute;s toutes les quelques secondes.</li>
-<li>D&#39;autres cadrans, jeux d&#39;aiguilles et pr&eacute;r&eacute;glages peuvent &ecirc;tre t&eacute;l&eacute;charg&eacute;s depuis GitHub&nbsp;; les d&eacute;pendances manquantes sont r&eacute;cup&eacute;r&eacute;es automatiquement.</li>
-<li>R&eacute;initialisation d&#39;usine avec options s&eacute;par&eacute;es&nbsp;: tout, cadrans, jeux d&#39;aiguilles, pr&eacute;r&eacute;glages ou r&eacute;seaux WiFi enregistr&eacute;s.</li>
-</ul>
-
-<h2>8. Gestion des fichiers avec LittleFS</h2>
-<ul>
-<li>Les cadrans et les aiguilles sont stock&eacute;s compress&eacute;s en RLE pour &eacute;conomiser la m&eacute;moire flash.</li>
-<li>Envoi, t&eacute;l&eacute;chargement, renommage et suppression via un gestionnaire de fichiers compact&nbsp;; l&#39;envoi, le renommage et la suppression ne sont possibles que depuis un r&eacute;seau priv&eacute;.</li>
-<li>Journalisation optionnelle dans jusqu&#39;&agrave; 9 fichiers rotatifs, consultables en direct dans l&#39;onglet Journal.</li>
-</ul>
-
-<h2>9. Fuseaux horaires</h2>
-<ul>
-<li>Heure d&#39;&eacute;t&eacute; automatique (par ex. CET/CEST) ou heure d&#39;&eacute;t&eacute; / d&#39;hiver permanente.</li>
-<li>Des cha&icirc;nes de fuseau horaire personnalis&eacute;es peuvent &ecirc;tre saisies directement.</li>
-<li>Si aucun fuseau horaire n&#39;est renseign&eacute;, ou si la valeur saisie n&#39;est pas une cha&icirc;ne POSIX-TZ valide, l&#39;horloge revient automatiquement &agrave; CET-1CEST,M3.5.0,M10.5.0/3 (heure d&#39;Europe centrale).</li>
-</ul>
-
-<h2>10. Autres fonctions</h2>
-<ul>
-<li>Jusqu&#39;&agrave; 50 pr&eacute;r&eacute;glages (cadran, aiguilles, couleur et taille du moyeu, trotteuse) - renommables, supprimables (uniquement depuis un r&eacute;seau priv&eacute;), tri&eacute;s alphab&eacute;tiquement, avec sauvegarde et restauration.</li>
-<li>Supprimer un cadran ou un jeu d&#39;aiguilles supprime les pr&eacute;r&eacute;glages qui s&#39;y r&eacute;f&egrave;rent&nbsp;; pour le jeu actif, le d&eacute;faut reprend la main.</li>
-<li>Les fichiers BMP envoy&eacute;s peuvent &ecirc;tre redimensionn&eacute;s &agrave; la taille de l&#39;&eacute;cran.</li>
-<li>Affichage de la dur&eacute;e de fonctionnement, red&eacute;marrage depuis l&#39;interface web (uniquement depuis un r&eacute;seau priv&eacute;), red&eacute;marrage pr&eacute;ventif hebdomadaire.</li>
-<li>Interface API pour modifier les r&eacute;glages depuis l&#39;ext&eacute;rieur.</li>
-<li>Mat&eacute;riel&nbsp;: ESP32-S2, photor&eacute;sistance pour la luminosit&eacute;, horloge temps r&eacute;el DS3231 en option, module de r&eacute;ception DCF77.</li>
-</ul>
-
-<h2>11. Heure mod&egrave;le Rocrail</h2>
-<ul>
-<li>Connexion optionnelle &agrave; un serveur Rocrail (logiciel de commande de train miniature)&nbsp;: les aiguilles peuvent afficher son &laquo;&nbsp;fast clock&nbsp;&raquo; (heure du mod&egrave;le) au lieu de l&#39;heure r&eacute;elle, activ&eacute;e via un interrupteur sur l&#39;onglet Heure.</li>
-<li>Activer Rocrail, enregistrer l&#39;adresse du serveur ou red&eacute;marrer l&#39;horloge d&eacute;clenchent chacun une tentative de connexion imm&eacute;diate, au lieu d&#39;attendre la nouvelle tentative toutes les minutes.</li>
-<li>L&#39;heure du mod&egrave;le s&#39;&eacute;coule selon le facteur d&#39;acc&eacute;l&eacute;ration propre &agrave; Rocrail (le &laquo;&nbsp;diviseur&nbsp;&raquo;) plut&ocirc;t que 1:1&nbsp;; l&#39;horloge continue d&#39;avancer seule entre deux mises &agrave; jour du serveur et revient &agrave; l&#39;heure r&eacute;elle si plus aucune mise &agrave; jour n&#39;arrive pendant plus de 2 minutes.</li>
-<li>La trotteuse de l&#39;horloge de gare acc&eacute;l&egrave;re proportionnellement au diviseur au lieu de se d&eacute;sactiver, et se masque au-del&agrave; d&#39;un seuil de diviseur r&eacute;glable, car elle ne serait plus lisible.</li>
-<li>Si le serveur indique aussi une valeur de luminosit&eacute;, l&#39;&eacute;cran reprend cette luminosit&eacute; au lieu de la photor&eacute;sistance/plage horaire, et revient automatiquement d&egrave;s que la connexion est coup&eacute;e.</li>
-<li>La page Aper&ccedil;u refl&egrave;te la m&ecirc;me heure mod&egrave;le et la m&ecirc;me vitesse de diviseur.</li>
-<li>L&#39;onglet Rocrail affiche l&#39;&eacute;tat de connexion en direct, le diviseur, le nom du plan et l&#39;heure mod&egrave;le actuelle.</li>
-</ul>
-)rawliteral";
-
-
     // Liefert den README-Block zur aktuell eingestellten Sprache; faellt auf
     // Englisch zurueck, wenn fuer eine Sprache keine Fassung vorliegt.
 
@@ -305,7 +215,6 @@ static const char README_HTML_FR[] = R"rawliteral(
 
     static const char* readmeHtmlForCurrentLanguage() {
         if (currentLanguage == "de") return README_HTML_DE;
-        if (currentLanguage == "fr") return README_HTML_FR;
         return README_HTML_EN;
     }
 

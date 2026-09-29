@@ -1,4 +1,4 @@
-# Contributing to TFT-Clock-GC9A01 (uhr3)
+# Contributing to TFT-Clock-GC9A01 (uhr4)
 
 Thanks for your interest in this project! It's a hobby project maintained
 in spare time, so please keep pull requests focused and reasonably small -
@@ -9,24 +9,31 @@ that makes them much easier to review and merge.
 - Target: **ESP32-S2** only (limited RAM - see "Memory constraints" below)
 - Arduino IDE, partition scheme: **"No OTA, 2MB APP / 2MB SPIFFS"**
 - **PSRAM: Enabled** in board settings
-- Displays: GC9A01 (240x240), GC9D01 (160x160), or ILI9341 (240x240, deprecated -
-  no longer actively maintained) - selected via `config.h`
+- Displays: GC9A01 (240x240) or GC9D01 (160x160) - one firmware for both, the
+  type is a setting in the web UI (clock face tab, takes effect after a restart).
+  Dimensions per type live in `DISPLAY_GEOMETRY` (`config.h`); `CLOCK_WIDTH`,
+  `HAND_WIDTH` etc. read the active type at runtime, so never use them in array
+  sizes, `static_assert` or `#if`. ILI9341 support was dropped.
+- Graphics library: **LovyanGFX** (tested with 1.2.30), installed unchanged from
+  the Library Manager - bus, panel and init sequence live in `lgfx_config.h`
 
 ## Project Structure
 
-The firmware is split into `uhr3.ino` plus several headers, each with a
+The firmware is split into `uhr4.ino` plus several headers, each with a
 clear responsibility:
 
 | File | Responsibility |
 |---|---|
-| `config.h` | Board/display selection, hardware pins, constants |
+| `config.h` | Display geometry per type, hardware pins, constants |
+| `lgfx_config.h` | LovyanGFX device: SPI bus, GC9A01 panel, init sequence |
 | `globals.h` | Global variables and shared state |
 | `declarations.h` | Forward declarations for every function (see below) |
-| `translation.h` | UI translations (DE/FR) |
+| `translation.h` | UI translations (DE) |
 | `wifi_manager.h` | WiFi connection, AP mode, scanning, WPS |
 | `time_sync.h` | NTP and DCF77 time synchronization |
-| `display.h` | Rendering, BMP handling, RLE compression |
+| `display.h` | Rendering, BMP handling, RLE compression, USB setup commands |
 | `presets_manager.h` | Preset storage/retrieval logic |
+| `backup.h` | Full backup/restore (TAR), WiFi encryption |
 | `webserver_routes.h` | All HTTP routes and generated HTML |
 | `system_utils.h` | Heap monitoring, misc helpers |
 | `prefs_keys.h` | `Preferences` (NVS) key name constants |
@@ -50,9 +57,9 @@ clear responsibility:
 - Translations live in a flash-resident `static const TranslationEntry
   translationTable[]` (a plain array, not `std::map`) - this is
   intentional, see "Memory constraints" below. Add new entries as
-  `{ "English key", "German value", "French value" }`.
+  `{ "English key", "German value" }`.
 - **Use HTML entities for accented characters** (`&auml;`, `&ouml;`,
-  `&uuml;`, `&szlig;`, `&eacute;`, `&egrave;`, `&ccedil;`, `&agrave;`, ...)
+  `&uuml;`, `&szlig;`, ...)
   instead of raw UTF-8 umlauts/accents. The HTML head sends no charset
   declaration, so raw UTF-8 bytes get mis-rendered by the browser
   (mojibake) - HTML entities render correctly regardless.
@@ -62,8 +69,7 @@ clear responsibility:
   text. (`&nbsp;` *inside* a translated phrase is fine when it's part of
   keeping that specific phrase from wrapping awkwardly, e.g. narrow nav
   labels.)
-- **Every `translate("...")` call needs both a German and a French
-  entry.** Before submitting a PR, verify there are no missing
+- **Every `translate("...")` call needs a German entry.** Before submitting a PR, verify there are no missing
   translations (extract every `translate("...")` key used across the
   `.ino`/`.h` files and confirm each exists in `translationTable`).
 - Keep the key itself in English, matching the fallback text shown when
@@ -98,8 +104,8 @@ Please check:
 
 - [ ] Braces `{`/`}` balance in every file you touched
 - [ ] Preprocessor directives (`#if`/`#ifdef`/`#ifndef`/`#endif`) balance
-- [ ] Every `translate("...")` call has a matching German *and* French
-      entry in `translation.h`
+- [ ] Every `translate("...")` call has a matching German entry in
+      `translation.h`
 - [ ] No raw non-ASCII characters were introduced into `translation.h`
       (use HTML entities - see above)
 - [ ] The sketch still compiles for the ESP32-S2 board/partition scheme

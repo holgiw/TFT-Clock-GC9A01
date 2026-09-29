@@ -11,6 +11,16 @@
 
     void startWPS() ;
     bool checkWiFiReconnect() ;
+    void wipeWifiDriverStorage() ;
+    bool wifiStoreCrypt(bool encrypt, const uint8_t* iv, uint8_t* tag, const uint8_t* in, uint8_t* out, size_t len) ;
+    String wifiPassEncrypt(const String& plain) ;
+    String wifiPassDecrypt(const String& stored) ;
+    String loadWifiPass(int i) ;
+    void storeWifiPass(int i, const String& pass) ;
+    bool storeWifiPassVerified(int i, const String& pass) ;
+    void migrateWifiPasswords() ;
+    String backupHex(const uint8_t* data, size_t len) ;
+    int backupUnhex(const String& hex, uint8_t* out, size_t maxLen) ;
     int saveWpsCredentials(const String& ssid, const String& pass) ;
     void onWpsEvent(WiFiEvent_t event) ;
     void restorePreviousWpsConnection() ;
@@ -26,10 +36,10 @@
     void checkWiFiScan() ;
     void scanAndCacheNetworks() ;
 
-    // In uhr3.ino definiert (nicht in wifi_manager.h), da sie den kompletten
+    // In uhr4.ino definiert (nicht in wifi_manager.h), da sie den kompletten
     // Boot-Ablauf des WLAN-Aufbaus kapselt - siehe Kommentar dort.
 
-    // Defined in uhr3.ino (not in wifi_manager.h), since it encapsulates the
+    // Defined in uhr4.ino (not in wifi_manager.h), since it encapsulates the
     // whole boot-time WiFi setup flow - see the comment there.
     void connectWiFiAtBoot() ;
 
@@ -72,6 +82,7 @@
                                       // hard stop before reboot/factory reset - see system_utils.h
     void handleNTPFailure() ;
     void setTimeStruct(const struct tm& timeinfo, String source) ;
+    void handleSerialTime(const String& arg) ;
     uint16_t i2cScan() ;
     bool startNtpServer() ;
     void createNtpResponse(byte* packet, const struct timeval& receivedAt) ;
@@ -84,25 +95,57 @@
     bool isDisplayConnected(uint8_t displayNum) ;
     uint8_t primaryDisplayRotation() ;
     uint8_t effectiveRotation(uint8_t displayNum) ;
+    bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) ;
+    const char* displayChoiceName(uint8_t type, bool backlight) ;
+    void adoptUhr3BuildDisplay() ;
+    bool hexToText(const String& hex, String& out, size_t maxLen) ;
+    void serialReply(const String& reply) ;
+    void serialRestart(const String& reply) ;
+    void handleSerialWifi(const String& args) ;
+    void handleSerialInfo() ;
+    void handleSerialDisplay(const String& name) ;
+#if ARDUINO_USB_CDC_ON_BOOT && !ARDUINO_USB_MODE
+    void usbCdcLineCodingEvent(void* arg, esp_event_base_t base, int32_t id, void* data) ;
+#endif
+    void handleSerialCommands() ;
+    struct HandMove;
+    float wrapAngle(float a) ;
+    float animateHand(HandMove& m, float shown, float target, unsigned long now) ;
+    void loadDisplayType() ;
+    void resetPanels() ;
+    void setDisplayType(uint8_t type, bool backlight) ;
+    uint8_t hardwareRotation(uint8_t displayNum) ;
+    void recordRenderFrame(uint32_t durationMicros, bool partial) ;
+    void pushBackgroundRect(int32_t x, int32_t y, int32_t w, int32_t h) ;
+    bool createSprite16(LGFX_Sprite& sprite, int32_t w, int32_t h, bool preferPsram = true) ;
+    void setupTextStyle(lgfx::LovyanGFX& gfx) ;
+    String tftText(const String& text) ;
     void setCSIdle() ;
     void applyDisplayRotation(uint8_t displayNum, uint8_t newRotation) ;
     void setCS1(bool state) ;
     void setCS2(bool state) ;
-    TFT_eSPI& beginStatusDraw(uint8_t displayNum) ;
+    lgfx::LovyanGFX& beginStatusDraw(uint8_t displayNum) ;
     void endStatusDraw(uint8_t displayNum) ;
+    void setAutoBrightness(bool enabled) ;
+    bool applyBrightnessPresetValue(const String& key, const String& value) ;
+    void putBrightnessDefaults(bool backlight) ;
+    void applyBacklightPin() ;
+    void setBacklightMode(bool enabled) ;
     uint16_t setPixelBrightness(uint16_t pixel) ;
     bool isRleFace(const uint8_t* header4) ;
     size_t rleMaxEncodedSize(size_t pixelCount) ;
     size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) ;
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
     void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) ;
+    void decodeDefaultFace(uint16_t* dest) ;
+    uint16_t* allocDefaultFace() ;
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) ;
     void loadClockFace(uint8_t rotation = primaryDisplayRotation()) ; // ohne Argument = Rotation des ersten angeschlossenen Displays (Standardverhalten fuer alle Aufrufer ausserhalb von renderClockFrame())
                                                                       // no argument = rotation of the first connected display (default behaviour for every caller outside renderClockFrame())
     void freeClockFaceBuffer() ;
     void resetFacesToDefault() ;
     void resetHandsToDefault() ;
-    void pushHandRowCentered(TFT_eSprite* sprite, int row, uint16_t* rowPixels, int srcWidth, const uint8_t* transparentColor) ;
+    void pushHandRowCentered(LGFX_Sprite* sprite, int row, uint16_t* rowPixels, int srcWidth, const uint8_t* transparentColor) ;
     void loadHandSprites() ;
     void placeHand(const uint16_t* src, int w, int h, uint16_t* dest) ;
     void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) ;
@@ -114,8 +157,7 @@
     float shortestAngleDiff(float from, float to) ;
     int prepareClockFaceCache() ;
     int faceOrientationFor(uint8_t rotation) ;
-    bool blitFaceIntoBuffer(uint16_t* dest, uint8_t rotation) ;
-    void blitHandAntiAliased(uint16_t* canvas, TFT_eSprite* handSprite, float angleDeg) ;
+    bool blitFaceIntoSprite(LGFX_Sprite& dest, uint8_t rotation) ;
     bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
@@ -141,7 +183,6 @@
     void remaskExistingFaceCorners() ;
     void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) ;
     bool streamRleFaceAsStandardBmp(const String& path, const char* contentType = "image/bmp") ;
-    void blitRotatedHand(uint16_t* canvas, int canvasW, int canvasH, const uint16_t* hand, int handW, int handH, float pivotX, float pivotY, float cx, float cy, float angleDeg, float scale) ;
     bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, uint8_t** outBytes, size_t& outSize) ;
     void setLedOff() ;
     void setLedOn() ;
@@ -190,7 +231,14 @@
 
     String stripRotationParam(const String& url) ;
     void loadPresets() ;
+    // backup.h: Komplettsicherung / full backup
+    void streamBackup(bool includeWifi) ;
+    void backupWipe(String& s) ;
+    void handleBackupRestoreUpload() ;
+
     void savePresets() ;
+    String presetUrlEncode(const String& value) ;
+    String presetUrlDecode(const String& value) ;
     bool createPresetFromPreferences(const String& customName = "") ;
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut, uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) ;
     void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) ;
@@ -285,7 +333,7 @@
                                                           // reads PK_SMOOTH_SECOND with a migration fallback to stationMode (see system_utils.h)
 
 
-    // uhr3.ino: setup() & loop()
+    // uhr4.ino: setup() & loop()
 
     void setup() ;
     void loop() ;

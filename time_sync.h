@@ -1,14 +1,12 @@
 #pragma once
+
     // Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone. Benoetigt globals.h,
     // config.h, prefs_keys.h, declarations.h (vor dieser Datei eingebunden).
-
-    // Time: RTC, DCF77, NTP client & server, timezone. Requires globals.h,
-    // config.h, prefs_keys.h, declarations.h (included before this file).
-
-
     // ISR: reagiert auf jede Flanke am DCF77-Datenpin (CHANGE) und schreibt
     // nur einen Zeitstempel in den Ringpuffer. Auswertung in processDcf77Bits().
 
+    // Time: RTC, DCF77, NTP client & server, timezone. Requires globals.h,
+    // config.h, prefs_keys.h, declarations.h (included before this file).
     // ISR: fires on every edge on the DCF77 data pin (CHANGE), only writes a
     // timestamp into the ring buffer. Evaluated in processDcf77Bits().
 
@@ -18,18 +16,17 @@
         // ISR ruft nichts im Flash auf: bei deaktiviertem Flash-Cache drohen
         // verlorene Flanken oder Panic-Reset. Deshalb kein digitalRead()
         // (Pegel unnoetig) und kein LED-GPIO hier.
-
-        // ISR calls nothing flash-resident: with the flash cache off this
-        // risks lost edges or a panic reset. Hence no digitalRead() (level
-        // unused) and no LED GPIO here.
-
         // dcfLedTogglePending wird HIER nicht gesetzt: die ISR kann echtes
         // DCF77-Signal nicht von Rauschen unterscheiden. Der LED-Blitz wird
         // erst in processDcf77Bits() angefordert, sobald dcf77Confirmed gilt.
 
+        // ISR calls nothing flash-resident: with the flash cache off this
+        // risks lost edges or a panic reset. Hence no digitalRead() (level
+        // unused) and no LED GPIO here.
         // dcfLedTogglePending is NOT set here: the ISR cannot tell a genuine
         // DCF77 signal from noise. The LED flash is requested only in
         // processDcf77Bits(), once dcf77Confirmed is true.
+
         dcf77Count++;
         if (dcf77Count > 120) dcf77Count = 1;
 
@@ -397,11 +394,11 @@
         }
 
         // Falls kein einziger Server gespeichert ist (weder je konfiguriert
-        // noch durch den Erststart-Block in uhr3.ino vorbelegt), hier auf die
+        // noch durch den Erststart-Block in uhr4.ino vorbelegt), hier auf die
         // eingebauten Standardserver zurueckfallen.
 
         // If not a single server is stored (neither ever configured nor
-        // pre-filled by the first-start block in uhr3.ino), fall back to the
+        // pre-filled by the first-start block in uhr4.ino), fall back to the
         // built-in default servers here.
         applyNtpServerDefaultsIfNoneConfigured();
     }
@@ -433,11 +430,11 @@
 
     // Haelt dcfTimeFound/lastDcfSyncTime (Statusanzeige) auf dem Stand des
     // eigenen Dekoders - UNABHAENGIG davon, ob DCF77 gerade tatsaechlich die
-    // Zeit stellt (das entscheidet applyDcf77DecodedTime()/uhr3.ino).
+    // Zeit stellt (das entscheidet applyDcf77DecodedTime()/uhr4.ino).
 
     // Keeps dcfTimeFound/lastDcfSyncTime (status display) in sync with the own
     // decoder - INDEPENDENT of whether DCF77 currently drives the system time
-    // (that's decided by applyDcf77DecodedTime()/uhr3.ino).
+    // (that's decided by applyDcf77DecodedTime()/uhr4.ino).
 
     bool updateDcf77Status() {
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
@@ -599,18 +596,17 @@
         // Strukturpruefung zuerst: Bit 0 muss 0, Bit 20 muss 1 sein. Widerspricht
         // eines, steht der Dekoder auf falscher Sekunde -> false; der Aufrufer
         // verwirft die Marke nach mehreren Fehlern (DCF77_STRUCT_FAIL_LIMIT).
-
-        // Structure check first: bit 0 must be 0, bit 20 must be 1. If either
-        // contradicts, the decoder sits on the wrong second -> false; the
-        // caller discards the marker after repeated failures (DCF77_STRUCT_FAIL_LIMIT).
-
         // dcf77Bits ist nach Rasterposition indiziert; die Marke ist Sekunde
         // 59, die Position danach Sekunde 0 - hier einmal in Sekundenfolge
         // umsortieren ('bits' nutzt danach die DCF77-Bitnummern).
 
+        // Structure check first: bit 0 must be 0, bit 20 must be 1. If either
+        // contradicts, the decoder sits on the wrong second -> false; the
+        // caller discards the marker after repeated failures (DCF77_STRUCT_FAIL_LIMIT).
         // dcf77Bits is indexed by grid position; the marker is second 59, the
         // position after it second 0 - reorder into second order once here
         // ('bits' then uses the DCF77 telegram's familiar bit numbers).
+
         if (dcf77MarkerPos < 0) return true; // ohne Marke ist keine Zuordnung moeglich
                                               // without the marker no mapping is possible
 
@@ -1154,16 +1150,13 @@
 #endif
     }
 
-
     // Bindet (neu) den eigenen NTP-Server der Uhr an Port 123. Muss nach
     // JEDEM Verbindungsaufbau erneut laufen, nicht nur beim Boot: connectWiFi()
-
     // faehrt WiFi zwischendurch komplett runter, der alte Socket verliert
     // sein Interface. udp.stop() davor gibt einen noch gebundenen Port frei.
 
     // Binds (or rebinds) the clock's own NTP server to port 123. Must run
     // after EVERY connection setup, not just at boot: connectWiFi() shuts
-
     // WiFi down completely in between, the old socket loses its interface.
     // udp.stop() beforehand releases a still-bound port.
 
@@ -1558,11 +1551,11 @@
 
     // Wertet eine beendete NTP-Sync-Task aus - in jedem loop()-Durchlauf
     // aufgerufen, no-op solange keine Task fertig ist. Bei Fehlschlag greift
-    // der DCF77-Fallback (gleiche Logik wie zuvor synchron in uhr3.ino).
+    // der DCF77-Fallback (gleiche Logik wie zuvor synchron in uhr4.ino).
 
     // Evaluates a finished NTP sync task - called on every loop() iteration,
     // no-op as long as no task has finished. On failure, the DCF77 fallback
-    // kicks in (same logic that previously ran synchronously in uhr3.ino).
+    // kicks in (same logic that previously ran synchronously in uhr4.ino).
 
     void pollNtpSyncTask() {
         if (!ntpSyncTaskDone) return;
@@ -1709,6 +1702,66 @@
         DEBUG_PRINTLN(buffer); // Gibt die lokale Zeit und die Zeitzone aus
                                // prints the local time and timezone
         logTimeSyncDifference(source, oldTime, oldTimeMillis);
+    }
+
+
+    // "UHR4 TIME <Unix-Sekunden UTC>[.<Bruchteil>]" per USB (flashESP nach dem
+    // Flashen, setTime.bat/.sh): setzt die Systemzeit und - falls vorhanden -
+    // die RTC. Fuer Uhren ohne WLAN/DCF77/RTC-Zeit, z.B. direkt nach dem
+    // Flashen; NTP/DCF77 korrigieren spaeter wie gewohnt. Nur 2024-2099 wird
+    // angenommen. Antwort "UHR4 OK TIME <JJJJ-MM-TT hh:mm:ss>" (Ortszeit).
+    // "UHR4 TIME <Unix seconds UTC>[.<fraction>]" via USB (flashESP after
+    // flashing, setTime.bat/.sh): sets the system time and - if present - the
+    // RTC. For clocks without WiFi/DCF77/RTC time, e.g. right after flashing;
+    // NTP/DCF77 correct it later as usual. Only 2024-2099 is accepted. Reply
+    // "UHR4 OK TIME <YYYY-MM-DD hh:mm:ss>" (local time).
+
+    void handleSerialTime(const String& arg) {
+        const time_t TIME_MIN = 1704067200; // 2024-01-01 00:00:00 UTC
+        const time_t TIME_MAX = 4102444799; // 2099-12-31 23:59:59 UTC
+        const char* text = arg.c_str();
+        char* end = nullptr;
+        long long sec = strtoll(text, &end, 10);
+        long usec = 0;
+        if (end != text && *end == '.') {
+            // Bruchteil auf Mikrosekunden (max. 6 Stellen) / fraction to microseconds (max. 6 digits)
+            long scale = 100000;
+            for (end++; isdigit((uint8_t)*end); end++) {
+                usec += (*end - '0') * scale;
+                scale /= 10;
+            }
+        }
+        if (end == text || *end != '\0' || sec < TIME_MIN || sec > TIME_MAX) {
+            serialReply("UHR4 ERROR TIME invalid '" + arg + "' (unix seconds UTC, 2024-2099)");
+            return;
+        }
+
+        struct timeval oldTime;
+        gettimeofday(&oldTime, nullptr);
+        unsigned long oldTimeMillis = millis();
+        struct timeval tv = { (time_t)sec, (suseconds_t)usec };
+        settimeofday(&tv, nullptr);
+
+        struct tm local;
+        localtime_r(&tv.tv_sec, &local);
+        timeinfo = local;
+        logTimeSyncDifference("[USB]", oldTime, oldTimeMillis);
+
+        // RTC mitstellen - auch eine als "ungueltig" markierte (wie NTP/DCF77)
+        // Set the RTC too - also one flagged "invalid" (like NTP/DCF77)
+        if (rtcOk == RTC_AVAILABLE || rtcOk == RTC_AVAILABLE_BUT_INVALID) {
+            rtc.adjust(DateTime(local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
+                local.tm_hour, local.tm_min, local.tm_sec));
+            rtcOk = RTC_AVAILABLE;
+            lastRTCUpdate = millis();
+            DEBUG_PRINTLN("[RTC] RTC updated with USB time");
+        }
+        serialTimeSet = true;
+
+        char buffer[24];
+        strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local);
+        DEBUG_PRINTLN(String("[USB] Time set to ") + buffer);
+        serialReply(String("UHR4 OK TIME ") + buffer);
     }
 
 

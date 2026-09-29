@@ -4,13 +4,24 @@
 
 # Anleitung: Erste Inbetriebnahme, Zifferblätter/Zeiger hochladen, Uhren-Sets erstellen
 
-Diese Anleitung beschreibt den Ersteinrichtungs-Assistenten Schritt für Schritt: WLAN-Einrichtung per WPS oder Accesspoint, das Hochladen eigener Zifferblätter und Zeigersätze sowie das Anlegen und Verwalten von Uhren-Sets (Presets).
+Diese Anleitung beschreibt den Ersteinrichtungs-Assistenten Schritt für Schritt: Einrichtung beim Flashen per USB, WLAN-Einrichtung per WPS oder Accesspoint, das Hochladen eigener Zifferblätter und Zeigersätze sowie das Anlegen und Verwalten von Uhren-Sets (Presets).
 
 ---
 
 ## 1. Erste Inbetriebnahme – WLAN einrichten
 
-Beim allerersten Start (noch kein WLAN gespeichert) versucht die Uhr automatisch zunächst **WPS**, bevor sie einen eigenen **Accesspoint** öffnet.
+### 1.0 Am einfachsten: gleich beim Flashen
+
+Wird die Uhr mit `flashESP.bat` (Windows, per Doppelklick) bzw. `bash flashESP.sh` (Linux) geflasht, ist die Einrichtung meist schon erledigt:
+
+1. Zuerst fragt das Skript, welches **Display** die Uhr hat (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01). Das ist bei einer neuen Uhr wichtig – mit falschem Displaytyp zeigt das Display nichts Lesbares an.
+2. Danach sucht das Skript die WLANs in der Umgebung und listet alle **2,4-GHz-Netze** (die Uhr kann kein 5 GHz), das Netz des PCs ist markiert. Nummer oder Name eingeben, dann das **Passwort zweimal** (verdeckt, es wird nirgends gespeichert).
+3. Erst dann flasht das Skript die Uhr und sendet ihr danach ohne weiteren Eingriff Displaytyp und WLAN per USB. Sie startet neu und verbindet sich direkt mit dem WLAN – weiter mit Schritt 1.3, Punkt 4.
+4. Zuletzt bekommt die Uhr die **Uhrzeit des PCs** – sie läuft damit sofort richtig, auch ohne WLAN, DCF77 und RTC. Nur die Uhrzeit setzen, ohne zu flashen: `setTime.bat` (Windows, Doppelklick) bzw. `bash setTime.sh` (Linux).
+
+Wird das WLAN dort mit Enter übersprungen, geht es wie unten beschrieben per WPS oder Accesspoint weiter.
+
+Ohne WLAN-Daten versucht die Uhr beim Start automatisch zunächst **WPS**, bevor sie einen eigenen **Accesspoint** öffnet.
 
 ### 1.1 Schritt 1: WPS versuchen lassen
 
@@ -25,14 +36,14 @@ Reagiert der Router nicht (kein WPS, WPS nicht aktiviert oder Zeit abgelaufen), 
 
 Die Uhr spannt jetzt ihr eigenes WLAN auf und zeigt auf dem Display **SSID und Passwort** an:
 
-- **SSID:** `clock123` (bei jeder Uhr gleich)
-- **Passwort:** ein 8-stelliger Code (Kleinbuchstaben/Ziffern), der **individuell pro Gerät** aus der MAC-Adresse gebildet wird und **nur auf dem Display dieser Uhr** angezeigt wird
+- **SSID:** `clock123`
+- **Passwort:** `clocksetup`
 
-> **Wichtig:** Das Passwort ist von Gerät zu Gerät unterschiedlich – es steht ausschließlich auf dem Display der jeweiligen Uhr. Es gibt kein festes, überall gleiches Passwort.
+Beides ist bei jeder Uhr gleich und fest in der Firmware hinterlegt – die Einrichtung klappt so auch, wenn das Display (noch) nichts Lesbares zeigt. Wer ein eigenes Passwort möchte, trägt es vor dem Kompilieren in `config.h` ein (`AP_PASSWORD`).
 
 **Verbinden:**
 
-1. Am Smartphone/PC mit dem WLAN `clock123` verbinden, Passwort wie auf dem Display eingeben.
+1. Am Smartphone/PC mit dem WLAN `clock123` verbinden, Passwort `clocksetup`.
 2. In der Regel öffnet sich automatisch ein Browserfenster (Captive Portal). Passiert das nicht, im Browser manuell `http://192.168.4.1` aufrufen.
 3. **Wichtig:** Nur **HTTP** verwenden, **HTTPS funktioniert nicht**.
 
@@ -91,7 +102,7 @@ Soll die Uhr komplett neu eingerichtet werden (z.B. Umzug, neuer Router), gibt e
 
 ## 4. Uhren-Sets (Presets) erstellen und verwalten
 
-Ein „Uhren-Set" (Preset) speichert die **aktuell aktive Kombination** aus Zifferblatt, Zeigersatz, Nabenfarbe/-größe und Sekundenzeiger-Anzeige unter einem Namen, um sie später mit einem Klick wieder abzurufen.
+Ein „Uhren-Set" (Preset) speichert die **aktuell aktive Kombination** aus Zifferblatt, Zeigersatz, Nabenfarbe/-größe, Sekundenzeiger (sichtbar und Stil), Bahnhofsmodus, sanftem Minutenzeiger, Zeitzone und Helligkeitseinstellungen unter einem Namen, um sie später mit einem Klick wieder abzurufen.
 
 ### 4.1 Ein neues Uhren-Set anlegen
 
@@ -126,7 +137,7 @@ Im Abschnitt **„Sicherung / Wiederherstellung"**:
 
 | Ziel | Wo |
 |---|---|
-| WLAN erstmalig einrichten | WPS abwarten → sonst AP `clock123` + Passwort vom Display → `http://192.168.4.1` |
+| WLAN erstmalig einrichten | Beim Flashen: `flashESP` fragt Displaytyp und WLAN ab → sonst WPS abwarten → sonst AP `clock123`, Passwort `clocksetup` → `http://192.168.4.1` |
 | Weiteres WLAN ergänzen | Web-UI → Tab „WLAN" → „Netzwerk per WPS hinzufügen" |
 | Nur WLAN zurücksetzen (Sets bleiben) | Web-UI → „Werksreset" → „gespeicherte WLAN-Netzwerke zurücksetzen" |
 | Zifferblatt hochladen | Nav → „Zifferblatt" → `face_*.bmp`, 240×240, RGB565 |
@@ -140,13 +151,24 @@ Im Abschnitt **„Sicherung / Wiederherstellung"**:
 
 # Guide: First-Time Setup, Uploading Clock Faces/Hands, Creating Presets
 
-This guide walks through the first-time setup wizard step by step: WiFi setup via WPS or access point, uploading custom clock faces and hand sets, and creating and managing presets.
+This guide walks through the first-time setup wizard step by step: setup via USB when flashing, WiFi setup via WPS or access point, uploading custom clock faces and hand sets, and creating and managing presets.
 
 ---
 
 ## 1. First-Time Setup – Configuring WiFi
 
-On the very first start (no WiFi saved yet), the clock automatically tries **WPS** first, before opening its own **access point**.
+### 1.0 Easiest: right when flashing
+
+If the clock is flashed with `flashESP.bat` (Windows, by double-click) or `bash flashESP.sh` (Linux), the setup is usually already done:
+
+1. First the script asks which **display** the clock has (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01). This matters for a new clock - with the wrong display type the display shows nothing readable.
+2. Then the script scans for nearby WiFi networks and lists all **2.4 GHz networks** (the clock cannot use 5 GHz), marking the PC's network. Enter number or name, then the **password twice** (hidden, stored nowhere).
+3. Only then does the script flash the clock and afterwards, without further intervention, send it display type and WiFi via USB. It restarts and connects to the WiFi directly - continue with step 1.3, item 4.
+4. Finally the clock gets the **PC's time** - so it runs correctly right away, even without WiFi, DCF77 and RTC. To only set the time without flashing: `setTime.bat` (Windows, double-click) or `bash setTime.sh` (Linux).
+
+If the WiFi is skipped there with Enter, continue via WPS or access point as described below.
+
+Without WiFi data, the clock automatically tries **WPS** first at startup, before opening its own **access point**.
 
 ### 1.1 Step 1: Let it try WPS
 
@@ -161,14 +183,14 @@ If the router doesn't respond (no WPS, WPS not enabled, or time ran out), the cl
 
 The clock now opens its own WiFi network and shows **SSID and password** on its display:
 
-- **SSID:** `clock123` (the same on every clock)
-- **Password:** an 8-character code (lowercase letters/digits) generated **individually per device** from the MAC address and shown **only on this clock's display**
+- **SSID:** `clock123`
+- **Password:** `clocksetup`
 
-> **Important:** The password differs from device to device - it appears exclusively on that particular clock's display. There is no fixed password that's the same everywhere.
+Both are the same on every clock and fixed in the firmware - so setup also works if the display shows nothing readable (yet). If you want your own password, set it in `config.h` before compiling (`AP_PASSWORD`).
 
 **Connecting:**
 
-1. On your phone/PC, connect to the WiFi network `clock123`, entering the password shown on the display.
+1. On your phone/PC, connect to the WiFi network `clock123`, password `clocksetup`.
 2. A browser window (captive portal) usually opens automatically. If it doesn't, open `http://192.168.4.1` manually in your browser.
 3. **Important:** Use **HTTP** only - **HTTPS does not work**.
 
@@ -227,7 +249,7 @@ If the clock needs to be set up from scratch (e.g. a move, a new router), there 
 
 ## 4. Creating and Managing Presets
 
-A preset stores the **currently active combination** of clock face, hand set, hub color/size, and second-hand visibility under a name, so it can be recalled later with a single click.
+A preset stores the **currently active combination** of clock face, hand set, hub color/size, second hand (visibility and style), station mode, smooth minute hand, time zone and brightness settings under a name, so it can be recalled later with a single click.
 
 ### 4.1 Creating a new preset
 
@@ -262,7 +284,7 @@ In the **"Backup / Restore Presets"** section:
 
 | Goal | Where |
 |---|---|
-| Set up WiFi for the first time | Wait for WPS → otherwise AP `clock123` + password from the display → `http://192.168.4.1` |
+| Set up WiFi for the first time | When flashing: `flashESP` asks for display type and WiFi → otherwise wait for WPS → otherwise AP `clock123`, password `clocksetup` → `http://192.168.4.1` |
 | Add another WiFi network | Web UI → "WLAN" tab → "Add Network via WPS" |
 | Reset WiFi only (presets kept) | Web UI → "Factory Reset" → "reset saved WiFi networks" |
 | Upload a clock face | Nav → "Clock Face" → `face_*.bmp`, 240×240, RGB565 |

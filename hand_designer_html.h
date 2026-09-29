@@ -185,46 +185,6 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       pos: 'Pixel', pivot: 'Pivot',
       widthHint: 'The current clock face shows this hand only {0} px wide - greyed-out columns are cut off on the clock.' },
-    fr: { base: 'Base :', builtin: 'Standard (int\u00e9gr\u00e9)', set: 'Jeu', active: 'actif',
-      reset: 'Annuler les modifications', activate: 'activer le nouveau design',
-      saveBtn: 'Enregistrer comme nouveau design', part: 'Aiguille', hour: 'Heures', minute: 'Minutes',
-      second: 'Secondes', tools: 'Outil', pen: 'Crayon', erase: 'Gomme', line: 'Ligne', rect: 'Cadre',
-      rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Ellipse pleine', circ: 'Cercle', circf: 'Cercle plein',
-      radius: 'Rayon', poly: 'Polygone', fill: 'Remplir', blur: 'Flouter', pick: 'Pipette',
-      sym: 'Sym\u00e9trie par l\u2019axe central', color: 'Couleur', edit: 'Modifier', undo: 'Annuler', redo: 'R\u00e9tablir',
-      clear: 'Effacer', shift: 'D\u00e9placer :', copy: 'Copier vers :', gen: 'G\u00e9n\u00e9rer une forme', len: 'Longueur',
-      tipW: 'Largeur de la pointe', baseW: 'Largeur au pivot', tail: 'Contrepoids', tailW: 'Largeur du contrepoids',
-      disc: 'Disque (diam\u00e8tre)', discPos: 'Distance du disque', genBtn: 'G\u00e9n\u00e9rer', preview: 'Aper\u00e7u',
-      live: 'Heure en direct', bgFace: 'Cadran', bgDark: 'sombre', bgLight: 'clair', saving: 'Enregistrement...',
-      saved: 'Enregistr\u00e9 comme nouveau design, jeu {0}', activated: ' et activ\u00e9',
-      saveCurBtn: 'Enregistrer et appliquer le design actuel', savedCur: 'Jeu {0} enregistr\u00e9 et appliqu\u00e9',
-      builtinRO: 'Le design standard int\u00e9gr\u00e9 ne peut pas \u00eatre \u00e9cras\u00e9 - veuillez l\u2019enregistrer comme nouveau design.',
-      loading: 'Chargement...', loaded: 'Design actif charg\u00e9', failed: 'Erreur : ',
-      missing: 'manquante - standard utilis\u00e9',
-      confirmReset: 'Annuler toutes les modifications et recharger le design actif ?',
-      confirmClear: 'Effacer enti\u00e8rement cette aiguille ?',
-      confirmGen: 'Remplacer l\u2019aiguille actuelle par la forme g\u00e9n\u00e9r\u00e9e ?',
-      whiteHint: 'Le blanc pur est transparent - il devient automatiquement presque blanc.', pickBtn: 'Pr\u00e9lever',
-      transp: 'Transparent', transpHint: 'Transparent s\u00e9lectionn\u00e9 : tous les outils dessinent des pixels transparents, comme la gomme.',
-      pickTip: 'Pr\u00e9lever la couleur d\u2019un pixel - aussi par clic droit dans la zone de dessin ou clic dans l\u2019aper\u00e7u',
-      std: 'Couleurs standard', pal: 'Palette', free: 'Couleur libre', hexHint: '#RRGGBB ou RGB565 (0xFFFF)',
-      h_pen: 'Crayon : placer des pixels un par un ou dessiner \u00e0 main lev\u00e9e.',
-      h_erase: 'Gomme : rend les pixels de nouveau transparents.',
-      h_line: 'Ligne : tirer du point de d\u00e9part au point d\u2019arriv\u00e9e.',
-      h_rect: 'Cadre : tracer le contour d\u2019un rectangle.', h_rectf: 'Rectangle : tracer un rectangle plein.',
-      h_ell: 'Ellipse : partir du centre et tirer - les distances horizontale et verticale sont les demi-axes.',
-      h_ellf: 'Ellipse pleine : partir du centre et tirer, comme l\u2019ellipse.',
-      h_circ: 'Cercle : partir du centre et tirer - la distance \u00e0 la souris est le rayon, le cercle est parfaitement rond.',
-      h_circf: 'Cercle plein : partir du centre et tirer, comme le cercle.',
-      h_fill: 'Remplir : recolore la zone contigu\u00eb de m\u00eame couleur.',
-      h_pick: 'Pipette : un clic reprend la couleur du pixel.',
-      h_blur: 'Flouter : passer sur l\u2019aiguille - m\u00e9lange les couleurs des pixels voisins de l\u2019aiguille, repasser renforce l\u2019effet. L\u2019horloge lisse elle-m\u00eame le bord ext\u00e9rieur en dessinant.',
-      blurAll: 'Flouter toute l\u2019aiguille',
-      h_poly: 'Polygone : cliquer les points, double-clic ou clic sur le premier point pour fermer, \u00c9chap pour annuler.',
-      modeAs: 'Comme sur l\u2019horloge :', mStation: 'la seconde attend \u00e0 12', mSecSmooth: 'seconde fluide',
-      mSecTick: 'seconde saccad\u00e9e', mMinSmooth: 'minute fluide', mMinJump: 'la minute saute', pos: 'Pixel',
-      pivot: 'Pivot',
-      widthHint: 'Le cadran actuel n\u2019affiche cette aiguille que sur {0} px de large - les colonnes gris\u00e9es sont coup\u00e9es sur l\u2019horloge.' }
   };
   var L = TX[HD.lang] ? HD.lang : 'en';
   function t(k, a) { var s = TX[L][k] || TX.en[k] || k; return a === undefined ? s : s.replace('{0}', a); }
@@ -275,7 +235,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   // Zoom: the default fills the window height, but at least 8 px per pixel,
   // adjustable with -/+ from 3 to 24 and remembered in the browser.
   var ZMIN = 3, ZMAX = 24, Z = Math.max(8, Math.min(ZMAX, Math.floor((window.innerHeight - 40) / H)));
-  try { var zs = +localStorage.getItem('uhr3HdZoom'); if (zs >= ZMIN && zs <= ZMAX) Z = zs; } catch (e) { }
+  try { var zs = +localStorage.getItem('uhr4HdZoom'); if (zs >= ZMIN && zs <= ZMAX) Z = zs; } catch (e) { }
   function applyZoom() {
     ed.width = W * Z; ed.height = H * Z;
     $('zoomInfo').textContent = 'Zoom ' + Z + 'x';
@@ -283,7 +243,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   }
   function setZoom(z) {
     Z = Math.max(ZMIN, Math.min(ZMAX, z));
-    try { localStorage.setItem('uhr3HdZoom', Z); } catch (e) { }
+    try { localStorage.setItem('uhr4HdZoom', Z); } catch (e) { }
     applyZoom(); drawEditor(); updateSticky();
   }
   applyZoom();
@@ -446,11 +406,11 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 
   // Weichzeichnen: jedes deckende Pixel wird zum Mittel seiner deckenden 3x3-
   // Nachbarn - transparente bleiben aussen vor, die Umrisskante bleibt scharf
-  // (die glaettet die Uhr beim Zeichnen ohnehin, siehe blitHandAntiAliased()).
+  // (die glaettet die Uhr beim Zeichnen ohnehin, LovyanGFX pushRotatedWithAA()).
 
   // Blur: every opaque pixel becomes the mean of its opaque 3x3 neighbours -
   // transparent ones are left out, the outline stays sharp (the clock smooths
-  // it when drawing anyway, see blitHandAntiAliased()).
+  // it when drawing anyway, LovyanGFX pushRotatedWithAA()).
   function blurPixel(src, x, y) {
     var r = 0, g = 0, b = 0, n = 0;
     for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {

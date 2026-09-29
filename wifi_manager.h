@@ -1,11 +1,14 @@
 #pragma once
+#include <nvs.h>
+#include <mbedtls/gcm.h>
+#include <esp_random.h>
     // WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect. Benoetigt
     // globals.h, config.h, prefs_keys.h, declarations.h (vor dieser Datei
-    // in uhr3.ino eingebunden).
+    // in uhr4.ino eingebunden).
 
     // WiFi: connection setup, access point, scan, reconnect. Requires
     // globals.h, config.h, prefs_keys.h, declarations.h (included in
-    // uhr3.ino before this file).
+    // uhr4.ino before this file).
 
     // WPS-Typ definieren (Push-Button-Methode)
     // Define WPS type (push-button method)
@@ -200,6 +203,127 @@
     }
 
 
+    // Der WiFi-Treiber speichert standardmaessig (WiFi.persistent) WLAN-Name
+    // und -Passwort zusaetzlich im Klartext im NVS-Namespace "nvs.net80211".
+    // Die Firmware braucht das nicht - sie uebergibt die Daten bei jedem
+    // WiFi.begin() aus den eigenen Einstellungen. setup() schaltet es ab
+    // (WiFi.persistent(false)) und loescht hier eine vorhandene Kopie, damit
+    // ein Auslesen des Flashs das Passwort nicht auch noch dort findet.
+    // Geschrieben wird nur, wenn der Namespace Eintraege hat.
+
+    // By default the WiFi driver (WiFi.persistent) additionally stores the
+    // WiFi name and password in plain text in the NVS namespace
+    // "nvs.net80211". The firmware does not need that - it passes the data on
+    // every WiFi.begin() from its own settings. setup() switches it off
+    // (WiFi.persistent(false)) and an existing copy is deleted here, so a
+    // flash dump does not find the password there as well. Writes only happen
+    // if the namespace has entries.
+
+    // WLAN-Passwoerter liegen im NVS verschluesselt: "e1:" + Hex(IV 12 B,
+    // Tag 16 B, Daten), AES-256-GCM mit WIFI_STORE_KEY (config.h), IV je
+    // Speichern zufaellig. Aeltere Werte im Klartext werden weiter gelesen und
+    // beim Start umgestellt (migrateWifiPasswords()). Alle Zugriffe auf
+    // pkPass() nur ueber loadWifiPass()/storeWifiPass().
+
+    // WiFi passwords are stored encrypted in NVS: "e1:" + hex(IV 12 B, tag
+    // 16 B, data), AES-256-GCM with WIFI_STORE_KEY (config.h), random IV per
+    // store. Older plain-text values are still read and converted at boot
+    // (migrateWifiPasswords()). All accesses to pkPass() only via
+    // loadWifiPass()/storeWifiPass().
+
+    static_assert(sizeof(WIFI_STORE_KEY) == 65, "WIFI_STORE_KEY (config.h) muss 64 Hex-Zeichen haben / must have 64 hex characters");
+
+    bool wifiStoreCrypt(bool encrypt, const uint8_t* iv, uint8_t* tag, const uint8_t* in, uint8_t* out, size_t len) {
+        uint8_t key[32];
+        if (backupUnhex(String(WIFI_STORE_KEY), key, sizeof(key)) != (int)sizeof(key)) return false;
+        mbedtls_gcm_context gcm;
+        mbedtls_gcm_init(&gcm);
+        int rc = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, key, 256);
+        if (rc == 0) {
+            rc = encrypt
+                ? mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, len, iv, 12, nullptr, 0, in, out, 16, tag)
+                : mbedtls_gcm_auth_decrypt(&gcm, len, iv, 12, nullptr, 0, tag, 16, in, out);
+        }
+        mbedtls_gcm_free(&gcm);
+        memset(key, 0, sizeof(key));
+        return rc == 0;
+    }
+
+    String wifiPassEncrypt(const String& plain) {
+        if (plain.length() == 0 || plain.length() > 63) return plain; // leer = kein Passwort / empty = no password
+        uint8_t buf[12 + 16 + 63];
+        uint8_t* iv = buf;
+        uint8_t* tag = buf + 12;
+        uint8_t* data = buf + 28;
+        esp_fill_random(iv, 12);
+        if (!wifiStoreCrypt(true, iv, tag, (const uint8_t*)plain.c_str(), data, plain.length())) return plain;
+        String out = "e1:" + backupHex(buf, 28 + plain.length());
+        memset(buf, 0, sizeof(buf));
+        return out;
+    }
+
+    String wifiPassDecrypt(const String& stored) {
+        if (!stored.startsWith("e1:")) return stored; // Klartext (aelterer Wert) / plain text (older value)
+        uint8_t buf[12 + 16 + 63];
+        int n = backupUnhex(stored.substring(3), buf, sizeof(buf));
+        if (n < 28) return stored; // kein gueltiger Wert - evtl. Klartext mit "e1:" / not valid - maybe plain text with "e1:"
+        size_t len = n - 28;
+        uint8_t clear[64];
+        if (!wifiStoreCrypt(false, buf, buf + 12, buf + 28, clear, len)) return stored;
+        String out;
+        out.concat((const char*)clear, len);
+        memset(clear, 0, sizeof(clear));
+        return out;
+    }
+
+    String loadWifiPass(int i) {
+        return wifiPassDecrypt(preferences.getString(pkPass(i).c_str(), ""));
+    }
+
+    void storeWifiPass(int i, const String& pass) {
+        preferences.putString(pkPass(i).c_str(), wifiPassEncrypt(pass));
+    }
+
+    // Schreibt und prueft durch Zuruecklesen (wie putStringVerified())
+    // Writes and verifies by reading back (like putStringVerified())
+    bool storeWifiPassVerified(int i, const String& pass) {
+        storeWifiPass(i, pass);
+        if (loadWifiPass(i) != pass) {
+            DEBUG_PRINTLN("[Preferences] Verifikation fehlgeschlagen fuer Key '" + pkPass(i) + "'");
+            return false;
+        }
+        return true;
+    }
+
+    // Beim Start: Klartext-Passwoerter (aeltere Firmware, alte Sicherung) verschluesseln
+    // At boot: encrypt plain-text passwords (older firmware, old backup)
+    void migrateWifiPasswords() {
+        for (int i = 0; i < MAX_WLAN; i++) {
+            String raw = preferences.getString(pkPass(i).c_str(), "");
+            if (raw.length() > 0 && !raw.startsWith("e1:")) {
+                storeWifiPass(i, raw);
+                DEBUG_PRINTLN("[WiFi] Password in slot " + String(i + 1) + " encrypted in settings");
+            }
+            for (size_t k = 0; k < raw.length(); k++) raw[k] = 0;
+        }
+    }
+
+
+    void wipeWifiDriverStorage() {
+        nvs_iterator_t it = nullptr;
+        bool hasEntries = nvs_entry_find("nvs", "nvs.net80211", NVS_TYPE_ANY, &it) == ESP_OK;
+        nvs_release_iterator(it);
+        if (!hasEntries) return;
+        nvs_handle_t handle;
+        if (nvs_open("nvs.net80211", NVS_READWRITE, &handle) == ESP_OK) {
+            nvs_erase_all(handle);
+            nvs_commit(handle);
+            nvs_close(handle);
+            DEBUG_PRINTLN("[WiFi] Removed stored credential copy of the WiFi driver");
+        }
+    }
+
+
     int saveWpsCredentials(const String& ssid, const String& pass) {
         // Bewusst frisch aus Preferences lesen statt wifiSsid[]: das Array wird
         // nur beim Booten befuellt und koennte bei spaetem WPS-Erfolg nicht mehr
@@ -211,9 +335,9 @@
         for (int i = 0; i < MAX_WLAN; i++) {
             String storedSsid = preferences.getString(pkSsid(i).c_str(), "");
             if (storedSsid == ssid) {
-                String storedPass = preferences.getString(pkPass(i).c_str(), "");
+                String storedPass = loadWifiPass(i);
                 if (storedPass != pass) {
-                    preferences.putString(pkPass(i).c_str(), pass);
+                    storeWifiPass(i, pass);
                     wifiPass[i] = pass;
                     DEBUG_PRINTLN("[WPS] Password for " + ssid + " differed from stored value - updated");
                 }
@@ -241,7 +365,7 @@
         if (freeIdx == -1) freeIdx = MAX_WLAN - 1;
 
         preferences.putString(pkSsid(freeIdx).c_str(), ssid);
-        preferences.putString(pkPass(freeIdx).c_str(), pass);
+        storeWifiPass(freeIdx, pass);
         // PK_LAST_WLAN bewusst NICHT setzen (siehe Kommentar oben).
         // PK_LAST_WLAN deliberately NOT set (see comment above).
         wifiSsid[freeIdx] = ssid;
@@ -252,9 +376,8 @@
 
 
     void startAP() {
-#ifdef TFT_Backlight
-        ledcWrite(TFT_Backlight, 255);
-#endif
+        if (useBacklight && backlightAttached) ledcWrite(TFT_Backlight, 255); // Einrichtungsmodus: volle Helligkeit
+                                                                              // setup mode: full brightness
 
 
         // Station-Modus starten, aber NICHT verbinden - ein gleichzeitiger
@@ -305,11 +428,11 @@
 
         // 30s waren in der Praxis oft zu knapp fuer eine vollstaendige
         // WPS-Aushandlung - auf 2 Minuten verlaengert, wie beim Web-Button-
-        // WPS-Weg (siehe loop() in uhr3.ino).
+        // WPS-Weg (siehe loop() in uhr4.ino).
 
         // 30s was often too short in practice for a full WPS negotiation -
         // extended to 2 minutes, matching the web-button WPS path (see
-        // loop() in uhr3.ino).
+        // loop() in uhr4.ino).
         unsigned long wpsTimeoutMs = 2 * WAIT_1m;
         long wpsWaitMillis = millis();
 
@@ -332,6 +455,8 @@
                     tft.println("s");
                 );
             }
+            handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
+                                    // display type via USB also during this wait (see handleSerialCommands())
             delay(100);
         }
         DEBUG_PRINTLN("[WPS] wait loop exited, success=" + String(wpsSuccessEvent) + ", failed=" + String(wpsFailedEvent));
@@ -368,7 +493,7 @@
 
                 DRAW_ON_BOTH_DISPLAYS(
                     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                    tft.println(newSsid);
+                    tft.println(tftText(newSsid));
 
                     tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
                     tft.println("found WPS... reboot");
@@ -400,40 +525,25 @@
         // Access Point zuerst starten, damit die Uhr in jedem Fall (auch
         // falls der anschliessende Scan haengt/fehlschlaegt) per WPS-Retry
         // oder Weboberflaeche erreichbar wird.
+        // MAC hier selbst holen: startAP() kann erreicht werden, ohne dass
+        // connectWiFi() je lief (kein gespeichertes Netz) - nur dort wurde
+        // mac[] sonst befuellt.
 
         // Start the access point first, so the clock becomes reachable via
         // WPS retry or the web interface in any case (even if the scan
         // below hangs/fails).
-
-        // MAC hier selbst holen: startAP() kann erreicht werden, ohne dass
-        // connectWiFi() je lief (kein gespeichertes Netz) - nur dort wurde
-        // mac[] bisher befuellt, sonst waere das Passwort auf jeder Uhr gleich.
-
         // Fetch the MAC here: startAP() can be reached without connectWiFi()
-        // ever running (no stored network) - that was the only place filling
-        // mac[], otherwise every clock would get the same password.
+        // ever running (no stored network) - otherwise that is the only place
+        // filling mac[].
+
         WiFi.macAddress(mac);
 
-        // Passwort aus den letzten 4 MAC-Bytes (als Hex = 8 Zeichen, WPA2-Minimum)
-        // - pro Geraet verschieden. SSID bleibt fest (AP_SSID); Passwort war
-        // frueher mit ihr identisch und damit auf jeder Uhr gleich/bekannt.
-
-        // Password from the last 4 MAC bytes (hex = 8 chars, WPA2 minimum) -
-        // different per device. SSID stays fixed (AP_SSID); the password used
-        // to be identical to it and thus the same/known on every clock.
-
-        // Kleinbuchstaben (%02x): auf dem Display und beim Abtippen am Handy
-        // eindeutiger zu lesen. Der Hostname weiter unten in connectWiFi()
-        // bleibt bewusst bei Grossbuchstaben, der ist ein anderer Bezeichner.
-
-        // Lower case (%02x): easier to read on the display and to type on a
-        // phone. The hostname further below in connectWiFi() deliberately stays
-        // upper case, that is a different identifier.
-        snprintf(apPassword, sizeof(apPassword), "%02x%02x%02x%02x",
-            mac[2], mac[3], mac[4], mac[5]);
+        // Festes Passwort aus der Firmware (AP_PASSWORD in config.h)
+        // Fixed password from the firmware (AP_PASSWORD in config.h)
+        strlcpy(apPassword, AP_PASSWORD, sizeof(apPassword));
 
         WiFi.softAP(AP_SSID, apPassword);
-        DEBUG_PRINTLN("[WiFi] Started Access Point: " + String(AP_SSID) + " / " + String(apPassword));
+        DEBUG_PRINTLN("[WiFi] Started Access Point: " + String(AP_SSID)); // Passwort bewusst nicht im Log / password deliberately not logged
 
         // Captive portal: leite alle DNS-Anfragen auf die AP-IP um
         // Captive portal: redirect all DNS requests to the AP IP
@@ -525,11 +635,9 @@
             return NOT_CONNECTED;
         }
 
-#ifdef TFT_Backlight
-        if (verboseMode) {
+        if (verboseMode && useBacklight && backlightAttached) {
             ledcWrite(TFT_Backlight, 255);
         }
-#endif
         if (wifiSsid[number] == "") {
            // DEBUG_PRINTLN("[WiFi] SSID " + String(number + 1) + " is empty, skipping");
             return NOT_CONNECTED;
@@ -549,11 +657,8 @@
 
             // Resolve the preprocessor condition into a variable beforehand - #if/#else
             // are not allowed inside DRAW_ON_BOTH_DISPLAYS()'s argument list.
-#if defined GC9D01
-            int versionCursorX = 20;
-#else
-            int versionCursorX = 60;
-#endif
+            int versionCursorX = (CLOCK_WIDTH < 240) ? 20 : 60; // kleines Display (GC9D01): weiter links
+                                                                // small display (GC9D01): further left
             DRAW_ON_BOTH_DISPLAYS(
                 tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
@@ -567,10 +672,16 @@
                 tft.println("Connect to SSID" + String(number+1));
                 tft.setCursor(20, (CLOCK_HEIGHT / 2));
 
-                if (wifiSsid[number].length() > 15) {
-                    tft.print(wifiSsid[number].substring(0,15));
+                // Erst umwandeln, dann kuerzen: ein Zeichen = ein Byte, die
+                // Kuerzung trennt so keine UTF-8-Folge (Umlaut in der SSID).
+
+                // Convert first, then shorten: one character = one byte, so
+                // shortening doesn't split a UTF-8 sequence (umlaut in the SSID).
+                String ssidText = tftText(wifiSsid[number]);
+                if (ssidText.length() > 15) {
+                    tft.print(ssidText.substring(0,15));
                     tft.println("..");
-                } else tft.println(wifiSsid[number]);
+                } else tft.println(ssidText);
             );
         }
 
@@ -608,7 +719,8 @@
         WiFi.begin(wifiSsid[number].c_str(), wifiPass[number].c_str());
         unsigned long start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < waitTime) {
-
+            handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
+                                    // display type via USB also during this wait (see handleSerialCommands())
             if (loggingEnabled) Serial.print("");
             if (verboseMode) {
                 animateCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
@@ -674,13 +786,13 @@
             // Grund wie bei startNtpServer() direkt darueber: der Socket
             // ueberlebt den WiFi-Neuaufbau nicht (siehe rocrail_client.h).
             // Nur, wenn Rocrail ueberhaupt aktiviert ist (siehe Begruendung
-            // beim analogen Aufruf in uhr3.ino).
+            // beim analogen Aufruf in uhr4.ino).
 
             // Rejoin the R2RNet multicast diagnostic listener too - same
             // reason as startNtpServer() right above: the socket doesn't
             // survive the WiFi restart (see rocrail_client.h). Only when
             // Rocrail is actually enabled (see the reasoning at the
-            // analogous call in uhr3.ino).
+            // analogous call in uhr4.ino).
             if (rocrailEnabled) {
                 startR2rnetDebugListener();
             }
@@ -743,11 +855,8 @@
     // Display WiFi parameters on the TFT
 
     void showWlanCredentials(String wlan) {
-#if defined(GC9D01)
-        int versionCursorX = 20;
-#else
-        int versionCursorX = 60;
-#endif
+        int versionCursorX = (CLOCK_WIDTH < 240) ? 20 : 60; // kleines Display (GC9D01): weiter links
+                                                            // small display (GC9D01): further left
         DRAW_ON_BOTH_DISPLAYS(
             tft.fillScreen(TFT_BLACK);
             tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -761,11 +870,13 @@
             if (WiFi.status() == WL_CONNECTED) {
                 tft.println("Connected to SSID" + String(preferences.getInt(PK_LAST_WLAN, -1) + 1));
                 tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                if (wlan.length() > 15) {
-                    tft.print(wlan.substring(0, 15));
+                String wlanText = tftText(wlan); // erst umwandeln, dann kuerzen (siehe oben)
+                                                 // convert first, then shorten (see above)
+                if (wlanText.length() > 15) {
+                    tft.print(wlanText.substring(0, 15));
                     tft.println("..");
                 }
-                else tft.println(wlan);
+                else tft.println(wlanText);
                 tft.setCursor(20, (CLOCK_HEIGHT / 2));
                 tft.println(WiFi.localIP());
 

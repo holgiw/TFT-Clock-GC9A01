@@ -35,16 +35,16 @@
     // Clock Face / Display
     constexpr const char* PK_TFT_ROTATION1     = "tftRotation1"; // Rotation Display 1 (0-3, 4 = n.a.) - hiess vor Display-2-Support "tftRotation" (siehe LEGACY unten)
                                                                  // rotation of Display 1 (0-3, 4 = n.a.) - was called "tftRotation" before Display 2 support (see LEGACY below)
-    constexpr const char* PK_TFT_ROTATION_LEGACY = "tftRotation"; // Alter Key-Name - NUR fuer die einmalige Migration in uhr3.ino verwenden
-                                                                   // old key name - use ONLY for the one-time migration in uhr3.ino
+    constexpr const char* PK_TFT_ROTATION_LEGACY = "tftRotation"; // Alter Key-Name - NUR fuer die einmalige Migration in uhr4.ino verwenden
+                                                                   // old key name - use ONLY for the one-time migration in uhr4.ino
     constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2), 4 = n.a. (nicht angeschlossen, Standard)
                                                                  // rotation of Display 2 (CS2), 4 = n.a. (not connected, default)
     constexpr const char* PK_HOSTNAME          = "hostname"; // leer = automatisch aus MAC-Adresse generiert
                                                              // empty = auto-generated from MAC address
     constexpr const char* PK_HANDSET           = "handset";
     constexpr const char* PK_BACKGROUND        = "background";
-    // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) wird ueber die Rotation "n.a." (TFT_ROTATION_NA) abgeschaltet, kein eigener Preferences-Schalter (siehe config.h/globals.h/uhr3.ino).
-    // PK_USE_CS2 removed: Display 2 (CS2 pin) is switched off via the rotation value "n.a." (TFT_ROTATION_NA), no separate preferences toggle (see config.h/globals.h/uhr3.ino).
+    // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) wird ueber die Rotation "n.a." (TFT_ROTATION_NA) abgeschaltet, kein eigener Preferences-Schalter (siehe config.h/globals.h/uhr4.ino).
+    // PK_USE_CS2 removed: Display 2 (CS2 pin) is switched off via the rotation value "n.a." (TFT_ROTATION_NA), no separate preferences toggle (see config.h/globals.h/uhr4.ino).
     constexpr const char* PK_STATION_MODE      = "stationMode"; // "wartet auf 12" (siehe globals.h) - "waits at 12" (see globals.h)
     constexpr const char* PK_SMOOTH_SECOND     = "smoothSecond"; // Darstellungsstil des Sekundenzeigers (siehe globals.h)
                                                                  // second hand rendering style (see globals.h)
@@ -70,6 +70,10 @@
     constexpr const char* PK_USE_ADC           = "use_adc";
     constexpr const char* PK_BRIGHT_START_HOUR = "brightStart";
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
+    constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_GC9A01/_GC9D01 (config.h), wirkt nach Neustart
+                                                                 // DISPLAY_TYPE_GC9A01/_GC9D01 (config.h), takes effect after a restart
+    constexpr const char* PK_USE_BACKLIGHT     = "useBacklight"; // Hintergrundbeleuchtung per PWM auf Pin 3 (ersetzt Build GC9A01_WITH_BACKLIGHT)
+                                                                 // backlight via PWM on pin 3 (replaces the GC9A01_WITH_BACKLIGHT build)
 
     // Touch
     // Touch
@@ -124,13 +128,33 @@
     // Maintenance
     constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
 
-    // Displaytyp, fuer den diese Firmware kompiliert wurde (BUILD_DISPLAY_NAME,
-    // z.B. "GC9A01_WITH_BACKLIGHT") - uhr4 stellt beim Update daraus seinen
-    // Displaytyp und die Backlight-Regelung automatisch ein.
-    // Display type this firmware was compiled for (BUILD_DISPLAY_NAME, e.g.
-    // "GC9A01_WITH_BACKLIGHT") - uhr4 uses it on update to set its display
-    // type and backlight control automatically.
-    constexpr const char* PK_BUILD_DISPLAY     = "buildDisplay";
+    // Von uhr3 geschrieben: Displaytyp, fuer den uhr3 kompiliert wurde (z.B.
+    // "GC9A01_WITH_BACKLIGHT"). uhr4 uebernimmt ihn beim Start und loescht ihn
+    // (adoptUhr3BuildDisplay() in display.h).
+    // Written by uhr3: display type uhr3 was compiled for (e.g.
+    // "GC9A01_WITH_BACKLIGHT"). uhr4 takes it over at boot and deletes it
+    // (adoptUhr3BuildDisplay() in display.h).
+    constexpr const char* PK_UHR3_BUILD_DISPLAY = "buildDisplay";
+
+    // Veraltete Schluessel frueherer Firmware, von keinem Code mehr gelesen:
+    // "ssid"/"pass" (ein einziges WLAN, im Klartext - vor ssid1..N),
+    // "tft_rotation" (vor tftRotation/tftRotation1), "pingServer" (frueherer
+    // Internet-Test). setup() loescht sie,
+    // backup.h sichert sie nie.
+
+    // Obsolete keys of earlier firmware, no longer read by any code:
+    // "ssid"/"pass" (a single WiFi, in plain text - before ssid1..N),
+    // "tft_rotation" (before tftRotation/tftRotation1), "pingServer" (former
+    // internet check). setup() deletes them,
+    // backup.h never backs them up.
+    constexpr const char* OBSOLETE_PREF_KEYS[] = { "ssid", "pass", "tft_rotation", "pingServer" };
+
+    inline bool isObsoletePrefKey(const String& key) {
+        for (const char* k : OBSOLETE_PREF_KEYS) {
+            if (key == k) return true;
+        }
+        return false;
+    }
 
     // PK_STATION_MODE: Default ueberall `true`, ausser einer Stelle mit `false`.
     // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt 8/20 - rein kosmetisch.
@@ -178,10 +202,10 @@
     inline String pkPresetUrl(int i)    { return "preset" + String(i) + "_url"; }
 
     // HINWEIS: putStringVerified() ist absichtlich nicht hier definiert, da
-    // prefs_keys.h in uhr3.ino vor globals.h ("preferences") und config.h
+    // prefs_keys.h in uhr4.ino vor globals.h ("preferences") und config.h
     // (DEBUG_PRINTLN) eingebunden wird; Implementierung siehe wifi_manager.h.
 
     // NOTE: putStringVerified() is deliberately not defined here, since
-    // prefs_keys.h is included in uhr3.ino before globals.h ("preferences") and
+    // prefs_keys.h is included in uhr4.ino before globals.h ("preferences") and
     // config.h (DEBUG_PRINTLN); see wifi_manager.h for the implementation.
 

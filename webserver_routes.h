@@ -1,15 +1,15 @@
 #pragma once
+
     // Alle HTTP-Routen und HTML-Generierung. Benoetigt globals.h, config.h,
-    // prefs_keys.h und declarations.h (vorher in uhr3.ino eingebunden).
-
-    // All HTTP routes and HTML generation. Requires globals.h, config.h,
-    // prefs_keys.h and declarations.h (included earlier in uhr3.ino).
-
+    // prefs_keys.h und declarations.h (vorher in uhr4.ino eingebunden).
     // Fuer "new (std::nothrow)": garantiert nullptr statt
     // implementierungsabhaengigem Verhalten bei fehlgeschlagener Allokation.
 
+    // All HTTP routes and HTML generation. Requires globals.h, config.h,
+    // prefs_keys.h and declarations.h (included earlier in uhr4.ino).
     // For "new (std::nothrow)": guarantees nullptr instead of
     // implementation-defined behaviour on a failed allocation.
+
 #include <new>
 
     // Tab-Leiste der Startseite an EINER Stelle: Reihenfolge = Anzeige-
@@ -181,18 +181,15 @@
         return html;
     }
 
-
     // Status-Werte fuer die Topbar-Punkte, gemeinsam genutzt von
     // generateTopBar() und /api/topbarStatus: "ok" gruen, "syncing" gelb
     // blinkend, "bad" rot (echter Fehler), "na" grau bzw. Eintrag ausgeblendet.
+    // Ermittelt den Zeit-Status ("ok"/"na") - kein Fehlerzustand, da es fuer
+    // Systemzeit kein "gefunden, aber ungueltig" gibt.
 
     // Status values for the topbar dots, shared by generateTopBar() and
     // /api/topbarStatus: "ok" green, "syncing" blinking yellow, "bad" red
     // (genuine error), "na" gray or entry hidden (hardware missing).
-
-    // Ermittelt den Zeit-Status ("ok"/"na") - kein Fehlerzustand, da es fuer
-    // Systemzeit kein "gefunden, aber ungueltig" gibt.
-
     // Determines the time status ("ok"/"na") - no error state, since there's
     // no "found but invalid" concept for system time.
 
@@ -260,22 +257,20 @@
         return label + ": " + stateText;
     }
 
-
     // Escaped Text fuer sichere HTML-Einbettung (z.B. Logdatei-Inhalt) sowie
     // Anfuehrungszeichen, da Werte auch in einfach gequotete Attribute
     // (value='...', onclick='...') eingebettet werden - sonst Attribut-Injection.
-
-    // Escapes text for safe HTML embedding (e.g. log content) and also
-    // quote characters, since values are also embedded into single-quoted
-    // attributes (value='...', onclick='...') - otherwise attribute injection.
-
     // Fuer Werte in onclick='...', das intern selbst einen JS-String enthaelt:
     // aeusseres HTML-Zeichen als Entity, inneres JS-Zeichen per Backslash
     // escapen (Browser dekodiert HTML-Entities VOR dem JS-Parsing).
 
+    // Escapes text for safe HTML embedding (e.g. log content) and also
+    // quote characters, since values are also embedded into single-quoted
+    // attributes (value='...', onclick='...') - otherwise attribute injection.
     // For values inside onclick='...' that itself contains a JS string:
     // escape the outer HTML quote as an entity, the inner JS quote with a
     // backslash (the browser decodes HTML entities BEFORE JS parsing).
+
     String escapeForJsStringInAttr(const String& text, char jsStringQuote) {
         String out;
         out.reserve(text.length());
@@ -503,7 +498,7 @@
 
         html += "<header class='topbar'>";
         html += "<div class='brand'>";
-        html += "<span class='brand-mark'>UHR&middot;3</span>";
+        html += "<span class='brand-mark'>UHR&middot;4</span>";
 
         bool staConnected = (WiFi.getMode() == WIFI_STA && WiFi.status() == WL_CONNECTED);
 
@@ -533,29 +528,28 @@
         // IDs ("dot-time"/"dot-rtc"/"dot-dcf77") + title/aria-label auf jedem
         // Punkt: Live-Status-Skript aktualisiert Farbe und Text bei jedem
         // Poll, damit Farbfehlsichtige/Screenreader die Bedeutung erkennen.
-
-        // IDs ("dot-time"/"dot-rtc"/"dot-dcf77") + title/aria-label on every
-        // dot: the live-status script updates color and text on every poll,
-        // so colorblind users/screen readers can tell the meaning apart.
-
         // "Zeit" wird als letzter Eintrag gerendert, direkt neben der
         // Datumsanzeige - timeState wird aber schon hier berechnet, da es
         // unten fuer #topbar-datetime gebraucht wird.
 
+        // IDs ("dot-time"/"dot-rtc"/"dot-dcf77") + title/aria-label on every
+        // dot: the live-status script updates color and text on every poll,
+        // so colorblind users/screen readers can tell the meaning apart.
         // "Time" is rendered last, right next to the date display -
         // timeState is computed here already since it's needed below for
         // #topbar-datetime.
+
         String timeState = getTimeStatus();
         bool timeOk = (timeState == "ok"); // fuer die Datumsanzeige weiter unten wiederverwendet / reused for the date display further below
         String timeTitle = dotStatusText(translate("Time"), timeState);
 
 #ifdef ADC_PIN
         // Live-Helligkeitswert statt Status-Punkt. Ohne useAdc (Spannungsteiler
-        // unbestromt, siehe uhr3.ino) den Eintrag lieber weglassen statt einen
+        // unbestromt, siehe uhr4.ino) den Eintrag lieber weglassen statt einen
         // eingefrorenen Wert zu zeigen.
 
         // Live brightness value instead of a status dot. Without useAdc
-        // (voltage divider unpowered, see uhr3.ino) omit the entry rather
+        // (voltage divider unpowered, see uhr4.ino) omit the entry rather
         // than show a stale value.
         if (photoresistorFound && useAdc) {
             html += "<span class='status' id='status-light'>" + translate("Light") + ": <span id='value-light' class='statval'>" + String(currentLightPercent) + " %</span></span>";
@@ -643,18 +637,17 @@
         // Live-Status: pollt /api/topbarStatus alle 5s und aktualisiert Punkte
         // + Uhrzeit ohne Seiten-Reload. Offline-Hinweis erst nach zwei
         // fehlgeschlagenen Polls; pausiert, waehrend der Tab im Hintergrund ist.
-
-        // Live status: polls /api/topbarStatus every 5s and updates dots +
-        // time without a page reload. Offline hint only after two failed
-        // polls; pauses while the tab is in the background.
-
         // pageVersion: die Build-Version, mit der DIESE Seite gerendert
         // wurde (siehe "version" in globals.h). Weicht ein spaeterer Poll
         // davon ab, laedt die Seite komplett neu (neuere Firmware per OTA/WPS-Neustart), statt mit veraltetem UI weiterzulaufen.
 
+        // Live status: polls /api/topbarStatus every 5s and updates dots +
+        // time without a page reload. Offline hint only after two failed
+        // polls; pauses while the tab is in the background.
         // pageVersion: the build version THIS page was rendered with (see
         // "version" in globals.h). If a later poll reports a different
         // version, the page does a full reload (newer firmware via OTA/WPS reboot) instead of running on with a stale UI.
+
         html += "<script>(function(){";
         // "version" ist ein reiner Build-Zeitstempel ohne Anfuehrungszeichen
         // o.ae. (siehe globals.h) - daher hier ohne Escaping direkt als
@@ -725,16 +718,13 @@
         return text;
     }
 
-
     // Kurze Zeile mit LittleFS-Speichernutzung, reiner Inline-Text ohne
     // umschliessendes Element - der Aufrufer bettet ihn je nach Layout ein.
-
-    // Short line with LittleFS storage usage, plain inline text with no
-    // wrapping element - the caller embeds it depending on layout.
-
     // forceEnglish: die Status-Seite ist immer Englisch (technische
     // Diagnoseansicht), andere Aufrufer bleiben normal uebersetzt.
 
+    // Short line with LittleFS storage usage, plain inline text with no
+    // wrapping element - the caller embeds it depending on layout.
     // forceEnglish: the status page is always English (technical diagnostic
     // view), other callers stay normally translated.
 
@@ -820,6 +810,7 @@
             // "DCF77" bewusst unuebersetzt (Protokollname, wie in generateTopBar()).
             // "DCF77" deliberately untranslated (a protocol name, as in generateTopBar()).
             {"/dcf77", "DCF77", ""},
+            {"/backup", translate("Backup"), ""},
             {"/factoryReset", translate("Factory&nbsp;Reset"), ""}
         };
 
@@ -988,13 +979,12 @@
         String html = "<form method='POST' action='/setLanguage'>";
         html.reserve(512);  // Sprachauswahl: klein
                             // language selector: small
-        html += "<label for='lang'>Language/Sprache/Langue:</label>";
+        html += "<label for='lang'>Language/Sprache:</label>";
         html += "<select name='lang' onchange='this.form.submit()'>";
         html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
         html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
-        html += "<option value='fr'" + String(currentLanguage == "fr" ? " selected" : "") + ">Franz&ouml;sisch / Fran&ccedil;ais</option>";
         html += "</select>";
-        html += "<noscript><button type='submit'>Save / Speichern / Enregistrer</button></noscript>";
+        html += "<noscript><button type='submit'>Save / Speichern</button></noscript>";
         html += "</form><hr>";
         return html;
     }
@@ -1092,13 +1082,13 @@
     void redirectTo(const String& location, const String& body) {
 
         // Verweilzeit im AP-Modus verlaengern (siehe softAPIPstart/WAIT_15m in
-        // uhr3.ino): jede Formular-Aktion (Speichern etc.) zaehlt als aktiver
+        // uhr4.ino): jede Formular-Aktion (Speichern etc.) zaehlt als aktiver
         // Zugriff, der 15-Minuten-Neustart soll also nicht mitten in einer
         // Konfiguration dazwischenfunken. Kein Aufwand, wenn gar nicht im
         // AP-Modus (softAPIP dann false).
 
         // Extend the dwell time in AP mode (see softAPIPstart/WAIT_15m in
-        // uhr3.ino): every form action (save, etc.) counts as active use, so
+        // uhr4.ino): every form action (save, etc.) counts as active use, so
         // the 15-minute restart shouldn't interrupt an ongoing configuration.
         // No cost when not even in AP mode (softAPIP is false then).
         if (softAPIP) softAPIPstart = millis();
@@ -1207,7 +1197,7 @@
             if (newPass[i] != "") {
                 effectivePass[i] = newPass[i];
             } else {
-                effectivePass[i] = preferences.getString(pkPass(i).c_str(), "");
+                effectivePass[i] = loadWifiPass(i);
             }
         }
 
@@ -1234,13 +1224,12 @@
         // unchanged slot a flash write (see putStringVerified()).
         for (int i = 0; i < MAX_WLAN; i++) {
             String ssidKey = pkSsid(i);
-            String passKey = pkPass(i);
 
             if (preferences.getString(ssidKey.c_str(), "") != tempSsid[i]) {
                 putStringVerified(ssidKey.c_str(), tempSsid[i]);
             }
-            if (preferences.getString(passKey.c_str(), "") != tempPass[i]) {
-                putStringVerified(passKey.c_str(), tempPass[i]);
+            if (loadWifiPass(i) != tempPass[i]) {
+                storeWifiPassVerified(i, tempPass[i]);
             }
 
             wifiSsid[i] = tempSsid[i];
@@ -1342,7 +1331,7 @@
                 String newPass[MAX_WLAN];
                 for (int i = 0; i < MAX_WLAN; i++) {
                     newSsid[i] = preferences.getString(pkSsid(i).c_str(), "");
-                    newPass[i] = preferences.getString(pkPass(i).c_str(), "");
+                    newPass[i] = loadWifiPass(i);
                 }
                 newSsid[idx] = "";
                 newPass[idx] = "";
@@ -1488,11 +1477,34 @@
     String brightnessFormFieldsHtml() {
         String html = "";
 
-        if (photoresistorFound) {
-            html += "<table style='margin:auto;text-align:left;'><tr>";
-            html += "<td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
-            html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td>";
-            html += "</tr></table><hr><br>";
+        // Hintergrundbeleuchtung (ersetzt das fruehere Build GC9A01_WITH_BACKLIGHT).
+        // Das versteckte Feld zeigt /save_brightness, dass die Checkbox im
+        // Formular war - eine nicht angehakte Checkbox wird sonst gar nicht gesendet.
+
+        // Backlight (replaces the former GC9A01_WITH_BACKLIGHT build). The
+        // hidden field tells /save_brightness that the checkbox was in the
+        // form - an unchecked checkbox isn't sent at all otherwise.
+        //
+        // Nur anzeigen, wenn das Display eine regelbare Beleuchtung hat:
+        // GC9D01 (immer an Pin 3) oder GC9A01 mit BL. Beim GC9A01 ohne BL
+        // schaltet man sie ueber den Display-Typ (Zifferblatt-Tab) ein. Alle
+        // Haken stehen in einer Tabelle, damit sie buendig untereinander liegen.
+
+        // Only shown if the display has a controllable backlight: GC9D01
+        // (always on pin 3) or GC9A01 with BL. On a GC9A01 without BL it is
+        // switched on via the display type (clock face tab). All checkboxes
+        // sit in one table so they line up below each other.
+        bool showBacklight = displayType == DISPLAY_TYPE_GC9D01 || useBacklight;
+        if (showBacklight || photoresistorFound) {
+            html += "<table style='margin:auto;text-align:left;'>";
+            if (showBacklight) {
+                html += "<tr><td colspan='2'><input type='hidden' name='useBacklightField' value='1'><label><input type='checkbox' name='useBacklight' value='1' " + String(useBacklight ? "checked" : "") + "> " + translate("Backlight control (pin 3)") + "</label> <span title='" + translate("Dims the display via the backlight PWM on pin 3 instead of darkening the pixels - only if the backlight is wired to pin 3 (always on GC9D01). Switching resets min. brightness and thresholds to the matching defaults") + ".' style='cursor:help;'>&#9432;</span></td></tr>";
+            }
+            if (photoresistorFound) {
+                html += "<tr><td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
+                html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td></tr>";
+            }
+            html += "</table><hr><br>";
         }
 
         html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
@@ -1506,9 +1518,10 @@
             html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
         }
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
+        if (useBacklight) { // Gamma nur mit Backlight wirksam (stufenlose PWM)
+                            // gamma only effective with a backlight (stepless PWM)
         html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
-#endif
+        }
 
         return html;
     }
@@ -1594,6 +1607,10 @@
 
         // Irish Pub
         // http://192.168.0.214/api/setMode?face=face_irish_pub.bmp&handSet=0&hubSize=2&hubColor=aaaaaa&showSecondHand=false&stationMode=false&smoothMinute=true&smoothSecond=false&rotation=2
+
+        // Helligkeit (optional, fehlende Werte bleiben unveraendert)
+        // brightness (optional, missing values stay unchanged)
+        // ...&minBrightness=100&maxBrightness=255&brightStart=7&brightEnd=21&lowThreshold=40&highThreshold=60&gamma=2.2&autoBrightness=true
 
 
 
@@ -1723,7 +1740,11 @@
                 preferences.putString(PK_HANDSET, handSet);
             }
 
-            if (webserver.hasArg("timeZone")) {
+            // Nur bei echter Aenderung (siehe switchToNextPreset()) - jedes neue
+            // Preset enthaelt die Zeitzone.
+            // Only on an actual change (see switchToNextPreset()) - every new
+            // preset contains the time zone.
+            if (webserver.hasArg("timeZone") && webserver.arg("timeZone") != timezone) {
                 String tz = webserver.arg("timeZone");
                 preferences.putString(PK_TIMEZONE, tz);
                 timezone = tz;
@@ -1771,19 +1792,30 @@
                 preferences.putBool(PK_STATION_MODE, stationMode);
             }
 
-            if (webserver.hasArg("rotation")) {
+            // Rotation NICHT aus Presets (source=preset): geraeteweite Hardware-
+            // Einstellung, wie in switchToNextPreset() - aeltere Preset-URLs
+            // enthalten noch "rotation=" und haetten sonst beim Anwenden ueber
+            // die Weboberflaeche das Display gedreht, per Taste aber nicht.
+            // Direkte API-Aufrufe duerfen sie weiterhin setzen.
+
+            // Rotation NOT from presets (source=preset): device-wide hardware
+            // setting, as in switchToNextPreset() - older preset URLs still
+            // contain "rotation=" and would otherwise have rotated the display
+            // when applied via the web UI, but not via the button. Direct API
+            // calls may still set it.
+            if (webserver.hasArg("rotation") && webserver.arg("source") != "preset") {
                 String rotationArg = webserver.arg("rotation");
+
                 // Bugfix: hiess vorher ebenfalls "tftRotation" und ueberschattete
                 // damit die globale Variable, die renderClockFrame() liest.
-
-                // Bugfix: this used to also be named "tftRotation" and shadowed
-                // the global variable that renderClockFrame() reads.
-
                 // Als long fuehren, nicht als uint8_t: sonst wuerde z.B.
                 // "rotation=256" vor der Pruefung stillschweigend zu 0 abgeschnitten.
 
+                // Bugfix: this used to also be named "tftRotation" and shadowed
+                // the global variable that renderClockFrame() reads.
                 // Keep as long, not uint8_t: otherwise e.g. "rotation=256" would
                 // silently truncate to 0 before validation.
+
                 long requestedRotation = -1;
 
                 // Prüfe, ob der Wert in Grad angegeben ist
@@ -1832,6 +1864,18 @@
                 smoothSecond = (smoothSecondArg == "1" || smoothSecondArg.equalsIgnoreCase("true")); // Konvertiere zu bool
                                                                                                      // convert to bool
                 preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
+            }
+
+            // Helligkeit aus Presets (applyBrightnessPresetValue() in display.h,
+            // gleiche Klemmung wie beim Weiterschalten per Taste)
+            // Brightness from presets (applyBrightnessPresetValue() in display.h,
+            // same clamping as when switching via the button)
+            static const char* const brightnessKeys[] = {
+                "minBrightness", "maxBrightness", "brightStart", "brightEnd",
+                "lowThreshold", "highThreshold", "gamma", "autoBrightness"
+            };
+            for (const char* key : brightnessKeys) {
+                if (webserver.hasArg(key)) applyBrightnessPresetValue(key, webserver.arg(key));
             }
 
             freeClockFaceBuffer();
@@ -1954,19 +1998,19 @@
                         displayUrl = (pathStart != -1) ? displayUrl.substring(pathStart) : "/";
                     }
                     displayUrl += "&source=preset";
+
                     // Bugfix: presets[i].name.replace() direkt hier mutierte den
                     // globalen Preset-Zustand bei einem reinen GET-Request. Nicht
                     // mehr noetig - presetName unten ist eine lokale Kopie.
+                    // presets[i].name kommt vom Nutzer - potentiell gespeichertes
+                    // XSS ohne Escaping (escapeHtmlText()/escapeForJsStringInAttr()).
 
                     // Bugfix: presets[i].name.replace() directly here mutated the
                     // global preset state on a plain GET request. No longer
                     // needed - presetName below is a local copy.
-
-                    // presets[i].name kommt vom Nutzer - potentiell gespeichertes
-                    // XSS ohne Escaping (escapeHtmlText()/escapeForJsStringInAttr()).
-
                     // presets[i].name comes from the user - potential stored XSS
                     // without escaping (escapeHtmlText()/escapeForJsStringInAttr()).
+
                     String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
                     chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
@@ -2257,6 +2301,18 @@
 
         // API zum Restart des ESP
         // API to restart the ESP
+        // Diagnose: Teil-Aktualisierung des Displays ein-/ausschalten (siehe
+        // renderClockFrame() in display.h) - nicht gespeichert, nach Neustart wieder an.
+        // Diagnostic: switch the display partial update on/off (see
+        // renderClockFrame() in display.h) - not stored, back on after a restart.
+        webserver.on("/api/partialUpdate", HTTP_GET, []() {
+            if (webserver.hasArg("enabled")) {
+                partialUpdateEnabled = (webserver.arg("enabled") == "1");
+                clockFrameDirty[0] = clockFrameDirty[1] = true; // naechstes Bild voll senden / send the next frame in full
+            }
+            webserver.send(200, "text/plain", String("partial update ") + (partialUpdateEnabled ? "on" : "off"));
+            });
+
         webserver.on("/api/reboot", HTTP_GET, []() {
 
             // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp()
@@ -2825,7 +2881,8 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
+                if (useBacklight) { // Gamma-Kurve nur mit Backlight (stufenlose PWM)
+                                    // gamma curve only with a backlight (stepless PWM)
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
                 // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
@@ -2891,7 +2948,7 @@
 
                 chunk += "plotGamma(" + String(gammaBrightness) + ");\n";
                 chunk += "</script>\n";
-#endif
+                }
             }
 
             chunk += "<br><br>";
@@ -2934,7 +2991,8 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
+                if (useBacklight) { // Gamma-Kurve nur mit Backlight (stufenlose PWM)
+                                    // gamma curve only with a backlight (stepless PWM)
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
                 // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
@@ -3000,7 +3058,7 @@
 
                 chunk += "plotGamma(" + String(gammaBrightness) + ");\n";
                 chunk += "</script>\n";
-#endif
+                }
             }
 
             chunk += "<br><br></body></html>";
@@ -3012,7 +3070,8 @@
         // Helligkeitseinstellungen speichern
         // Save brightness settings
         webserver.on("/save_brightness", HTTP_POST, []() {
-            useAdc = webserver.hasArg("use_adc");
+            setAutoBrightness(webserver.hasArg("use_adc")); // schaltet auch die Teiler-Pins (display.h)
+                                                            // also switches the divider pins (display.h)
             adcInverted = webserver.hasArg("adcInverted");
             lowThreshold = argToIntClamped("lowThreshold", lowThreshold, 0, 100);
             highThreshold = argToIntClamped("highThreshold", highThreshold, 0, 100);
@@ -3027,10 +3086,12 @@
             brightStartHour = (uint8_t)argToIntClamped("brightStart", brightStartHour, 0, 23);
             brightEndHour = (uint8_t)argToIntClamped("brightEnd", brightEndHour, 0, 23);
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT) 
-            gammaBrightness = webserver.arg("gamma").toFloat();
-            preferences.putFloat(PK_GAMMA_BRIGHTNESS, gammaBrightness);
-#endif
+            // Gamma-Feld gibt es nur mit Backlight (brightnessFormFieldsHtml())
+            // The gamma field only exists with a backlight (brightnessFormFieldsHtml())
+            if (useBacklight && webserver.hasArg("gamma")) {
+                gammaBrightness = constrain(webserver.arg("gamma").toFloat(), 0.1f, 3.0f);
+                preferences.putFloat(PK_GAMMA_BRIGHTNESS, gammaBrightness);
+            }
 
             preferences.putBool(PK_USE_ADC, useAdc);
             preferences.putBool(PK_ADC_INVERTED, adcInverted);
@@ -3045,6 +3106,17 @@
 
             preferences.putUChar(PK_BRIGHT_START_HOUR, brightStartHour);
             preferences.putUChar(PK_BRIGHT_END_HOUR, brightEndHour);
+
+            // Backlight zuletzt: bei einem Wechsel setzt setBacklightMode() min.
+            // Helligkeit/Schwellwerte auf die passenden Werksvorgaben - die eben
+            // gespeicherten Werte gehoerten ja noch zum alten Verfahren.
+
+            // Backlight last: on a change setBacklightMode() resets min.
+            // brightness/thresholds to the matching factory defaults - the
+            // values just saved still belonged to the old method.
+            if (webserver.hasArg("useBacklightField")) {
+                setBacklightMode(webserver.hasArg("useBacklight"));
+            }
 
             // Nach dem Speichern zur aufrufenden Seite zurueckkehren (returnTo)
             // statt immer zum Tab-Hub. returnTo kommt als POST-Parameter an -
@@ -3522,10 +3594,14 @@
             chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
 
             chunk += "<li>TFT Driver: " + tftType + "</li>";
-            chunk += "<li>Graphics Library: TFT_eSPI " + String(TFT_ESPI_VERSION) + "</li>";
+            chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
+            // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
+            // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
+            chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
+            chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
+            chunk += "<li>Partial update: " + String(partialUpdateEnabled ? "on" : "off") + ", last rect x" + String(lastRenderRect[0]) + " y" + String(lastRenderRect[1]) + " " + String(lastRenderRect[2]) + "x" + String(lastRenderRect[3]) + ", second angle " + String(lastRenderSecondAngle, 1) + "&deg; (/api/partialUpdate?enabled=0|1)</li>";
 
-            chunk += "<li>TFT Size: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</li>"; // CLOCK_* statt TFT_* (beim GC9D01 von TFT_eSPI auf 240 ueberschrieben)
-                                                                                                       // CLOCK_* instead of TFT_* (overridden to 240 by TFT_eSPI on the GC9D01)
+            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
 
             chunk += "<br>";
 
@@ -3685,11 +3761,7 @@
 
 
             chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
-#ifndef TFT_Backlight 
-            chunk += "<li>TFT_Backlight: none</li>";
-#else
-            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + "</li>";
-#endif
+            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + (useBacklight ? " (PWM)" : " (off - pixel dimming)") + "</li>";
             chunk += "<br>";
 
             webserver.sendContent(chunk);
@@ -3745,20 +3817,18 @@
 
             // Rotationsmodus zeigt, WIE die Werte angewendet werden: beim GC9D01
             // ist Hardware-Rotation wirkungslos, nur mit PSRAM wird auf
-            // Software-Rotation umgeschaltet (siehe gc9d01SwRotation in uhr3.ino).
+            // Software-Rotation umgeschaltet (siehe gc9d01SwRotation in uhr4.ino).
 
             // Rotation mode shows HOW the values are applied: on the GC9D01
             // hardware rotation has no effect, only with PSRAM does it switch to
-            // software rotation (see gc9d01SwRotation in uhr3.ino).
+            // software rotation (see gc9d01SwRotation in uhr4.ino).
             chunk += "<li><b>rotation mode</b>: ";
             if (gc9d01SwRotation) {
                 chunk += "software (pixel remap, GC9D01 with PSRAM)";
             }
             else {
                 chunk += "hardware (display MADCTL register)";
-#ifdef GC9D01
-                chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
-#endif
+                if (displayGeom->swRotation) chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
             }
             chunk += "</li>";
 
@@ -3775,6 +3845,7 @@
             chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
 
             chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
+            chunk += "<li><b>useBacklight</b>: " + String(preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT) ? "true" : "false") + "</li>";
             chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
 
             chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
@@ -3827,21 +3898,18 @@
 
         // Vorschaubild aus den aktuell aktiven Einstellungen, ohne Zeiger, als BMP -
         // Hintergrund fuer das Live-Zeiger-Widget, spart ~150 KB Base64-Inline-Daten.
-
-        // Preview image from the currently active settings, without hands, as a
-        // BMP - background for the live hand widget, avoids ~150 KB inline base64.
-
         // Liefert die tatsaechliche ESP32-Zeit, danach laeuft die Anzeige lokal
         // im Browser weiter (performance.now()), ohne staendiges Nachfragen.
-
-        // Returns the ESP32's actual time, afterwards the display keeps running
-        // locally in the browser (performance.now()), without constant polling.
-
         // Inline erzeugtes SVG-Icon als Favicon, damit kein extra 404 fuer
         // "/favicon.ico" anfaellt. Lange Cache-Zeit, da es sich nie aendert.
 
+        // Preview image from the currently active settings, without hands, as a
+        // BMP - background for the live hand widget, avoids ~150 KB inline base64.
+        // Returns the ESP32's actual time, afterwards the display keeps running
+        // locally in the browser (performance.now()), without constant polling.
         // Inline-generated SVG icon as favicon, so "/favicon.ico" no longer
         // causes an extra 404. Long cache lifetime, since it never changes.
+
         webserver.on("/favicon.ico", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "public, max-age=86400");
             String svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>"
@@ -3895,16 +3963,15 @@
         // Liefert den Zustand der Topbar-Status-Punkte als JSON, gepollt vom
         // Live-Status-Skript in generateTopBar() - dieselben Bedingungen wie
         // dort, bei Aenderung dort auch hier anpassen.
+        // rtcPresent/dcf77Present/lightValue: siehe jeweilige Kommentare in
+        // generateTopBar() - togglen live per setPresent()/setValue().
 
         // Returns the topbar status dots' state as JSON, polled by the
         // live-status script in generateTopBar() - same conditions as there,
         // keep both in sync if one changes.
-
-        // rtcPresent/dcf77Present/lightValue: siehe jeweilige Kommentare in
-        // generateTopBar() - togglen live per setPresent()/setValue().
-
         // rtcPresent/dcf77Present/lightValue: see the respective comments in
         // generateTopBar() - toggled live via setPresent()/setValue().
+
         webserver.on("/api/topbarStatus", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
 
@@ -4261,9 +4328,9 @@
             bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
             // Fallback bewusst stationModeActive statt eines festen Literals -
-            // siehe Kommentar bei der smoothSecond-Ladezeile in uhr3.ino.
+            // siehe Kommentar bei der smoothSecond-Ladezeile in uhr4.ino.
             // Fallback deliberately stationModeActive instead of a fixed
-            // literal - see the comment at the smoothSecond load line in uhr3.ino.
+            // literal - see the comment at the smoothSecond load line in uhr4.ino.
             bool smoothSecondActive = getSmoothSecondPref(stationModeActive);
 
             float scaleFactor = (float)previewSize / CLOCK_WIDTH;
@@ -4846,6 +4913,17 @@
             }
             memset(bmpData, 0, fileSize);
 
+            // Standard-Zifferblatt liegt RLE-komprimiert in der Firmware -
+            // fuer das Herunterskalieren kurz entpacken (PSRAM bevorzugt).
+            // The default clock face is RLE-compressed in the firmware -
+            // briefly unpack it for downscaling (PSRAM preferred).
+            uint16_t* defaultFace = allocDefaultFace();
+            if (!defaultFace) {
+                delete[] bmpData;
+                webserver.send(500, "text/plain", "Out of memory");
+                return;
+            }
+
             // BMP-Header
             // BMP header
             bmpData[0] = 'B'; bmpData[1] = 'M';
@@ -4867,7 +4945,7 @@
                 uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
                 for (int x = 0; x < outW; x++) {
                     int srcX = int(x * scaleX);
-                    uint16_t px = clockFace[srcY * CLOCK_WIDTH + srcX];
+                    uint16_t px = defaultFace[srcY * CLOCK_WIDTH + srcX];
 
                     // Transparente Farbe ersetzen
                     // Replace the transparent color
@@ -4899,6 +4977,7 @@
                 }
             }
 
+            free(defaultFace);
             webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
             delete[] bmpData;
             });
@@ -5045,19 +5124,16 @@
             chunk += "}";
             chunk += "</script><hr>";
 
-            // Hinweis und Download-Link für die ZIP-Datei - CLOCK_WIDTH statt
-            // TFT_WIDTH: <TFT_eSPI.h> setzt TFT_WIDTH auch beim GC9D01 auf 240.
-
-            // Notice and download link for the ZIP file - CLOCK_WIDTH instead of
-            // TFT_WIDTH: <TFT_eSPI.h> sets TFT_WIDTH to 240 even on the GC9D01.
-            if (CLOCK_WIDTH == 240) {
+            // Hinweis und Download-Link für die ZIP-Datei
+            // Notice and download link for the ZIP file
+            if (TFT_WIDTH == 240) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
                 chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
                 chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
             }
 
-            if (CLOCK_WIDTH == 160) {
+            if (TFT_WIDTH == 160) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
                 chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
@@ -5152,16 +5228,15 @@
             // CSS-only Tabs: radio-Inputs muessen direkte Geschwister von
             // .tabnav/.panel-* sein. WLAN ist immer vorausgewaehlt - deckt
             // auch das Captive-Portal-Popup ab.
+            // Der ERSTE Tab bekommt "checked", damit immer einer vorausgewaehlt
+            // ist (siehe Begruendung oben). Reihenfolge aus SETTINGS_TAB_KEYS.
 
             // CSS-only tabs: radio inputs must be direct siblings of
             // .tabnav/.panel-*. WiFi is always preselected - also covers
             // the captive portal popup.
-
-            // Der ERSTE Tab bekommt "checked", damit immer einer vorausgewaehlt
-            // ist (siehe Begruendung oben). Reihenfolge aus SETTINGS_TAB_KEYS.
-
             // The FIRST tab gets "checked", so one is always preselected (see
             // the reasoning above). Order from SETTINGS_TAB_KEYS.
+
             for (size_t i = 0; i < SETTINGS_TAB_COUNT; i++) {
                 // Rocrail-Radio nur rendern, wenn der Tab auch sichtbar ist
                 // (siehe generateSettingsTabNav()) - ein verwaistes, nie
@@ -5258,9 +5333,13 @@
 
             chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
             chunk += "<li>TFT Driver: " + tftType + "</li>";
-            chunk += "<li>Graphics Library: TFT_eSPI " + String(TFT_ESPI_VERSION) + "</li>";
-            chunk += "<li>TFT Size: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</li>"; // CLOCK_* statt TFT_*, siehe oben
-                                                                                                       // CLOCK_* instead of TFT_*, see above
+            chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
+            // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
+            // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
+            chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
+            chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
+            chunk += "<li>Partial update: " + String(partialUpdateEnabled ? "on" : "off") + ", last rect x" + String(lastRenderRect[0]) + " y" + String(lastRenderRect[1]) + " " + String(lastRenderRect[2]) + "x" + String(lastRenderRect[3]) + ", second angle " + String(lastRenderSecondAngle, 1) + "&deg; (/api/partialUpdate?enabled=0|1)</li>";
+            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
             chunk += "<br>";
 
             webserver.sendContent(chunk);
@@ -5398,11 +5477,7 @@
 #endif
 
             chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
-#ifndef TFT_Backlight
-            chunk += "<li>TFT_Backlight: none</li>";
-#else
-            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + "</li>";
-#endif
+            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + (useBacklight ? " (PWM)" : " (off - pixel dimming)") + "</li>";
             chunk += "<br>";
 
             webserver.sendContent(chunk);
@@ -5455,9 +5530,7 @@
             }
             else {
                 chunk += "hardware (display MADCTL register)";
-#ifdef GC9D01
-                chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
-#endif
+                if (displayGeom->swRotation) chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
             }
             chunk += "</li>";
 
@@ -5474,6 +5547,7 @@
             chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
 
             chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
+            chunk += "<li><b>useBacklight</b>: " + String(preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT) ? "true" : "false") + "</li>";
             chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
 
             chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
@@ -5539,15 +5613,14 @@
 
             // 900px statt Standard-.card (500px), damit sie mit dem gleich
             // breiten <pre>-Logfenster darunter fluchtet.
-
-            // 900px instead of the default .card (500px), so it aligns with
-            // the equally wide <pre> log window below.
-
             // disabledAttr: bei deaktiviertem Logging haette ein Klick ohnehin
             // keinen sichtbaren Effekt.
 
+            // 900px instead of the default .card (500px), so it aligns with
+            // the equally wide <pre> log window below.
             // disabledAttr: with logging disabled, a click would have no
             // visible effect anyway.
+
             String disabledAttr = loggingEnabled ? "" : " disabled";
 
             chunk += "<div class='card' style='max-width:900px;'>";
@@ -5590,7 +5663,7 @@
             chunk += "  var refreshBtn = document.getElementById('logRefreshNow');";
             chunk += "  var timer = null;";
             chunk += "  var loggingEnabled = " + String(loggingEnabled ? "true" : "false") + ";";
-            chunk += "  var stored = localStorage.getItem('uhr3LogAutoRefresh');";
+            chunk += "  var stored = localStorage.getItem('uhr4LogAutoRefresh');";
             chunk += "  cb.checked = (stored === null) ? false : (stored === '1');";
             chunk += "  function scrollToBottom() { pre.scrollTop = pre.scrollHeight; }";
             chunk += "  function refreshLog() {";
@@ -5664,13 +5737,13 @@
             chunk += "    var isNewest = select.options.length > 0 && select.value === select.options[0].value;";
             chunk += "    if (!isNewest && cb.checked) {";
             chunk += "      cb.checked = false;";
-            chunk += "      localStorage.setItem('uhr3LogAutoRefresh', '0');";
+            chunk += "      localStorage.setItem('uhr4LogAutoRefresh', '0');";
             chunk += "      applyState();";
             chunk += "    }";
             chunk += "    refreshLog();";
             chunk += "  });";
             chunk += "  cb.addEventListener('change', function() {";
-            chunk += "    localStorage.setItem('uhr3LogAutoRefresh', cb.checked ? '1' : '0');";
+            chunk += "    localStorage.setItem('uhr4LogAutoRefresh', cb.checked ? '1' : '0');";
             chunk += "    if (cb.checked) loadFileList();";
             chunk += "    applyState();";
             chunk += "  });";
@@ -5932,12 +6005,12 @@
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothSecond' value='1' ";
             // Fallback bewusst PK_STATION_MODE statt eines festen Literals -
-            // siehe Kommentar bei der smoothSecond-Ladezeile in uhr3.ino
+            // siehe Kommentar bei der smoothSecond-Ladezeile in uhr4.ino
             // (Geraete ohne je gespeicherten smoothSecond-Wert behalten so ihr
             // bisheriges Aussehen bei).
 
             // Fallback deliberately PK_STATION_MODE instead of a fixed literal
-            // - see the comment at the smoothSecond load line in uhr3.ino
+            // - see the comment at the smoothSecond load line in uhr4.ino
             // (devices that never saved a smoothSecond value keep their
             // previous look this way).
             chunk += getSmoothSecondPref(preferences.getBool(PK_STATION_MODE, true)) ? "checked" : "";
@@ -5993,6 +6066,38 @@
             }
 #endif
 
+            // Displaytyp - drei Eintraege wie in flashESP (GC9A01 ohne/mit
+            // Hintergrundbeleuchtung, GC9D01), Werte = parseDisplayName().
+            // Ohne name-Attribut, damit "Speichern" dieses Formulars ihn nicht
+            // mitschickt. Wirkt nach Sicherheitsabfrage sofort: eigener POST an
+            // /save_displaytype, bei Abbruch springt die Auswahl zurueck.
+            // Wechselt die Displaygroesse (data-t), nennt die Abfrage auch den
+            // Neustart; GC9A01 ohne <-> mit BL gilt ohne Neustart.
+
+            // Display type - three entries as in flashESP (GC9A01 without/with
+            // backlight, GC9D01), values = parseDisplayName(). Without a name
+            // attribute so this form's "Save" does not send it. Takes effect
+            // right away after a confirmation: its own POST to
+            // /save_displaytype, on cancel the selection jumps back. If the
+            // display size (data-t) changes, the confirmation also mentions
+            // the restart; GC9A01 without <-> with BL applies without a restart.
+            {
+                const char* curChoice = displayChoiceName(displayType, useBacklight);
+                struct { const char* name; uint8_t type; const char* label; } choices[] = {
+                    { "GC9A01", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) without backlight (BL)" },
+                    { "GC9A01_WITH_BACKLIGHT", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) with backlight (BL) on pin 3" },
+                    { "GC9D01", DISPLAY_TYPE_GC9D01, "GC9D01 (160x160)" },
+                };
+                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": <span title='" + translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching between GC9A01 and GC9D01 restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for") + ".' style='cursor:help;'>&#9432;</span> ";
+                chunk += "<select data-cur='" + String(curChoice) + "' data-t='" + String(displayType) + "' style='min-width:190px;max-width:100%;' onchange=\"var o=this.options[this.selectedIndex];if(confirm('" + translate("Change the display type to") + ": '+o.text+'?'+(o.dataset.t!=this.dataset.t?'\\n" + translate("The clock restarts to apply the display type") + ".':''))){var f=document.createElement('form');f.method='POST';f.action='/save_displaytype';var i=document.createElement('input');i.type='hidden';i.name='display';i.value=this.value;f.appendChild(i);document.body.appendChild(f);f.submit();}else{this.value=this.dataset.cur;}\">";
+                for (const auto& c : choices) {
+                    chunk += "<option value='" + String(c.name) + "' data-t='" + String(c.type) + "'";
+                    if (strcmp(c.name, curChoice) == 0) chunk += " selected";
+                    chunk += ">" + translate(c.label) + "</option>";
+                }
+                chunk += "</select></div>";
+            }
+
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:190px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             String rotationNaLabel = translate("not connected (n.a.)");
@@ -6023,6 +6128,7 @@
             chunk += "</div>";
             chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
             chunk += "</form>";
+
             chunk += "</div>"; // Ende panel-zifferblatt
                                // end panel-zifferblatt
 
@@ -6077,7 +6183,8 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
+                if (useBacklight) { // Gamma-Kurve nur mit Backlight (stufenlose PWM)
+                                    // gamma curve only with a backlight (stepless PWM)
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
                 // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
                 // Variablennamen aus dem Sketch, keine uebersetzbaren Woerter
@@ -6152,7 +6259,7 @@
                 chunk += "gammaTab.addEventListener('change', drawGammaIfVisible);\n";
                 chunk += "drawGammaIfVisible();\n";
                 chunk += "</script>\n";
-#endif
+                }
             }
 
             chunk += "</div>"; // Ende panel-helligkeit
@@ -6456,7 +6563,7 @@
                     String newPass[MAX_WLAN];
                     for (int i = 0; i < MAX_WLAN; i++) {
                         newSsid[i] = preferences.getString(pkSsid(i).c_str(), "");
-                        newPass[i] = preferences.getString(pkPass(i).c_str(), "");
+                        newPass[i] = loadWifiPass(i);
                     }
                     newSsid[idx] = "";
                     newPass[idx] = "";
@@ -6607,7 +6714,7 @@
                     if (newSsid[activeIdx] != preferences.getString(pkSsid(activeIdx).c_str(), "")) {
                         activeSlotChanged = true;
                     }
-                    if (newPass[activeIdx] != "" && newPass[activeIdx] != preferences.getString(pkPass(activeIdx).c_str(), "")) {
+                    if (newPass[activeIdx] != "" && newPass[activeIdx] != loadWifiPass(activeIdx)) {
                         activeSlotChanged = true;
                     }
                 }
@@ -7407,12 +7514,14 @@
             });
 
         // Eingebautes Standard-Zifferblatt in voller Groesse (Designer-Vorschau):
-        // 66-Byte-Header wie encodeBmpToBytes(), Pixel direkt aus dem Flash -
+        // 66-Byte-Header wie encodeBmpToBytes(), Pixel aus dem RLE-Strom in der
+        // Firmware stueckweise entpackt (kleiner Stack-Puffer statt 115 KB) -
         // Zeilen sind ohne Auffuellung, da CLOCK_WIDTH * 2 durch 4 teilbar ist.
 
         // Built-in default clock face at full size (designer preview): 66-byte
-        // header like encodeBmpToBytes(), pixels straight from flash - rows need
-        // no padding since CLOCK_WIDTH * 2 is divisible by 4.
+        // header like encodeBmpToBytes(), pixels unpacked piecewise from the RLE
+        // stream in the firmware (small stack buffer instead of 115 KB) - rows
+        // need no padding since CLOCK_WIDTH * 2 is divisible by 4.
         webserver.on("/api/defaultface", HTTP_GET, []() {
             const uint32_t dataSize = (uint32_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2;
             uint8_t header[66] = { 0 };
@@ -7435,7 +7544,40 @@
             webserver.setContentLength(66 + dataSize);
             webserver.send(200, "image/bmp", "");
             webserver.sendContent((const char*)header, sizeof(header));
-            webserver.sendContent_P((const char*)clockFace, dataSize);
+
+            // RLE-Pakete wie rleDecode565(): 0-127 = Literal (C+1 Pixel),
+            // 129-255 = Wiederholung (257-C Pixel); Pixel little-endian wie im RAM.
+            // RLE packets like rleDecode565(): 0-127 = literal (C+1 pixels),
+            // 129-255 = repeat (257-C pixels); pixels little-endian as in RAM.
+            const RleImage& face = displayGeom->face;
+            uint16_t chunkPx[256];
+            size_t fill = 0, written = 0, i = 0;
+            while (i < face.size && written < face.pixels) {
+                uint8_t ctrl = face.data[i++];
+                bool literal = ctrl <= 127;
+                size_t len = literal ? (size_t)ctrl + 1 : (size_t)(257 - ctrl);
+                uint16_t repeatPx = 0;
+                if (!literal) {
+                    if (i + 1 >= face.size) break;
+                    repeatPx = face.data[i] | (face.data[i + 1] << 8);
+                    i += 2;
+                }
+                for (size_t k = 0; k < len && written < face.pixels; k++) {
+                    uint16_t px = repeatPx;
+                    if (literal) {
+                        if (i + 1 >= face.size) { written = face.pixels; break; }
+                        px = face.data[i] | (face.data[i + 1] << 8);
+                        i += 2;
+                    }
+                    chunkPx[fill++] = px;
+                    written++;
+                    if (fill == 256) {
+                        webserver.sendContent((const char*)chunkPx, fill * sizeof(uint16_t));
+                        fill = 0;
+                    }
+                }
+            }
+            if (fill > 0) webserver.sendContent((const char*)chunkPx, fill * sizeof(uint16_t));
             });
 
         // Zifferblatt-Designer: gemeinsamer Seitenkopf + Editor aus dem Flash
@@ -7552,6 +7694,38 @@
 
         // ESP neu starten
         // Restart the ESP
+        // Displaytyp speichern ("display" = Name wie parseDisplayName()) und
+        // neu starten - die Masse (CLOCK_WIDTH usw.) stecken in Puffern und
+        // Sprites, die nur beim Start angelegt werden. Bleibt die Groesse
+        // gleich (GC9A01 ohne <-> mit BL), nur die Backlight-Regelung
+        // umschalten, ohne Neustart. Wie /reboot nur aus einem privaten Netz.
+
+        // Save the display type ("display" = name as in parseDisplayName())
+        // and restart - the dimensions (CLOCK_WIDTH etc.) live in buffers and
+        // sprites that are only created at boot. If the size stays the same
+        // (GC9A01 without <-> with BL), only switch the backlight control,
+        // without a restart. Like /reboot, only from a private network.
+        webserver.on("/save_displaytype", HTTP_POST, []() {
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Display type"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+            uint8_t newType;
+            bool newBacklight;
+            if (!parseDisplayName(webserver.arg("display"), newType, newBacklight)) {
+                redirectTo("/?tab=zifferblatt");
+                return;
+            }
+            if (newType == displayType) {
+                setBacklightMode(newBacklight);
+                redirectTo("/?tab=zifferblatt&msg=Settings%20saved");
+                return;
+            }
+            setDisplayType(newType, newBacklight);
+            webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."), "<p>" + translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>", "<meta http-equiv='refresh' content='10; url=/'>"));
+            espReboot();
+            });
+
         webserver.on("/reboot", HTTP_GET, []() {
 
             // Nur aus einem privaten Netz erlaubt - siehe Begruendung bei
@@ -7570,9 +7744,89 @@
 
         // Werkseinstellungen: Uebersichtsseite mit mehreren, einzeln
         // bestaetigten Reset-Optionen statt einer einzigen Alles-oder-nichts-Aktion.
-
         // Factory settings: overview page with several individually confirmed
         // reset options instead of one single all-or-nothing action.
+        // Komplettsicherung (backup.h): Seite, Download und Wiederherstellung.
+        // Alle drei nur aus einem privaten Netz - die Sicherung kann WLAN-
+        // Passwoerter enthalten, die Wiederherstellung ersetzt alles.
+
+        // Full backup (backup.h): page, download and restore. All three only
+        // from a private network - the backup may contain WiFi passwords, the
+        // restore replaces everything.
+
+        webserver.on("/backup", HTTP_GET, []() {
+            String html = beginPage();
+            html += generateFlashMessage();
+            html += "<h2>" + translate("Backup") + "</h2>";
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                html += "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p></body></html>";
+                webserver.send(200, "text/html", html);
+                return;
+            }
+
+            html += "<h3>" + translate("Create Backup") + "</h3>";
+            html += "<p>" + translate("Saves all settings, presets, clock faces and hand sets in one file") + ".</p>";
+            // POST statt GET: keine Sicherung per Link/Vorabruf ausloesbar. Der
+            // Warnhinweis erscheint mit dem WLAN-Haken - die Daten sind nur mit
+            // dem internen Firmware-Schluessel verschluesselt (BACKUP_WIFI_KEY).
+
+            // POST instead of GET: no backup can be triggered via a link/
+            // prefetch. The warning appears with the WiFi box - the data is only
+            // encrypted with the internal firmware key (BACKUP_WIFI_KEY).
+            html += "<form method='POST' action='/backup/download'>";
+            html += "<label><input type='checkbox' name='wifi' value='1' style='width:auto;margin:0 6px 0 0;' onchange=\"document.getElementById('bkWifiWarn').hidden=!this.checked;\">" + translate("Include WiFi credentials (network names, passwords, hostname)") + "</label>";
+            html += "<p id='bkWifiWarn' hidden><small style='color:var(--bad);'>&#9888; " + translate("Saving the WiFi credentials is not secure: they are encrypted in the file, but with a key that is the same in every uhr4 firmware - anyone with the firmware or its source code can decrypt them. Keep the file safe and do not pass it on") + ".</small></p>";
+            html += "<button type='submit'>" + translate("Download Backup") + "</button></form><hr>";
+
+            // Reihenfolge wichtig: die WLAN-Option VOR dem Dateifeld - nur so
+            // liegt sie beim Upload-Start vor und wird geprueft, bevor
+            // irgendetwas ueberschrieben wird (backup.h).
+
+            // Order matters: the WiFi option BEFORE the file field - only then
+            // is it available at upload start and checked before anything gets
+            // overwritten (backup.h).
+            html += "<h3>" + translate("Restore Backup") + "</h3>";
+            html += "<p>" + translate("Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards") + ".</p>";
+            html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. The backup must come from a clock with the same display type") + " (" + String(displayGeom->name) + ").</small></p>";
+            html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' onsubmit=\"return confirm('" + translate("Replace all current settings, clock faces and hand sets with the backup?") + "');\">";
+            html += "<label><input type='checkbox' name='restoreWifi' value='1' style='width:auto;margin:0 6px 0 0;'>" + translate("Restore WiFi credentials (network names, passwords, hostname)") + "</label>";
+            html += "<p><small>" + translate("Without this option the clock keeps its own WiFi and hostname - recommended when transferring the settings to another clock") + ".</small></p>";
+            html += "<input type='file' name='backupfile' accept='.tar' required> ";
+            html += "<button type='submit'>" + translate("Restore Backup") + "</button></form>";
+            html += "</body></html>";
+            webserver.send(200, "text/html", html);
+            });
+
+        webserver.on("/backup/download", HTTP_POST, []() {
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(403, "text/plain", "Only available from a private network");
+                return;
+            }
+            streamBackup(webserver.arg("wifi") == "1");
+            });
+
+        webserver.on("/backup/restore", HTTP_POST, []() {
+            bool ok = backupRestore && backupRestore->phase == BackupRestoreState::END;
+            bool changed = backupRestore && backupRestore->settingsChecked;
+            String error = backupRestore ? backupRestore->error : String("no upload received");
+            size_t files = backupRestore ? backupRestore->restoredFiles.size() : 0;
+            delete backupRestore;
+            backupRestore = nullptr;
+
+            if (!ok) {
+                String body = "<p>" + translate("The backup could not be restored") + ": " + escapeHtmlText(error) + "</p>";
+                if (!changed) body += "<p>" + translate("Nothing was changed on the clock") + ".</p>";
+                body += "<a href='/backup'><button type='button'>" + translate("Back") + "</button></a>";
+                webserver.send(400, "text/html", simpleMessagePage(translate("Restore Backup"), body));
+                return;
+            }
+            webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."),
+                "<p>" + translate("Backup restored") + " (" + String(files) + " " + translate("files") + "). " +
+                translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>",
+                "<meta http-equiv='refresh' content='10; url=/'>"));
+            espReboot();
+            }, handleBackupRestoreUpload);
+
         webserver.on("/factoryReset", HTTP_GET, []() {
             String html = beginPage();
             html += generateFlashMessage();

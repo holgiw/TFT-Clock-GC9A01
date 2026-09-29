@@ -223,53 +223,6 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       pos: 'Pixel', center: 'Centre' },
-    fr: { base: 'Base :', builtin: 'Standard (int\u00e9gr\u00e9)', active: 'actif', reset: 'Annuler les modifications',
-      activate: 'activer le nouveau cadran', saveBtn: 'Enregistrer comme nouveau cadran', name: 'Nom :',
-      saveCurBtn: 'Enregistrer et appliquer le cadran actuel', tools: 'Outil', bw: '\u00c9paisseur :', pen: 'Crayon',
-      line: 'Ligne', rect: 'Cadre', rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Ellipse pleine', poly: 'Polygone',
-      fill: 'Remplir', text: 'Texte', pick: 'Pipette', sym: 'Sym\u00e9trie :', txtSize: 'Taille :', none: 'aucune',
-      mx: 'miroir gauche/droite', mxy: 'miroir 4 fois', r4: 'rotation 4 fois', r12: 'rotation 12 fois (heures)',
-      r60: 'rotation 60 fois (minutes)', pickBtn: 'Pr\u00e9lever',
-      pickTip: 'Pr\u00e9lever la couleur d\u2019un pixel - aussi par clic droit dans la zone de dessin ou clic dans l\u2019aper\u00e7u',
-      color: 'Couleur', std: 'Couleurs standard', pal: 'Palette', free: 'Couleur libre',
-      hexHint: '#RRGGBB ou RGB565 (0xFFFF)', edit: 'Modifier', undo: 'Annuler', redo: 'R\u00e9tablir', clear: 'Tout remplir',
-      import: 'Charger une image', cover: 'remplir la surface', contain: 'afficher en entier', gen: 'G\u00e9n\u00e9rer un cadran',
-      bg: 'Fond', ring: 'Bord', hourM: 'Traits des heures', minM: 'Traits des minutes', num: 'Chiffres',
-      nSize: 'Taille des chiffres', nDist: 'Distance des chiffres', nFont: 'Police', numNone: 'aucun',
-      numArabic: '1 - 12', numQuarter: '12, 3, 6, 9', numRoman: 'I - XII',
-      genHint: 'Traits : longueur et largeur en pixels. Distance : du centre du chiffre au bord.', genBtn: 'G\u00e9n\u00e9rer',
-      preview: 'Aper\u00e7u', live: 'Heure en direct', showHands: 'Aiguilles', saving: 'Enregistrement...',
-      saved: 'Enregistr\u00e9 comme nouveau cadran "{0}"', activated: ' et activ\u00e9', savedCur: '"{0}" enregistr\u00e9 et appliqu\u00e9',
-      loading: 'Chargement...', loaded: 'Cadran actif charg\u00e9', failed: 'Erreur : ',
-      missing: 'Cadran actif illisible - standard utilis\u00e9',
-      builtinRO: 'Le cadran standard int\u00e9gr\u00e9 ne peut pas \u00eatre \u00e9cras\u00e9 - veuillez l\u2019enregistrer comme nouveau cadran.',
-      badName: 'Nom : lettres, chiffres, _ et - uniquement, 20 caract\u00e8res au maximum.',
-      confirmExists: 'Le cadran "{0}" existe d\u00e9j\u00e0 - l\u2019\u00e9craser ?',
-      confirmReset: 'Annuler toutes les modifications et recharger le cadran actif ?',
-      confirmClear: 'Remplir tout le cadran avec la couleur actuelle ?',
-      imgErr: 'L\u2019image n\u2019a pas pu \u00eatre lue.',
-      lowSpace: 'Peu d\u2019espace libre ({0} Ko) - un nouveau cadran n\u00e9cessite jusqu\u2019\u00e0 {1} Ko.',
-      h_pen: 'Crayon : placer des pixels un par un ou dessiner \u00e0 main lev\u00e9e, avec l\u2019\u00e9paisseur choisie.',
-      h_line: 'Ligne : tirer du point de d\u00e9part au point d\u2019arriv\u00e9e.',
-      h_rect: 'Cadre : tracer le contour d\u2019un rectangle.', h_rectf: 'Rectangle : tracer un rectangle plein.',
-      h_ell: 'Ellipse : tracer un contour - un carr\u00e9 donne un cercle.',
-      h_ellf: 'Ellipse pleine : tracer une ellipse ou un cercle plein.',
-      h_fill: 'Remplir : recolore la zone contigu\u00eb de m\u00eame couleur.',
-      h_pick: 'Pipette : un clic reprend la couleur du pixel.',
-      h_poly: 'Polygone : cliquer les points, double-clic ou clic sur le premier point pour fermer, \u00c9chap pour annuler.',
-      h_text: 'Texte : droit - un clic place le texte centr\u00e9 \u00e0 cet endroit ; en arc - un clic fixe le rayon et le centre de l\u2019arc. R\u00e9glages ci-dessous.',
-      h_stamp: 'Logo : charger une image sous "Logo" et r\u00e9gler sa largeur, puis un clic la place centr\u00e9e \u00e0 cet endroit.',
-      stamp: 'Logo', txtMode: 'Disposition :', straight: 'droit', arcTop: 'arc en haut', arcBottom: 'arc en bas',
-      txtRot: 'Rotation :', logo: 'Logo', logoW: 'Largeur :',
-      logoHint: 'Id\u00e9al : un PNG \u00e0 fond transparent. L\u2019image reste charg\u00e9e pour d\u2019autres clics.',
-      noLogo: 'Chargez d\u2019abord une image sous "Logo".', fonts: 'Police personnelle', fontAdd: 'Ajouter',
-      fontPh: 'police install\u00e9e',
-      fontFileHint: 'ou charger un fichier de police (.ttf, .otf, .woff) - valable jusqu\u2019au rechargement de la page, aussi pour les chiffres du g\u00e9n\u00e9rateur.',
-      fontAdded: 'Police "{0}" ajout\u00e9e et s\u00e9lectionn\u00e9e', fontMissing: 'La police "{0}" n\u2019est pas install\u00e9e sur ce PC.',
-      fontErr: 'Le fichier de police n\u2019a pas pu \u00eatre lu.',
-      roundHint: '\u00c9cran rond : la zone assombrie n\u2019est pas visible sur l\u2019horloge.', modeAs: 'Comme sur l\u2019horloge :',
-      mStation: 'la seconde attend \u00e0 12', mSecSmooth: 'seconde fluide', mSecTick: 'seconde saccad\u00e9e',
-      mMinSmooth: 'minute fluide', mMinJump: 'la minute saute', pos: 'Pixel', center: 'Centre' }
   };
   var L = TX[FD.lang] ? FD.lang : 'en';
   function t(k, a, b) {
@@ -333,7 +286,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   // Zoom: the default fills the window height, but at least 2 px per pixel,
   // adjustable with -/+ or Ctrl+wheel from 1 to 16 and remembered in the browser.
   var ZMIN = 1, ZMAX = 16, Z = Math.max(2, Math.min(ZMAX, Math.floor((window.innerHeight - 140) / H)));
-  try { var zs = +localStorage.getItem('uhr3FdZoom'); if (zs >= ZMIN && zs <= ZMAX) Z = zs; } catch (e) { }
+  try { var zs = +localStorage.getItem('uhr4FdZoom'); if (zs >= ZMIN && zs <= ZMAX) Z = zs; } catch (e) { }
   function applyZoom() {
     ed.width = W * Z; ed.height = H * Z;
     $('zoomInfo').textContent = 'Zoom ' + Z + 'x';
@@ -341,7 +294,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   }
   function setZoom(z) {
     Z = Math.max(ZMIN, Math.min(ZMAX, z));
-    try { localStorage.setItem('uhr3FdZoom', Z); } catch (e) { }
+    try { localStorage.setItem('uhr4FdZoom', Z); } catch (e) { }
     applyZoom(); drawEditor(); updateSticky();
   }
   applyZoom();

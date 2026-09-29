@@ -315,20 +315,19 @@
             // factoryResetActionLabel() bleibt fuer die Web-Eingabeseite
             // erhalten (/factoryReset/enterCode in webserver_routes.h), die
             // dort weiterhin anzeigt, WELCHE Aktion gerade bestaetigt wird.
+            // Vor und nach dem Code je ein "_" - rein optisch auf dem
+            // Display, NICHT Teil von factoryResetCode selbst (der Vergleich
+            // in /factoryReset/confirm bleibt bei den nackten 3 Ziffern).
 
             // Only the bare code now, large and centered - no more action
             // label and no more hint text on the display.
             // factoryResetActionLabel() is kept for the web entry page
             // (/factoryReset/enterCode in webserver_routes.h), which still
             // shows WHICH action is currently being confirmed there.
-
-            // Vor und nach dem Code je ein "_" - rein optisch auf dem
-            // Display, NICHT Teil von factoryResetCode selbst (der Vergleich
-            // in /factoryReset/confirm bleibt bei den nackten 3 Ziffern).
-
             // An "_" before and after the code - purely visual on the
             // display, NOT part of factoryResetCode itself (the comparison
             // in /factoryReset/confirm still checks the bare 3 digits).
+
             String displayCode = "_" + factoryResetCode + "_";
 
             // Textgroesse: groesstmoegliche ganzzahlige Vervielfachung der
@@ -713,11 +712,11 @@
 
     // Liest PK_SMOOTH_SECOND mit Migrations-Fallback auf stationMode, statt
     // die Formel an mehreren Stellen zu wiederholen (siehe presets_manager.h,
-    // uhr3.ino, webserver_routes.h).
+    // uhr4.ino, webserver_routes.h).
 
     // Reads PK_SMOOTH_SECOND with a migration fallback to stationMode,
     // instead of repeating the formula at several places (see
-    // presets_manager.h, uhr3.ino, webserver_routes.h).
+    // presets_manager.h, uhr4.ino, webserver_routes.h).
 
     bool getSmoothSecondPref(bool stationModeFallback) {
         return preferences.getBool(PK_SMOOTH_SECOND, stationModeFallback);

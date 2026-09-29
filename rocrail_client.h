@@ -1,49 +1,41 @@
 #pragma once
+
     // Rocrail-Modellzeit: verbindet sich mit einem konfigurierten Rocrail-
     // Server (TCP, RCP-Protokoll) und uebernimmt dessen Fast-Clock als
     // Zeitquelle fuer die Zeiger.
-
-    // Rocrail model time: connects to a configured Rocrail server (TCP,
-    // RCP protocol) and adopts its fast clock as the time source for the
-    // hands.
-
     // connect() mit Timeout ist zugleich der "Ping" (prueft Port-, nicht nur
     // Host-Ebene) und laeuft in einer eigenen FreeRTOS-Task, damit loop()
     // dabei nicht blockiert - siehe connectRocrailClient().
-
-    // connect() with a timeout is also the "ping" (checks port level, not
-    // just host level) and runs in its own FreeRTOS task so loop() doesn't
-    // block - see connectRocrailClient().
-
     // <clock>-Events kommen ungerahmt im Rohstrom an, nicht wie dokumentiert
     // per <xmlh>-Header - processRocrailBuffer() sucht das Tag daher per
     // Substring-Scan statt per Header-Parser.
-
-    // <clock> events arrive unframed in the raw stream, not wrapped in the
-    // documented <xmlh> header - processRocrailBuffer() therefore finds
-    // the tag via a substring scan instead of a header parser.
-
     // R2RNet-Discovery (automatische Server-Suche) wurde entfernt: das
     // Antwortformat war nirgends spezifiziert und funktionierte nicht
     // zuverlaessig (siehe Git-Historie).
-
-    // R2RNet discovery (automatic server search) was removed: the reply
-    // format was never specified and didn't work reliably (see git
-    // history).
-
-
     // Diagnose-Funktion: tritt der R2RNet-Multicast-Gruppe bei und loggt jedes
     // empfangene Paket unveraendert (Rohtext + Hex) - um zu klaeren, ob und in
     // welchem Format ueberhaupt etwas ankommt, BEVOR echte Discovery evtl.
     // wieder aufgebaut wird. Muss nach jedem WiFi-(Re-)Connect neu aufgerufen
-    // werden (siehe Aufrufstellen in uhr3.ino/wifi_manager.h), genau wie
+    // werden (siehe Aufrufstellen in uhr4.ino/wifi_manager.h), genau wie
     // startNtpServer() - ein Reconnect reisst den Socket sonst mit runter.
 
+    // Rocrail model time: connects to a configured Rocrail server (TCP,
+    // RCP protocol) and adopts its fast clock as the time source for the
+    // hands.
+    // connect() with a timeout is also the "ping" (checks port level, not
+    // just host level) and runs in its own FreeRTOS task so loop() doesn't
+    // block - see connectRocrailClient().
+    // <clock> events arrive unframed in the raw stream, not wrapped in the
+    // documented <xmlh> header - processRocrailBuffer() therefore finds
+    // the tag via a substring scan instead of a header parser.
+    // R2RNet discovery (automatic server search) was removed: the reply
+    // format was never specified and didn't work reliably (see git
+    // history).
     // Diagnostic function: joins the R2RNet multicast group and logs every
     // received packet unchanged (raw text + hex) - to find out whether and in
     // what format anything arrives at all, BEFORE real discovery might get
     // rebuilt. Must be called again after every WiFi (re)connect (see the
-    // call sites in uhr3.ino/wifi_manager.h), exactly like startNtpServer() -
+    // call sites in uhr4.ino/wifi_manager.h), exactly like startNtpServer() -
     // a reconnect otherwise takes the socket down with it.
 
     bool startR2rnetDebugListener() {
@@ -79,12 +71,12 @@
     }
 
 
-    // In loop() gepollt (siehe uhr3.ino) - liest eingehende Multicast-Pakete
+    // In loop() gepollt (siehe uhr4.ino) - liest eingehende Multicast-Pakete
     // non-blocking (parsePacket() liefert 0, wenn keins wartet) und loggt
     // Absender, Laenge, Rohtext sowie eine Hex-Ansicht der ersten Bytes -
     // Rohtext allein reicht bei evtl. binaeren Headern/Nicht-ASCII nicht aus.
 
-    // Polled in loop() (see uhr3.ino) - reads incoming multicast packets
+    // Polled in loop() (see uhr4.ino) - reads incoming multicast packets
     // non-blocking (parsePacket() returns 0 when none is waiting) and logs
     // sender, length, raw text, and a hex view of the first bytes - raw text
     // alone isn't enough if there are binary headers/non-ASCII bytes.
@@ -187,10 +179,10 @@
 
         // rocrailServerHost/-Port an den aufgeloesten Index angleichen - noetig,
         // falls der Fallback oben gerade erst einen Index bestimmt hat. setup()
-        // (uhr3.ino) ruft danach triggerRocrailConnectNow() auf und verbindet sich so noch beim Start.
+        // (uhr4.ino) ruft danach triggerRocrailConnectNow() auf und verbindet sich so noch beim Start.
 
         // Align rocrailServerHost/-Port with the resolved index - needed if
-        // the fallback above just determined an index. setup() (uhr3.ino)
+        // the fallback above just determined an index. setup() (uhr4.ino)
         // calls triggerRocrailConnectNow() afterwards, so it connects right at boot.
         if (rocrailActiveServerIndex >= 0) {
             rocrailServerHost = String(rocrailServerList[rocrailActiveServerIndex]);
@@ -308,7 +300,6 @@
         rocrailRxBuffer = rocrailRxBuffer.substring(endPos + 2);
     }
 
-
     // Wertet ein <clock .../>-Tag aus: state ("go"/"freeze") gehoert zum
     // Clock-Objekt. Das "time"-Attribut ist laut Rocrail-Wiki (digint:user-en,
     // Beispiel "time="1559803151"" passend zu "year="2019" month="6" mday="6"")
@@ -321,6 +312,9 @@
     // den Beginn einer neuen Modellminute (Sekunde 0); dazwischen laeuft die
     // Anzeige rein lokal weiter (siehe advanceRocrailTime()). Eine Abweichung
     // wird sanft angeglichen statt gesprungen.
+    // Drosselung fuer wiederkehrende Logs: loggt nur die ersten `limit`
+    // Aufrufe (erhoeht `counter`); `isLastLogged` markiert den letzten
+    // geloggten Aufruf fuer einen "wird jetzt still"-Hinweis.
 
     // Evaluates a <clock .../> tag: state ("go"/"freeze") belongs to the
     // clock object. Per the Rocrail wiki (digint:user-en, example
@@ -334,11 +328,6 @@
     // marks the start of a new model minute (second 0); the display keeps
     // running purely locally in between (see advanceRocrailTime()). A
     // deviation is eased in smoothly instead of snapped.
-
-    // Drosselung fuer wiederkehrende Logs: loggt nur die ersten `limit`
-    // Aufrufe (erhoeht `counter`); `isLastLogged` markiert den letzten
-    // geloggten Aufruf fuer einen "wird jetzt still"-Hinweis.
-
     // Throttles recurring logs: only logs the first `limit` calls
     // (increments `counter`); `isLastLogged` marks the last logged call
     // so the caller can note the log going quiet.

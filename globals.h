@@ -1,18 +1,30 @@
 #pragma once
+
     // Globale Objekte/Variablen, nach Modul sortiert. Echte Definitionen statt
-    // extern, da nur von uhr3.ino eingebunden (eine Uebersetzungseinheit).
-
-    // Global objects/variables, sorted by module. Real definitions instead of
-    // extern, since only included from uhr3.ino (one translation unit).
-
+    // extern, da nur von uhr4.ino eingebunden (eine Uebersetzungseinheit).
     // Fuer den Mutex des Log-Puffers (siehe logBufferMutex weiter unten) -
     // xTaskCreate() u.ae. kommen bereits transitiv rein, Semaphoren nicht
     // unbedingt, deshalb hier explizit.
 
+    // Global objects/variables, sorted by module. Real definitions instead of
+    // extern, since only included from uhr4.ino (one translation unit).
     // For the log buffer's mutex (see logBufferMutex further below) -
     // xTaskCreate() etc. already come in transitively, semaphores not
     // necessarily, hence explicit here.
+
 #include <freertos/semphr.h>
+
+    // Aktiver Displaytyp (Index in DISPLAY_GEOMETRY, config.h) - CLOCK_WIDTH,
+    // HAND_WIDTH usw. lesen ueber displayGeom. Startwert = Werkseinstellung,
+    // loadDisplayType() (display.h) setzt ihn ganz am Anfang von setup()
+    // aus den Preferences, noch vor allem, was Masse braucht.
+
+    // Active display type (index into DISPLAY_GEOMETRY, config.h) -
+    // CLOCK_WIDTH, HAND_WIDTH etc. read via displayGeom. Initial value =
+    // factory default, loadDisplayType() (display.h) sets it from preferences
+    // at the very start of setup(), before anything that needs dimensions.
+    uint8_t displayType = DISPLAY_TYPE_DEFAULT;
+    const DisplayGeometry* displayGeom = &DISPLAY_GEOMETRY[DISPLAY_TYPE_DEFAULT];
 
     // System / Allgemein
     // System / General
@@ -57,7 +69,15 @@
 
     // Kern-Hardwareobjekte (TFT, Webserver, Preferences, RTC, ...)
     // Core hardware objects (TFT, web server, preferences, RTC, ...)
-    TFT_eSPI tft = TFT_eSPI();
+    UhrLGFX tft; // ein Geraet fuer beide Displays, siehe lgfx_config.h
+                 // one device for both displays, see lgfx_config.h
+
+    // false bis tft.init() gelaufen ist - vorher duerfen setCS1()/setCS2()
+    // (display.h) noch keine Rotation an den Chip senden.
+
+    // false until tft.init() has run - before that setCS1()/setCS2()
+    // (display.h) must not send a rotation to the chip yet.
+    bool tftInitialized = false;
     WebServer webserver(80);
     Preferences preferences;
     DNSServer dnsServer;
@@ -93,10 +113,10 @@
     bool wifiActive = true;
 
     // Zustand fuer eine per Web-Button ausgeloeste WPS-Anfrage (siehe loop() in
-    // uhr3.ino, /api/startWPS in webserver_routes.h) - laeuft asynchron und
+    // uhr4.ino, /api/startWPS in webserver_routes.h) - laeuft asynchron und
     // event-basiert ueber WiFi.onEvent(), um den Webserver nicht zu blockieren.
 
-    // State for a web-button-triggered WPS request (see loop() in uhr3.ino,
+    // State for a web-button-triggered WPS request (see loop() in uhr4.ino,
     // /api/startWPS in webserver_routes.h) - runs asynchronously and event-based
     // via WiFi.onEvent(), so the web server isn't blocked.
     bool wpsPending = false;
@@ -129,7 +149,7 @@
     // AP password generated at runtime (from MAC bytes, see startAP() in
     // wifi_manager.h) - as a buffer so both the display and web UI status line
     // can show it. Empty as long as the AP has never run.
-    char apPassword[16] = "";
+    char apPassword[64] = ""; // AP_PASSWORD (config.h), max. 63 Zeichen + NUL / max. 63 chars + NUL
     bool pingHostname = false;
 
     bool softAPIP = false;  // Flag für SoftAP IP
@@ -217,15 +237,13 @@
 
 #if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
-    // Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr3.ino);
+    // Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr4.ino);
     // processDcf77Bits() (time_sync.h) klassifiziert nur ueber die DAUER
-
     // zwischen zwei Flanken - der Pegel wird nie gelesen, daher keine
     // Flankenrichtung noetig.
 
-    // Interrupt is on CHANGE (see attachInterrupt() in uhr3.ino);
+    // Interrupt is on CHANGE (see attachInterrupt() in uhr4.ino);
     // processDcf77Bits() (time_sync.h) classifies purely by the DURATION
-
     // between two edges - the level is never read, so no edge direction
     // is needed.
 
@@ -410,15 +428,14 @@
 
     // Letzte bestaetigte Dekodierung als Referenz fuer die Kohaerenzpruefung
     // rekonstruierter Telegramme (siehe decodeDcf77Telegram()): bei aus
-
     // Paritaet ergaenzten Bits muss die Zeit exakt zur vorherigen plus
     // verstrichenen Minuten passen - ein vollstaendiges Telegramm braucht das nicht.
 
     // Last confirmed decoding, used as the reference for the coherence check
     // of reconstructed telegrams (see decodeDcf77Telegram()): with bits filled
-
     // from parity, the time must exactly match the previous one plus elapsed
     // minutes - a fully received telegram doesn't need this.
+
     time_t dcf77PrevEpoch = 0;
     unsigned long dcf77PrevAtMillis = 0;
 
@@ -449,6 +466,8 @@
                                      // Wait time after a DCF77 update before the RTC is updated (ms)
     unsigned long lastRTCUpdate = 0; // Zeitpunkt des letzten RTC-Updates
                                      // Timestamp of the last RTC update
+    bool serialTimeSet = false;      // Uhrzeit per USB gesetzt (handleSerialTime()) - beendet das Warten auf DCF77 beim Start
+                                     // time set via USB (handleSerialTime()) - ends the wait for DCF77 at boot
     volatile unsigned long lastNtpSuccessMillis = 0; // Zeitpunkt (millis()) der letzten erfolgreichen NTP-Sync (0 = nie) -
                                             // unterscheidet echten Erfolg vom irrefuehrenden true-Rueckgabewert von
                                             // setupNTP() ohne WLAN; bleibt er unveraendert, springt DCF77 ein (time_sync.h).
@@ -654,10 +673,10 @@
     // Clock face / Display
     String tftType = "UNKNOWN";
 
-    TFT_eSprite backgroundSprite = TFT_eSprite(&tft);
-    TFT_eSprite hourHandSprite = TFT_eSprite(&tft);
-    TFT_eSprite minuteHandSprite = TFT_eSprite(&tft);
-    TFT_eSprite secondHandSprite = TFT_eSprite(&tft);
+    LGFX_Sprite backgroundSprite(&tft);
+    LGFX_Sprite hourHandSprite(&tft);
+    LGFX_Sprite minuteHandSprite(&tft);
+    LGFX_Sprite secondHandSprite(&tft);
 
     // Sprites fuer Status-/Boot-Text, nur fuer den GC9D01-Software-Rotations-
     // Workaround noetig (dort wird die HW-Rotation uebersprungen) - auf
@@ -666,8 +685,8 @@
     // Sprites for status/boot text, only needed for the GC9D01 software
     // rotation workaround (there, HW rotation is skipped) - unused on other
     // boards. Created lazily on first use (avoids wasting (P)SRAM).
-    TFT_eSprite statusSprite1 = TFT_eSprite(&tft);
-    TFT_eSprite statusSprite2 = TFT_eSprite(&tft);
+    LGFX_Sprite statusSprite1(&tft);
+    LGFX_Sprite statusSprite2(&tft);
     bool statusSprite1Created = false;
     bool statusSprite2Created = false;
 
@@ -704,20 +723,21 @@
     // run. Query via isDisplayConnected()/effectiveRotation(), never compare the value directly.
     uint8_t tftRotation1 = TFT_ROTATION1_DEFAULT;
     uint8_t tftRotation2 = TFT_ROTATION2_DEFAULT; // Rotation von Display 2 (CS2) - eigener Wert, damit beide Displays
-                                                  // unterschiedlich ausgerichtet montiert sein koennen (siehe uhr3.ino/webserver_routes.h)
+                                                  // unterschiedlich ausgerichtet montiert sein koennen (siehe uhr4.ino/webserver_routes.h)
                                                   // rotation of Display 2 (CS2) - its own value, so both displays can be
-                                                  // mounted with a different orientation (see uhr3.ino/webserver_routes.h)
+                                                  // mounted with a different orientation (see uhr4.ino/webserver_routes.h)
 
 
-    uint16_t rowBuffer[CLOCK_WIDTH];
+    uint16_t rowBuffer[CLOCK_MAX]; // Groesse fuer den groessten Displaytyp, genutzt werden CLOCK_WIDTH Eintraege
+                                   // sized for the largest display type, CLOCK_WIDTH entries are used
 
     // Steuert nur den GC9D01-Software-Rotations-Workaround (nicht "ist PSRAM
     // vorhanden" allgemein - dafuer wird ueberall psramFound() aufgerufen).
-    // Auf allen anderen Boards fest false.
+    // Nur bei Displaytypen mit swRotation (DISPLAY_GEOMETRY) moeglich.
 
     // Controls only the GC9D01 software rotation workaround (not "is PSRAM
     // available" in general - psramFound() is called directly for that).
-    // Hard-set to false on all other boards.
+    // Only possible for display types with swRotation (DISPLAY_GEOMETRY).
     static bool gc9d01SwRotation = false;
 
     uint16_t* clockFaceBuffer = nullptr;
@@ -729,8 +749,15 @@
     // Finished "clock face + hour/minute hand" per display - both barely
     // move but were re-rotated every tick before. Now rebuilt (anti-aliased)
     // only on change, otherwise just copied - frees time for the second hand.
+
+    // Als LovyanGFX-Sprite (bei Bedarf angelegt), damit die Zeiger mit
+    // pushRotatedWithAA() hineingezeichnet und das Bild per pushSprite() ins
+    // backgroundSprite kopiert werden kann.
+    // As a LovyanGFX sprite (created on demand), so the hands can be drawn in
+    // with pushRotatedWithAA() and the image copied into backgroundSprite via
+    // pushSprite().
     struct HandComposite {
-        uint16_t* buffer = nullptr;
+        LGFX_Sprite* sprite = nullptr;
         bool valid = false;
         float hourAngle = 0.0f;
         float minuteAngle = 0.0f;
@@ -765,6 +792,41 @@
     };
     ClockFrameKey lastClockFrame[2]; // [0] = Display 1, [1] = Display 2
 
+    // Teil-Aktualisierung: aendert sich zwischen zwei Frames NUR der
+    // Sekundenzeiger, zeichnet und sendet renderClockFrame() nur das Rechteck
+    // um alten + neuen Zeiger und Nabe (statt 240x240 = 115 KB per SPI).
+    // Rechteck des zuletzt gerenderten Frames - der Spiegelbetrieb schickt
+    // Display 2 dann dasselbe Rechteck (siehe updateClock()).
+
+    // Partial update: if ONLY the second hand changes between two frames,
+    // renderClockFrame() draws and sends just the rectangle around old + new
+    // hand and hub (instead of 240x240 = 115 KB via SPI). Rectangle of the
+    // last rendered frame - mirror mode then sends display 2 the same
+    // rectangle (see updateClock()).
+    bool lastRenderPartial = false;
+    bool partialUpdateEnabled = true; // zur Diagnose abschaltbar: /api/partialUpdate?enabled=0 (nicht gespeichert)
+                                      // switchable for diagnosis: /api/partialUpdate?enabled=0 (not stored)
+    float lastRenderSecondAngle = 0.0f; // Winkel des zuletzt gesendeten Sekundenzeigers (Statusseite)
+                                        // angle of the last sent second hand (status page)
+    uint32_t compositeBuildCount = 0; // zaehlt Neuaufbauten des Zwischenbilds (buildHandComposite())
+                                      // counts composite rebuilds (buildHandComposite())
+
+    // Bildrate/Zeichenzeit fuer die Statusseite (recordRenderFrame() in
+    // display.h): nur tatsaechlich gesendete Frames, alle 5 s ausgewertet.
+
+    // Frame rate/render time for the status page (recordRenderFrame() in
+    // display.h): only frames actually sent, evaluated every 5 s.
+    struct RenderStats {
+        uint32_t windowStartMillis = 0;
+        uint32_t frames = 0, partialFrames = 0;
+        uint64_t sumMicros = 0;
+        uint32_t maxMicros = 0;
+        float fps = 0.0f, avgMs = 0.0f, maxMs = 0.0f, partialPercent = 0.0f; // zuletzt ausgewertetes Fenster
+                                                                             // last evaluated window
+    };
+    RenderStats renderStats;
+    int32_t lastRenderRect[4] = { 0, 0, 0, 0 }; // x, y, w, h
+
     // Etwas anderes (Status-/Bootmeldung, Bestaetigungscode) hat aufs Display
     // gezeichnet - naechster Uhr-Frame muss voll neu gesendet werden, auch
     // wenn sich die Zeigerwinkel nicht geaendert haben (siehe beginStatusDraw()).
@@ -782,30 +844,6 @@
     // invalidates every composite image without each individual change site
     // having to know about the composite itself.
     uint32_t clockAssetGeneration = 1;
-
-    // Arbeitskopie der Zeigerpixel fuer den kantengeglaetteten Aufbau (die
-    // Sprite-eigenen readPixel()-Aufrufe waeren pro Subsample zu teuer).
-
-    // Working copy of the hand pixels for the anti-aliased rebuild (the sprite's
-    // own readPixel() calls would be too expensive per subsample).
-    uint16_t* handPixelScratch = nullptr;
-
-    // Kopie von handComposite[].buffer + darauf kantengeglaetteter Sekunden-
-    // zeiger (siehe renderClockFrame()) - NUR im tickenden (Nicht-Bahnhofsuhr-)
-    // Modus genutzt, da der Sekundenzeiger dort nur einmal pro Sekunde bewegt
-    // wird und die teurere Blendtechnik so nicht ins Gewicht faellt. Eine
-    // Kopie statt direktem Arbeiten auf handComposite[].buffer, damit der
-    // eigentliche Cache (nur Zifferblatt+Stunden-/Minutenzeiger) unveraendert
-    // bleibt und nicht bei jedem Sekundenwechsel neu aufgebaut werden muss.
-
-    // Copy of handComposite[].buffer with the anti-aliased second hand
-    // blended on top (see renderClockFrame()) - used ONLY in ticking (non-
-    // station-clock) mode, since the second hand only moves once per second
-    // there, so the costlier blend technique doesn't matter performance-wise.
-    // A copy instead of working directly on handComposite[].buffer, so the
-    // actual cache (face + hour/minute hand only) stays unchanged and doesn't
-    // need rebuilding on every second change.
-    uint16_t* secondHandCompositeScratch = nullptr;
 
     // Cache: clockFaceBuffer bereits mit currentBrightness vorberechnet (siehe
     // loadClockFace()) - vermeidet die teure Pixel-Helligkeitsanpassung bei
@@ -867,10 +905,22 @@
     uint8_t brightEndHour = 22;        // exkl. (z.B. 20)
                                        // exclusive (e.g. 20)
 
-#if defined (GC9D01)  || defined(GC9A01_WITH_BACKLIGHT)
-    float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit
-                                   // Gamma correction for brightness
-#endif
+    float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit (nur mit Backlight wirksam)
+                                   // Gamma correction for brightness (only effective with a backlight)
+
+    // Hintergrundbeleuchtung per PWM auf TFT_Backlight (Pin 3) steuern statt
+    // die Pixel abzudunkeln - Einstellung PK_USE_BACKLIGHT, ersetzt das
+    // fruehere Build GC9A01_WITH_BACKLIGHT. Ab Werk: GC9D01 an, GC9A01 aus
+    // (BACKLIGHT_DEFAULT in config.h). Umschalten: setBacklightMode().
+
+    // Control the backlight via PWM on TFT_Backlight (pin 3) instead of
+    // dimming the pixels - setting PK_USE_BACKLIGHT, replaces the former
+    // GC9A01_WITH_BACKLIGHT build. Factory: on for GC9D01, off for GC9A01
+    // (BACKLIGHT_DEFAULT in config.h). Switch via setBacklightMode().
+    bool useBacklight = false; // wird in setup() aus den Preferences geladen
+                               // loaded from preferences in setup()
+    bool backlightAttached = false; // PWM-Kanal an TFT_Backlight angehaengt (ledcAttach())
+                                    // PWM channel attached to TFT_Backlight (ledcAttach())
 
 #define ADC_SMOOTHING 20
     int adcHistory[ADC_SMOOTHING];

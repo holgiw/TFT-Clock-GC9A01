@@ -1,14 +1,12 @@
 #pragma once
+
     // Presets: Laden/Speichern/Wechseln der Anzeigekonfigurationen.
     // Benoetigt globals.h, config.h, prefs_keys.h, declarations.h (vorher eingebunden).
-
-    // Presets: load/save/switch display configurations.
-    // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file).
-
-
     // Entfernt einen alten "rotation="-Parameter aus einer Preset-URL
     // (Altlast frueherer Versionen, siehe switchToNextPreset()).
 
+    // Presets: load/save/switch display configurations.
+    // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file).
     // Removes a legacy "rotation=" parameter from a preset URL
     // (leftover from older versions, see switchToNextPreset()).
 
@@ -112,6 +110,57 @@
     }
 
 
+    // Preset-Werte URL-kodieren/-dekodieren: die Weboberflaeche wendet Presets
+    // ueber /api/setMode an (webserver.arg() dekodiert %XX und '+'), die Taste
+    // ueber switchToNextPreset() mit rohem String - presetUrlDecode() macht
+    // dort dasselbe, damit z.B. eine Zeitzone wie "<+09>-9" auf beiden Wegen
+    // gleich ankommt. Kodiert wird alles ausser A-Z a-z 0-9 - _ . , / :
+
+    // URL-encode/-decode preset values: the web UI applies presets via
+    // /api/setMode (webserver.arg() decodes %XX and '+'), the button via
+    // switchToNextPreset() with the raw string - presetUrlDecode() does the
+    // same there, so e.g. a time zone like "<+09>-9" arrives identically on
+    // both paths. Everything except A-Z a-z 0-9 - _ . , / : is encoded.
+
+    String presetUrlEncode(const String& value) {
+        static const char hex[] = "0123456789ABCDEF";
+        String out;
+        out.reserve(value.length() * 3);
+        for (size_t i = 0; i < value.length(); i++) {
+            uint8_t c = (uint8_t)value[i];
+            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == ',' || c == '/' || c == ':') {
+                out += (char)c;
+            }
+            else {
+                out += '%';
+                out += hex[c >> 4];
+                out += hex[c & 0x0F];
+            }
+        }
+        return out;
+    }
+
+    String presetUrlDecode(const String& value) {
+        String out;
+        out.reserve(value.length());
+        for (size_t i = 0; i < value.length(); i++) {
+            char c = value[i];
+            if (c == '+') {
+                out += ' ';
+            }
+            else if (c == '%' && i + 2 < value.length() && isxdigit((uint8_t)value[i + 1]) && isxdigit((uint8_t)value[i + 2])) {
+                char hexPair[3] = { value[i + 1], value[i + 2], 0 };
+                out += (char)strtol(hexPair, nullptr, 16);
+                i += 2;
+            }
+            else {
+                out += c;
+            }
+        }
+        return out;
+    }
+
+
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
     // Creates a new preset based on the current settings in the preferences
 
@@ -142,9 +191,9 @@
         bool showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
         bool smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
         // Fallback bewusst stationMode statt eines festen Literals - siehe
-        // Kommentar bei der smoothSecond-Ladezeile in uhr3.ino.
+        // Kommentar bei der smoothSecond-Ladezeile in uhr4.ino.
         // Fallback deliberately stationMode instead of a fixed literal - see
-        // the comment at the smoothSecond load line in uhr3.ino.
+        // the comment at the smoothSecond load line in uhr4.ino.
         bool smoothSecond = getSmoothSecondPref(stationMode);
         uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
@@ -165,6 +214,29 @@
         url += "&smoothSecond=" + String(smoothSecond ? "true" : "false");
         url += "&hubSize=" + String(hubSize);
         url += "&hubColor=" + String(hubColor, HEX);
+
+        // Zeitzone - z.B. fuer Weltzeit-Presets (eigenes Zifferblatt + eigene
+        // Zone). Kodiert, da POSIX-Zonen '+', '<', '>' enthalten koennen.
+        // Time zone - e.g. for world-time presets (own clock face + own zone).
+        // Encoded, since POSIX zones may contain '+', '<', '>'.
+        url += "&timeZone=" + presetUrlEncode(preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT));
+
+        // Helligkeit (siehe applyBrightnessPresetValue() in display.h) - bewusst
+        // OHNE useBacklight: das haengt an der Verdrahtung, nicht am Design.
+        // Aeltere Presets ohne diese Werte lassen die Helligkeit unveraendert.
+
+        // Brightness (see applyBrightnessPresetValue() in display.h) -
+        // deliberately WITHOUT useBacklight: that depends on the wiring, not
+        // the design. Older presets without these values leave brightness
+        // unchanged.
+        url += "&minBrightness=" + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100));
+        url += "&maxBrightness=" + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255));
+        url += "&brightStart=" + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 7));
+        url += "&brightEnd=" + String(preferences.getUChar(PK_BRIGHT_END_HOUR, 21));
+        url += "&lowThreshold=" + String(preferences.getInt(PK_LOW_THRESHOLD, 40));
+        url += "&highThreshold=" + String(preferences.getInt(PK_HIGH_THRESHOLD, 60));
+        url += "&gamma=" + String(preferences.getFloat(PK_GAMMA_BRIGHTNESS, 2.2f), 1);
+        url += "&autoBrightness=" + String(useAdc ? "true" : "false");
 
         // Speichere das Preset
         // Save the preset
@@ -402,7 +474,8 @@
             if (equalsIndex == -1) continue;
 
             String key = param.substring(0, equalsIndex);
-            String value = param.substring(equalsIndex + 1);
+            String value = presetUrlDecode(param.substring(equalsIndex + 1)); // wie webserver.arg() (siehe presetUrlDecode())
+                                                                             // like webserver.arg() (see presetUrlDecode())
 
             // Wende die Einstellungen an
             // Apply the settings
@@ -417,7 +490,10 @@
             else if (key == "handSet") {
                 preferences.putString(PK_HANDSET, value);
             }
-            else if (key == "timeZone") {
+            else if (key == "timeZone" && value != timezone) { // nur bei echter Aenderung - jedes Preset enthaelt die Zone,
+                                                               // sonst stiesse jeder Wechsel einen NTP-Abgleich an
+                                                               // only on an actual change - every preset contains the zone,
+                                                               // otherwise every switch would trigger an NTP sync
                 preferences.putString(PK_TIMEZONE, value);
 
                 // Globale timezone-Variable aktualisieren + nur die Task
@@ -468,6 +544,10 @@
                 sawSmoothSecond = true;
                 smoothSecond = (value == "1" || value.equalsIgnoreCase("true"));
                 preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
+            }
+            else {
+                applyBrightnessPresetValue(key, value); // Helligkeit, siehe display.h
+                                                        // brightness, see display.h
             }
         }
 
