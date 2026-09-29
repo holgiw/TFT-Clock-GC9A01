@@ -124,6 +124,14 @@
     // Maintenance
     constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
 
+    // Displaytyp, fuer den diese Firmware kompiliert wurde (BUILD_DISPLAY_NAME,
+    // z.B. "GC9A01_WITH_BACKLIGHT") - uhr4 stellt beim Update daraus seinen
+    // Displaytyp und die Backlight-Regelung automatisch ein.
+    // Display type this firmware was compiled for (BUILD_DISPLAY_NAME, e.g.
+    // "GC9A01_WITH_BACKLIGHT") - uhr4 uses it on update to set its display
+    // type and backlight control automatically.
+    constexpr const char* PK_BUILD_DISPLAY     = "buildDisplay";
+
     // PK_STATION_MODE: Default ueberall `true`, ausser einer Stelle mit `false`.
     // PK_BRIGHT_START_HOUR/END_HOUR: Ladefunktion nutzt 7/21, Status-Seite zeigt 8/20 - rein kosmetisch.
     // PK_MIN_BRIGHTNESS/PK_LOW_THRESHOLD/PK_HIGH_THRESHOLD/PK_CENTER_SIZE: Erststart schreibt board-abhaengige Werte, spaetere Fallbacks nutzen aber immer die Nicht-Backlight-Defaults.

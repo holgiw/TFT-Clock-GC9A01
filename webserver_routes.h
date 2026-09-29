@@ -3522,6 +3522,7 @@
             chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
 
             chunk += "<li>TFT Driver: " + tftType + "</li>";
+            chunk += "<li>Graphics Library: TFT_eSPI " + String(TFT_ESPI_VERSION) + "</li>";
 
             chunk += "<li>TFT Size: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</li>"; // CLOCK_* statt TFT_* (beim GC9D01 von TFT_eSPI auf 240 ueberschrieben)
                                                                                                        // CLOCK_* instead of TFT_* (overridden to 240 by TFT_eSPI on the GC9D01)
@@ -5257,6 +5258,7 @@
 
             chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
             chunk += "<li>TFT Driver: " + tftType + "</li>";
+            chunk += "<li>Graphics Library: TFT_eSPI " + String(TFT_ESPI_VERSION) + "</li>";
             chunk += "<li>TFT Size: " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</li>"; // CLOCK_* statt TFT_*, siehe oben
                                                                                                        // CLOCK_* instead of TFT_*, see above
             chunk += "<br>";

@@ -383,6 +383,14 @@ void setup() {
 
         preferences.begin("clock", false);
 
+        // Displaytyp dieses Builds vermerken (fuer das Update auf uhr4, siehe
+        // PK_BUILD_DISPLAY) - nur bei Aenderung schreiben, schont den Flash.
+        // Record this build's display type (for the update to uhr4, see
+        // PK_BUILD_DISPLAY) - only write on change, spares the flash.
+        if (!preferences.isKey(PK_BUILD_DISPLAY) || preferences.getString(PK_BUILD_DISPLAY, "") != BUILD_DISPLAY_NAME) {
+            preferences.putString(PK_BUILD_DISPLAY, BUILD_DISPLAY_NAME);
+        }
+
         snprintf(version, sizeof(version), "%d-%02d-%02d %02d:%02d:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 
         DEBUG_PRINTLN("[SETUP] start");

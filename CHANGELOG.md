@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an der Firmware uhr3 (TFT-Uhr mit GC9A01/GC9D01 a
 Neueste Einträge oben. Die Einträge ab 2026-09-22 sind ausführlich, ältere Zeiträume sind aus den
 Commit-Betreffen zusammengefasst.
 
+## 2026-09-29
+
+### Hinzugefügt
+- Die Firmware vermerkt beim Start in den Einstellungen (NVS-Schlüssel `buildDisplay`), für welches
+  Display sie kompiliert wurde (`BUILD_DISPLAY_NAME`: `GC9A01`, `GC9A01_WITH_BACKLIGHT`, `GC9D01`,
+  `ILI9341`); geschrieben nur bei Änderung. Der Nachfolger uhr4 stellt beim Update daraus
+  Displaytyp und Backlight-Regelung automatisch ein.
+- Status- und Info-Seite nennen die Grafikbibliothek samt Version („Graphics Library: TFT_eSPI
+  2.5.43“, aus `TFT_ESPI_VERSION`).
+
+### Geändert
+- Flash-Anleitung für Windows in `readme.txt` (Hauptordner und `build_*`) und `liesmich.txt` auf
+  das aktuelle `flashESP.bat` umgestellt: Uhr anstecken, `flashESP.bat` per Doppelklick – es findet
+  die Uhr selbst und bringt eine laufende Uhr in den Download-Modus. Kein DOS-Fenster und kein
+  Bootmodus von Hand mehr nötig; der Bootmodus steht nur noch als Abhilfe, wenn das Flashen
+  fehlschlägt.
+
 ## 2026-09-28
 
 ### Hinzugefügt
