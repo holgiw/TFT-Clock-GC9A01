@@ -526,10 +526,14 @@ if [ -z "$PORT" ]; then
             echo "  * Taucht die Uhr nach dem Anstecken mit 'dmesg | tail -n 20' bzw. 'lsusb'"
             echo "    (Espressif 303a) auf und hat sie eine Schnittstelle /dev/ttyACM... bekommen?"
             echo "  * Ist das verwendete USB-Kabel ein Datenkabel oder nur ein Ladekabel?"
+            echo "  * Neuer ESP32-S2 ohne Programm (oder mit fremdem Programm)? Er meldet sich erst im Boot-Modus:"
+            echo "    Boot-Taste halten, dann USB einstecken - danach flashESP.sh erneut starten."
             echo "No clock detected. Please check:"
             echo "  * Does the clock show up after plugging in with 'dmesg | tail -n 20' or 'lsusb'"
             echo "    (Espressif 303a) and has it been assigned a port /dev/ttyACM...?"
             echo "  * Is the USB cable a data cable or just a charging cable?"
+            echo "  * New ESP32-S2 without a program (or with a foreign program)? It only shows up in boot mode:"
+            echo "    hold the Boot button, then plug in USB - then start flashESP.sh again."
             echo
         fi
         read -r -p "Schnittstelle / port (z.B./e.g. 0 = /dev/ttyACM0, Enter = Abbruch/abort): " PORT

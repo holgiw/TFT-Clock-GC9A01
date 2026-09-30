@@ -41,12 +41,17 @@
 	Wird keine Uhr gefunden, gibt flashESP.bat Hinweise: Taucht die Uhr im Gerätemanager mit
 	einem COM Port auf? Ist das USB-Kabel ein Datenkabel?
 
+	Neuer ESP32-S2 ohne Programm (oder mit fremdem Programm): Er bekommt erst im Bootmodus einen
+	COM Port. Boot-Taste halten, dann USB einstecken (siehe 4.) und flashESP.bat starten - der ESP
+	wird als "Download-Modus" erkannt und ohne Rückfrage verwendet. Nach dem Flashen einmal Reset
+	drücken, falls die Uhr nicht von selbst startet.
+
 	Nur die Uhrzeit setzen (ohne Flashen): setTime.bat per Doppelklick - sendet die Uhrzeit des
 	PCs per USB an die laufende Uhr (auch mit COM-Nummer: "setTime.bat 4"). Nützlich für eine Uhr
 	ohne WLAN, DCF77 und RTC; eine vorhandene RTC wird mitgestellt.
 
-4. Nur falls das Flashen fehlschlägt (flashESP.bat meldet es): den ESP von Hand in den
-   Bootmodus bringen und flashESP.bat erneut starten.
+4. Bei einem neuen ESP ohne Programm oder falls das Flashen fehlschlägt (flashESP.bat meldet
+   es): den ESP von Hand in den Bootmodus bringen und flashESP.bat erneut starten.
 
 ########################################################
 	Am ESP32-S2 die Boot Taste drücken und halten.
@@ -236,12 +241,17 @@ esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bo
 	If no clock is found, flashESP.bat gives hints: Does the clock show up in Device Manager
 	with a COM port? Is the USB cable a data cable?
 
+	New ESP32-S2 without a program (or with a foreign program): it only gets a COM port in boot
+	mode. Hold the Boot button, then plug in USB (see 4.) and start flashESP.bat - the ESP is
+	detected as "download mode" and used without asking. After flashing, press Reset once if the
+	clock does not start by itself.
+
 	Only set the time (without flashing): double-click setTime.bat - sends the PC's time via USB
 	to the running clock (also with COM number: "setTime.bat 4"). Useful for a clock without
 	WiFi, DCF77 and RTC; an existing RTC is set as well.
 
-4. Only if flashing fails (flashESP.bat reports it): put the ESP into boot mode manually and
-   run flashESP.bat again.
+4. With a new ESP without a program or if flashing fails (flashESP.bat reports it): put the
+   ESP into boot mode manually and run flashESP.bat again.
 
 ########################################################
 	Press and hold the Boot button on the ESP32-S2.

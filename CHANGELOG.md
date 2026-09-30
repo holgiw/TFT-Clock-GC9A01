@@ -12,6 +12,9 @@ Neueste Einträge oben.
 ### Geändert
 - Kommentare: Sind der deutsche und englische Teil jeweils nur eine Zeile, stehen sie jetzt direkt
   untereinander ohne Leerzeile dazwischen (nur Leerzeilen entfernt, Code unverändert, kein neuer Build nötig).
+- `flashESP.bat`/`flashESP.sh`: Wird keine Uhr erkannt, nennen sie jetzt auch den Fall eines neuen ESP32-S2
+  ohne Programm (oder mit fremdem Programm) - der meldet sich erst im Bootmodus (Boot halten, USB einstecken)
+  und wird dann automatisch als Download-Modus erkannt. `readme.txt` entsprechend ergänzt.
 
 ## 2026-09-29
 
@@ -108,6 +111,9 @@ Newest entries on top.
 ### Changed
 - Comments: if the German and English part are one line each, they now sit directly below each other
   without a blank line in between (only blank lines removed, code unchanged, no new build needed).
+- `flashESP.bat`/`flashESP.sh`: if no clock is detected, they now also mention a new ESP32-S2 without a
+  program (or with a foreign program) - it only shows up in boot mode (hold Boot, plug in USB) and is then
+  detected automatically as download mode. `readme.txt` extended accordingly.
 
 ## 2026-09-29
 
