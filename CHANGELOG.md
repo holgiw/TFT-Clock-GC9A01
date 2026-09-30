@@ -50,6 +50,10 @@ Neueste Einträge oben.
 - Zifferblatt-Designer: neue Werkzeuge **Kreis** und **Kreis gefüllt**. Kreis und Ellipse werden jetzt vom
   Mittelpunkt aus aufgezogen (Abstand = Radius bzw. Halbachsen), Mitte und Radius stehen beim Ziehen unter dem Bild.
 
+### Behoben
+- Vorschau-Seite: Der Streifen lag im Zifferblatt statt darunter bzw. darüber – ein `</div>` fehlte, die Verschachtelung
+  ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
+
 ### Geändert
 - Beim Drehen eines Displays wird es vorher einmal schwarz gelöscht – es bleiben keine Reste der alten Lage
   stehen (z. B. der Uhrzeit-/Datumsstreifen des ILI9341).
@@ -196,6 +200,10 @@ Newest entries on top.
   display including the strip exactly as the clock draws it.
 - Clock face designer: new tools **Circle** and **Filled circle**. Circle and ellipse are now dragged out from the
   centre (distance = radius or semi-axes), centre and radius are shown below the image while dragging.
+
+### Fixed
+- Preview page: the strip lay inside the clock face instead of below or above it – a `</div>` was missing, the
+  nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
 - When a display is rotated, it is cleared to black once beforehand – no remains of the old orientation stay

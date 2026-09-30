@@ -4260,9 +4260,17 @@
             // the hands' pixel offsets don't need to be recalculated this way.
 
             chunk += "<div id='previewSizer' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;margin:20px auto;'>";
-            chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;transform-origin:top left;'>";
+
+            // Mit Streifen ein gemeinsamer Rahmen ums ganze Display (outline, aendert die Groesse nicht) - Zifferblatt und
+            // Streifen stossen nahtlos aneinander wie auf dem Display.
+
+            // With a strip one shared frame around the whole display (outline, doesn't change the size) - clock face
+            // and strip join seamlessly as on the display.
+
+            chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;transform-origin:top left;" +
+                     String(stripPrevH > 0 ? "outline:3px solid #333;" : "") + "'>";
             if (stripBefore) chunk += stripCanvas;
-            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;border:3px solid #333;" + String(displayGeom->round ? "border-radius:50%;" : "") + "background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
+            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;" + String(stripPrevH > 0 ? "" : "border:3px solid #333;") + String(displayGeom->round ? "border-radius:50%;" : "") + "background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
             chunk += handImg("liveHourHandFull", hourB64, hourW);
             chunk += handImg("liveMinuteHandFull", minuteB64, minuteW);
@@ -4270,6 +4278,8 @@
                 chunk += handImg("liveSecondHandFull", secondB64, secondW);
             }
             chunk += "<div id='liveHubFull' style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
+            chunk += "</div>"; // Ende Zeiger-Drehpunkt
+                               // end hand pivot
             chunk += "</div>"; // Ende Zifferblatt-Kreis
                                // end clock-face circle
             if (!stripBefore) chunk += stripCanvas;
