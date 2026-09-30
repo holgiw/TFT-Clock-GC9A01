@@ -55,6 +55,16 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Zifferblatt-Übersicht (ILI9341): Zifferblätter mit Streifen-Grafik zeigen ihren Streifen nahtlos darunter bzw.
+  darüber, mit Uhrzeit/Datum in den aktuellen Einstellungen (Demo-Zeit 10:10).
+- Dateimanager gliedert die Dateien in einklappbare Abschnitte (Zifferblätter, Streifen-Grafiken, Zeiger,
+  Schriften, Logdateien, Sonstige) mit Anzahl und Größe; „Alle auswählen“ je Abschnitt und insgesamt. Der Zustand
+  auf/zu bleibt im Browser gespeichert.
+- Kopfzeile jeder Seite zeigt neben der Adresse den Displaytyp (z.B. `ILI9341`).
+- Dateimanager: Spalte „Geändert“ mit Datum/Uhrzeit der letzten Änderung (LittleFS speichert sie; Dateien von vor
+  der ersten Uhrzeit ohne Datum) und Mehrfachauswahl zum Löschen („Ausgewählte löschen“, mit denselben Folgen wie
+  das Einzel-Löschen: Presets, Streifen-Grafik usw.). Hochgeladene Schriften heißen immer `font_<Name>`, in den
+  Auswahllisten ohne `font_`.
 - Dateimanager zeigt oben den belegten und freien Speicher ("Speicher belegt: … KB / … KB (Frei: … KB)").
 - Dateiname der Komplettsicherung enthält neben dem Hostnamen den Displaytyp, z.B.
   `uhr4-backup-clock-E405-ILI9341-20260930.tar`.
@@ -209,6 +219,16 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Clock face overview (ILI9341): clock faces with a strip graphic show their strip seamlessly below or above,
+  with time/date in the current settings (demo time 10:10).
+- The file manager groups the files into collapsible sections (clock faces, strip graphics, hands, fonts, log
+  files, other) with count and size; "Select all" per section and overall. The open/closed state is remembered in
+  the browser.
+- The header of every page shows the display type next to the address (e.g. `ILI9341`).
+- File manager: column "Modified" with date/time of the last change (LittleFS stores it; files from before the
+  first time without a date) and multi-selection for deleting ("Delete selected", with the same consequences as
+  deleting a single file: presets, strip graphic etc.). Uploaded fonts are always named `font_<name>`, shown
+  without `font_` in the selection lists.
 - The file manager shows used and free storage at the top ("Storage used: … KB / … KB (Free: … KB)").
 - The full backup's file name contains the display type next to the host name, e.g.
   `uhr4-backup-clock-E405-ILI9341-20260930.tar`.

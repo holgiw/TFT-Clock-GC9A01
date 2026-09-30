@@ -5057,6 +5057,76 @@
     }
 
 
+    // Den zuletzt gezeichneten Streifen (infoStripSprite) verkleinert ab Zeile y0 in ein Sprite uebernehmen -
+    // Mittelwert je Zielpixel, damit die Schrift lesbar bleibt.
+
+    // Take over the last drawn strip (infoStripSprite) scaled down into a sprite from row y0 - average per target
+    // pixel, so the text stays readable.
+
+    void drawStripThumb(LGFX_Sprite& canvas, int y0, int w, int h) {
+        const int sw = infoStripSprite.width(), sh = infoStripSprite.height();
+        for (int y = 0; y < h; y++) {
+            int sy0 = y * sh / h, sy1 = max(sy0 + 1, (y + 1) * sh / h);
+            for (int x = 0; x < w; x++) {
+                int sx0 = x * sw / w, sx1 = max(sx0 + 1, (x + 1) * sw / w);
+                uint32_t r = 0, g = 0, b = 0, n = 0;
+                for (int yy = sy0; yy < sy1; yy++) {
+                    for (int xx = sx0; xx < sx1; xx++) {
+                        uint16_t px = infoStripSprite.readPixel(xx, yy);
+                        r += (px >> 11) & 0x1F; g += (px >> 5) & 0x3F; b += px & 0x1F; n++;
+                    }
+                }
+                rowBuffer[x] = (uint16_t)(((r / n) << 11) | ((g / n) << 5) | (b / n));
+            }
+            canvas.pushImage(0, y0 + y, w, 1, rowBuffer);
+        }
+    }
+
+
+    // Streifen eines Zifferblatts als kleines BMP fuer die Zifferblatt-Uebersicht: aktuelle Einstellungen,
+    // Streifen-Grafik dieses Zifferblatts, Demo-Zeit 10:10:30 wie in den Preset-Vorschauen. Aufrufer gibt outBytes
+    // mit delete[] frei.
+
+    // A clock face's strip as a small BMP for the clock face overview: current settings, this face's strip
+    // graphic, demo time 10:10:30 as in the preset previews. The caller frees outBytes with delete[].
+
+    bool generateFaceStripBmp(const String& faceFile, int outW, uint8_t** outBytes, size_t& outSize) {
+        const int outH = max(1, outW * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH);
+        bool before;
+        if (TFT_HEIGHT <= CLOCK_HEIGHT || !renderPresetStripPreview("", faceFile, before)) return false;
+        LGFX_Sprite canvas(&tft);
+        if (!createSprite16(canvas, outW, outH)) return false;
+        drawStripThumb(canvas, 0, outW, outH);
+
+        const int rowSize = ((outW * 2 + 3) / 4) * 4;
+        const int fileSize = 66 + rowSize * outH;
+        uint8_t* bmp = new (std::nothrow) uint8_t[fileSize];
+        if (!bmp) return false;
+        memset(bmp, 0, fileSize);
+        bmp[0] = 'B'; bmp[1] = 'M';
+        *(uint32_t*)&bmp[2] = fileSize;
+        *(uint32_t*)&bmp[10] = 66;
+        *(uint32_t*)&bmp[14] = 40;
+        *(int32_t*)&bmp[18] = outW;
+        *(int32_t*)&bmp[22] = -outH; // Top-down-BMP
+                                     // top-down BMP
+        *(uint16_t*)&bmp[26] = 1;
+        *(uint16_t*)&bmp[28] = 16;
+        *(uint32_t*)&bmp[30] = 3; // BI_BITFIELDS
+        *(uint32_t*)&bmp[34] = rowSize * outH;
+        *(uint32_t*)&bmp[54] = 0xF800;
+        *(uint32_t*)&bmp[58] = 0x07E0;
+        *(uint32_t*)&bmp[62] = 0x001F;
+        for (int y = 0; y < outH; y++) {
+            uint16_t* row = (uint16_t*)(bmp + 66 + y * rowSize);
+            for (int x = 0; x < outW; x++) row[x] = canvas.readPixel(x, y);
+        }
+        *outBytes = bmp;
+        outSize = (size_t)fileSize;
+        return true;
+    }
+
+
     // Erzeugt ein Vorschaubild fuer die Preset-Verwaltung: Komposition aus Zifferblatt,
     // Zeigern (Demo-Zeit 10:10:30) und Mittelpunkt in angegebener Farbe/Groesse.
     // Liefert ein Standard-BMP im RAM zurueck (Aufrufer muss outBytes freigeben).
@@ -5097,25 +5167,7 @@
         // Streifen verkleinert uebernehmen (Mittelwert je Zielpixel, damit die Schrift lesbar bleibt)
         // Take over the strip scaled down (average per target pixel, so the text stays readable)
 
-        if (stripOk) {
-            const int sw = infoStripSprite.width(), sh = infoStripSprite.height();
-            const int ty0 = stripBeforeClock ? 0 : PREVIEW_SIZE;
-            for (int y = 0; y < stripPrevH; y++) {
-                int sy0 = y * sh / stripPrevH, sy1 = max(sy0 + 1, (y + 1) * sh / stripPrevH);
-                for (int x = 0; x < PREVIEW_SIZE; x++) {
-                    int sx0 = x * sw / PREVIEW_SIZE, sx1 = max(sx0 + 1, (x + 1) * sw / PREVIEW_SIZE);
-                    uint32_t r = 0, g = 0, b = 0, n = 0;
-                    for (int yy = sy0; yy < sy1; yy++) {
-                        for (int xx = sx0; xx < sx1; xx++) {
-                            uint16_t px = infoStripSprite.readPixel(xx, yy);
-                            r += (px >> 11) & 0x1F; g += (px >> 5) & 0x3F; b += px & 0x1F; n++;
-                        }
-                    }
-                    rowBuffer[x] = (uint16_t)(((r / n) << 11) | ((g / n) << 5) | (b / n));
-                }
-                canvas.pushImage(0, ty0 + y, PREVIEW_SIZE, 1, rowBuffer);
-            }
-        }
+        if (stripOk) drawStripThumb(canvas, stripBeforeClock ? 0 : PREVIEW_SIZE, PREVIEW_SIZE, stripPrevH);
 
         // 1) Zifferblatt laden und auf Vorschaugroesse verkleinern (Datei, sonst das eingebaute
         // Standard-Zifferblatt - wie /preview_defaultface).

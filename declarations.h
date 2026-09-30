@@ -181,6 +181,8 @@
     uint16_t stripColor565(uint32_t rgb) ;
     bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime = nullptr) ;
     bool renderPresetStripPreview(const String& presetUrl, const String& faceFile, bool& before) ;
+    void drawStripThumb(LGFX_Sprite& canvas, int y0, int w, int h) ;
+    bool generateFaceStripBmp(const String& faceFile, int outW, uint8_t** outBytes, size_t& outSize) ;
     void drawInfoStrips() ;
     void updateClock() ;
     void updateBrightness() ;
@@ -295,6 +297,8 @@
                                             // in the same network as the clock (STA or AP) or RFC1918 fallback? (see webserver_routes.h) - hides the Status tab on external access
                                             // RFC1918 range? (see webserver_routes.h) - hides the Status tab on external access
     String escapeHtmlText(const String& text) ;
+    bool deleteFileWithSideEffects(const String& path) ; // Datei samt Presets/Streifen-Folgen loeschen (siehe webserver_routes.h)
+                                                         // delete a file incl. preset/strip consequences (see webserver_routes.h)
     String fileManagerReturnTarget(const String& from) ; // /delete- und /rename-Rueckspring-Ziel anhand des "from"-Parameters (siehe webserver_routes.h)
                                                          // /delete and /rename return target based on the "from" parameter (see webserver_routes.h)
     String escapeJsonText(const String& text) ;

@@ -384,6 +384,71 @@
     }
 
 
+    // Loescht eine Datei samt Folgen: Presets, die auf ein Zifferblatt oder einen Zeigersatz verweisen, die
+    // Streifen-Grafik eines Zifferblatts und neu zu ladende Streifen-Daten. false, wenn es die Datei nicht gibt.
+
+    // Deletes a file including its consequences: presets referring to a clock face or hand set, a clock face's
+    // strip graphic and strip data to reload. false if the file does not exist.
+
+    bool deleteFileWithSideEffects(const String& path) {
+        if (!LittleFS.exists(path)) return false;
+        LittleFS.remove(path);
+
+        // Falls ein Zifferblatt oder Teil eines Zeigersatzes geloescht
+        // wurde, alle Presets entfernen, die darauf verweisen.
+
+        // If a clock face or part of a hand set was deleted, remove all
+        // presets that reference it.
+
+        String name = path.substring(1); // fuehrenden Slash entfernen
+                                         // remove the leading slash
+        if (name.startsWith("face_") && name.endsWith(".bmp")) {
+            removeOrphanedPresets(path, "");
+
+            // Streifen-Grafik des Zifferblatts gleich mit loeschen
+            // Delete the clock face's strip graphic as well
+
+            String stripPath = stripPathForFace(path);
+            if (stripPath.length() && LittleFS.exists(stripPath)) LittleFS.remove(stripPath);
+            stripImageFor = "?";
+            infoStripDirty[0] = infoStripDirty[1] = true;
+        }
+        else if (name.startsWith("strip_")) {
+            stripImageFor = "?";
+            infoStripDirty[0] = infoStripDirty[1] = true;
+        }
+        else if (name.startsWith("stripfont_")) {
+            stripVlwStale = true; // VLW-Schrift weg - der Streifen faellt auf GLCD zurueck
+                                  // VLW font gone - the strip falls back to GLCD
+            infoStripDirty[0] = infoStripDirty[1] = true;
+        }
+        else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
+            int start = 8; // Laenge von "hand_set"
+                           // length of "hand_set"
+            int end = name.indexOf('_', start);
+            if (end > start) {
+                String setId = name.substring(start, end);
+                removeOrphanedPresets("", setId);
+
+                // Falls der betroffene Zeigersatz gerade aktiv war,
+                // sofort auf den eingebauten Standard zurueckschalten.
+
+                // If the affected hand set was currently active, switch back to the
+                // built-in default immediately.
+
+                if (preferences.getString(PK_HANDSET, "") == setId) {
+                    preferences.putString(PK_HANDSET, "default");
+                    freeClockFaceBuffer();
+                    loadClockFace();
+                    loadHandSprites();
+                    updateClock();
+                }
+            }
+        }
+        return true;
+    }
+
+
     // Seite, zu der /delete und /rename zurueckspringen: /files und /listfilesFaces haengen ein explizites
     // "from" an. Unbekannt/fehlend -> allgemeiner Dateimanager.
 
@@ -462,6 +527,11 @@
             html += "<h1>Access Point</h1>";
             html += "<span class='ip-hint'><a href='http://" + WiFi.softAPIP().toString() + "/'>" + WiFi.softAPIP().toString() + "</a></span>";
         }
+
+        // Displaytyp neben der Adresse (Schreibweise wie in flashESP und der Displayauswahl)
+        // Display type next to the address (spelling as in flashESP and the display selection)
+
+        html += "<span class='ip-hint' title='" + translate("Display type") + "'>" + String(displayChoiceName(displayType, useBacklight)) + "</span>";
         html += "</div>";
 
         html += "<div class='status-strip'>";
@@ -3236,81 +3306,149 @@
             chunk += "<h2>" + translate("All Files on LittleFS") + "</h2>";
             chunk += "<p>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes()) + "</p>"; // wie bei Zifferblaettern/Zeigern
                                                                                                         // as for faces/hands
-            chunk += "<table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
-
+            chunk += "<div style='display:inline-block;text-align:left;'>";
+            chunk += "<label><input type='checkbox' id='fselAll'> " + translate("Select all") + "</label>";
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Erst alle Dateinamen sammeln und natuerlich sortieren (Zahlen im
-            // Namen numerisch statt alphabetisch, z.B. hand_set2 vor hand_set10),
-            // bevor die Tabelle daraus aufgebaut wird.
+            // Name, Groesse und Datum beim Durchlaufen des Verzeichnisses lesen (ohne jede Datei einzeln zu oeffnen)
+            // und natuerlich sortieren - Zahlen im Namen numerisch, z.B. hand_set2 vor hand_set10.
 
-            // First collect all filenames and sort them naturally (numbers in the
-            // name sorted numerically instead of alphabetically, e.g. hand_set2
-            // before hand_set10), before building the table from them.
+            // Read name, size and date while walking the directory (without opening every file separately) and sort
+            // naturally - numbers in the name numerically, e.g. hand_set2 before hand_set10.
 
-            std::vector<String> fileNames;
+            struct FileEntry {
+                String name;
+                size_t size;
+                time_t modified;
+            };
+            std::vector<FileEntry> entries;
             File root = LittleFS.open("/");
             File file = root.openNextFile();
             while (file) {
-                fileNames.push_back(String(file.name()));
+                entries.push_back({ String(file.name()), file.size(), file.getLastWrite() });
                 file = root.openNextFile();
             }
-            naturalSortNames(fileNames);
+            for (size_t i = 1; i < entries.size(); i++) { // Einfuegesortieren wie naturalSortNames()
+                                                          // insertion sort like naturalSortNames()
+                FileEntry current = entries[i];
+                size_t j = i;
+                while (j > 0 && naturalLess(current.name, entries[j - 1].name)) {
+                    entries[j] = entries[j - 1];
+                    j--;
+                }
+                entries[j] = current;
+            }
+
+            // Abschnitte je Dateiart, einklappbar (Zustand merkt sich der Browser, siehe Skript unten)
+            // Sections per file type, collapsible (the browser remembers the state, see the script below)
+
+            static const char* const groupKeys[] = { "faces", "strips", "hands", "fonts", "logs", "other" };
+            static const char* const groupTitles[] = { "Clock faces", "Strip graphics", "Hand sets", "Fonts", "Log files", "Other files" };
+            auto groupOf = [](const String& n) -> int {
+                if (n.startsWith("face_")) return 0;
+                if (n.startsWith("strip_")) return 1;
+                if (n.startsWith("hand_set")) return 2;
+                if (n.startsWith("font_") || n.startsWith("stripfont_")) return 3;
+                if (n.endsWith(".log")) return 4;
+                return 5;
+            };
 
             int rowCount = 0;
-            for (const String& name : fileNames) {
-                String openPath = name.startsWith("/") ? name : "/" + name;
-                File f = LittleFS.open(openPath, "r");
-                size_t fileSize = f ? f.size() : 0;
-                if (f) f.close();
-                String info = getBmpInfo(name);
-
-                // Zeigerdateien mit Formatangabe: in einem Satz sind verschiedene
-                // gueltige Groessen normal (der Designer speichert so klein wie moeglich).
-
-                // Hand files with a format label: different valid sizes within one set
-                // are normal (the designer saves as small as possible).
-
-                if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
-                    String label = handFormatLabel(openPath);
-                    if (label.length()) info += " (" + label + ")";
+            for (int g = 0; g < 6; g++) {
+                size_t count = 0, bytes = 0;
+                for (const FileEntry& e : entries) {
+                    if (groupOf(e.name) == g) { count++; bytes += e.size; }
                 }
-                chunk += "<tr><td style='text-align:left;'>" + name + "</td><td align=right>" + String(fileSize) + "</td>";
-                chunk += "<td align=right>" + String(info) + "</td>";
-                chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
+                if (!count) continue;
+                chunk += "<details open data-g='" + String(groupKeys[g]) + "' style='margin:12px 0;'>";
+                chunk += "<summary style='cursor:pointer;font-weight:bold;'>" + translate(groupTitles[g]) + " (" + String(count) + ", " + String((bytes + 1023) / 1024) + " KB)</summary>";
+                chunk += "<table border = '1'><tr><th><input type='checkbox' class='fselGroup' title='" + translate("Select all") + "'></th><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Modified") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
 
-                // Scale-Option nur für .bmp-Dateien anzeigen
-                // Show the scale option only for .bmp files
+                for (const FileEntry& e : entries) {
+                    if (groupOf(e.name) != g) continue;
+                    const String& name = e.name;
+                    String openPath = name.startsWith("/") ? name : "/" + name;
+                    String info = getBmpInfo(name);
 
-                if (name.endsWith(".bmp")) {
-                    chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
-                    chunk += "<a href='/rename_form?file=" + name + "&from=files' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
+                    // Aenderungsdatum (LittleFS speichert es) - Dateien von vor der ersten Uhrzeit (um 1970) ohne Datum
+                    // Modification date (LittleFS stores it) - files from before the first time (around 1970) without date
+
+                    String modifiedText = "&ndash;";
+                    if (e.modified > 1577836800) { // nach dem 1.1.2020 / after 1 Jan 2020
+                        struct tm lt;
+                        localtime_r(&e.modified, &lt);
+                        char buf[20];
+                        strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M", &lt);
+                        modifiedText = buf;
+                    }
+
+                    // Zeigerdateien mit Formatangabe: in einem Satz sind verschiedene
+                    // gueltige Groessen normal (der Designer speichert so klein wie moeglich).
+
+                    // Hand files with a format label: different valid sizes within one set
+                    // are normal (the designer saves as small as possible).
+
+                    if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
+                        String label = handFormatLabel(openPath);
+                        if (label.length()) info += " (" + label + ")";
+                    }
+                    chunk += "<tr><td><input type='checkbox' class='fsel' value='" + name + "'></td><td style='text-align:left;'>" + name + "</td><td align=right>" + String(e.size) + "</td>";
+                    chunk += "<td align=right>" + modifiedText + "</td>";
+                    chunk += "<td align=right>" + String(info) + "</td>";
+                    chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
+
+                    // Scale-Option nur für .bmp-Dateien anzeigen
+                    // Show the scale option only for .bmp files
+
+                    if (name.endsWith(".bmp")) {
+                        chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
+                        chunk += "<a href='/rename_form?file=" + name + "&from=files' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
+                    }
+                    else {
+                        chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#128208;</span> ";
+                        chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#9999;&#65039;</span> ";
+                    }
+
+                    chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;&#65039;</a> ";
+                    chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;&#65039;</a> "; // "View"-Link für Logdateien
+                                                                                                                           // "View" link for log files
+
+                    chunk += "</td></tr>";
+
+                    // Alle paar Zeilen zwischendurch senden, damit der Puffer auch
+                    // bei sehr vielen Dateien nicht unbegrenzt waechst.
+
+                    // Send every few lines in between so the buffer does not grow
+                    // unbounded even with very many files.
+
+                    rowCount++;
+                    if (rowCount % 5 == 0) {
+                        webserver.sendContent(chunk);
+                        chunk = "";
+                    }
                 }
-                else {
-                    chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#128208;</span> ";
-                    chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#9999;&#65039;</span> ";
-                }
-                       
-                chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;&#65039;</a> ";
-                chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;&#65039;</a> "; // "View"-Link für Logdateien
-                                                                                                                       // "View" link for log files
-
-                chunk += "</td></tr>";
-
-                // Alle paar Zeilen zwischendurch senden, damit der Puffer auch
-                // bei sehr vielen Dateien nicht unbegrenzt waechst.
-
-                // Send every few lines in between so the buffer does not grow
-                // unbounded even with very many files.
-
-                rowCount++;
-                if (rowCount % 5 == 0) {
-                    webserver.sendContent(chunk);
-                    chunk = "";
-                }
+                chunk += "</table></details>";
             }
-            chunk += "</table><br><br>";
+            chunk += "</div><br><br>";
+
+            // Mehrfachauswahl: Texte als data-Attribute, damit der Browser die HTML-Entities der Uebersetzung aufloest
+            // Multi-selection: texts as data attributes, so the browser resolves the translation's HTML entities
+
+            chunk += "<button type='button' id='fselDel' data-none='" + translate("No files selected") + "' data-ask='" + translate("Delete the selected files?") + "'>" + translate("Delete selected") + "</button><br><br>";
+            chunk += "<script>(function(){";
+            chunk += "var all=document.getElementById('fselAll'),btn=document.getElementById('fselDel');";
+            chunk += "all.onchange=function(){document.querySelectorAll('.fsel,.fselGroup').forEach(function(c){c.checked=all.checked;});};";
+            chunk += "document.querySelectorAll('.fselGroup').forEach(function(g){g.onchange=function(){g.closest('table').querySelectorAll('.fsel').forEach(function(c){c.checked=g.checked;});};});";
+            chunk += "var closed=[];try{closed=JSON.parse(localStorage.getItem('uhr4FilesClosed')||'[]');}catch(e){}";
+            chunk += "document.querySelectorAll('details[data-g]').forEach(function(d){if(closed.indexOf(d.dataset.g)>=0)d.open=false;";
+            chunk += "d.addEventListener('toggle',function(){var k=d.dataset.g,i=closed.indexOf(k);if(d.open&&i>=0)closed.splice(i,1);if(!d.open&&i<0)closed.push(k);";
+            chunk += "try{localStorage.setItem('uhr4FilesClosed',JSON.stringify(closed));}catch(e){}});});";
+            chunk += "btn.onclick=function(){var s=[].map.call(document.querySelectorAll('.fsel:checked'),function(c){return c.value;});";
+            chunk += "if(!s.length){alert(btn.dataset.none);return;}if(!confirm(btn.dataset.ask+'\\n\\n'+s.join('\\n')))return;";
+            chunk += "var f=document.createElement('form');f.method='POST';f.action='/deletemulti';";
+            chunk += "s.forEach(function(n){var i=document.createElement('input');i.type='hidden';i.name='file';i.value=n;f.appendChild(i);});";
+            chunk += "document.body.appendChild(f);f.submit();};})();</script>";
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
@@ -3671,13 +3809,11 @@
             chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
             chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
 
-            // Bugfix: getUInt() auf einem mit putLong() geschriebenen Key liefert
-            // wegen NVS-Typkonflikt stillschweigend den Default. Ausserdem war das
-            // Label falsch: gespeichert wird RGB888, nicht RGB565.
+            // getLong() wie beim Schreiben (putLong()) - getUInt() lieferte wegen des NVS-Typs
+            // stillschweigend den Default. Gespeichert ist RGB888.
 
-            // Bugfix: getUInt() on a key written with putLong() silently returns
-            // the default due to an NVS type mismatch. The label was also wrong:
-            // what's stored is RGB888, not RGB565.
+            // getLong() as when writing (putLong()) - getUInt() would silently return the default due to the
+            // NVS type. Stored is RGB888.
 
             chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
             chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
@@ -3748,6 +3884,23 @@
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
                                        // signal the end of the chunked transfer
+            });
+
+        // Streifen eines Zifferblatts fuer die Zifferblatt-Uebersicht (nur Displays mit Streifen, ILI9341)
+        // A clock face's strip for the clock face overview (only displays with a strip, ILI9341)
+
+        webserver.on("/strippreview", HTTP_GET, []() {
+            String path = webserver.arg("file");
+            if (!path.startsWith("/")) path = "/" + path;
+            uint8_t* bmpBytes = nullptr;
+            size_t bmpSize = 0;
+            if (generateFaceStripBmp(path, 80, &bmpBytes, bmpSize)) {
+                webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
+                delete[] bmpBytes;
+            }
+            else {
+                webserver.send(404, "text/plain", "no strip");
+            }
             });
 
         // Kleine Vorschau (80x80) fuer hochgeladene Zifferblaetter - siehe
@@ -4212,11 +4365,8 @@
                        "px;transform-origin:" + scaledPivotX + "px " + scaledPivotY + "px;'>";
             };
 
-            // hubSize ist ein Radius, der CSS-Kreis braucht aber den Durchmesser -
-            // Bugfix: fehlende Verdopplung liess den Punkt halb so gross wirken.
-
-            // hubSize is a radius, but the CSS circle needs the diameter -
-            // bugfix: the missing doubling made the hub look half as large.
+            // hubSize ist ein Radius, der CSS-Kreis braucht den Durchmesser - daher verdoppeln.
+            // hubSize is a radius, the CSS circle needs the diameter - hence doubled.
 
             int scaledHubSize = (int)(hubSize * 2 * scaleFactor + 0.5);
             if (scaledHubSize < 4) scaledHubSize = 4;
@@ -4928,6 +5078,21 @@
 
             String activeBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
 
+            // Vorschaubild eines Zifferblatts; hat es eine Streifen-Grafik (ILI9341), haengt der Streifen nahtlos
+            // darunter bzw. darueber, gemeinsamer Rahmen wie ein Display.
+
+            // Preview image of a clock face; if it has a strip graphic (ILI9341), the strip hangs seamlessly below or
+            // above it, one shared frame like a display.
+
+            auto faceThumb = [](const String& previewUrl, const String& faceParam) -> String {
+                String stripPath = stripPathForFace(faceParam);
+                if (TFT_HEIGHT <= CLOCK_HEIGHT || !stripPath.length() || !LittleFS.exists(stripPath)) return "<img src='" + previewUrl + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+                String strip = "<img src='/strippreview?file=" + faceParam + "' style='display:block;width:80px;height:" +
+                               String(80 * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH) + "px'>";
+                String face = "<img src='" + previewUrl + "' style='display:block;width:80px;height:80px'>";
+                return "<span style='display:inline-block;border:1px solid #ccc;line-height:0;'>" + (stripBefore ? strip + face : face + strip) + "</span>";
+            };
+
             // Eingebautes Standard-Zifferblatt hinzufuegen
             // Add built-in default face
 
@@ -4940,7 +5105,7 @@
             // address.
 
             chunk += "<a href='/setbackground?file=face_default.bmp'>";
-            chunk += "<img src='/preview_defaultface' style='width:80px;height:80px;border:1px solid #ccc'>";
+            chunk += faceThumb("/preview_defaultface", "face_default.bmp");
             chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (" + translate("active") + ")" : "");
             chunk += "<br><a href='/setbackground?file=face_default.bmp&designer=1'>" + translate("Designer") + "</a>";
             chunk += "</div>";
@@ -4989,7 +5154,7 @@
                 String safeShortName = escapeHtmlText(shortName);
                 chunk += "<div style='text-align:center;width:100px;'>";
                 chunk += "<a href='/setbackground?file=" + safeShortName + "'>";
-                chunk += "<img src='/facepreview?file=" + safeName + "' style='width:80px;height:80px;border:1px solid #ccc'>";
+                chunk += faceThumb("/facepreview?file=" + safeName, safeName);
                 chunk += "</a><br>" + escapeHtmlText(displayName) + String(isActive ? " (" + translate("active") + ")" : "");
                 chunk += "<br><a href='/setbackground?file=" + safeShortName + "&designer=1'>" + translate("Designer") + "</a>";
                 chunk += "<br><a href='/rename_form?file=" + safeName + "&from=listfilesFaces'>" + translate("Rename") + "</a> ";
@@ -5924,11 +6089,8 @@
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothMinute' value='1' ";
 
-            // Bugfix: Default muss false sein, sonst zeigte die Checkbox nach
-            // einem Werksreset faelschlich "aktiviert".
-
-            // Bugfix: default must be false, otherwise the checkbox falsely
-            // showed "enabled" after a factory reset.
+            // Default false - sonst zeigte die Checkbox nach einem Werksreset faelschlich "aktiviert".
+            // Default false - otherwise the checkbox would falsely show "enabled" after a factory reset.
 
             chunk += preferences.getBool(PK_SMOOTH_MINUTE, false) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
@@ -6748,61 +6910,7 @@
                 String path = webserver.arg("file");
                 //path.replace(".", "");
                 if (!path.startsWith("/")) path = "/" + path;
-                if (LittleFS.exists(path)) {
-                    LittleFS.remove(path);
-
-                    // Falls ein Zifferblatt oder Teil eines Zeigersatzes geloescht
-                    // wurde, alle Presets entfernen, die darauf verweisen.
-
-                    // If a clock face or part of a hand set was deleted, remove all
-                    // presets that reference it.
-
-                    String name = path.substring(1); // fuehrenden Slash entfernen
-                                                     // remove the leading slash
-                    if (name.startsWith("face_") && name.endsWith(".bmp")) {
-                        removeOrphanedPresets(path, "");
-
-                        // Streifen-Grafik des Zifferblatts gleich mit loeschen
-                        // Delete the clock face's strip graphic as well
-
-                        String stripPath = stripPathForFace(path);
-                        if (stripPath.length() && LittleFS.exists(stripPath)) LittleFS.remove(stripPath);
-                        stripImageFor = "?";
-                        infoStripDirty[0] = infoStripDirty[1] = true;
-                    }
-                    else if (name.startsWith("strip_")) {
-                        stripImageFor = "?";
-                        infoStripDirty[0] = infoStripDirty[1] = true;
-                    }
-                    else if (name.startsWith("stripfont_")) {
-                        stripVlwStale = true; // VLW-Schrift weg - der Streifen faellt auf GLCD zurueck
-                                              // VLW font gone - the strip falls back to GLCD
-                        infoStripDirty[0] = infoStripDirty[1] = true;
-                    }
-                    else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
-                        int start = 8; // Laenge von "hand_set"
-                                       // length of "hand_set"
-                        int end = name.indexOf('_', start);
-                        if (end > start) {
-                            String setId = name.substring(start, end);
-                            removeOrphanedPresets("", setId);
-
-                            // Falls der betroffene Zeigersatz gerade aktiv war,
-                            // sofort auf den eingebauten Standard zurueckschalten.
-
-                            // If the affected hand set was currently active, switch back to the
-                            // built-in default immediately.
-
-                            if (preferences.getString(PK_HANDSET, "") == setId) {
-                                preferences.putString(PK_HANDSET, "default");
-                                freeClockFaceBuffer();
-                                loadClockFace();
-                                loadHandSprites();
-                                updateClock();
-                            }
-                        }
-                    }
-
+                if (deleteFileWithSideEffects(path)) {
                     String redirectTarget = fileManagerReturnTarget(webserver.arg("from"));
                     redirectTo(redirectTarget + "?msg=File%20deleted");
                 }
@@ -6820,6 +6928,27 @@
 
                 webserver.send(400, "text/plain", "Missing parameter: file");
             }
+            });
+
+        // Mehrere Dateien auf einmal loeschen (Auswahl im Dateimanager) - wie /delete, nur aus einem privaten Netz
+        // Delete several files at once (selection in the file manager) - like /delete, only from a private network
+
+        webserver.on("/deletemulti", HTTP_POST, []() {
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
+                return;
+            }
+            int deleted = 0;
+            for (int i = 0; i < webserver.args(); i++) {
+                if (webserver.argName(i) != "file") continue;
+                String path = webserver.arg(i);
+                if (!path.startsWith("/")) path = "/" + path;
+                path = String(path.c_str()); // an einem eingebetteten Nullbyte kappen (wie /download)
+                                             // truncate at an embedded null byte (like /download)
+                if (path.indexOf("..") >= 0) continue;
+                if (deleteFileWithSideEffects(path)) deleted++;
+            }
+            redirectTo(String("/files?msg=") + (deleted ? "Files%20deleted" : "No%20files%20selected"));
             });
 
         // Einzelnes Preset loeschen (Slot wird dadurch wieder frei fuer

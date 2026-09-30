@@ -845,7 +845,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     var f = this.files[0], input = this;
     if (!f) return;
     var ext = (/\.(ttf|otf|woff2?)$/i.exec(f.name) || [])[1];
-    var label = f.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 30) || 'font';
+    var label = f.name.replace(/\.[^.]+$/, '').replace(/^font_/i, '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 30) || 'font';
     f.arrayBuffer().then(function (ab) {
       return new FontFace('UF_' + label, ab).load().then(function (face) {
         document.fonts.add(face);
