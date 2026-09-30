@@ -21,8 +21,15 @@ Neueste Einträge oben.
   Schriften (.ttf/.otf/.woff) werden als `font_<Name>.*` auf der Uhr gespeichert und stehen für Text, die Ziffern im
   Generator und den Streifen zur Verfügung – so passen Zifferblatt und Uhrzeit/Datum zusammen. Für den Streifen
   erzeugt der Browser daraus VLW-Schriften in der gewählten Größe (Uhrzeit/Datum, optional fett;
-  `stripfont_time.vlw`/`stripfont_date.vlw`), die die Uhr weich über die Streifen-Grafik zeichnet. Kein
-  Programmspeicher nötig, die Komplettsicherung enthält die Schriften.
+  `stripfont_<Name>_<Größe>.vlw`, jede Schrift nur einmal), die die Uhr weich über die Streifen-Grafik zeichnet.
+  Kein Programmspeicher nötig, die Komplettsicherung enthält die Schriften.
+- **Presets speichern den Streifen** (ILI9341): Lage, Farben, Schrift (auch die eigene VLW-Schrift mit Größen),
+  Zeit-/Datumsformat, Sekunden, Blinken und Positionen. Die Streifen-Grafik gehört zum Zifferblatt und wechselt
+  mit ihm. Ältere Presets lassen den Streifen unverändert. Die Preset-Vorschau zeigt beim ILI9341 das ganze
+  Display samt Streifen (Demo-Zeit 10:10:30, heutiges Datum) in den Einstellungen des Presets.
+- Entfernt: das Weiterschalten der Presets per Taste (wurde nicht mehr aufgerufen) samt der Einstellung
+  `currentPreset`, die beim Start gelöscht wird. Ebenso unbenutzter Code: `toggleLED()`, `waitForWifiScan()` und die
+  Makros `BACKLIGHT_CHANNEL`, `DCF77_INTERRUPT`, `HAND_SIDE_PAD`, `LIVE_PREVIEW_SIZE`, `WAIT_30m`.
 - **Zeit- und Datumsformat** im Streifen: 24 h, 12 h mit AM/PM (klein rechts oben neben der Uhrzeit) oder 12 h,
   jeweils mit oder ohne Sekunden (oder automatisch: Sekunden nur ohne Sekundenzeiger);
   Datum als T.MM.JJJJ, TT.MM.JJJJ, TT.MM.JJ, MM/TT/JJJJ, JJJJ-MM-TT oder TT.MM.
@@ -162,8 +169,15 @@ Newest entries on top.
 - **Own fonts for clock face and strip** (VLW, anti-aliased): fonts loaded in the clock face designer
   (.ttf/.otf/.woff) are stored on the clock as `font_<name>.*` and are available for text, the generator numerals
   and the strip – so clock face and time/date match. For the strip the browser creates VLW fonts from them in the
-  chosen size (time/date, optionally bold; `stripfont_time.vlw`/`stripfont_date.vlw`), which the clock draws
-  smoothly over the strip graphic. No program memory needed, the full backup contains the fonts.
+  chosen size (time/date, optionally bold; `stripfont_<name>_<size>.vlw`, each font only once), which the clock
+  draws smoothly over the strip graphic. No program memory needed, the full backup contains the fonts.
+- **Presets store the strip** (ILI9341): placement, colours, font (also the own VLW font with sizes), time/date
+  format, seconds, blinking and positions. The strip graphic belongs to the clock face and changes with it. Older
+  presets leave the strip unchanged. On the ILI9341 the preset preview shows the whole display including the strip
+  (demo time 10:10:30, today's date) in the preset's settings.
+- Removed: switching presets via the button (was no longer called) together with the `currentPreset` setting,
+  which is deleted at boot. Likewise unused code: `toggleLED()`, `waitForWifiScan()` and the macros
+  `BACKLIGHT_CHANNEL`, `DCF77_INTERRUPT`, `HAND_SIDE_PAD`, `LIVE_PREVIEW_SIZE`, `WAIT_30m`.
 - **Time and date format** in the strip: 24 h, 12 h with AM/PM (small at the top right next to the time) or 12 h,
   each with or without seconds (or automatic: seconds only without the second hand);
   date as D.MM.YYYY, DD.MM.YYYY, DD.MM.YY, MM/DD/YYYY, YYYY-MM-DD or DD.MM.

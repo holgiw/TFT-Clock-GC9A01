@@ -168,15 +168,19 @@
                                                                                                                                                                   // false = frame unchanged, nothing sent
     void loadInfoStripSettings() ;
     uint8_t* loadFileToPsram(const char* path) ;
+    String stripVlwPath(uint8_t size) ;
     bool ensureStripVlw() ;
+    void setStripBefore(bool before) ;
+    bool applyStripPresetValue(const String& key, const String& value, bool persist = true) ;
     void drawStripTime(lgfx::LovyanGFX& g, const String& text, bool colon, int cx, int y) ;
     String stripPathForFace(const String& facePath) ;
     bool ensureStripImage() ;
     void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon, const String& suffix, uint16_t bg, uint16_t fg, bool push, bool useImage) ;
     void stripDateText(const struct tm& t, String& full, String& a, String& b) ;
-    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix) ;
+    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix, const struct tm* fixedTime = nullptr) ;
     uint16_t stripColor565(uint32_t rgb) ;
-    bool renderStripPreview(int w, int h, bool textOnly) ;
+    bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime = nullptr) ;
+    bool renderPresetStripPreview(const String& presetUrl, const String& faceFile, bool& before) ;
     void drawInfoStrips() ;
     void updateClock() ;
     void updateBrightness() ;
@@ -199,10 +203,9 @@
     void remaskExistingFaceCorners() ;
     void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) ;
     bool streamRleFaceAsStandardBmp(const String& path, const char* contentType = "image/bmp") ;
-    bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, uint8_t** outBytes, size_t& outSize) ;
+    bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, uint8_t** outBytes, size_t& outSize, const String& presetUrl = "") ;
     void setLedOff() ;
     void setLedOn() ;
-    void toggleLED() ;
     static void validateSelectedBackground() ;
     void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) ;
     void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) ;
@@ -260,7 +263,6 @@
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut, uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) ;
     void removeOrphanedPresets(const String& deletedFace, const String& deletedHandSet) ;
     void resetAllPresets() ;
-    void switchToNextPreset() ;
 
 
     // prefs_keys.h / wifi_manager.h: verifiziertes Schreiben - schreibt einen String in die Preferences und

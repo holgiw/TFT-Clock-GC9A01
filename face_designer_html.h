@@ -1340,7 +1340,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       document.querySelectorAll('#stripCard .vlwRow').forEach(function (e) { e.style.display = v ? '' : 'none'; });
       $('sVT').disabled = $('sVD').disabled = $('sVB').disabled = $('sFont').value === 'v:cur';
     };
-    var uploadVlw = function (family, vt, vd, bold) {
+    // Dateiname wie stripVlwPath() in display.h: stripfont_<Name>_<Groesse>.vlw, Leerzeichen -> '-'
+    // File name like stripVlwPath() in display.h: stripfont_<name>_<size>.vlw, spaces -> '-'
+    var vlwFile = function (name, px) { return 'stripfont_' + name.replace(/ /g, '-').replace(/[^A-Za-z0-9_-]/g, '') + '_' + px + '.vlw'; };
+    var uploadVlw = function (family, name, vt, vd, bold) {
       var css = function (px) { return (bold ? 'bold ' : '') + px + 'px ' + family; };
       var up = function (px, name) {
         var fd = new FormData();
@@ -1348,8 +1351,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
         return fetch('/upload', { method: 'POST', body: fd, redirect: 'manual' });
       };
       return Promise.all([document.fonts.load(css(vt), '0123456789'), document.fonts.load(css(vd), '0123456789')]).then(function () {
-        return up(vt, 'stripfont_time.vlw');
-      }).then(function () { return up(vd, 'stripfont_date.vlw'); });
+        return up(vt, vlwFile(name, vt));
+      }).then(function () { if (vd !== vt) return up(vd, vlwFile(name, vd)); });
     };
     fontFamilies.forEach(function (f, i) { onFontAdded(i); });
     $('sTX').max = $('sDX').max = SP.w; $('sTY').max = $('sDY').max = SP.h;
@@ -1388,7 +1391,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
           var key = ff.family + '|' + vt + '|' + vd + '|' + bold;
           p.set('vlw', ff.label + (bold ? ' B' : '')); p.set('vt', vt); p.set('vd', vd);
           SP.vlw = ff.label + (bold ? ' B' : ''); SP.vt = vt; SP.vd = vd;
-          if (key !== lastVlwKey) prep = uploadVlw(ff.family, vt, vd, bold).then(function () { lastVlwKey = key; });
+          if (key !== lastVlwKey) prep = uploadVlw(ff.family, SP.vlw, vt, vd, bold).then(function () { lastVlwKey = key; });
         }
       }
       else p.set('font', fv);

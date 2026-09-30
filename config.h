@@ -123,7 +123,6 @@
 
     // DCF77
 
-#define DCF77_INTERRUPT 0
 #define DCF77_DATAPIN 35
 
     // Hintergrundbeleuchtung - ob Pin 3 per PWM geregelt wird, entscheidet die Einstellung useBacklight
@@ -133,8 +132,6 @@
 
 #define TFT_Backlight 3  // Hintergrundbeleuchtung
                          // Backlight
-#define BACKLIGHT_CHANNEL 0  // PWM-Kanal
-                             // PWM channel
 #define BACKLIGHT_FREQ 5000
 #define BACKLIGHT_RESOLUTION 8
 
@@ -285,8 +282,6 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
                                                                    // 20 or 14
 #define HAND_HEIGHT (HAND_LEGACY_HEIGHT + HAND_TOP_PAD)            // 151 bzw. 100
                                                                    // 151 or 100
-#define HAND_SIDE_PAD ((HAND_WIDTH - HAND_LEGACY_WIDTH) / 2)       // 2 bzw. 1
-                                                                   // 2 or 1
 
 
     // System / Debug
@@ -448,8 +443,6 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // new one has to be requested - a brake against brute-force guessing.
 
 #define FACTORY_RESET_MAX_ATTEMPTS 5
-#define WAIT_30m 1800000 // 30 Minuten in Millisekunden
-                         // 30 minutes in milliseconds
 #define WAIT_1h 3600000 // 1 Stunde in Millisekunden
                         // 1 hour in milliseconds
 #define WAIT_6h 21600000 // 6 Stunden in Millisekunden
@@ -611,11 +604,11 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
 
 #define DCF77_DECODED_MAX_AGE (10 * WAIT_1m)
 
-    // Dauer des LED-Blitzes je DCF77-Impuls - fester Blitz statt toggleLED(), sonst hinge der Endzustand von
-    // der Impulsanzahl ab.
+    // Dauer des LED-Blitzes je DCF77-Impuls - ein fester Blitz, damit der Endzustand nicht von der Impulsanzahl
+    // abhaengt.
 
-    // Duration of the LED flash per DCF77 pulse - a fixed flash instead of toggleLED(), otherwise the final
-    // state would depend on the pulse count.
+    // Duration of the LED flash per DCF77 pulse - a fixed flash, so the final state does not depend on the pulse
+    // count.
 
 #define DCF77_LED_BLINK_MS 80
 
@@ -628,14 +621,6 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // the minute. Also used by the web live preview.
 
 #define FAST_SECOND 975.0f
-
-    // Web: Live-Vorschau (/preview-Route)
-    // Groesse der Zeiger-Vorschau in Pixeln - zentral statt als magische Zahl im Routencode.
-
-    // Web: live preview (/preview route)
-    // Size of the hand preview in pixels - kept here instead of a magic number in route code.
-
-#define LIVE_PREVIEW_SIZE 400
 
     // Hoehe der scrollbaren Textfenster im Log-Tab und auf der Info-Seite -
     // an EINER Stelle, damit beide Fenster gleich hoch bleiben. vh statt

@@ -741,12 +741,11 @@
     }
 
 
-    // Helligkeitswert aus einem Preset uebernehmen und speichern - gemeinsam fuer /api/setMode und
-    // switchToNextPreset(), damit beide gleich begrenzen. false = kein Helligkeits-Schluessel; wirkt beim
-    // naechsten updateBrightness().
+    // Helligkeitswert aus einem Preset (/api/setMode) uebernehmen, begrenzen und speichern. false = kein
+    // Helligkeits-Schluessel; wirkt beim naechsten updateBrightness().
 
-    // Take over and store a brightness value from a preset - shared by /api/setMode and switchToNextPreset(),
-    // so both clamp the same way. false = not a brightness key; takes effect on the next updateBrightness().
+    // Take over, clamp and store a brightness value from a preset (/api/setMode). false = not a brightness key;
+    // takes effect on the next updateBrightness().
 
     bool applyBrightnessPresetValue(const String& key, const String& value) {
         if (key == "minBrightness") {
@@ -2675,17 +2674,42 @@
     }
 
 
-    // VLW-Schriften des Streifens laden (einmal, nach einem Upload erneut) - false, wenn eine fehlt
-    // Load the strip's VLW fonts (once, again after an upload) - false if one is missing
+    // VLW-Datei einer Schrift in einer Groesse: stripfont_<Name>_<Groesse>.vlw (Leerzeichen -> '-') - so liegt jede
+    // Schrift nur einmal auf der Uhr, und Presets mit verschiedenen Schriften koennen nebeneinander bestehen.
+
+    // VLW file of a font in one size: stripfont_<name>_<size>.vlw (spaces -> '-') - this way each font exists only
+    // once on the clock, and presets with different fonts can coexist.
+
+    String stripVlwPath(uint8_t size) {
+        String id;
+        for (size_t i = 0; i < stripVlwName.length(); i++) {
+            char c = stripVlwName[i];
+            if (isalnum((unsigned char)c) || c == '-' || c == '_') id += c;
+            else if (c == ' ') id += '-';
+        }
+        return "/stripfont_" + id + "_" + String(size) + ".vlw";
+    }
+
+
+    // VLW-Schriften des Streifens laden - erneut, wenn sich Schrift oder Groesse aendern oder eine Datei
+    // hochgeladen/geloescht wurde (stripVlwStale). Gleiche Groesse fuer Uhrzeit und Datum = ein Puffer. false,
+    // wenn eine fehlt.
+
+    // Load the strip's VLW fonts - again if font or size change or a file was uploaded/deleted (stripVlwStale).
+    // Same size for time and date = one buffer. false if one is missing.
 
     bool ensureStripVlw() {
-        if (stripVlwStale) {
+        static String loadedTime, loadedDate;
+        String pathTime = stripVlwPath(stripVlwTimeSize), pathDate = stripVlwPath(stripVlwDateSize);
+        if (stripVlwStale || pathTime != loadedTime || pathDate != loadedDate) {
             stripVlwStale = false;
             stripVlwGeneration++;
+            loadedTime = pathTime;
+            loadedDate = pathDate;
+            if (stripVlwDate && stripVlwDate != stripVlwTime) free(stripVlwDate);
             if (stripVlwTime) free(stripVlwTime);
-            if (stripVlwDate) free(stripVlwDate);
-            stripVlwTime = loadFileToPsram("/stripfont_time.vlw");
-            stripVlwDate = loadFileToPsram("/stripfont_date.vlw");
+            stripVlwTime = loadFileToPsram(pathTime.c_str());
+            stripVlwDate = (pathDate == pathTime) ? stripVlwTime : loadFileToPsram(pathDate.c_str());
         }
         return stripVlwTime && stripVlwDate;
     }
@@ -2797,6 +2821,94 @@
             stripImage = nullptr;
             return false;
         }
+        return true;
+    }
+
+
+    // Lage des Streifens umschalten: beide Displays einmal loeschen, danach Uhr und Streifen komplett neu senden
+    // Switch the strip placement: clear both displays once, then resend the clock and the strip completely
+
+    void setStripBefore(bool before) {
+        if (before == stripBefore) return;
+        stripBefore = before;
+        if (TFT_HEIGHT == CLOCK_HEIGHT) return; // ohne Streifen (runde Displays) nur merken
+                                                // without a strip (round displays) only remember it
+        for (uint8_t d = 1; d <= 2; d++) {
+            if (!isDisplayConnected(d)) continue;
+            if (d == 1) setCS1(LOW); else setCS2(LOW);
+            tft.fillScreen(TFT_BLACK);
+            clockFrameDirty[d - 1] = true;
+            infoStripDirty[d - 1] = true;
+        }
+        setCSIdle();
+    }
+
+
+    // Streifen-Einstellung aus einem Preset (Schluessel wie in createPresetFromPreferences()) setzen - persist:
+    // speichern und anzeigen, sonst nur fuer die Preset-Vorschau. true, wenn der Schluessel zum Streifen gehoert.
+
+    // Set a strip setting from a preset (keys as in createPresetFromPreferences()) - persist: store and show it,
+    // otherwise only for the preset preview. true if the key belongs to the strip.
+
+    bool applyStripPresetValue(const String& key, const String& value, bool persist) {
+        if (!key.startsWith("strip")) return false;
+        long v = value.toInt();
+        if (key == "stripBefore") {
+            bool before = value == "1" || value.equalsIgnoreCase("true");
+            if (persist) setStripBefore(before); else stripBefore = before;
+            if (persist) preferences.putBool(PK_STRIP_BEFORE, stripBefore);
+        }
+        else if (key == "stripBg") {
+            stripBgRgb = strtoul(value.c_str(), nullptr, 16) & 0xFFFFFF;
+            if (persist) preferences.putULong(PK_STRIP_BG, stripBgRgb);
+        }
+        else if (key == "stripFg") {
+            stripFgRgb = strtoul(value.c_str(), nullptr, 16) & 0xFFFFFF;
+            if (persist) preferences.putULong(PK_STRIP_FG, stripFgRgb);
+        }
+        else if (key == "stripFont") {
+            if ((v >= 0 && v < STRIP_FONT_COUNT) || v == STRIP_FONT_VLW) stripFont = (uint8_t)v;
+            if (persist) preferences.putUChar(PK_STRIP_FONT, stripFont);
+        }
+        else if (key == "stripVlw") {
+            stripVlwName = value.substring(0, 40);
+            if (persist) preferences.putString(PK_STRIP_VLW_NAME, stripVlwName);
+        }
+        else if (key == "stripVt") {
+            stripVlwTimeSize = (uint8_t)constrain(v, 8L, 120L);
+            if (persist) preferences.putUChar(PK_STRIP_VLW_TSIZE, stripVlwTimeSize);
+        }
+        else if (key == "stripVd") {
+            stripVlwDateSize = (uint8_t)constrain(v, 8L, 120L);
+            if (persist) preferences.putUChar(PK_STRIP_VLW_DSIZE, stripVlwDateSize);
+        }
+        else if (key == "stripTfmt") {
+            stripTimeFmt = (uint8_t)constrain(v, 0L, 2L);
+            if (persist) preferences.putUChar(PK_STRIP_TIME_FMT, stripTimeFmt);
+        }
+        else if (key == "stripSec") {
+            stripSeconds = (uint8_t)constrain(v, 0L, 2L);
+            if (persist) preferences.putUChar(PK_STRIP_SECONDS, stripSeconds);
+        }
+        else if (key == "stripDfmt") {
+            stripDateFmt = (uint8_t)constrain(v, 0L, (long)STRIP_DATE_FMT_COUNT - 1);
+            if (persist) preferences.putUChar(PK_STRIP_DATE_FMT, stripDateFmt);
+        }
+        else if (key == "stripBlink") {
+            stripBlink = (value == "1" || value.equalsIgnoreCase("true"));
+            if (persist) preferences.putBool(PK_STRIP_BLINK, stripBlink);
+        }
+        else if (key == "stripTx" || key == "stripTy" || key == "stripDx" || key == "stripDy") {
+            int16_t pos = (v < 0) ? -1 : (int16_t)v;
+            if (key == "stripTx") { stripTimeX = pos; if (persist) preferences.putShort(PK_STRIP_TIME_X, pos); }
+            else if (key == "stripTy") { stripTimeY = pos; if (persist) preferences.putShort(PK_STRIP_TIME_Y, pos); }
+            else if (key == "stripDx") { stripDateX = pos; if (persist) preferences.putShort(PK_STRIP_DATE_X, pos); }
+            else { stripDateY = pos; if (persist) preferences.putShort(PK_STRIP_DATE_Y, pos); }
+        }
+        else {
+            return false;
+        }
+        if (persist) infoStripDirty[0] = infoStripDirty[1] = true;
         return true;
     }
 
@@ -2986,10 +3098,11 @@
     // seconds, AM/PM and the date parts. Time source as for the hands (renderClockFrame()), the date from the real
     // time.
 
-    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix) {
+    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix, const struct tm* fixedTime) {
         bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
                                 (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
-        const struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
+        const struct tm& t = fixedTime ? *fixedTime : (rocrailTimeReady ? rocrailTimeinfo : timeinfo); // fixedTime: Vorschau
+                                                                                                           // fixedTime: preview
         int hour = t.tm_hour;
         suffix = "";
         if (stripTimeFmt != 0) {
@@ -3074,13 +3187,13 @@
     // background in TRANSPARENT_COLOR without the graphic, so the designer can lay the text over its own drawing.
     // false without a strip or sprite. The display redraws it afterwards (other sprite format).
 
-    bool renderStripPreview(int w, int h, bool textOnly) {
+    bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime) {
         if (h <= 0) return false;
         String lines[6];
         uint8_t count;
         bool colon;
         String suffix;
-        stripContent(false, lines, count, colon, suffix);
+        stripContent(false, lines, count, colon, suffix, fixedTime);
         uint16_t bg = textOnly ? (uint16_t)TRANSPARENT_COLOR : stripColor565(stripBgRgb);
         renderInfoStrip(0, 0, w, h, false, lines, count, true, suffix, bg, stripColor565(stripFgRgb), false, !textOnly);
         infoStripDirty[0] = infoStripDirty[1] = true;
@@ -4898,6 +5011,52 @@
     }
 
 
+    // Streifen eines Presets hochkant ins Sprite zeichnen (Demo-Zeit 10:10:30, heutiges Datum): die Streifen-Werte
+    // der Preset-URL kurz ohne Speichern uebernehmen, danach die aktuellen wiederherstellen. Presets ohne
+    // Streifen-Werte zeigen die aktuellen Einstellungen - so wirken sie auch beim Aufrufen.
+
+    // Draw a preset's strip in portrait into the sprite (demo time 10:10:30, today's date): take over the strip
+    // values of the preset URL briefly without storing them, then restore the current ones. Presets without strip
+    // values show the current settings - that is how they act when applied, too.
+
+    bool renderPresetStripPreview(const String& presetUrl, const String& faceFile, bool& before) {
+        int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
+        if (h <= 0) return false;
+        uint32_t savedBg = stripBgRgb, savedFg = stripFgRgb;
+        uint8_t savedFont = stripFont, savedTimeFmt = stripTimeFmt, savedSeconds = stripSeconds, savedDateFmt = stripDateFmt;
+        uint8_t savedVt = stripVlwTimeSize, savedVd = stripVlwDateSize;
+        bool savedBefore = stripBefore, savedBlink = stripBlink;
+        int16_t savedTx = stripTimeX, savedTy = stripTimeY, savedDx = stripDateX, savedDy = stripDateY;
+        String savedVlw = stripVlwName, savedFace = selectedBackground;
+
+        int q = presetUrl.indexOf('?');
+        String query = (q >= 0) ? presetUrl.substring(q + 1) : "";
+        while (query.length()) {
+            int amp = query.indexOf('&');
+            String param = (amp < 0) ? query : query.substring(0, amp);
+            query = (amp < 0) ? "" : query.substring(amp + 1);
+            int eq = param.indexOf('=');
+            if (eq > 0) applyStripPresetValue(param.substring(0, eq), presetUrlDecode(param.substring(eq + 1)), false);
+        }
+        selectedBackground = faceFile; // Streifen-Grafik des Preset-Zifferblatts
+                                       // strip graphic of the preset's clock face
+        struct tm demo = timeinfo;
+        demo.tm_hour = 10;
+        demo.tm_min = 10;
+        demo.tm_sec = 30;
+        bool ok = renderStripPreview(w, h, false, &demo);
+        before = stripBefore;
+
+        stripBgRgb = savedBg; stripFgRgb = savedFg; stripFont = savedFont;
+        stripTimeFmt = savedTimeFmt; stripSeconds = savedSeconds; stripDateFmt = savedDateFmt;
+        stripVlwTimeSize = savedVt; stripVlwDateSize = savedVd; stripVlwName = savedVlw;
+        stripBefore = savedBefore; stripBlink = savedBlink;
+        stripTimeX = savedTx; stripTimeY = savedTy; stripDateX = savedDx; stripDateY = savedDy;
+        selectedBackground = savedFace;
+        return ok;
+    }
+
+
     // Erzeugt ein Vorschaubild fuer die Preset-Verwaltung: Komposition aus Zifferblatt,
     // Zeigern (Demo-Zeit 10:10:30) und Mittelpunkt in angegebener Farbe/Groesse.
     // Liefert ein Standard-BMP im RAM zurueck (Aufrufer muss outBytes freigeben).
@@ -4908,7 +5067,7 @@
 
     bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName,
         uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond,
-        uint8_t** outBytes, size_t& outSize) {
+        uint8_t** outBytes, size_t& outSize, const String& presetUrl) {
 
         checkHeapWarning("generatePresetPreviewBmp Start (" + faceFile + ")");
 
@@ -4921,8 +5080,42 @@
         // centre resp. HAND_WIDTH/2, HAND_PIVOT_Y), just scaled down.
 
         const int PREVIEW_SIZE = 100;
+
+        // Mit Streifen (ILI9341): Bild so hoch wie das Display, Uhr und Streifen an der Lage des Presets
+        // With a strip (ILI9341): image as tall as the display, clock and strip at the preset's placement
+
+        const int stripPrevH = (TFT_HEIGHT > CLOCK_HEIGHT) ? PREVIEW_SIZE * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH : 0;
+        bool stripBeforeClock = false;
+        bool stripOk = stripPrevH > 0 && renderPresetStripPreview(presetUrl, faceFile, stripBeforeClock);
+        const int PREVIEW_H = PREVIEW_SIZE + stripPrevH;
+        const int oy = stripBeforeClock ? stripPrevH : 0;
         LGFX_Sprite canvas(&tft);
-        if (!createSprite16(canvas, PREVIEW_SIZE, PREVIEW_SIZE)) return false;
+        if (!createSprite16(canvas, PREVIEW_SIZE, PREVIEW_H)) return false;
+        canvas.fillSprite(TFT_BLACK);
+        canvas.setPivot(PREVIEW_SIZE / 2, oy + PREVIEW_SIZE / 2);
+
+        // Streifen verkleinert uebernehmen (Mittelwert je Zielpixel, damit die Schrift lesbar bleibt)
+        // Take over the strip scaled down (average per target pixel, so the text stays readable)
+
+        if (stripOk) {
+            const int sw = infoStripSprite.width(), sh = infoStripSprite.height();
+            const int ty0 = stripBeforeClock ? 0 : PREVIEW_SIZE;
+            for (int y = 0; y < stripPrevH; y++) {
+                int sy0 = y * sh / stripPrevH, sy1 = max(sy0 + 1, (y + 1) * sh / stripPrevH);
+                for (int x = 0; x < PREVIEW_SIZE; x++) {
+                    int sx0 = x * sw / PREVIEW_SIZE, sx1 = max(sx0 + 1, (x + 1) * sw / PREVIEW_SIZE);
+                    uint32_t r = 0, g = 0, b = 0, n = 0;
+                    for (int yy = sy0; yy < sy1; yy++) {
+                        for (int xx = sx0; xx < sx1; xx++) {
+                            uint16_t px = infoStripSprite.readPixel(xx, yy);
+                            r += (px >> 11) & 0x1F; g += (px >> 5) & 0x3F; b += px & 0x1F; n++;
+                        }
+                    }
+                    rowBuffer[x] = (uint16_t)(((r / n) << 11) | ((g / n) << 5) | (b / n));
+                }
+                canvas.pushImage(0, ty0 + y, PREVIEW_SIZE, 1, rowBuffer);
+            }
+        }
 
         // 1) Zifferblatt laden und auf Vorschaugroesse verkleinern (Datei, sonst das eingebaute
         // Standard-Zifferblatt - wie /preview_defaultface).
@@ -4945,7 +5138,7 @@
                 int sx = (int)(x * faceScaleX);
                 rowBuffer[x] = faceBuf[sy * CLOCK_WIDTH + sx];
             }
-            canvas.pushImage(0, y, PREVIEW_SIZE, 1, rowBuffer);
+            canvas.pushImage(0, oy + y, PREVIEW_SIZE, 1, rowBuffer);
         }
         free(faceBuf);
 
@@ -5008,13 +5201,13 @@
 
         int hubRadius = (int)roundf(hubSize * handScale);
         if (hubRadius < 1) hubRadius = 1;
-        canvas.fillSmoothCircle(PREVIEW_SIZE / 2, PREVIEW_SIZE / 2, hubRadius, hubColorRgb565);
+        canvas.fillSmoothCircle(PREVIEW_SIZE / 2, oy + PREVIEW_SIZE / 2, hubRadius, hubColorRgb565);
 
         // 5) Als Standard-BMP (mit BI_BITFIELDS-Header) verpacken
         // 5) Package as standard BMP (with BI_BITFIELDS header)
 
         const int rowSize = ((PREVIEW_SIZE * 2 + 3) / 4) * 4;
-        const int dataSize = rowSize * PREVIEW_SIZE;
+        const int dataSize = rowSize * PREVIEW_H;
         const int fileSize = 66 + dataSize;
 
         uint8_t* bmpData = new (std::nothrow) uint8_t[fileSize];
@@ -5026,7 +5219,7 @@
         *(uint32_t*)&bmpData[10] = 66;
         *(uint32_t*)&bmpData[14] = 40;
         *(int32_t*)&bmpData[18] = PREVIEW_SIZE;
-        *(int32_t*)&bmpData[22] = -PREVIEW_SIZE; // Top-down-BMP
+        *(int32_t*)&bmpData[22] = -PREVIEW_H; // Top-down-BMP
                                                  // Top-down BMP
         *(uint16_t*)&bmpData[26] = 1;
         *(uint16_t*)&bmpData[28] = 16;
@@ -5043,7 +5236,7 @@
         // readPixel() returns RGB565 in RAM byte order - the sprite itself
         // stores display byte order, so don't copy it directly.
 
-        for (int y = 0; y < PREVIEW_SIZE; y++) {
+        for (int y = 0; y < PREVIEW_H; y++) {
             uint16_t* row = (uint16_t*)(bmpData + 66 + y * rowSize);
             for (int x = 0; x < PREVIEW_SIZE; x++) row[x] = canvas.readPixel(x, y);
         }
@@ -5069,21 +5262,6 @@
     void setLedOn() {
         pinMode(LED_BOARD, OUTPUT);
         digitalWrite(LED_BOARD, HIGH);
-    }
-
-
-    // LED toggeln
-    // Toggles the LED
-
-    void toggleLED() {
-        static bool toggle = true;
-        if (toggle) {
-            setLedOn();        
-        }
-        else {
-            setLedOff();
-        }       
-        toggle = !toggle;
     }
 
 

@@ -1620,11 +1620,11 @@
                 preferences.putString(PK_HANDSET, handSet);
             }
 
-            // Nur bei echter Aenderung (siehe switchToNextPreset()) - jedes neue
-            // Preset enthaelt die Zeitzone.
+            // Nur bei echter Aenderung - jedes Preset enthaelt die Zeitzone, sonst stiesse jeder Aufruf einen
+            // NTP-Abgleich an.
 
-            // Only on an actual change (see switchToNextPreset()) - every new
-            // preset contains the time zone.
+            // Only on an actual change - every preset contains the time zone, otherwise every call would trigger
+            // an NTP sync.
 
             if (webserver.hasArg("timeZone") && webserver.arg("timeZone") != timezone) {
                 String tz = webserver.arg("timeZone");
@@ -1763,6 +1763,11 @@
                 if (webserver.hasArg(key)) applyBrightnessPresetValue(key, webserver.arg(key));
             }
 
+            // Streifen fuer Uhrzeit/Datum aus Presets (applyStripPresetValue() in display.h)
+            // Time/date strip from presets (applyStripPresetValue() in display.h)
+
+            for (uint8_t i = 0; i < webserver.args(); i++) applyStripPresetValue(webserver.argName(i), webserver.arg(i));
+
             freeClockFaceBuffer();
             loadClockFace();
             loadHandSprites();
@@ -1883,7 +1888,7 @@
 
                     String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
-                    chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:90px;'></a>";
+                    chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:auto;'></a>";
                     chunk += "<br><a href='" + displayUrl + "'>" + safePresetNameText + "</a>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
@@ -4771,7 +4776,7 @@
 
             uint8_t* bmpBytes = nullptr;
             size_t bmpSize = 0;
-            if (generatePresetPreviewBmp(face, handSet, hubColorRgb565, hubSize, showSecond, &bmpBytes, bmpSize)) {
+            if (generatePresetPreviewBmp(face, handSet, hubColorRgb565, hubSize, showSecond, &bmpBytes, bmpSize, presets[index].url)) {
                 webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
                 delete[] bmpBytes;
             }
@@ -7692,15 +7697,7 @@
             // Neue Lage: beide Displays einmal loeschen, danach Uhr und Streifen komplett neu senden
             // New placement: clear both displays once, then resend the clock and the strip completely
 
-            if (webserver.hasArg("before") && (webserver.arg("before") == "1") != stripBefore) {
-                stripBefore = !stripBefore;
-                for (uint8_t d = 1; d <= 2; d++) {
-                    if (!isDisplayConnected(d)) continue;
-                    if (d == 1) setCS1(LOW); else setCS2(LOW);
-                    tft.fillScreen(TFT_BLACK);
-                    clockFrameDirty[d - 1] = true;
-                }
-            }
+            if (webserver.hasArg("before")) setStripBefore(webserver.arg("before") == "1");
             if (webserver.hasArg("blink")) stripBlink = webserver.arg("blink") == "1";
             if (webserver.arg("save") == "1") {
                 preferences.putBool(PK_STRIP_BEFORE, stripBefore);
@@ -8084,7 +8081,7 @@
             bool isFontFile = uploadFilePath.startsWith("/font_") &&
                               (uploadFilePath.endsWith(".ttf") || uploadFilePath.endsWith(".otf") ||
                                uploadFilePath.endsWith(".woff") || uploadFilePath.endsWith(".woff2"));
-            bool isStripVlw = uploadFilePath == "/stripfont_time.vlw" || uploadFilePath == "/stripfont_date.vlw";
+            bool isStripVlw = uploadFilePath.startsWith("/stripfont_") && uploadFilePath.endsWith(".vlw");
             if (!isFontFile && !isStripVlw && (!uploadFilePath.endsWith(".bmp") ||
                 !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set") ||
                   (uploadFilePath.startsWith("/strip_") && TFT_HEIGHT > CLOCK_HEIGHT)))) {

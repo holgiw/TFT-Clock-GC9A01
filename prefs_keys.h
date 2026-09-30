@@ -61,7 +61,6 @@
     constexpr const char* PK_SMOOTH_MINUTE     = "smoothMinute";
     constexpr const char* PK_CENTER_COLOR      = "centerColor";
     constexpr const char* PK_CENTER_SIZE       = "centerSize";
-    constexpr const char* PK_CURRENT_PRESET    = "currentPreset";
 
     // Helligkeit
     // Brightness
@@ -167,14 +166,14 @@
     constexpr const char* PK_UHR3_BUILD_DISPLAY = "buildDisplay";
 
     // Veraltete Schluessel frueherer Firmware, von keinem Code mehr gelesen: "ssid"/"pass" (ein WLAN im
-    // Klartext), "tft_rotation", "pingServer", "useTouch" (entfernte Touch-Steuerung). setup() loescht sie,
-    // backup.h sichert sie nie.
+    // Klartext), "tft_rotation", "pingServer", "useTouch" (Touch-Steuerung), "currentPreset" (Preset-Wechsel per
+    // Taste). setup() loescht sie, backup.h sichert sie nie.
 
     // Obsolete keys of earlier firmware, no longer read by any code: "ssid"/"pass" (one WiFi in plain text),
-    // "tft_rotation", "pingServer", "useTouch" (removed touch control). setup() deletes them, backup.h never
-    // backs them up.
+    // "tft_rotation", "pingServer", "useTouch" (touch control), "currentPreset" (preset switching via the
+    // button). setup() deletes them, backup.h never backs them up.
 
-    constexpr const char* OBSOLETE_PREF_KEYS[] = { "ssid", "pass", "tft_rotation", "pingServer", "useTouch" };
+    constexpr const char* OBSOLETE_PREF_KEYS[] = { "ssid", "pass", "tft_rotation", "pingServer", "useTouch", "currentPreset" };
 
     inline bool isObsoletePrefKey(const String& key) {
         for (const char* k : OBSOLETE_PREF_KEYS) {

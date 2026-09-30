@@ -1011,22 +1011,6 @@
     }
 
 
-    // Blockiert, bis ein laufender WiFi-Scan abgeschlossen ist (siehe checkWiFiScan()) -
-    // gemeinsame Warteschleife der beiden Scan-Aufrufe in setup().
-
-    // Blocks until a running WiFi scan finishes (see checkWiFiScan()) - shared
-    // wait loop for the two scan calls in setup().
-
-    void waitForWifiScan(int delayMs) {
-        while (isScanning) {
-            checkWiFiScan();
-            delay(delayMs);
-            if (loggingEnabled) Serial.print("");
-        }
-        if (loggingEnabled) Serial.println("");
-    }
-
-
     // Scannt WLANs und cached Ergebnisse
     // Scans WiFi networks and caches results
 
