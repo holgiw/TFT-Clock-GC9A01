@@ -781,6 +781,15 @@
                                        // the strip is drawn here and sent in one piece (no flicker)
     bool infoStripSpriteCreated = false;
 
+    // Streifen-Grafik des aktiven Zifferblatts (strip_<Name>.bmp, hochkant, RGB565) - stripImageFor ist der
+    // geladene Pfad, "?" = neu laden (nach Upload, Loeschen, Umbenennen).
+
+    // Strip graphic of the active clock face (strip_<name>.bmp, portrait, RGB565) - stripImageFor is the loaded
+    // path, "?" = reload (after upload, delete, rename).
+
+    uint16_t* stripImage = nullptr;
+    String stripImageFor = "?";
+
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
     // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne
     // Aenderungsstelle das Zwischenbild selbst kennen muss.

@@ -17,6 +17,11 @@ Neueste Einträge oben.
   Zifferblätter – im Zifferblatt-Designer und in der Vorschau sind die Ecken sichtbar und editierbar.
   Sicherungen lassen sich zwischen GC9A01 und ILI9341 wiederherstellen (gleiche Uhrgröße).
   Farbreihenfolge (BGR) und Invertierung sind LovyanGFX-Standard – am echten Modul prüfen.
+- **Streifen als Teil der Zeichenfläche** (ILI9341): Der Zifferblatt-Designer bearbeitet das ganze Display
+  (240x320); der Bereich über bzw. unter der Uhr wird wie das Zifferblatt gemalt und mit ihm als `strip_<Name>.bmp`
+  gespeichert (RLE, je Zifferblatt). Uhrzeit und Datum liegen darüber, quer wird die Grafik um 90° gedreht.
+  Zifferblätter ohne Streifen-Grafik nutzen die Hintergrundfarbe. Löschen/Umbenennen eines Zifferblatts zieht die
+  Streifen-Grafik mit, die Komplettsicherung enthält sie. Senkrechtes Spiegeln spiegelt an der Uhrmitte.
 - **Streifen Uhrzeit/Datum einstellbar** (Zifferblatt-Designer, Karte „Streifen Uhrzeit/Datum“, nur ILI9341):
   Lage über oder unter der Uhr (quer: links oder rechts), Hintergrund- und Schriftfarbe, Schriftart (GLCD,
   7-Segment/DejaVu, FreeSans Bold, DejaVu, Orbitron) und Position von Uhrzeit und Datum (automatisch oder per
@@ -143,6 +148,11 @@ Newest entries on top.
   corners are visible and editable in the clock face designer and the preview.
   Backups can be restored between GC9A01 and ILI9341 (same clock size). Color order (BGR) and inversion are the
   LovyanGFX defaults – check on a real module.
+- **Strip as part of the drawing area** (ILI9341): the clock face designer edits the whole display (240x320); the
+  area above or below the clock is painted like the clock face and saved with it as `strip_<name>.bmp` (RLE, per
+  clock face). Time and date lie on top, in landscape the graphic is rotated by 90°. Clock faces without a strip
+  graphic use the background colour. Deleting/renaming a clock face takes the strip graphic along, the full backup
+  contains it. Vertical mirroring mirrors at the clock centre.
 - **Configurable time/date strip** (clock face designer, card "Time/date strip", ILI9341 only): placement above
   or below the clock (landscape: left or right), background and text colour, font (GLCD, 7-segment/DejaVu,
   FreeSans Bold, DejaVu, Orbitron) and position of time and date (automatic or via sliders). The clock shows

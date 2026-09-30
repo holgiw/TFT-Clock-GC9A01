@@ -142,7 +142,12 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
 
 <script>
 (function () {
-  var W = FD.w, H = FD.h, N = W * H, CX = W / 2, CY = H / 2, R = Math.min(W, H) / 2;
+  // Mit Streifen (ILI9341) ist die Zeichenflaeche das ganze Display: Zifferblatt (FH hoch) plus Streifen (SH),
+  // der Streifen oben (OY = SH) oder unten (OY = 0). CX/CY ist die Uhrmitte, nicht die Bildmitte.
+  // With a strip (ILI9341) the drawing area is the whole display: clock face (FH high) plus strip (SH), the
+  // strip on top (OY = SH) or at the bottom (OY = 0). CX/CY is the clock centre, not the image centre.
+  var FH = FD.h, SH = FD.strip ? FD.strip.h : 0, OY = (FD.strip && FD.strip.before) ? SH : 0;
+  var W = FD.w, H = FH + SH, N = W * H, CX = W / 2, CY = OY + FH / 2, R = Math.min(W, FH) / 2;
   var DEF = '/face_default.bmp';
 
   var TX = {
@@ -195,7 +200,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       strip: 'Streifen Uhrzeit/Datum', sPos: 'Lage:', sBelow: 'unter der Uhr (quer: rechts)', sAbove: '\u00fcber der Uhr (quer: links)', sBg: 'Hintergrund:', sFg: 'Schriftfarbe:', sFont: 'Schriftart:',
       sTime: 'Uhrzeit:', sDate: 'Datum:', sAuto: 'automatisch', sBlink: 'Doppelpunkt blinkt', sDef: 'Standard', sSave: 'Streifen speichern',
-      stripHint: '\u00c4nderungen zeigt die Uhr sofort an, gespeichert wird erst mit \u201eStreifen speichern\u201c. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
+      stripHint: 'Der Streifen ist Teil der Zeichenfl\u00e4che und wird mit dem Zifferblatt gespeichert (strip_Name.bmp). '
+      + '\u00c4nderungen hier zeigt die Uhr sofort an, gespeichert werden sie mit \u201eStreifen speichern\u201c. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
       stripSaved: 'Streifen gespeichert.', stripErr: 'Streifen konnte nicht an die Uhr gesendet werden.',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
@@ -247,7 +253,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       strip: 'Time/date strip', sPos: 'Placement:', sBelow: 'below the clock (landscape: right)', sAbove: 'above the clock (landscape: left)', sBg: 'Background:', sFg: 'Text colour:', sFont: 'Font:',
       sTime: 'Time:', sDate: 'Date:', sAuto: 'automatic', sBlink: 'Colon blinks', sDef: 'Default', sSave: 'Save strip',
-      stripHint: 'The clock shows changes right away, they are only stored with "Save strip". ' + 'X/Y = centre of the line in the strip (portrait); in landscape the lines are arranged below each other automatically.',
+      stripHint: 'The strip is part of the drawing area and is saved with the clock face (strip_name.bmp). '
+      + 'The clock shows changes here right away, they are stored with "Save strip". ' + 'X/Y = centre of the line in the strip (portrait); in landscape the lines are arranged below each other automatically.',
       stripSaved: 'Strip saved.', stripErr: 'Could not send the strip to the clock.',
       pos: 'Pixel', center: 'Centre' },
   };
@@ -406,7 +413,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       if (!m[y * W + x]) continue;
       buf[y * W + x] = v;
       if (s === 'mx' || s === 'mxy') buf[y * W + (W - 1 - x)] = v;
-      if (s === 'mxy') { buf[(H - 1 - y) * W + x] = v; buf[(H - 1 - y) * W + (W - 1 - x)] = v; }
+      if (s === 'mxy') {
+        var my = 2 * CY - 1 - y; // an der Uhrmitte gespiegelt / mirrored at the clock centre
+        if (my >= 0 && my < H) { buf[my * W + x] = v; buf[my * W + (W - 1 - x)] = v; }
+      }
     }
     var n = symRot();
     for (var k = 1; k < n; k++) {
@@ -430,7 +440,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   function seeds(x, y) {
     var s = $('symSel').value, out = [[x, y]];
     if (s === 'mx' || s === 'mxy') out.push([W - 1 - x, y]);
-    if (s === 'mxy') out.push([x, H - 1 - y], [W - 1 - x, H - 1 - y]);
+    if (s === 'mxy') out.push([x, 2 * CY - 1 - y], [W - 1 - x, 2 * CY - 1 - y]);
     var n = symRot();
     for (var k = 1; k < n; k++) {
       var a = k * 2 * Math.PI / n, u = x + 0.5 - CX, w = y + 0.5 - CY;
@@ -877,7 +887,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
         x.fillText(mode === 'roman' ? roman[h] : String(h || 12), CX + Math.sin(a) * rn, CY - Math.cos(a) * rn);
       }
     }
-    commit(canvasBuf(c));
+    commit(keepStrip(canvasBuf(c)));
   };
 
   // BMP lesen/schreiben (Format wie encodeBmpToBytes() im Geraet)
@@ -894,21 +904,64 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       return ((dv.getUint8(p + 2) >> 3) << 11) | ((dv.getUint8(p + 1) >> 2) << 5) | (dv.getUint8(p) >> 3);
     } };
   }
-  function decodeFace(ab) {
-    var img = parseBmp(ab), out = new Uint16Array(N);
-    for (var ty = 0; ty < H; ty++) for (var tx = 0; tx < W; tx++)
-      out[ty * W + tx] = img.px(Math.floor(tx * img.w / W), Math.floor(ty * img.h / H));
+  function decodeImg(ab, w, h) {
+    var img = parseBmp(ab), out = new Uint16Array(w * h);
+    for (var ty = 0; ty < h; ty++) for (var tx = 0; tx < w; tx++)
+      out[ty * w + tx] = img.px(Math.floor(tx * img.w / w), Math.floor(ty * img.h / h));
     return out;
   }
-  function encodeBmp(buf) {
-    var rs = Math.floor((W * 2 + 3) / 4) * 4, hs = 66, size = hs + rs * H;
+  function decodeFace(ab) { return decodeImg(ab, W, FH); }
+  function encodeBmp(buf, w, h) {
+    var rs = Math.floor((w * 2 + 3) / 4) * 4, hs = 66, size = hs + rs * h;
     var ab = new ArrayBuffer(size), dv = new DataView(ab);
     dv.setUint8(0, 66); dv.setUint8(1, 77); dv.setUint32(2, size, true); dv.setUint32(10, hs, true);
-    dv.setUint32(14, 40, true); dv.setInt32(18, W, true); dv.setInt32(22, -H, true); dv.setUint16(26, 1, true);
-    dv.setUint16(28, 16, true); dv.setUint32(30, 3, true); dv.setUint32(34, rs * H, true);
+    dv.setUint32(14, 40, true); dv.setInt32(18, w, true); dv.setInt32(22, -h, true); dv.setUint16(26, 1, true);
+    dv.setUint16(28, 16, true); dv.setUint32(30, 3, true); dv.setUint32(34, rs * h, true);
     dv.setUint32(54, 0xF800, true); dv.setUint32(58, 0x07E0, true); dv.setUint32(62, 0x001F, true);
-    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) dv.setUint16(hs + y * rs + x * 2, buf[y * W + x], true);
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) dv.setUint16(hs + y * rs + x * 2, buf[y * w + x], true);
     return new Blob([ab], { type: 'image/bmp' });
+  }
+
+  // Zifferblatt und Streifen liegen gemeinsam in pix: Zifferblatt ab Zeile OY, Streifen ab stripY()
+  // Clock face and strip share pix: clock face from row OY, strip from stripY()
+  function stripY() { return OY ? 0 : FH; }
+  function rows(buf, y0, h) { return buf.slice(y0 * W, (y0 + h) * W); }
+  function hexTo565(h) { var n = parseInt(h.slice(1), 16); return rgb565((n >> 16) & 255, (n >> 8) & 255, n & 255); }
+  function compose(face, strip) {
+    var out = new Uint16Array(N);
+    out.set(face.subarray(0, W * FH), OY * W);
+    if (SH) {
+      if (strip) out.set(strip.subarray(0, W * SH), stripY() * W);
+      else out.fill(hexTo565(FD.strip.bg), stripY() * W, (stripY() + SH) * W);
+    }
+    return out;
+  }
+  // Ergebnis des Generators nur fuers Zifferblatt - der Streifen bleibt, wie er ist
+  // Generator result for the clock face only - the strip stays as it is
+  function keepStrip(buf) {
+    if (SH) buf.set(rows(pix, stripY(), SH), stripY() * W);
+    return buf;
+  }
+  // Lage des Streifens umschalten: Zifferblatt und Streifen tauschen die Plaetze (Rueckgaengig wird geleert)
+  // Switch the strip placement: clock face and strip swap places (undo is cleared)
+  function setStripBefore(before) {
+    var oy = (SH && before) ? SH : 0;
+    if (!SH || oy === OY) return;
+    var face = rows(pix, OY, FH), strip = rows(pix, stripY(), SH);
+    OY = oy; CY = OY + FH / 2;
+    pix = compose(face, strip);
+    undoSt = []; redoSt = [];
+    drawEditor(); schedulePreview();
+  }
+  // Streifen-Grafik zum Zifferblatt (strip_<Name>.bmp), null wenn keine da ist
+  // Strip graphic of the clock face (strip_<name>.bmp), null if there is none
+  function fetchStrip(facePath) {
+    if (!SH || !facePath || facePath === DEF) return Promise.resolve(null);
+    var sp = '/strip_' + facePath.replace(/^\/?face_/, '');
+    return fetch('/file?name=' + encodeURIComponent(sp), { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) return null;
+      return r.arrayBuffer().then(function (ab) { return decodeImg(ab, W, SH); });
+    }).catch(function () { return null; });
   }
 
   // Laden und Speichern
@@ -938,7 +991,9 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     }, function () {
       note = t('missing'); base = DEF;
       return fetchFace('/api/defaultface');
-    }).then(function (b) { pix = b; }, function () { pix = new Uint16Array(N).fill(0xFFFF); base = DEF; }).then(function () {
+    }).then(function (b) {
+      return fetchStrip(base).then(function (st) { pix = compose(b, st); });
+    }, function () { pix = compose(new Uint16Array(W * FH).fill(0xFFFF), null); base = DEF; }).then(function () {
       undoSt = []; redoSt = [];
       setDirty(false);
       showBase(); drawEditor(); schedulePreview();
@@ -957,10 +1012,16 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   function saveFace(file, activate, isNew) {
     $('saveBtn').disabled = true; $('saveCurBtn').disabled = true;
     showMsg(t('saving'));
-    var fd = new FormData();
-    fd.append('upload', encodeBmp(pix), file);
-    fetch('/upload', { method: 'POST', body: fd, redirect: 'manual' }).then(function (r) {
-      if (!(r.ok || r.type === 'opaqueredirect')) throw new Error('HTTP ' + r.status);
+    function upload(blob, name) {
+      var fd = new FormData();
+      fd.append('upload', blob, name);
+      return fetch('/upload', { method: 'POST', body: fd, redirect: 'manual' }).then(function (r) {
+        if (!(r.ok || r.type === 'opaqueredirect')) throw new Error('HTTP ' + r.status);
+      });
+    }
+    upload(encodeBmp(rows(pix, OY, FH), W, FH), file).then(function () {
+      if (SH) return upload(encodeBmp(rows(pix, stripY(), SH), W, SH), 'strip_' + file.replace(/^face_/, ''));
+    }).then(function () {
       if (!activate) return;
       return fetch('/setbackground?file=' + encodeURIComponent(file), { redirect: 'manual' }).then(function () {
         FD.active = '/' + file; base = FD.active;
@@ -992,18 +1053,17 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   // Preview with the hands of the active set
   var HW = FD.hand.w, HH = FD.hand.h, HPY = FD.hand.py, PARTS = ['hour', 'minute', 'second'];
   var pv = $('pv'), pctx = pv.getContext('2d'), S = W;
-  pv.width = S; pv.height = S;
+  pv.width = W; pv.height = H;
 
-  // Mit Streifen (ILI9341) zeigt die Vorschau das ganze Display: Uhr und Streifen an seiner Lage, den Streifen
-  // so, wie die Uhr ihn zeichnet (/api/stripimg, RGB565 big-endian).
-  // With a strip (ILI9341) the preview shows the whole display: clock and strip at its placement, the strip
-  // exactly as the clock draws it (/api/stripimg, RGB565 big-endian).
+  // Mit Streifen (ILI9341) zeigt die Vorschau das ganze Display. Uhrzeit und Datum zeichnet die Uhr
+  // (/api/stripimg?text=1, RGB565 big-endian, Hintergrund 0x0120 = transparent) - sie liegen ueber der Zeichnung.
+  // With a strip (ILI9341) the preview shows the whole display. The clock draws time and date
+  // (/api/stripimg?text=1, RGB565 big-endian, background 0x0120 = transparent) - they lie over the drawing.
   var stripImg = null;
-  if (FD.strip) pv.height = S + FD.strip.h;
   function loadStripImg() {
     var sp = FD.strip;
     if (!sp) return;
-    fetch('/api/stripimg', { cache: 'no-store' }).then(function (r) {
+    fetch('/api/stripimg?text=1', { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.arrayBuffer();
     }).then(function (ab) {
@@ -1012,7 +1072,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       var c = stripImg || newCanvas(sp.w, sp.h), x = c.getContext('2d'), id = x.createImageData(sp.w, sp.h);
       for (var i = 0; i < sp.w * sp.h; i++) {
         var v = (b[2 * i] << 8) | b[2 * i + 1], rgb = rgbOf(v);
-        id.data[i * 4] = rgb[0]; id.data[i * 4 + 1] = rgb[1]; id.data[i * 4 + 2] = rgb[2]; id.data[i * 4 + 3] = 255;
+        id.data[i * 4] = rgb[0]; id.data[i * 4 + 1] = rgb[1]; id.data[i * 4 + 2] = rgb[2]; id.data[i * 4 + 3] = v === 0x0120 ? 0 : 255;
       }
       x.putImageData(id, 0, 0);
       stripImg = c;
@@ -1064,28 +1124,23 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   function renderPreview() {
     pctx.save();
     pctx.clearRect(0, 0, pv.width, pv.height);
-    if (FD.strip) {
-      var sy = FD.strip.before ? 0 : S;
-      if (stripImg) pctx.drawImage(stripImg, 0, sy);
-      else { pctx.fillStyle = FD.strip.bg; pctx.fillRect(0, sy, S, FD.strip.h); }
-      pctx.translate(0, FD.strip.before ? FD.strip.h : 0);
-    }
-    if (FD.round) { pctx.beginPath(); pctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); pctx.clip(); }
+    if (FD.round) { pctx.beginPath(); pctx.arc(CX, CY, R, 0, Math.PI * 2); pctx.clip(); }
     if (!pvFace) pvFace = bufCanvas(pix);
-    pctx.drawImage(pvFace, 0, 0, S, S);
+    pctx.drawImage(pvFace, 0, 0);
+    if (SH && stripImg) pctx.drawImage(stripImg, 0, stripY());
     if ($('showHands').checked) {
       var ang = handAngles($('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37), FD.mode);
       PARTS.forEach(function (p) {
         if (!hands[p] || (p === 'second' && !FD.showSec)) return;
         pctx.save();
-        pctx.translate(S / 2, S / 2);
+        pctx.translate(CX, CY);
         pctx.rotate(ang[p] * Math.PI / 180);
         pctx.drawImage(hands[p], -((spriteWidth(p) >> 1) + 0.5), -(HPY + 0.5));
         pctx.restore();
       });
       if (FD.hub > 0) {
         pctx.fillStyle = FD.hubColor;
-        pctx.beginPath(); pctx.arc(S / 2, S / 2, FD.hub, 0, Math.PI * 2); pctx.fill();
+        pctx.beginPath(); pctx.arc(CX, CY, FD.hub, 0, Math.PI * 2); pctx.fill();
       }
     }
     pctx.restore();
@@ -1220,7 +1275,9 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       $(id).addEventListener('input', stripLive);
       $(id).addEventListener('change', stripLive);
     });
+    $('sBefore').addEventListener('change', function () { setStripBefore(this.value === '1'); });
     $('sDefBtn').onclick = function () {
+      setStripBefore(false);
       SP.before = 0; SP.blink = 1; SP.bg = '#000000'; SP.fg = '#ffffff'; SP.font = 0; SP.tx = SP.ty = SP.dx = SP.dy = -1;
       stripFill(); stripLive();
     };

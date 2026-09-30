@@ -2435,6 +2435,16 @@
                     }
                     if (LittleFS.rename(oldName, newName)) {
 
+                        // Streifen-Grafik eines Zifferblatts mit umbenennen
+                        // Rename a clock face's strip graphic as well
+
+                        String oldStrip = stripPathForFace(oldName), newStrip = stripPathForFace(newName);
+                        if (oldStrip.length() && newStrip.length() && LittleFS.exists(oldStrip) && !LittleFS.exists(newStrip)) {
+                            LittleFS.rename(oldStrip, newStrip);
+                        }
+                        stripImageFor = "?";
+                        infoStripDirty[0] = infoStripDirty[1] = true;
+
                         // Aktives Zifferblatt: Preference mitziehen, sonst zeigt
                         // sie auf eine nicht mehr existierende Datei.
 
@@ -4225,14 +4235,6 @@
             chunk += "<span id='previewSizeValue'>" + String(previewSize) + "</span>&nbsp;px";
             chunk += "</div>";
 
-            // previewSizer traegt die tatsaechliche Boxgroesse, previewInner
-            // bleibt fest bei previewSize und wird nur per transform:scale()
-            // skaliert - die Zeiger-Pixel-Offsets muessen so nicht neu ermittelt werden.
-
-            // previewSizer carries the actual box size, previewInner stays
-            // fixed at previewSize and is only scaled via transform:scale() -
-            // the hands' pixel offsets don't need to be recalculated this way.
-
             // Streifen fuer Uhrzeit/Datum (ILI9341) ueber oder unter der Uhr, so wie die Uhr ihn zeichnet (/api/stripimg)
             // Time/date strip (ILI9341) above or below the clock, exactly as the clock draws it (/api/stripimg)
 
@@ -4243,6 +4245,15 @@
                               "' style='display:block;width:" + String(previewSize) + "px;height:" + String(stripPrevH) +
                               "px;image-rendering:pixelated;background:#000;'></canvas>";
             }
+
+            // previewSizer traegt die tatsaechliche Boxgroesse, previewInner
+            // bleibt fest bei previewSize und wird nur per transform:scale()
+            // skaliert - die Zeiger-Pixel-Offsets muessen so nicht neu ermittelt werden.
+
+            // previewSizer carries the actual box size, previewInner stays
+            // fixed at previewSize and is only scaled via transform:scale() -
+            // the hands' pixel offsets don't need to be recalculated this way.
+
             chunk += "<div id='previewSizer' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;margin:20px auto;'>";
             chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;transform-origin:top left;'>";
             if (stripBefore) chunk += stripCanvas;
@@ -6732,6 +6743,18 @@
                                                      // remove the leading slash
                     if (name.startsWith("face_") && name.endsWith(".bmp")) {
                         removeOrphanedPresets(path, "");
+
+                        // Streifen-Grafik des Zifferblatts gleich mit loeschen
+                        // Delete the clock face's strip graphic as well
+
+                        String stripPath = stripPathForFace(path);
+                        if (stripPath.length() && LittleFS.exists(stripPath)) LittleFS.remove(stripPath);
+                        stripImageFor = "?";
+                        infoStripDirty[0] = infoStripDirty[1] = true;
+                    }
+                    else if (name.startsWith("strip_")) {
+                        stripImageFor = "?";
+                        infoStripDirty[0] = infoStripDirty[1] = true;
                     }
                     else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
                         int start = 8; // Laenge von "hand_set"
@@ -7467,7 +7490,8 @@
             webserver.send(200, "text/html", "");
 
             String chunk = beginPage();
-            chunk += "<h2>" + translate("Clock Face Designer") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
+            chunk += "<h2>" + translate("Clock Face Designer") + " " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</h2>"; // mit Streifen das ganze Display
+                                                                                                                                 // with a strip the whole display
 
             // Nur Zeichen uebernehmen, die in einem JS-String unkritisch sind
             // Only keep characters that are harmless inside a JS string
@@ -7512,6 +7536,7 @@
                           ",tx:" + String(stripTimeX) +
                           ",ty:" + String(stripTimeY) + ",dx:" + String(stripDateX) + ",dy:" + String(stripDateY) +
                           ",aty:" + String(stripAutoTimeY) + ",ady:" + String(stripAutoDateY) + ",fonts:[";
+
                 // Feste Namen aus der Firmware - ohne jsSafe(), das auch Leerzeichen entfernen wuerde
                 // Fixed names from the firmware - without jsSafe(), which would also strip spaces
 
@@ -7658,15 +7683,15 @@
             webserver.send(200, "application/json", "{\"ok\":true,\"aty\":" + String(stripAutoTimeY) + ",\"ady\":" + String(stripAutoDateY) + "}");
             });
 
-        // Vorschau des Streifens fuer den Zifferblatt-Designer: hochkant, ungedimmt, RGB565 big-endian (w x h aus
-        // FD.strip) - so wie die Uhr ihn zeichnet.
+        // Vorschau des Streifens: hochkant, ungedimmt, RGB565 big-endian (w x h aus FD.strip) - so wie die Uhr ihn
+        // zeichnet. text=1: nur die Schrift auf TRANSPARENT_COLOR (fuer die Zeichenflaeche des Designers).
 
-        // Strip preview for the clock face designer: portrait, undimmed, RGB565 big-endian (w x h from FD.strip) -
-        // exactly as the clock draws it.
+        // Strip preview: portrait, undimmed, RGB565 big-endian (w x h from FD.strip) - exactly as the clock draws
+        // it. text=1: only the text on TRANSPARENT_COLOR (for the designer's drawing area).
 
         webserver.on("/api/stripimg", HTTP_GET, []() {
             int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
-            if (!renderStripPreview(w, h)) {
+            if (!renderStripPreview(w, h, webserver.arg("text") == "1")) {
                 webserver.send(404, "text/plain", "no strip");
                 return;
             }
@@ -8012,8 +8037,9 @@
             // Only allow certain filename patterns
 
             if (!uploadFilePath.endsWith(".bmp") ||
-                !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set"))) {
-                DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_' or 'hand_set' and end with '.bmp' : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set") ||
+                  (uploadFilePath.startsWith("/strip_") && TFT_HEIGHT > CLOCK_HEIGHT))) {
+                DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_', 'hand_set' or 'strip_' (display with strip) and end with '.bmp' : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                 uploadSuccess = false;
                 return;
             }
@@ -8070,6 +8096,20 @@
                                 return;
                             }
 
+                        }
+                        else if (uploadFilePath.startsWith("/strip_")) {
+
+                            // Streifen-Grafik zum Zifferblatt (strip_<Name>.bmp zu face_<Name>.bmp), hochkant
+                            // Strip graphic of a clock face (strip_<name>.bmp for face_<name>.bmp), portrait
+
+                            DEBUG_PRINTLN("[UPLOAD] Detected strip upload (from " + webserver.client().remoteIP().toString() + ")");
+                            if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), TFT_WIDTH, TFT_HEIGHT - CLOCK_HEIGHT)) {
+                                DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                                uploadSuccess = false;
+                                return;
+                            }
+                            stripImageFor = "?";
+                            infoStripDirty[0] = infoStripDirty[1] = true;
                         }
                         else if (uploadFilePath.startsWith("/hand_set")) {
                             DEBUG_PRINTLN("[UPLOAD] Detected Clock Hand upload (from " + webserver.client().remoteIP().toString() + ")");

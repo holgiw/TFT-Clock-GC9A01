@@ -2703,6 +2703,43 @@
     }
 
 
+    // Streifen-Grafik zum Zifferblatt: face_<Name>.bmp -> strip_<Name>.bmp, leer fuer andere Namen
+    // Strip graphic belonging to the clock face: face_<name>.bmp -> strip_<name>.bmp, empty for other names
+
+    String stripPathForFace(const String& facePath) {
+        String name = facePath.startsWith("/") ? facePath.substring(1) : facePath;
+        if (!name.startsWith("face_")) return "";
+        return "/strip_" + name.substring(5);
+    }
+
+
+    // Laedt die Streifen-Grafik des aktiven Zifferblatts nach stripImage - nur wenn sich das Zifferblatt
+    // geaendert hat oder stripImageFor auf "?" steht. false ohne Grafik.
+
+    // Loads the strip graphic of the active clock face into stripImage - only if the clock face changed or
+    // stripImageFor is "?". false without a graphic.
+
+    bool ensureStripImage() {
+        String path = stripPathForFace(selectedBackground);
+        if (path == stripImageFor) return stripImage != nullptr;
+        stripImageFor = path;
+        if (stripImage) {
+            free(stripImage);
+            stripImage = nullptr;
+        }
+        int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
+        if (path.length() == 0 || h <= 0 || !LittleFS.exists(path)) return false;
+        stripImage = (uint16_t*)preferPsramMalloc((size_t)w * h * sizeof(uint16_t));
+        if (!stripImage) return false;
+        if (!loadFaceBmpInto(path, stripImage, w, h)) {
+            free(stripImage);
+            stripImage = nullptr;
+            return false;
+        }
+        return true;
+    }
+
+
     // Zeichnet den Streifen (x/y/w/h wie infoStripRect()) ins Sprite und sendet es. Hochkant: Uhrzeit und Datum an
     // den eingestellten oder automatischen Positionen. Quer (80 px breit): Zeilen untereinander in der kleinen
     // Schrift, zu Breites in GLCD Groesse 2. Ohne Sprite (kein Speicher) wird direkt gezeichnet.
@@ -2712,7 +2749,7 @@
     // wide in GLCD size 2. Without a sprite (no memory) it draws directly.
 
     void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon,
-                         uint16_t bg, uint16_t fg, bool push) {
+                         uint16_t bg, uint16_t fg, bool push, bool useImage) {
         LGFX_Sprite& s = infoStripSprite;
         if (infoStripSpriteCreated && (s.width() != w || s.height() != h)) {
             s.deleteSprite();
@@ -2752,7 +2789,27 @@
         stripAutoTimeY = gap + th / 2;
         stripAutoDateY = 2 * gap + th + dh / 2;
 
-        g.fillRect(ox, oy, w, h, bg);
+        // Hintergrund: Streifen-Grafik des Zifferblatts (quer um 90 Grad im Uhrzeigersinn gedreht), sonst die
+        // Farbe. Gedimmt wie das Zifferblatt, nur fuers Display (push), nicht fuer die Vorschau.
+
+        // Background: the clock face's strip graphic (rotated 90 degrees clockwise in landscape), otherwise the
+        // color. Dimmed like the clock face, only for the display (push), not for the preview.
+
+        const int sw = TFT_WIDTH, sh = TFT_HEIGHT - CLOCK_HEIGHT;
+        bool imageFits = landscape ? (w == sh && h == sw) : (w == sw && h == sh);
+        if (useImage && useSprite && imageFits && ensureStripImage()) {
+            static uint16_t row[320];
+            for (int yy = 0; yy < h; yy++) {
+                for (int xx = 0; xx < w && xx < 320; xx++) {
+                    uint16_t px = landscape ? stripImage[(sh - 1 - xx) * sw + yy] : stripImage[yy * sw + xx];
+                    row[xx] = push ? setPixelBrightness(px) : px;
+                }
+                s.pushImage(0, yy, w, 1, row);
+            }
+        }
+        else {
+            g.fillRect(ox, oy, w, h, bg);
+        }
         g.setTextColor(fg);
         if (!landscape) {
             int tx = (stripTimeX >= 0) ? stripTimeX : w / 2;
@@ -2869,31 +2926,34 @@
             uint8_t count;
             bool colon;
             stripContent(landscape, lines, count, colon);
-            String text = String(colon ? "1" : "0") + "|" + String(bg) + "|" + String(fg);
+            String text = String(colon ? "1" : "0") + "|" + String(bg) + "|" + String(fg) + "|" + selectedBackground;
             for (uint8_t n = 0; n < count; n++) text += "|" + lines[n];
             if (!infoStripDirty[i] && lastText[i] == text) continue;
 
             if (d == 1) setCS1(LOW); else setCS2(LOW);
-            renderInfoStrip(x, y, w, h, landscape, lines, count, colon, bg, fg, true);
+            renderInfoStrip(x, y, w, h, landscape, lines, count, colon, bg, fg, true, true);
             lastText[i] = text;
             infoStripDirty[i] = false;
         }
     }
 
 
-    // Streifen hochkant und ungedimmt nur ins Sprite zeichnen - fuer die Vorschau im Zifferblatt-Designer
-    // (/api/stripimg). false ohne Streifen oder Sprite. Das Display zeichnet ihn danach neu (anderes Sprite-Format).
+    // Streifen hochkant und ungedimmt nur ins Sprite zeichnen - fuer die Vorschauen (/api/stripimg). textOnly:
+    // Hintergrund in TRANSPARENT_COLOR ohne Grafik, damit der Designer die Schrift ueber seine eigene Zeichnung
+    // legen kann. false ohne Streifen oder Sprite. Das Display zeichnet ihn danach neu (anderes Sprite-Format).
 
-    // Draw the strip in portrait and undimmed into the sprite only - for the preview in the clock face designer
-    // (/api/stripimg). false without a strip or sprite. The display redraws it afterwards (other sprite format).
+    // Draw the strip in portrait and undimmed into the sprite only - for the previews (/api/stripimg). textOnly:
+    // background in TRANSPARENT_COLOR without the graphic, so the designer can lay the text over its own drawing.
+    // false without a strip or sprite. The display redraws it afterwards (other sprite format).
 
-    bool renderStripPreview(int w, int h) {
+    bool renderStripPreview(int w, int h, bool textOnly) {
         if (h <= 0) return false;
         String lines[4];
         uint8_t count;
         bool colon;
         stripContent(false, lines, count, colon);
-        renderInfoStrip(0, 0, w, h, false, lines, count, true, stripColor565(stripBgRgb), stripColor565(stripFgRgb), false);
+        uint16_t bg = textOnly ? (uint16_t)TRANSPARENT_COLOR : stripColor565(stripBgRgb);
+        renderInfoStrip(0, 0, w, h, false, lines, count, true, bg, stripColor565(stripFgRgb), false, !textOnly);
         infoStripDirty[0] = infoStripDirty[1] = true;
         return infoStripSpriteCreated && infoStripSprite.width() == w && infoStripSprite.height() == h;
     }
@@ -3957,7 +4017,9 @@
         if (!targetPathStr.startsWith("/")) targetPathStr = "/" + targetPathStr;
         bool isFaceTarget = targetPathStr.startsWith("/face_");
         bool isHandTarget = targetPathStr.startsWith("/hand_set");
-        bool storeAsRle = isFaceTarget || isHandTarget;
+        bool isStripTarget = targetPathStr.startsWith("/strip_"); // Streifen-Grafik zum Zifferblatt (ILI9341)
+                                                                   // strip graphic of a clock face (ILI9341)
+        bool storeAsRle = isFaceTarget || isHandTarget || isStripTarget;
 
         // Bildpuffer ist quadratisch, runde Displays (GC9A01/GC9D01) zeigen
         // aber nur einen Kreis - alles ausserhalb wird weiss. ILI9341
