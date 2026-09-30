@@ -1,0 +1,16 @@
+# Visual Micro: projektbezogene Build-Einstellungen (ueberschreiben die ESP32-Plattform nur fuer uhr4).
+# Visual Micro: project-specific build settings (override the ESP32 platform for uhr4 only).
+#
+# -mtext-section-literals: Literale direkt neben jede Funktion legen. uhr4 ist eine einzige, grosse
+# Uebersetzungseinheit - ohne den Schalter liegen Funktion und Literal irgendwann mehr als 256 KB auseinander
+# und der Linker meldet "dangerous relocation: l32r: literal target out of range".
+# -mtext-section-literals: place literals right next to each function. uhr4 is one single, large
+# translation unit - without the switch, function and literal eventually lie more than 256 KB apart and the
+# linker reports "dangerous relocation: l32r: literal target out of range".
+#
+# Arduino IDE / arduino-cli lesen diese Datei nicht: dort platform.local.txt neben der platform.txt des
+# ESP32-Cores mit derselben Zeile anlegen bzw. --build-property "compiler.cpp.extra_flags=-mtext-section-literals".
+# Arduino IDE / arduino-cli don't read this file: there, create platform.local.txt next to the ESP32 core's
+# platform.txt with the same line, or use --build-property "compiler.cpp.extra_flags=-mtext-section-literals".
+
+compiler.cpp.extra_flags=-mtext-section-literals

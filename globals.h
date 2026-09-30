@@ -790,6 +790,26 @@
     uint16_t* stripImage = nullptr;
     String stripImageFor = "?";
 
+    // Zeit- und Datumsformat des Streifens (PK_STRIP_TIME_FMT/PK_STRIP_DATE_FMT) und die VLW-Schriften aus dem
+    // Designer (stripfont_time.vlw/stripfont_date.vlw im PSRAM, stripVlwStale = neu laden). stripVlwName und die
+    // Groessen merkt sich nur der Designer.
+
+    // Time and date format of the strip (PK_STRIP_TIME_FMT/PK_STRIP_DATE_FMT) and the VLW fonts from the
+    // designer (stripfont_time.vlw/stripfont_date.vlw in PSRAM, stripVlwStale = reload). stripVlwName and the
+    // sizes are only remembered for the designer.
+
+    uint8_t stripTimeFmt = 0;
+    uint8_t stripSeconds = 0; // Sekunden in der Uhrzeit: 0 = automatisch, 1 = ohne, 2 = mit
+                              // seconds in the time: 0 = automatic, 1 = without, 2 = with
+    uint8_t stripDateFmt = 0;
+    uint8_t* stripVlwTime = nullptr;
+    uint8_t* stripVlwDate = nullptr;
+    bool stripVlwStale = true;
+    uint32_t stripVlwGeneration = 0;
+    String stripVlwName = "";
+    uint8_t stripVlwTimeSize = 44;
+    uint8_t stripVlwDateSize = 22;
+
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
     // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne
     // Aenderungsstelle das Zwischenbild selbst kennen muss.

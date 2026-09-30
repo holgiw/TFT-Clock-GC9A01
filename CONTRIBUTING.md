@@ -10,6 +10,11 @@ that makes them much easier to review and merge.
 - Board: **LOLIN S2 PICO** (esp32 Arduino core, built with 3.3.12), partition
   scheme: **"No OTA, 2MB APP / 2MB SPIFFS"**. PSRAM is always on for this
   board (`BOARD_HAS_PSRAM` in the board definition, no menu option).
+- Compiler flag `-mtext-section-literals` is required: uhr4 is one large translation unit, without it the
+  linker fails with "dangerous relocation: l32r: literal target out of range". Visual Micro picks it up from
+  `board.txt` in the project folder; for Arduino IDE/arduino-cli add
+  `compiler.cpp.extra_flags=-mtext-section-literals` to a `platform.local.txt` next to the ESP32 core's
+  `platform.txt` (or pass it via `--build-property`).
 - Release builds (`uhr4.ino.bin`, `.bootloader.bin`, `.partitions.bin`,
   `.merged.bin`) go directly into `build_uhr4/` - `flashESP.bat`/`flashESP.sh`
   flash exactly those files.

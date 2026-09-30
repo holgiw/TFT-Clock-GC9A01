@@ -17,6 +17,17 @@ Neueste Einträge oben.
   Zifferblätter – im Zifferblatt-Designer und in der Vorschau sind die Ecken sichtbar und editierbar.
   Sicherungen lassen sich zwischen GC9A01 und ILI9341 wiederherstellen (gleiche Uhrgröße).
   Farbreihenfolge (BGR) und Invertierung sind LovyanGFX-Standard – am echten Modul prüfen.
+- **Eigene Schriften für Zifferblatt und Streifen** (VLW, kantengeglättet): Im Zifferblatt-Designer geladene
+  Schriften (.ttf/.otf/.woff) werden als `font_<Name>.*` auf der Uhr gespeichert und stehen für Text, die Ziffern im
+  Generator und den Streifen zur Verfügung – so passen Zifferblatt und Uhrzeit/Datum zusammen. Für den Streifen
+  erzeugt der Browser daraus VLW-Schriften in der gewählten Größe (Uhrzeit/Datum, optional fett;
+  `stripfont_time.vlw`/`stripfont_date.vlw`), die die Uhr weich über die Streifen-Grafik zeichnet. Kein
+  Programmspeicher nötig, die Komplettsicherung enthält die Schriften.
+- **Zeit- und Datumsformat** im Streifen: 24 h, 12 h mit AM/PM (klein rechts oben neben der Uhrzeit) oder 12 h,
+  jeweils mit oder ohne Sekunden (oder automatisch: Sekunden nur ohne Sekundenzeiger);
+  Datum als T.MM.JJJJ, TT.MM.JJJJ, TT.MM.JJ, MM/TT/JJJJ, JJJJ-MM-TT oder TT.MM.
+- Build: Compilerschalter `-mtext-section-literals` (in `board.txt` für Visual Micro) – ohne ihn scheitert der
+  Linker an der Größe der einen Übersetzungseinheit ("l32r: literal target out of range").
 - **Streifen als Teil der Zeichenfläche** (ILI9341): Der Zifferblatt-Designer bearbeitet das ganze Display
   (240x320); der Bereich über bzw. unter der Uhr wird wie das Zifferblatt gemalt und mit ihm als `strip_<Name>.bmp`
   gespeichert (RLE, je Zifferblatt). Uhrzeit und Datum liegen darüber, quer wird die Grafik um 90° gedreht.
@@ -148,6 +159,16 @@ Newest entries on top.
   corners are visible and editable in the clock face designer and the preview.
   Backups can be restored between GC9A01 and ILI9341 (same clock size). Color order (BGR) and inversion are the
   LovyanGFX defaults – check on a real module.
+- **Own fonts for clock face and strip** (VLW, anti-aliased): fonts loaded in the clock face designer
+  (.ttf/.otf/.woff) are stored on the clock as `font_<name>.*` and are available for text, the generator numerals
+  and the strip – so clock face and time/date match. For the strip the browser creates VLW fonts from them in the
+  chosen size (time/date, optionally bold; `stripfont_time.vlw`/`stripfont_date.vlw`), which the clock draws
+  smoothly over the strip graphic. No program memory needed, the full backup contains the fonts.
+- **Time and date format** in the strip: 24 h, 12 h with AM/PM (small at the top right next to the time) or 12 h,
+  each with or without seconds (or automatic: seconds only without the second hand);
+  date as D.MM.YYYY, DD.MM.YYYY, DD.MM.YY, MM/DD/YYYY, YYYY-MM-DD or DD.MM.
+- Build: compiler flag `-mtext-section-literals` (in `board.txt` for Visual Micro) – without it the linker fails
+  on the size of the single translation unit ("l32r: literal target out of range").
 - **Strip as part of the drawing area** (ILI9341): the clock face designer edits the whole display (240x320); the
   area above or below the clock is painted like the clock face and saved with it as `strip_<name>.bmp` (RLE, per
   clock face). Time and date lie on top, in landscape the graphic is rotated by 90°. Clock faces without a strip

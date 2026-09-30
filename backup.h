@@ -4,7 +4,7 @@
     // plus alle hochgeladenen Zifferblaetter/Zeigersaetze als TAR-Archiv.
     // TAR, weil es sich ohne Kompression Datei fuer Datei streamen laesst und
     // am PC mit jedem Packprogramm (z.B. 7-Zip) einsehbar ist.
-    // Inhalt: settings.txt (immer zuerst) + face_*.bmp + hand_set*.bmp + strip_*.bmp.
+    // Inhalt: settings.txt (immer zuerst) + face_*.bmp + hand_set*.bmp + strip_*.bmp + font_* + stripfont_*.vlw.
     // Benoetigt globals.h, prefs_keys.h, declarations.h (vorher eingebunden).
 
     // Full backup: all settings (NVS namespace "clock", fully enumerated via
@@ -12,7 +12,7 @@
     // clock faces/hand sets as a TAR archive. TAR because it can be streamed
     // file by file without compression and can be inspected on a PC with any
     // archiver (e.g. 7-Zip).
-    // Contents: settings.txt (always first) + face_*.bmp + hand_set*.bmp + strip_*.bmp.
+    // Contents: settings.txt (always first) + face_*.bmp + hand_set*.bmp + strip_*.bmp + font_* + stripfont_*.vlw.
     // Requires globals.h, prefs_keys.h, declarations.h (included before).
 
     // WLAN-Zugangsdaten (optional) stehen nur verschluesselt in settings.txt:
@@ -382,6 +382,10 @@
     bool isBackupFileName(const String& name) {
         if (name.length() == 0 || name.length() > 60) return false;
         if (name.indexOf('/') >= 0 || name.indexOf("..") >= 0) return false;
+        if (name.startsWith("font_")) {
+            return name.endsWith(".ttf") || name.endsWith(".otf") || name.endsWith(".woff") || name.endsWith(".woff2");
+        }
+        if (name.startsWith("stripfont_")) return name.endsWith(".vlw");
         if (!name.endsWith(".bmp")) return false;
         return name.startsWith("face_") || name.startsWith("hand_set") || name.startsWith("strip_");
     }

@@ -6756,6 +6756,11 @@
                         stripImageFor = "?";
                         infoStripDirty[0] = infoStripDirty[1] = true;
                     }
+                    else if (name.startsWith("stripfont_")) {
+                        stripVlwStale = true; // VLW-Schrift weg - der Streifen faellt auf GLCD zurueck
+                                              // VLW font gone - the strip falls back to GLCD
+                        infoStripDirty[0] = infoStripDirty[1] = true;
+                    }
                     else if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
                         int start = 8; // Laenge von "hand_set"
                                        // length of "hand_set"
@@ -7525,6 +7530,30 @@
             // Streifen fuer Uhrzeit/Datum (nur Displays groesser als die Uhr, ILI9341) - Masse hochkant
             // Time/date strip (only displays larger than the clock, ILI9341) - portrait dimensions
 
+            // Hochgeladene Schriften (font_*) fuer Generator, Text-Werkzeug und Streifen
+            // Uploaded fonts (font_*) for the generator, text tool and strip
+
+            String fontsJs = "";
+            {
+                File fr = LittleFS.open("/");
+                File ff = fr ? fr.openNextFile() : File();
+                while (ff) {
+                    String fn = ff.name();
+                    if (fn.startsWith("/")) fn = fn.substring(1);
+                    if (!ff.isDirectory() && fn.startsWith("font_")) fontsJs += String(fontsJs.length() ? "," : "") + "'" + jsSafe(fn) + "'";
+                    ff = fr.openNextFile();
+                }
+            }
+
+            // Name der VLW-Schrift mit Leerzeichen (z.B. "Sans B" = fett) - jsSafe() wuerde sie entfernen
+            // Name of the VLW font with spaces (e.g. "Sans B" = bold) - jsSafe() would remove them
+
+            String vlwNameJs;
+            for (size_t i = 0; i < stripVlwName.length(); i++) {
+                char c = stripVlwName[i];
+                if (isalnum((unsigned char)c) || c == ' ' || c == '-' || c == '_' || c == '.') vlwNameJs += c;
+            }
+
             String stripJs = "null";
             if (TFT_HEIGHT > CLOCK_HEIGHT) {
                 char bgHex[8], fgHex[8];
@@ -7532,7 +7561,8 @@
                 snprintf(fgHex, sizeof(fgHex), "#%06lx", (unsigned long)stripFgRgb);
                 stripJs = "{w:" + String(TFT_WIDTH) + ",h:" + String(TFT_HEIGHT - CLOCK_HEIGHT) + ",bg:'" + String(bgHex) +
                           "',fg:'" + String(fgHex) + "',font:" + String(stripFont) + ",before:" + String(stripBefore ? 1 : 0) +
-                          ",blink:" + String(stripBlink ? 1 : 0) +
+                          ",blink:" + String(stripBlink ? 1 : 0) + ",tfmt:" + String(stripTimeFmt) + ",sec:" + String(stripSeconds) + ",dfmt:" + String(stripDateFmt) +
+                          ",vlw:'" + vlwNameJs + "',vt:" + String(stripVlwTimeSize) + ",vd:" + String(stripVlwDateSize) +
                           ",tx:" + String(stripTimeX) +
                           ",ty:" + String(stripTimeY) + ",dx:" + String(stripDateX) + ",dy:" + String(stripDateY) +
                           ",aty:" + String(stripAutoTimeY) + ",ady:" + String(stripAutoDateY) + ",fonts:[";
@@ -7560,7 +7590,7 @@
                      ",set:'" + jsSafe(preferences.getString(PK_HANDSET, "")) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
-                     ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + ",strip:" + stripJs + "};</script>";
+                     ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + ",strip:" + stripJs + ",fonts:[" + fontsJs + "]};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(FACE_DESIGNER_HTML);
             webserver.sendContent("</body></html>");
@@ -7646,8 +7676,14 @@
             stripFgRgb = colorArg("fg", stripFgRgb);
             if (webserver.hasArg("font")) {
                 long f = webserver.arg("font").toInt();
-                if (f >= 0 && f < STRIP_FONT_COUNT) stripFont = (uint8_t)f;
+                if ((f >= 0 && f < STRIP_FONT_COUNT) || f == STRIP_FONT_VLW) stripFont = (uint8_t)f;
             }
+            if (webserver.hasArg("tfmt")) stripTimeFmt = (uint8_t)constrain(webserver.arg("tfmt").toInt(), 0L, 2L);
+            if (webserver.hasArg("sec")) stripSeconds = (uint8_t)constrain(webserver.arg("sec").toInt(), 0L, 2L);
+            if (webserver.hasArg("dfmt")) stripDateFmt = (uint8_t)constrain(webserver.arg("dfmt").toInt(), 0L, (long)STRIP_DATE_FMT_COUNT - 1);
+            if (webserver.hasArg("vlw")) stripVlwName = webserver.arg("vlw").substring(0, 40);
+            if (webserver.hasArg("vt")) stripVlwTimeSize = (uint8_t)constrain(webserver.arg("vt").toInt(), 8L, 120L);
+            if (webserver.hasArg("vd")) stripVlwDateSize = (uint8_t)constrain(webserver.arg("vd").toInt(), 8L, 120L);
             stripTimeX = posArg("tx", stripTimeX, stripW);
             stripTimeY = posArg("ty", stripTimeY, stripH);
             stripDateX = posArg("dx", stripDateX, stripW);
@@ -7669,6 +7705,12 @@
             if (webserver.arg("save") == "1") {
                 preferences.putBool(PK_STRIP_BEFORE, stripBefore);
                 preferences.putBool(PK_STRIP_BLINK, stripBlink);
+                preferences.putUChar(PK_STRIP_TIME_FMT, stripTimeFmt);
+                preferences.putUChar(PK_STRIP_SECONDS, stripSeconds);
+                preferences.putUChar(PK_STRIP_DATE_FMT, stripDateFmt);
+                preferences.putString(PK_STRIP_VLW_NAME, stripVlwName);
+                preferences.putUChar(PK_STRIP_VLW_TSIZE, stripVlwTimeSize);
+                preferences.putUChar(PK_STRIP_VLW_DSIZE, stripVlwDateSize);
                 preferences.putULong(PK_STRIP_BG, stripBgRgb);
                 preferences.putULong(PK_STRIP_FG, stripFgRgb);
                 preferences.putUChar(PK_STRIP_FONT, stripFont);
@@ -8033,12 +8075,19 @@
                 return;
             }
 
-            // Nur bestimmte Dateinamenmuster zulassen
-            // Only allow certain filename patterns
+            // Nur bestimmte Dateinamenmuster zulassen - dazu Schriften fuer den Zifferblatt-Designer (font_*)
+            // und die VLW-Schriften des Streifens.
 
-            if (!uploadFilePath.endsWith(".bmp") ||
+            // Only allow certain filename patterns - including fonts for the clock face designer (font_*) and
+            // the strip's VLW fonts.
+
+            bool isFontFile = uploadFilePath.startsWith("/font_") &&
+                              (uploadFilePath.endsWith(".ttf") || uploadFilePath.endsWith(".otf") ||
+                               uploadFilePath.endsWith(".woff") || uploadFilePath.endsWith(".woff2"));
+            bool isStripVlw = uploadFilePath == "/stripfont_time.vlw" || uploadFilePath == "/stripfont_date.vlw";
+            if (!isFontFile && !isStripVlw && (!uploadFilePath.endsWith(".bmp") ||
                 !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set") ||
-                  (uploadFilePath.startsWith("/strip_") && TFT_HEIGHT > CLOCK_HEIGHT))) {
+                  (uploadFilePath.startsWith("/strip_") && TFT_HEIGHT > CLOCK_HEIGHT)))) {
                 DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_', 'hand_set' or 'strip_' (display with strip) and end with '.bmp' : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                 uploadSuccess = false;
                 return;
@@ -8081,6 +8130,10 @@
                 uploadFile.close();
                 if (LittleFS.exists(uploadFilePath)) {
                     DEBUG_PRINTLN("[UPLOAD] Finished OK: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                    if (uploadFilePath.startsWith("/stripfont_")) {
+                        stripVlwStale = true;
+                        infoStripDirty[0] = infoStripDirty[1] = true;
+                    }
                     String lowerPath = uploadFilePath;
                     lowerPath.toLowerCase();
                     if (lowerPath.endsWith(".bmp")) {

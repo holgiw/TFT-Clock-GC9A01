@@ -128,6 +128,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
           <span id="tSBg"></span><span><input type="color" class="clr" id="sBg"></span>
           <span id="tSFg"></span><span><input type="color" class="clr" id="sFg"></span>
           <span id="tSFont"></span><span><select id="sFont"></select></span>
+          <span class="vlwRow" id="tSVSize"></span><span class="vlwRow"><input type="number" class="num2" id="sVT" min="8" max="120"> / <input type="number" class="num2" id="sVD" min="8" max="120"> px <label><input type="checkbox" id="sVB">B</label></span>
+          <span id="tSTFmt"></span><span><select id="sTFmt"></select></span>
+          <span id="tSSec"></span><span><select id="sSec"></select></span>
+          <span id="tSDFmt"></span><span><select id="sDFmt"></select></span>
           <span></span><span><label><input type="checkbox" id="sBlink"><span id="tSBlink"></span></label></span>
           <span id="tSTime" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sTAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sTX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sTY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
           <span id="tSDate" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sDAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sDX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sDY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
@@ -192,17 +196,21 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       stamp: 'Logo', txtMode: 'Anordnung:', straight: 'gerade', arcTop: 'Bogen oben', arcBottom: 'Bogen unten', txtRot: 'Drehung:',
       logo: 'Logo', logoW: 'Breite:', logoHint: 'Ideal ist ein PNG mit transparentem Hintergrund. Das Bild bleibt f\u00fcr weitere Klicks geladen.',
       noLogo: 'Zuerst unter "Logo" ein Bild laden.', fonts: 'Eigene Schrift', fontAdd: 'Hinzuf\u00fcgen', fontPh: 'installierte Schrift',
-      fontFileHint: 'oder Schriftdatei (.ttf, .otf, .woff) laden - gilt bis zum Neuladen der Seite, auch f\u00fcr die Ziffern im Generator.',
+      fontFileHint: 'oder Schriftdatei (.ttf, .otf, .woff) laden - sie wird auf der Uhr gespeichert und steht f\u00fcr Text, die Ziffern im Generator und den Streifen (Uhrzeit/Datum) zur Verf\u00fcgung.',
       fontAdded: 'Schrift "{0}" hinzugef\u00fcgt und ausgew\u00e4hlt', fontMissing: 'Die Schrift "{0}" ist auf diesem PC nicht installiert.',
       fontErr: 'Schriftdatei konnte nicht gelesen werden.',
       roundHint: 'Rundes Display: der abgedunkelte Bereich ist auf der Uhr nicht sichtbar.',
       modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       strip: 'Streifen Uhrzeit/Datum', sPos: 'Lage:', sBelow: 'unter der Uhr (quer: rechts)', sAbove: '\u00fcber der Uhr (quer: links)', sBg: 'Hintergrund:', sFg: 'Schriftfarbe:', sFont: 'Schriftart:',
-      sTime: 'Uhrzeit:', sDate: 'Datum:', sAuto: 'automatisch', sBlink: 'Doppelpunkt blinkt', sDef: 'Standard', sSave: 'Streifen speichern',
+      sTime: 'Uhrzeit:', sDate: 'Datum:', sAuto: 'automatisch', sBlink: 'Doppelpunkt blinkt (ohne Sekunden)', sDef: 'Standard', sSave: 'Streifen speichern',
       stripHint: 'Der Streifen ist Teil der Zeichenfl\u00e4che und wird mit dem Zifferblatt gespeichert (strip_Name.bmp). '
       + '\u00c4nderungen hier zeigt die Uhr sofort an, gespeichert werden sie mit \u201eStreifen speichern\u201c. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
       stripSaved: 'Streifen gespeichert.', stripErr: 'Streifen konnte nicht an die Uhr gesendet werden.',
+      sTFmt: 'Zeitformat:', sSec: 'Sekunden:', sec0: 'automatisch (ohne Sekundenzeiger)', sec1: 'ohne Sekunden', sec2: 'mit Sekunden',
+      sDFmt: 'Datumsformat:', sVSize: 'Gr\u00f6\u00dfe Uhrzeit / Datum:', tf0: '24 Stunden',
+      tf1: '12 Stunden mit AM/PM', tf2: '12 Stunden', df0: 'T.MM.JJJJ', df1: 'TT.MM.JJJJ', df2: 'TT.MM.JJ', df3: 'MM/TT/JJJJ',
+      df4: 'JJJJ-MM-TT', df5: 'TT.MM.', vlwCur: ' (auf der Uhr)', vlwErr: 'Schrift f\u00fcr den Streifen konnte nicht erzeugt werden.',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
       activate: 'activate new clock face', saveBtn: 'Save as new clock face', name: 'Name:',
@@ -245,17 +253,21 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       stamp: 'Logo', txtMode: 'Layout:', straight: 'straight', arcTop: 'arc at the top', arcBottom: 'arc at the bottom', txtRot: 'Rotation:',
       logo: 'Logo', logoW: 'Width:', logoHint: 'A PNG with a transparent background works best. The image stays loaded for further clicks.',
       noLogo: 'Load an image under "Logo" first.', fonts: 'Own font', fontAdd: 'Add', fontPh: 'installed font',
-      fontFileHint: 'or load a font file (.ttf, .otf, .woff) - valid until the page is reloaded, also for the generator numerals.',
+      fontFileHint: 'or load a font file (.ttf, .otf, .woff) - it is stored on the clock and available for text, the generator numerals and the strip (time/date).',
       fontAdded: 'Font "{0}" added and selected', fontMissing: 'The font "{0}" is not installed on this PC.',
       fontErr: 'Font file could not be read.',
       roundHint: 'Round display: the darkened area is not visible on the clock.',
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       strip: 'Time/date strip', sPos: 'Placement:', sBelow: 'below the clock (landscape: right)', sAbove: 'above the clock (landscape: left)', sBg: 'Background:', sFg: 'Text colour:', sFont: 'Font:',
-      sTime: 'Time:', sDate: 'Date:', sAuto: 'automatic', sBlink: 'Colon blinks', sDef: 'Default', sSave: 'Save strip',
+      sTime: 'Time:', sDate: 'Date:', sAuto: 'automatic', sBlink: 'Colon blinks (without seconds)', sDef: 'Default', sSave: 'Save strip',
       stripHint: 'The strip is part of the drawing area and is saved with the clock face (strip_name.bmp). '
       + 'The clock shows changes here right away, they are stored with "Save strip". ' + 'X/Y = centre of the line in the strip (portrait); in landscape the lines are arranged below each other automatically.',
       stripSaved: 'Strip saved.', stripErr: 'Could not send the strip to the clock.',
+      sTFmt: 'Time format:', sSec: 'Seconds:', sec0: 'automatic (without second hand)', sec1: 'without seconds', sec2: 'with seconds',
+      sDFmt: 'Date format:', sVSize: 'Size time / date:', tf0: '24 hours',
+      tf1: '12 hours with AM/PM', tf2: '12 hours', df0: 'D.MM.YYYY', df1: 'DD.MM.YYYY', df2: 'DD.MM.YY', df3: 'MM/DD/YYYY',
+      df4: 'YYYY-MM-DD', df5: 'DD.MM.', vlwCur: ' (on the clock)', vlwErr: 'Could not create the font for the strip.',
       pos: 'Pixel', center: 'Centre' },
   };
   var L = TX[FD.lang] ? FD.lang : 'en';
@@ -800,11 +812,17 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
 
   // Own fonts: installed ones by name (checked via a text width differing from the
   // fallback fonts) or as a file via FontFace - both in text and generator.
-  var fontCount = 0;
-  function addFont(family, label) {
+  // fontFamilies: alle Schriften des Designers (auch fuer den Streifen), onFontAdded meldet neue an die Streifen-Karte
+  // fontFamilies: all designer fonts (also for the strip), onFontAdded reports new ones to the strip card
+  var fontFamilies = [{ family: 'sans-serif', label: 'Sans' }, { family: 'serif', label: 'Serif' }, { family: 'monospace', label: 'Mono' }];
+  var onFontAdded = null;
+  function addFont(family, label, quiet) {
     ['txtFont', 'gNFont'].forEach(function (id) {
       var o = document.createElement('option'); o.value = family; o.textContent = label; $(id).appendChild(o);
     });
+    fontFamilies.push({ family: family, label: label });
+    if (onFontAdded) onFontAdded(fontFamilies.length - 1);
+    if (quiet) return;
     $('txtFont').value = family;
     showMsg(t('fontAdded', label), true);
   }
@@ -821,14 +839,76 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     if (!fontInstalled(n)) { showMsg(t('fontMissing', n), false); return; }
     addFont('"' + n + '"', n);
   };
+  // Schriftdatei: im Browser anmelden und als font_<Name>.<ext> auf der Uhr speichern
+  // Font file: register it in the browser and store it on the clock as font_<name>.<ext>
   $('fontFile').onchange = function () {
-    var f = this.files[0], input = this, name = 'UserFont' + (++fontCount);
+    var f = this.files[0], input = this;
     if (!f) return;
-    f.arrayBuffer().then(function (ab) { return new FontFace(name, ab).load(); }).then(function (face) {
-      document.fonts.add(face);
-      addFont('"' + name + '"', f.name.replace(/\.[^.]+$/, ''));
-    }).catch(function () { showMsg(t('fontErr'), false); }).then(function () { input.value = ''; });
+    var ext = (/\.(ttf|otf|woff2?)$/i.exec(f.name) || [])[1];
+    var label = f.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 30) || 'font';
+    f.arrayBuffer().then(function (ab) {
+      return new FontFace('UF_' + label, ab).load().then(function (face) {
+        document.fonts.add(face);
+        if (!ext) return;
+        var fd = new FormData();
+        fd.append('upload', new Blob([ab]), 'font_' + label + '.' + ext.toLowerCase());
+        return fetch('/upload', { method: 'POST', body: fd, redirect: 'manual' });
+      });
+    }).then(function () { addFont('"UF_' + label + '"', label); })
+      .catch(function () { showMsg(t('fontErr'), false); }).then(function () { input.value = ''; });
   };
+  // Auf der Uhr gespeicherte Schriften laden
+  // Load the fonts stored on the clock
+  (FD.fonts || []).forEach(function (fn) {
+    var label = fn.replace(/^font_/, '').replace(/\.[^.]+$/, '');
+    fetch('/file?name=' + encodeURIComponent('/' + fn), { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.arrayBuffer();
+    }).then(function (ab) { return new FontFace('UF_' + label, ab).load(); }).then(function (face) {
+      document.fonts.add(face);
+      addFont('"UF_' + label + '"', label, true);
+    }).catch(function () {});
+  });
+
+  // VLW-Schrift (kantengeglaettet, wie LovyanGFX sie laedt) fuer die Streifen-Zeichen aus einer Browser-Schrift:
+  // Kopf 6 x int32, je Zeichen 7 x int32 (Unicode, Hoehe, Breite, Vorschub, Oberkante ueber Grundlinie, linker
+  // Versatz, 0), danach die Alpha-Bitmaps. Alle Zahlen big-endian, Zeichen nach Unicode sortiert.
+  // VLW font (anti-aliased, as LovyanGFX loads it) for the strip characters from a browser font: header 6 x
+  // int32, per character 7 x int32 (unicode, height, width, advance, top above baseline, left offset, 0), then
+  // the alpha bitmaps. All numbers big-endian, characters sorted by unicode.
+  function makeVlw(css, px) {
+    var chars = ' -./0123456789:AMP'.split(''), pad = Math.ceil(px * 0.5);
+    var c = newCanvas(px * 4, px * 3), x = c.getContext('2d');
+    x.font = css; x.textBaseline = 'alphabetic';
+    var ref = x.measureText('0');
+    var ascent = Math.ceil(ref.fontBoundingBoxAscent || ref.actualBoundingBoxAscent || px * 0.8);
+    var descent = Math.ceil(ref.fontBoundingBoxDescent || px * 0.2);
+    var glyphs = chars.map(function (ch) {
+      var m = x.measureText(ch);
+      var l = Math.ceil(m.actualBoundingBoxLeft || 0), r = Math.ceil(m.actualBoundingBoxRight || 0);
+      var a = Math.ceil(m.actualBoundingBoxAscent || 0), d = Math.ceil(m.actualBoundingBoxDescent || 0);
+      var w = Math.min(255, Math.max(0, l + r)), h = Math.max(0, a + d), bits = new Uint8Array(0);
+      if (ch === ' ' || !w || !h) { w = 0; h = 0; }
+      else {
+        x.clearRect(0, 0, c.width, c.height); x.fillStyle = '#fff';
+        x.fillText(ch, pad + l, pad + a);
+        var id = x.getImageData(pad, pad, w, h).data;
+        bits = new Uint8Array(w * h);
+        for (var i = 0; i < w * h; i++) bits[i] = id[i * 4 + 3];
+      }
+      return { u: ch.charCodeAt(0), w: w, h: h, adv: Math.min(255, Math.round(m.width)), dy: a, dx: -l, bits: bits };
+    });
+    var size = 24 + glyphs.length * 28;
+    glyphs.forEach(function (g) { size += g.bits.length; });
+    var ab = new ArrayBuffer(size), dv = new DataView(ab), bytes = new Uint8Array(ab), o = 24;
+    [glyphs.length, 11, px, 0, ascent, descent].forEach(function (v, i) { dv.setInt32(i * 4, v); });
+    glyphs.forEach(function (g) {
+      [g.u, g.h, g.w, g.adv, g.dy, g.dx, 0].forEach(function (v, i) { dv.setInt32(o + i * 4, v); });
+      o += 28;
+    });
+    glyphs.forEach(function (g) { bytes.set(g.bits, o); o += g.bits.length; });
+    return new Blob([ab], { type: 'application/octet-stream' });
+  }
 
   $('imgFile').onchange = function () {
     var f = this.files[0], input = this;
@@ -1233,9 +1313,45 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     [['0', 'sBelow'], ['1', 'sAbove']].forEach(function (k) {
       var o = document.createElement('option'); o.value = k[0]; o.textContent = t(k[1]); $('sBefore').appendChild(o);
     });
-    SP.fonts.forEach(function (n, i) {
-      var o = document.createElement('option'); o.value = i; o.textContent = n; $('sFont').appendChild(o);
-    });
+    var lastVlwKey = null;
+    var opt = function (sel, value, text) {
+      var o = document.createElement('option'); o.value = value; o.textContent = text; $(sel).appendChild(o); return o;
+    };
+    SP.fonts.forEach(function (n, i) { opt('sFont', String(i), n); });
+    if (SP.font === 255) opt('sFont', 'v:cur', (SP.vlw || 'VLW') + t('vlwCur'));
+    [0, 1, 2].forEach(function (i) { opt('sTFmt', String(i), t('tf' + i)); });
+    [0, 1, 2].forEach(function (i) { opt('sSec', String(i), t('sec' + i)); });
+    [0, 1, 2, 3, 4, 5].forEach(function (i) { opt('sDFmt', String(i), t('df' + i)); });
+
+    // Designer-Schriften als VLW anbieten; die auf der Uhr aktive (SP.vlw, " B" = fett) wird wiedererkannt
+    // Offer designer fonts as VLW; the one active on the clock (SP.vlw, " B" = bold) is recognised
+    onFontAdded = function (i) {
+      var f = fontFamilies[i];
+      opt('sFont', 'v:' + i, f.label);
+      if (SP.font === 255 && $('sFont').value === 'v:cur' && SP.vlw.replace(/ B$/, '') === f.label) {
+        $('sFont').value = 'v:' + i;
+        $('sVB').checked = / B$/.test(SP.vlw);
+        lastVlwKey = f.family + '|' + SP.vt + '|' + SP.vd + '|' + $('sVB').checked;
+        vlwRows();
+      }
+    };
+    var vlwRows = function () {
+      var v = $('sFont').value.indexOf('v:') === 0;
+      document.querySelectorAll('#stripCard .vlwRow').forEach(function (e) { e.style.display = v ? '' : 'none'; });
+      $('sVT').disabled = $('sVD').disabled = $('sVB').disabled = $('sFont').value === 'v:cur';
+    };
+    var uploadVlw = function (family, vt, vd, bold) {
+      var css = function (px) { return (bold ? 'bold ' : '') + px + 'px ' + family; };
+      var up = function (px, name) {
+        var fd = new FormData();
+        fd.append('upload', makeVlw(css(px), px), name);
+        return fetch('/upload', { method: 'POST', body: fd, redirect: 'manual' });
+      };
+      return Promise.all([document.fonts.load(css(vt), '0123456789'), document.fonts.load(css(vd), '0123456789')]).then(function () {
+        return up(vt, 'stripfont_time.vlw');
+      }).then(function () { return up(vd, 'stripfont_date.vlw'); });
+    };
+    fontFamilies.forEach(function (f, i) { onFontAdded(i); });
     $('sTX').max = $('sDX').max = SP.w; $('sTY').max = $('sDY').max = SP.h;
     var stripSync = function () {
       [['T', SP.aty], ['D', SP.ady]].forEach(function (k) {
@@ -1245,7 +1361,12 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       });
     };
     var stripFill = function () {
-      $('sBefore').value = SP.before ? '1' : '0'; $('sBlink').checked = !!SP.blink; $('sBg').value = SP.bg; $('sFg').value = SP.fg; $('sFont').value = SP.font;
+      $('sBefore').value = SP.before ? '1' : '0'; $('sBlink').checked = !!SP.blink; $('sBg').value = SP.bg; $('sFg').value = SP.fg;
+      if (SP.font !== 255) $('sFont').value = String(SP.font);
+      else if ($('sFont').value.indexOf('v:') !== 0) $('sFont').value = 'v:cur';
+      $('sTFmt').value = String(SP.tfmt || 0); $('sSec').value = String(SP.sec || 0); $('sDFmt').value = String(SP.dfmt || 0);
+      $('sVT').value = SP.vt || 44; $('sVD').value = SP.vd || 22;
+      vlwRows();
       $('sTAuto').checked = SP.tx < 0; $('sDAuto').checked = SP.dx < 0;
       $('sTX').value = SP.tx < 0 ? SP.w >> 1 : SP.tx; $('sTY').value = SP.ty < 0 ? SP.aty : SP.ty;
       $('sDX').value = SP.dx < 0 ? SP.w >> 1 : SP.dx; $('sDY').value = SP.dy < 0 ? SP.ady : SP.dy;
@@ -1254,11 +1375,30 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     var stripSend = function (save) {
       var p = new URLSearchParams();
       SP.before = +$('sBefore').value; SP.bg = $('sBg').value;
-      p.set('before', $('sBefore').value); p.set('blink', $('sBlink').checked ? '1' : '0'); p.set('bg', $('sBg').value); p.set('fg', $('sFg').value); p.set('font', $('sFont').value);
+      p.set('before', $('sBefore').value); p.set('blink', $('sBlink').checked ? '1' : '0'); p.set('bg', $('sBg').value); p.set('fg', $('sFg').value);
+      p.set('tfmt', $('sTFmt').value); p.set('sec', $('sSec').value); p.set('dfmt', $('sDFmt').value);
+
+      // Designer-Schrift: VLW-Dateien nur neu erzeugen, wenn sich Schrift, Groesse oder Fett geaendert haben
+      // Designer font: only create new VLW files if font, size or bold changed
+      var fv = $('sFont').value, prep = Promise.resolve();
+      if (fv.indexOf('v:') === 0) {
+        p.set('font', 255);
+        if (fv !== 'v:cur') {
+          var ff = fontFamilies[+fv.slice(2)], vt = +$('sVT').value || 44, vd = +$('sVD').value || 22, bold = $('sVB').checked;
+          var key = ff.family + '|' + vt + '|' + vd + '|' + bold;
+          p.set('vlw', ff.label + (bold ? ' B' : '')); p.set('vt', vt); p.set('vd', vd);
+          SP.vlw = ff.label + (bold ? ' B' : ''); SP.vt = vt; SP.vd = vd;
+          if (key !== lastVlwKey) prep = uploadVlw(ff.family, vt, vd, bold).then(function () { lastVlwKey = key; });
+        }
+      }
+      else p.set('font', fv);
+      SP.font = fv.indexOf('v:') === 0 ? 255 : +fv;
       p.set('tx', $('sTAuto').checked ? -1 : $('sTX').value); p.set('ty', $('sTAuto').checked ? -1 : $('sTY').value);
       p.set('dx', $('sDAuto').checked ? -1 : $('sDX').value); p.set('dy', $('sDAuto').checked ? -1 : $('sDY').value);
       p.set('save', save ? '1' : '0');
-      return fetch('/save_strip', { method: 'POST', body: p }).then(function (r) { return r.json(); }).then(function (j) {
+      return prep.then(function () {
+        return fetch('/save_strip', { method: 'POST', body: p });
+      }, function (e) { showMsg(t('vlwErr'), false); throw e; }).then(function (r) { return r.json(); }).then(function (j) {
         if (!j.ok) throw new Error();
         SP.aty = j.aty; SP.ady = j.ady;
         stripSync();
@@ -1271,20 +1411,22 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       clearTimeout(stripTimer);
       stripTimer = setTimeout(function () { stripSend(false); }, 250);
     };
-    ['sBefore', 'sBlink', 'sBg', 'sFg', 'sFont', 'sTAuto', 'sDAuto', 'sTX', 'sTY', 'sDX', 'sDY'].forEach(function (id) {
+    $('sFont').addEventListener('change', vlwRows);
+    ['sBefore', 'sBlink', 'sBg', 'sFg', 'sFont', 'sVT', 'sVD', 'sVB', 'sTFmt', 'sSec', 'sDFmt', 'sTAuto', 'sDAuto', 'sTX', 'sTY', 'sDX', 'sDY'].forEach(function (id) {
       $(id).addEventListener('input', stripLive);
       $(id).addEventListener('change', stripLive);
     });
     $('sBefore').addEventListener('change', function () { setStripBefore(this.value === '1'); });
     $('sDefBtn').onclick = function () {
       setStripBefore(false);
-      SP.before = 0; SP.blink = 1; SP.bg = '#000000'; SP.fg = '#ffffff'; SP.font = 0; SP.tx = SP.ty = SP.dx = SP.dy = -1;
+      SP.before = 0; SP.blink = 1; SP.bg = '#000000'; SP.fg = '#ffffff'; SP.font = 0; SP.tfmt = 0; SP.sec = 0; SP.dfmt = 0;
+      SP.tx = SP.ty = SP.dx = SP.dy = -1;
       stripFill(); stripLive();
     };
     $('sSaveBtn').onclick = function () { clearTimeout(stripTimer); stripSend(true); };
-    ['tStrip', 'tSPos', 'tSBg', 'tSFg', 'tSFont', 'tSTime', 'tSDate', 'stripHint'].forEach(function (id) {
-      $(id).textContent = t({ tStrip: 'strip', tSPos: 'sPos', tSBg: 'sBg', tSFg: 'sFg', tSFont: 'sFont', tSTime: 'sTime', tSDate: 'sDate', stripHint: 'stripHint' }[id]);
-    });
+    var stripLabels = { tStrip: 'strip', tSPos: 'sPos', tSBg: 'sBg', tSFg: 'sFg', tSFont: 'sFont', tSTime: 'sTime', tSDate: 'sDate',
+      stripHint: 'stripHint', tSVSize: 'sVSize', tSTFmt: 'sTFmt', tSSec: 'sSec', tSDFmt: 'sDFmt' };
+    Object.keys(stripLabels).forEach(function (id) { $(id).textContent = t(stripLabels[id]); });
     document.querySelectorAll('#stripCard .tSAuto').forEach(function (e) { e.textContent = t('sAuto'); });
     $('tSBlink').textContent = t('sBlink');
     $('sDefBtn').textContent = t('sDef'); $('sSaveBtn').textContent = t('sSave');

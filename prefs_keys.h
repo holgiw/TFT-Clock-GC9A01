@@ -86,6 +86,16 @@
     constexpr const char* PK_STRIP_TIME_Y      = "stripTimeY";
     constexpr const char* PK_STRIP_DATE_X      = "stripDateX";
     constexpr const char* PK_STRIP_DATE_Y      = "stripDateY";
+    constexpr const char* PK_STRIP_TIME_FMT    = "stripTimeFmt"; // 0 = 24 h, 1 = 12 h mit AM/PM, 2 = 12 h ohne
+                                                                 // 0 = 24 h, 1 = 12 h with AM/PM, 2 = 12 h without
+    constexpr const char* PK_STRIP_SECONDS     = "stripSeconds"; // 0 = automatisch (ohne Sekundenzeiger), 1 = ohne, 2 = mit
+                                                                 // 0 = automatic (without second hand), 1 = without, 2 = with
+    constexpr const char* PK_STRIP_DATE_FMT    = "stripDateFmt"; // siehe stripDateText() in display.h
+                                                                 // see stripDateText() in display.h
+    constexpr const char* PK_STRIP_VLW_NAME    = "stripVlwName"; // VLW-Schrift: Name und Groessen fuer den Designer
+                                                                 // VLW font: name and sizes for the designer
+    constexpr const char* PK_STRIP_VLW_TSIZE   = "stripVlwT";
+    constexpr const char* PK_STRIP_VLW_DSIZE   = "stripVlwD";
     constexpr const char* PK_STRIP_BLINK       = "stripBlink";   // Doppelpunkt der Uhrzeit "H:MM" blinkt
                                                                  // colon of the time "H:MM" blinks
     constexpr const char* PK_STRIP_BEFORE      = "stripBefore";  // Streifen ueber (quer: links von) der Uhr statt darunter

@@ -167,12 +167,14 @@
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
                                                                                                                                                                   // false = frame unchanged, nothing sent
     void loadInfoStripSettings() ;
-    void stripDigitRows(LGFX_Sprite& s, const lgfx::IFont* font, uint8_t size, int& top, int& bottom) ;
+    uint8_t* loadFileToPsram(const char* path) ;
+    bool ensureStripVlw() ;
     void drawStripTime(lgfx::LovyanGFX& g, const String& text, bool colon, int cx, int y) ;
     String stripPathForFace(const String& facePath) ;
     bool ensureStripImage() ;
-    void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon, uint16_t bg, uint16_t fg, bool push, bool useImage) ;
-    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon) ;
+    void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon, const String& suffix, uint16_t bg, uint16_t fg, bool push, bool useImage) ;
+    void stripDateText(const struct tm& t, String& full, String& a, String& b) ;
+    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix) ;
     uint16_t stripColor565(uint32_t rgb) ;
     bool renderStripPreview(int w, int h, bool textOnly) ;
     void drawInfoStrips() ;
