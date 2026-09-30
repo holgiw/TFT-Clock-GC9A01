@@ -91,13 +91,11 @@
 void connectWiFiAtBoot() {
 
         // WLAN-Zugangsdaten laden
-
         // Load WiFi credentials
 
         for (int i = 0; i < MAX_WLAN; i++) {
 
             // Dynamisch berechnete Schlüssel
-
             // Dynamically computed keys
 
             String ssidKey = pkSsid(i);
@@ -107,7 +105,6 @@ void connectWiFiAtBoot() {
 
 
         // AP starten, wenn keine SSID gespeichert ist
-
         // Start AP if no SSID is stored
 
         for (int i = 0; i < MAX_WLAN; i++) {
@@ -157,7 +154,6 @@ void connectWiFiAtBoot() {
 
 
         // ist die letzte SSID im Scan vorhanden?
-
         // Is the last SSID present in the scan?
 
         bool foundLastSSID = false;
@@ -226,13 +222,11 @@ void connectWiFiAtBoot() {
         if (lastSsidResult == NOT_CONNECTED) {
 
             // Wenn Verbindung fehlschlägt, scannen und vergleichen
-
             // If connection fails, scan and compare
 
             DEBUG_PRINTLN("[WiFi] Connection failed. Looking for available networks..");
 
             // Durchsuche gefundene Netzwerke nach gespeicherten SSIDs
-
             // Search found networks for stored SSIDs
 
             for (int i = 0; i < MAX_WLAN; i++) {
@@ -242,7 +236,6 @@ void connectWiFiAtBoot() {
                 for (int j = 0; j < MAX_WLAN; j++) {
 
                     // Nur ueberspringen, wenn oben tatsaechlich versucht wurde.
-
                     // Only skip if it was actually attempted above.
 
                     if (lastSsidTried && j == (int)number) continue;
@@ -332,7 +325,6 @@ void connectWiFiAtBoot() {
 
 
             // Alle Verbindungsversuche fehlgeschlagen: AP nur ohne gueltige RTC starten
-
             // All connection attempts failed: only start AP without a valid RTC
 
             if (rtcOk != RTC_AVAILABLE) {
@@ -344,7 +336,6 @@ void connectWiFiAtBoot() {
 
 
     // Setup-Funktion
-
     // Setup function
 
 void setup() {
@@ -470,7 +461,6 @@ void setup() {
         wipeWifiDriverStorage();
 
         // WLAN-Passwoerter im Klartext (aeltere Firmware/Sicherung) verschluesseln
-
         // Encrypt plain-text WiFi passwords (older firmware/backup)
 
         migrateWifiPasswords();
@@ -546,7 +536,6 @@ void setup() {
         }
 
         // Logging aktivieren, wenn in den Preferences aktiviert
-
         // Enable logging if enabled in preferences
 
         loggingEnabled = preferences.getBool(PK_LOGGING_ENABLED, false);
@@ -578,7 +567,6 @@ void setup() {
         DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
 
         // I2C-Scanner starten, um RTC zu erkennen
-
         // Start I2C scanner to detect the RTC
 
         Wire.begin(SDA_PIN, SCL_PIN);
@@ -777,7 +765,6 @@ void setup() {
 
 
         // NTP-Server initialisieren
-
         // Initialize NTP servers
 
         initializeNtpServers();
@@ -814,7 +801,6 @@ void setup() {
         setCSIdle();
 
         // Nabe
-
         // Hub
 
         uint32_t hubColorRgb = preferences.getLong(PK_CENTER_COLOR, 0xEC0016); //DB-Rot
@@ -834,7 +820,6 @@ void setup() {
         maxBrightness = preferences.getUChar(PK_MAX_BRIGHTNESS, 255);
 
         // Zeitabhängige Helligkeit aus Preferences
-
         // Time-dependent brightness from preferences
 
         brightStartHour = preferences.getUChar(PK_BRIGHT_START_HOUR, 7);
@@ -862,7 +847,6 @@ void setup() {
         pinMode(BUTTON1, INPUT_PULLDOWN);
 
         // auf Fotowiderstand prüfen
-
         // Check for photoresistor
 
         uint16_t adcMin = 0;
@@ -872,7 +856,6 @@ void setup() {
         analogReadResolution(12);
 
         // ADC +3,3V / GND über GPIO
-
         // ADC +3.3V / GND via GPIO
 
         pinMode(ADC_GND, OUTPUT);
@@ -902,7 +885,6 @@ void setup() {
             photoresistorFound = true;
 
             // evtl. überschreiben
-
             // possibly override
 
             useAdc = preferences.getBool(PK_USE_ADC, true);
@@ -1042,7 +1024,6 @@ void setup() {
         for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
 
         // Wenn Button1 oder BOOT_BUTTON gedrückt ist, alle Zugangsdaten löschen
-
         // If Button1 or BOOT_BUTTON is pressed, clear all credentials
 
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
@@ -1132,7 +1113,6 @@ void setup() {
 
 
     // Main-Loop
-
     // Main loop
 
     void loop() {
@@ -1345,7 +1325,6 @@ void setup() {
         }
 
         // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
-
         // In AP mode: process DNS requests (captive portal)
 
         if (softAPIP) {
@@ -1356,7 +1335,6 @@ void setup() {
         webserver.handleClient();
 
         // Displaytyp per USB von flashESP.bat/.sh (siehe display.h)
-
         // Display type via USB from flashESP.bat/.sh (see display.h)
 
         handleSerialCommands();

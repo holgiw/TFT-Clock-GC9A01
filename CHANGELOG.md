@@ -7,6 +7,12 @@
 Alle nennenswerten Änderungen an der Firmware uhr4 (TFT-Uhr mit GC9A01/GC9D01 auf ESP32-S2).
 Neueste Einträge oben.
 
+## 2026-09-30
+
+### Geändert
+- Kommentare: Sind der deutsche und englische Teil jeweils nur eine Zeile, stehen sie jetzt direkt
+  untereinander ohne Leerzeile dazwischen (nur Leerzeilen entfernt, Code unverändert, kein neuer Build nötig).
+
 ## 2026-09-29
 
 ### Behoben
@@ -96,6 +102,12 @@ Neueste Einträge oben.
 
 All notable changes to the uhr4 firmware (TFT clock with GC9A01/GC9D01 on ESP32-S2).
 Newest entries on top.
+
+## 2026-09-30
+
+### Changed
+- Comments: if the German and English part are one line each, they now sit directly below each other
+  without a blank line in between (only blank lines removed, code unchanged, no new build needed).
 
 ## 2026-09-29
 

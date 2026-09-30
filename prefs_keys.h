@@ -20,7 +20,6 @@
                                                                 // user via a slider (see webserver_routes.h)
 
     // WLAN
-
     // WiFi
 
     constexpr const char* PK_WIFI_ACTIVE       = "wifiActive";
@@ -28,7 +27,6 @@
                                                                // <- single source of truth
 
     // Zeit / NTP
-
     // Time / NTP
 
     constexpr const char* PK_TIMEZONE          = "timezone";
@@ -36,7 +34,6 @@
                                                                // LED flashes per DCF77 pulse during the sync phase (default true)
 
     // Zifferblatt / Darstellung
-
     // Clock Face / Display
 
     constexpr const char* PK_TFT_ROTATION1     = "tftRotation1"; // Rotation Display 1 (0-3, 4 = n.a.) - hiess vor Display-2-Support "tftRotation" (siehe LEGACY unten)
@@ -51,7 +48,6 @@
     constexpr const char* PK_BACKGROUND        = "background";
 
     // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) wird ueber die Rotation "n.a." (TFT_ROTATION_NA) abgeschaltet, kein eigener Preferences-Schalter (siehe config.h/globals.h/uhr4.ino).
-
     // PK_USE_CS2 removed: Display 2 (CS2 pin) is switched off via the rotation value "n.a." (TFT_ROTATION_NA), no separate preferences toggle (see config.h/globals.h/uhr4.ino).
 
     constexpr const char* PK_STATION_MODE      = "stationMode"; // "wartet auf 12" (siehe globals.h) - "waits at 12" (see globals.h)
@@ -71,7 +67,6 @@
     constexpr const char* PK_CURRENT_PRESET    = "currentPreset";
 
     // Helligkeit
-
     // Brightness
 
     constexpr const char* PK_MIN_BRIGHTNESS    = "minBrightness";
@@ -89,7 +84,6 @@
                                                                  // backlight via PWM on pin 3 (replaces the GC9A01_WITH_BACKLIGHT build)
 
     // Rocrail-Modellzeit (siehe rocrail_client.h)
-
     // Rocrail model time (see rocrail_client.h)
 
     constexpr const char* PK_ROCRAIL_ENABLED   = "rocrailEnabled";
@@ -116,14 +110,12 @@
     constexpr const char* PK_ROCRAIL_ACTIVE_SRV = "rocSrvActive";
 
     // Liefert den Preferences-Key fuer den Hostnamen/die IP des Rocrail-Server-Eintrags an Index i
-
     // Returns the preferences key for the hostname/IP of the Rocrail server entry at index i
 
     inline String pkRocrailServerHost(int i) { return "rocSrvH" + String(i + 1); }
 
 
     // Liefert den Preferences-Key fuer den Port des Rocrail-Server-Eintrags an Index i
-
     // Returns the preferences key for the port of the Rocrail server entry at index i
 
     inline String pkRocrailServerPort(int i) { return "rocSrvP" + String(i + 1); }
@@ -140,7 +132,6 @@
     inline String pkRocrailServerName(int i) { return "rocSrvN" + String(i + 1); }
 
     // Wartung
-
     // Maintenance
 
     constexpr const char* PK_LAST_RESET_WEEK   = "last_reset_week";
@@ -189,35 +180,30 @@
 
 
     // Liefert den Preferences-Key fuer das WLAN-SSID-Feld an Index i
-
     // Returns the preferences key for the WiFi SSID field at index i
 
     inline String pkSsid(int i)         { return "ssid" + String(i + 1); }
 
 
     // Liefert den Preferences-Key fuer das WLAN-Passwort-Feld an Index i
-
     // Returns the preferences key for the WiFi password field at index i
 
     inline String pkPass(int i)         { return "pass" + String(i + 1); }
 
 
     // Liefert den Preferences-Key fuer den NTP-Server an Index i
-
     // Returns the preferences key for the NTP server at index i
 
     inline String pkNtpServer(int i)    { return "ntpServer" + String(i + 1); }
 
 
     // Liefert den Preferences-Key fuer den Namen des Presets an Index i
-
     // Returns the preferences key for the preset name at index i
 
     inline String pkPresetName(int i)   { return "preset" + String(i) + "_name"; }
 
 
     // Liefert den Preferences-Key fuer die URL des Presets an Index i
-
     // Returns the preferences key for the preset URL at index i
 
     inline String pkPresetUrl(int i)    { return "preset" + String(i) + "_url"; }

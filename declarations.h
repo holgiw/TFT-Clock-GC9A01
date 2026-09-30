@@ -7,7 +7,6 @@
 
 
     // wifi_manager.h: WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect
-
     // wifi_manager.h: WiFi: connection setup, access point, scan, reconnect
 
     void startWPS() ;
@@ -48,7 +47,6 @@
 
 
     // time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone
-
     // time_sync.h: Time: RTC, DCF77, NTP client & server, timezone
 
     void IRAM_ATTR isr() ;
@@ -93,7 +91,6 @@
 
 
     // display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit
-
     // display.h: Display: clock face, hands, sprites, brightness
 
     void* preferPsramMalloc(size_t size) ;
@@ -231,7 +228,6 @@
 
 
     // presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
-
     // presets_manager.h: Presets: load/save/switch predefined display configurations
 
     String stripRotationParam(const String& url) ;
@@ -264,7 +260,6 @@
 
 
     // webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung
-
     // webserver_routes.h: Web interface: all HTTP routes & HTML generation
 
     void applyWlanList(String newSsid[MAX_WLAN], String newPass[MAX_WLAN]) ; // schreibt eine komplette WLAN-Liste in Preferences + RAM (siehe webserver_routes.h)
@@ -311,7 +306,6 @@
 
 
     // system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
-
     // system_utils.h: System functions: buttons, logging, reset, restart, helper functions
 
     void checkButton() ;

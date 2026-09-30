@@ -18,7 +18,6 @@
     const DisplayGeometry* displayGeom = &DISPLAY_GEOMETRY[DISPLAY_TYPE_DEFAULT];
 
     // System / Allgemein
-
     // System / General
 
     String currentLanguage = "de"; // Standardmäßig Deutsch
@@ -52,7 +51,6 @@
 
 
     // Kern-Hardwareobjekte (TFT, Webserver, Preferences, RTC, ...)
-
     // Core hardware objects (TFT, web server, preferences, RTC, ...)
 
     UhrLGFX tft; // ein Geraet fuer beide Displays, siehe lgfx_config.h
@@ -71,7 +69,6 @@
     WiFiUDP udp;
 
     // Eigene WiFiUDP-Instanz fuer die R2RNet-Multicast-Diagnose - unabhaengig von 'udp' (eigener NTP-Server).
-
     // Separate WiFiUDP instance for the R2RNet multicast diagnostics - independent of 'udp' (own NTP server).
 
     WiFiUDP r2rnetDebugUdp;
@@ -83,7 +80,6 @@
     RTC_DS3231 rtc;
 
     // WLAN
-
     // WiFi
 
 #define MAX_WLAN 15
@@ -123,7 +119,6 @@
     unsigned long wpsStartRequestedAtMillis = 0;
 
     // MAC Adresse
-
     // MAC address
 
     uint8_t mac[6];
@@ -202,7 +197,6 @@
     const int NTP_PORT = 123;
 
     // NTP-Paketgröße
-
     // NTP packet size
 
     const int NTP_PACKET_SIZE = 48;
@@ -598,7 +592,6 @@
     String i2cAddr = "";
 
     // Zifferblatt / Display
-
     // Clock face / Display
 
     String tftType = "UNKNOWN";
@@ -637,7 +630,6 @@
     int secondHandWidth = HAND_WIDTH;
 
     // nabe
-
     // hub
 
     uint16_t hubColor = 0;
@@ -823,7 +815,6 @@
                                   // Upper limit
 
     // Zeitabhängige Helligkeit
-
     // Time-dependent brightness
 
     uint8_t brightStartHour = 8;       // inkl. (z.B. 8)
@@ -877,7 +868,6 @@
 
 
     // Presets
-
     // Presets
 
 #define MAX_PRESETS 50
@@ -888,7 +878,6 @@
     Preset presets[MAX_PRESETS];
 
     // Datei-Upload / Wartung
-
     // File upload / maintenance
 
     File uploadFile;
@@ -896,7 +885,6 @@
     bool uploadSuccess = false;
 
     // Presets-Import (separat vom BMP-Upload, um Statuskonflikte zu vermeiden)
-
     // Presets import (separate from the BMP upload, to avoid status conflicts)
 
     File presetImportFile;
@@ -908,7 +896,6 @@
     int currentWeek = -1;
 
     // Uebersetzungen fuer verschiedene Sprachen
-
     // Translations for various languages
 
 #include "translation.h"

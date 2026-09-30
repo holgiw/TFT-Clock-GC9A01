@@ -93,7 +93,6 @@
 
 
     // Text-Escaping fuer settings.txt (Tab-getrennt, eine Zeile pro Schluessel)
-
     // Text escaping for settings.txt (tab-separated, one line per key)
 
     String backupEscape(const String& s) {
@@ -169,7 +168,6 @@
 
 
     // Ueberschreibt einen String mit Nullen (Passwoerter, Klartext-WLAN-Daten)
-
     // Overwrites a string with zeros (passwords, plain-text WiFi data)
 
     void backupWipe(String& s) {
@@ -532,7 +530,6 @@
         }
 
         // Fehlt ein Schluessel in der Sicherung, galt dort der Standardwert
-
         // If a key is missing in the backup, the default applied there
 
         const String typePrefix = "u8\t" + String(PK_DISPLAY_TYPE) + "\t";
@@ -783,7 +780,6 @@
 
 
     // Wiederherstellen: Zustand ueber die Upload-Stuecke hinweg
-
     // Restore: state across the upload chunks
 
     struct BackupRestoreState {
@@ -920,7 +916,6 @@
         }
 
         // Alles andere (Verzeichnisse, fremde Dateien) wird uebersprungen
-
         // Everything else (directories, foreign files) is skipped
 
         s.phase = (s.remaining > 0) ? BackupRestoreState::DATA
@@ -989,7 +984,6 @@
             }
 
             // Formularfelder vor der Datei - liegen beim Upload-Start schon vor
-
             // Form fields before the file - already available at upload start
 
             backupRestore->restoreWifi = webserver.arg("restoreWifi") == "1";

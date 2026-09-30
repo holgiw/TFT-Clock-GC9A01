@@ -32,7 +32,6 @@
 
 
     // Generiert den HTML-Header für die Weboberfläche
-
     // Generates the HTML header for the web interface
 
     String generateHtmlHeader(String extraHead) {
@@ -151,7 +150,6 @@
         html += "@keyframes dotBlink{0%,100%{opacity:1;}50%{opacity:.25;}}";
 
         // prefers-reduced-motion: feste gedimmte Opazitaet statt Blinken.
-
         // prefers-reduced-motion: fixed dimmed opacity instead of blinking.
 
         html += "@media (prefers-reduced-motion:reduce){.dot.syncing{animation:none;opacity:.6;}}";
@@ -195,13 +193,11 @@
         html += "</style>" + extraHead + "</head><body>";
 
         // Statuszeile vor der JS-Warnung, da generateHtmlHeader() von jeder Seite eingebunden wird
-
         // Status bar before the JS warning, since every page includes generateHtmlHeader()
 
         html += generateTopBar();
 
         // Seite benötigt JavaScript
-
         // Page requires JavaScript
 
         html += "<noscript><div style='color:red;font-weight:bold;margin:20px;'>" +
@@ -452,7 +448,6 @@
         else if (staConnected) {
 
             // Hostname noch nicht bestaetigt - SSID als Platzhalter zeigen.
-
             // Hostname not confirmed yet - show the SSID as a placeholder.
 
             html += "<h1>" + WiFi.SSID() + "</h1>";
@@ -542,7 +537,6 @@
         html += "'></i>Rocrail</span>";
 
         // "Zeit"-Punkt letzter Eintrag, direkt vor #topbar-datetime.
-
         // "Time" dot is the last entry, right before #topbar-datetime.
 
         html += "<span class='status' id='status-time'><i id='dot-time' role='img' aria-label='" + timeTitle + "' title='" + timeTitle + "' class='dot";
@@ -567,7 +561,6 @@
         html += "</div>";
 
         // Versteckter Hinweis, siehe ".offline-hint" in generateHtmlHeader().
-
         // Hidden hint, see ".offline-hint" in generateHtmlHeader().
 
         html += "<span id='topbar-offline-hint' class='offline-hint'>&#9888; " + translate("Connection lost") + "</span>";
@@ -612,7 +605,6 @@
         html += "function setPresent(id,present){var el=document.getElementById(id);if(!el)return;el.hidden=!present;}";
 
         // setValue(): aktualisiert eine Live-Wertanzeige statt einer Punktfarbe.
-
         // setValue(): updates a live value reading instead of a dot color.
 
         html += "function setValue(id,text){var el=document.getElementById(id);if(!el)return;el.textContent=text;}";
@@ -688,7 +680,6 @@
 
 
     // Einfache Hinweisseite (Erfolg/Fehler/Status) im Dark-Theme.
-
     // Simple message page (success/error/status) in dark theme.
 
     String simpleMessagePage(String heading, String bodyHtml, String extraHead) {
@@ -702,7 +693,6 @@
 
 
     // Navigationsleiste generieren
-
     // Generate the navigation bar
 
     String generateNavigation() {
@@ -802,7 +792,6 @@
             if (item.path == currentPath) {
 
                 // Wenn der aktuelle Pfad mit dem Navigationseintrag übereinstimmt, nur Text anzeigen
-
                 // If the current path matches the nav entry, show plain text only
 
                 nav += "<span" + idAttr + hiddenAttr + " style=\"margin-right:15px; font-weight:bold;\">" + item.label + "</span> ";
@@ -810,7 +799,6 @@
             else {
 
                 // Andernfalls als Link anzeigen
-
                 // Otherwise show as a link
 
                 nav += "<a" + idAttr + hiddenAttr + " href=\"" + item.path + "\" style=\"margin-right:15px;\"";
@@ -821,7 +809,6 @@
             }
 
             // Zeilenumbruch zur thematischen Trennung, bewusst im Code statt in der Uebersetzung
-
             // Line break for thematic separation, deliberately in code rather than the translation
 
             if (item.path == "/status") {
@@ -943,7 +930,6 @@
 
 
     // Sprachselector generieren
-
     // Generate the language selector
 
     String generateLanguageSelector() {
@@ -1035,7 +1021,6 @@
             }
 
             // alle anderen Zeichen werden stillschweigend entfernt
-
             // all other characters are silently removed
 
         }
@@ -1077,7 +1062,6 @@
 
 
     // Erzeugt den fuer fast jede Seite gleichen Seitenanfang (Header inkl. Topbar + Navigation).
-
     // Generates the page start common to almost every page (header incl. topbar + navigation).
 
     String beginPage() {
@@ -1091,7 +1075,6 @@
         if (softAPIP) softAPIPstart = millis();
 
         // Zugriffs-IP mitloggen - siehe ausfuehrlichen Kommentar in redirectTo().
-
         // Log the accessing IP too - see the detailed comment in redirectTo().
 
         DEBUG_PRINTLN("[WEB] " + webserver.client().remoteIP().toString() + " -> " + webserver.uri());
@@ -1156,7 +1139,6 @@
         }
 
         // leere Einträge aussortieren
-
         // Filter out empty entries
 
         String tempSsid[MAX_WLAN];
@@ -1326,7 +1308,6 @@
 
 
     // Wandelt esp_reset_reason() in lesbaren Text um, fuer die Status-Anzeige.
-
     // Converts esp_reset_reason() into readable text, for the status display.
 
     String resetReasonToString(esp_reset_reason_t reason) {
@@ -1352,7 +1333,6 @@
 
 
     // Wandelt rtcOk (siehe globals.h) in lesbaren Text um.
-
     // Converts rtcOk (see globals.h) into readable text.
 
     String rtcStatusToString(int status) {
@@ -1477,7 +1457,6 @@
 
 
     // Webserver-API-Endpunkte einrichten
-
     // Set up the webserver API endpoints
 
     void setupWebServer() {
@@ -1624,14 +1603,12 @@
             }
 
             // Weiterleitung zur Presets-Seite
-
             // Redirect to the presets page
 
             redirectTo("/presets?msg=Preset%20created", "Redirecting to /presets..");
             });
 
         // API zum Setzen von Uhrmodus und anderen Einstellungen
-
         // API to set clock mode and other settings
 
         webserver.on("/api/setMode", HTTP_GET, []() {
@@ -1685,7 +1662,6 @@
                 uint32_t rgb = strtoul(webserver.arg("hubColor").c_str(), NULL, 16); // 24-Bit RGB
 
                 // 24-bit RGB
-
                 // DEBUG_PRINTLN("[API] Received hubColor: " + webserver.arg("hubColor") + " -> " + String(rgb, HEX));
 
                 uint8_t r = (rgb >> 16) & 0xFF; // Rot extrahieren
@@ -1696,7 +1672,6 @@
                                                 // extract blue
 
                 // Konvertiere RGB888 zu RGB565
-
                 // Convert RGB888 to RGB565
 
                 hubColor = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
@@ -1729,7 +1704,6 @@
                 long requestedRotation = -1;
 
                 // Prüfe, ob der Wert in Grad angegeben ist
-
                 // Check whether the value is given in degrees
 
                 if (rotationArg == "0" || rotationArg == "90" || rotationArg == "180" || rotationArg == "270") {
@@ -1740,7 +1714,6 @@
                 }
 
                 // "na" / "n.a." = Display 1 nicht angeschlossen
-
                 // "na" / "n.a." = display 1 not connected
 
                 else if (rotationArg.equalsIgnoreCase("na") || rotationArg.equalsIgnoreCase("n.a.")) {
@@ -1748,7 +1721,6 @@
                 }
 
                 // Prüfe, ob der Wert als Index (0-3, 4 = n.a.) angegeben ist
-
                 // Check whether the value is given as an index (0-3, 4 = n.a.)
 
                 else {
@@ -1756,7 +1728,6 @@
                 }
 
                 // Validierung des Wertes
-
                 // Validate the value
 
                 if (requestedRotation >= 0 && requestedRotation <= TFT_ROTATION_NA) {
@@ -1818,7 +1789,6 @@
             });
 
         // Preset-Verwaltung
-
         // Preset management
 
         webserver.on("/presets", HTTP_GET, []() {
@@ -1831,7 +1801,6 @@
             chunk += "<h2>" + translate("Manage Presets") + "</h2>";
 
             // Links oben anzeigen
-
             // Show links at the top
 
             chunk += "<div style='text-align:center;'>";
@@ -1942,7 +1911,6 @@
                     String ipLink = "http://" + currentHost + "/api/setPreset?name=" + presetName;
 
                     // Aeusseres Attribut doppelt gequotet, JS-String innen einfach.
-
                     // Outer attribute double-quoted, inner JS string single-quoted.
 
                     chunk += "<br><span onclick=\"copyPresetLink('" + escapeForJsStringInAttr(ipLink, '\'') + "', this)\" style='cursor:pointer;font-size:1.3em;' title='" + translate("Copy link") + "'>&#128203;</span>";
@@ -1953,7 +1921,6 @@
                     chunk += "<br><a href='/renamepreset_form?index=" + String(i) + "'>" + translate("Rename") + "</a> ";
 
                     // Aeusseres Attribut einfach gequotet, confirm()-String innen doppelt.
-
                     // Outer attribute single-quoted, inner confirm() string double-quoted.
 
                     chunk += "<button type='button' onclick='if(confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(presets[i].name, '"') + "?\")){window.location.href=\"/deletepreset?index=" + String(i) + "\";}'>" + translate("Delete") + "</button>";
@@ -2136,7 +2103,6 @@
             chunk += "<hr>";
 
             // Presets als Datei sichern/wiederherstellen
-
             // Back up/restore presets as a file
 
             chunk += "<h3>" + translate("Backup / Restore Presets") + "</h3>";
@@ -2245,7 +2211,6 @@
 
 
         // API zum Setzen eines Presets
-
         // API to set a preset
 
         webserver.on("/api/setPreset", HTTP_GET, []() {
@@ -2260,7 +2225,6 @@
                                           // replace spaces with underscores
 
             // Suche das Preset mit dem angegebenen Namen
-
             // Find the preset with the given name
 
             for (int i = 0; i < MAX_PRESETS; i++) {
@@ -2268,7 +2232,6 @@
                     if (!presets[i].url.isEmpty()) {
 
                         // Redirect zur URL des Presets
-
                         // Redirect to the preset's URL
 
                         redirectTo(presets[i].url, "Redirecting to preset URL..");
@@ -2283,7 +2246,6 @@
             }
 
             // Preset nicht gefunden
-
             // Preset not found
 
             webserver.send(404, "text/plain", "Preset not found");
@@ -2334,7 +2296,6 @@
             }
 
             // Leere Einträge am Ende sicherstellen
-
             // Ensure empty entries at the end
 
             for (int i = writeIndex; i < MAX_WLAN; i++) {
@@ -2355,7 +2316,6 @@
             }
 
             // Ist die Liste danach leer, sofort auf die eingebauten Standardserver zurueckfallen.
-
             // If the list is empty afterwards, fall back to the built-in default servers immediately.
 
             applyNtpServerDefaultsIfNoneConfigured();
@@ -2394,7 +2354,6 @@
 
 
         // Datei umbenennen Formular
-
         // Rename file form
 
         webserver.on("/rename_form", HTTP_GET, []() {
@@ -2404,7 +2363,6 @@
             }
 
             // escapeHtmlText(): "file" kommt aus der URL - ohne Escaping reflektiertes XSS.
-
             // escapeHtmlText(): "file" comes from the URL - without escaping, reflected XSS.
 
             String oldName = escapeHtmlText(webserver.arg("file"));
@@ -2433,7 +2391,6 @@
             });
 
         // Datei umbenennen Aktion
-
         // Rename file action
 
         webserver.on("/rename", HTTP_POST, []() {
@@ -2480,7 +2437,6 @@
                 if (LittleFS.exists(oldName)) {
 
                     // Kollision ablehnen statt stillschweigend zu ueberschreiben.
-
                     // Reject a collision instead of silently overwriting it.
 
                     if (newName != oldName && LittleFS.exists(newName)) {
@@ -2520,7 +2476,6 @@
 
 
         // BMP skalieren Formular
-
         // Scale BMP form
 
         webserver.on("/scalebmp_form", HTTP_GET, []() {
@@ -2581,7 +2536,6 @@
             });
 
         // BMP skalieren Aktion
-
         // Scale BMP action
 
         webserver.on("/scalebmp_run", HTTP_GET, []() {
@@ -2605,13 +2559,11 @@
             });
 
         // Anzeigeeinstellungen speichern
-
         // Save display settings
 
         webserver.on("/applydisplaysettings", HTTP_POST, []() {
 
             // In den Preferences speichern
-
             // Save to Preferences
 
             stationMode = preferences.getBool(PK_STATION_MODE, false);
@@ -2758,7 +2710,6 @@
 
 
         // Helligkeitseinstellungen Formular
-
         // Brightness settings form
 
         webserver.on("/brightness", HTTP_POST, []() {
@@ -2873,7 +2824,6 @@
             });
 
         // Helligkeitseinstellungen Formular
-
         // Brightness settings form
 
         webserver.on("/brightness", HTTP_GET, []() {
@@ -2986,7 +2936,6 @@
             });
 
         // Helligkeitseinstellungen speichern
-
         // Save brightness settings
 
         webserver.on("/save_brightness", HTTP_POST, []() {
@@ -3000,7 +2949,6 @@
             minBrightness = (uint8_t)argToIntClamped("minBrightness", minBrightness, 0, 255);
 
             // neue: Zeitabhängige Helligkeit speichern
-
             // new: save time-based brightness
 
 
@@ -3008,7 +2956,6 @@
             brightEndHour = (uint8_t)argToIntClamped("brightEnd", brightEndHour, 0, 23);
 
             // Gamma-Feld gibt es nur mit Backlight (brightnessFormFieldsHtml())
-
             // The gamma field only exists with a backlight (brightnessFormFieldsHtml())
 
             if (useBacklight && webserver.hasArg("gamma")) {
@@ -3025,7 +2972,6 @@
             preferences.putUChar(PK_MIN_BRIGHTNESS, minBrightness);
 
             // Zeitabhängige Einstellungen dauerhaft speichern
-
             // persist time-based settings
 
             preferences.putUChar(PK_BRIGHT_START_HOUR, brightStartHour);
@@ -3090,7 +3036,6 @@
                 }
 
                 // Anlagenname: rein manuell, dient nur der eigenen Orientierung.
-
                 // Layout name: purely manual, only for the user's own reference.
 
                 String nameArg = pkRocrailServerName(i);
@@ -3273,7 +3218,6 @@
 
 
         // Alle Dateien auflisten
-
         // List all files
 
         webserver.on("/files", HTTP_GET, []() {
@@ -3329,7 +3273,6 @@
                 chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
 
                 // Scale-Option nur für .bmp-Dateien anzeigen
-
                 // Show the scale option only for .bmp files
 
                 if (name.endsWith(".bmp")) {
@@ -3395,7 +3338,6 @@
                 if (LittleFS.exists(path)) {
 
                     // RLE-komprimierte face_*.bmp vor dem Download zu Standard-BMP dekodieren.
-
                     // Decode an RLE-compressed face_*.bmp to a standard BMP before download.
 
                     bool isRle = false;
@@ -3441,7 +3383,6 @@
                     }
 
                     // Setze den Content-Disposition-Header, um den Dateinamen festzulegen
-
                     // Set the Content-Disposition header to define the file name
 
                     webserver.sendHeader("Content-Disposition", "attachment; filename=\"" + String(file.name()) + "\"");
@@ -3454,7 +3395,6 @@
             });
 
         // Systemstatus Seite
-
         // System status page
 
         webserver.on("/status", HTTP_GET, []() {
@@ -3533,7 +3473,6 @@
             chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
 
             // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
-
             // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
 
             chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
@@ -3695,7 +3634,6 @@
             for (int i = 0; i < MAX_WLAN; i++) {
 
                 // Dynamisch berechnete Schlüssel
-
                 // Dynamically computed keys
 
                 String ssidKey = pkSsid(i);
@@ -3765,7 +3703,6 @@
             chunk = "";
 
             // Booleans als Text
-
             // Booleans as text
         
             bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
@@ -4674,7 +4611,6 @@
             chunk += "<tr><td>" + translate("Last decoded") + "</td><td><span id='dcfAge'>-</span> s</td></tr>";
 
             // Bits aus Paritaet/Festwerten rekonstruiert statt empfangen; 0 = vollstaendig empfangen.
-
             // Bits reconstructed from parity/fixed values instead of received; 0 = fully received.
 
             chunk += "<tr><td>" + translate("Reconstructed bits") + "</td><td><span id='dcfRepaired'>-</span></td></tr>";
@@ -4863,7 +4799,6 @@
             }
 
             // BMP-Header
-
             // BMP header
 
             bmpData[0] = 'B'; bmpData[1] = 'M';
@@ -4879,7 +4814,6 @@
             *(uint32_t*)&bmpData[34] = dataSize;
 
             // Pixel-Daten (RGB565 -> RGB888, mit Downscaling)
-
             // Pixel data (RGB565 -> RGB888, with downscaling)
 
             for (int y = 0; y < outH; y++) {
@@ -4890,7 +4824,6 @@
                     uint16_t px = defaultFace[srcY * CLOCK_WIDTH + srcX];
 
                     // Transparente Farbe ersetzen
-
                     // Replace the transparent color
 
                     if (px == TRANSPARENT_COLOR) {
@@ -4904,7 +4837,6 @@
                     }
 
                     // RGB565 ? RGB888
-
                     // RGB565 to RGB888
 
                     uint8_t r = (px >> 8) & 0xF8; // obere 5 Bits
@@ -4929,7 +4861,6 @@
             });
 
         // Uhr-Gesichter verwalten
-
         // Manage clock faces
 
         webserver.on("/listfilesFaces", HTTP_GET, []() {
@@ -4950,7 +4881,6 @@
             String activeBackground = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
 
             // Eingebautes Standard-Zifferblatt hinzufuegen
-
             // Add built-in default face
 
             chunk += "<div style='text-align:center;width:100px;'>";
@@ -5078,7 +5008,6 @@
             chunk += "</script><hr>";
 
             // Hinweis und Download-Link für die ZIP-Datei
-
             // Notice and download link for the ZIP file
 
             if (TFT_WIDTH == 240) {
@@ -5122,14 +5051,12 @@
             });
 
         // WLAN Netzwerke scannen
-
         // Scan WiFi networks
 
         webserver.on("/api/scanwifi", HTTP_GET, []() {
             String json = "";
                
             // die letzten Scan-Ergebnisse zurückgeben
-
             // Return the last scan results
 
             json = "[";
@@ -5153,7 +5080,6 @@
 
 
         // Hauptseite - WLAN Einstellungen
-
         // Main page - WiFi settings
 
         webserver.on("/", HTTP_GET, []() {
@@ -5296,7 +5222,6 @@
             chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
 
             // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
-
             // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
 
             chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
@@ -5346,7 +5271,6 @@
             chunk = "";
 
             // PSRAM-Erkennung, siehe Kommentar oben in /status.
-
             // PSRAM detection, see the comment above in /status.
 
             chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
@@ -5435,7 +5359,6 @@
             for (int i = 0; i < MAX_WLAN; i++) {
 
                 // Dynamisch berechnete Schlüssel
-
                 // Dynamically computed keys
 
                 String ssidKey = pkSsid(i);
@@ -5465,7 +5388,6 @@
             chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
 
             // centerColor/rotation mode: siehe Kommentare oben in /status.
-
             // centerColor/rotation mode: see the comments above in /status.
 
             chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
@@ -5491,7 +5413,6 @@
             chunk = "";
 
             // Booleans als Text
-
             // Booleans as text
 
             bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
@@ -5835,7 +5756,6 @@
                 if (wifiSsid[i] != "") {
 
                     // "Verbinden"-Button nur bei mehr als einem gespeicherten Netzwerk.
-
                     // "Connect" button only when more than one network is saved.
 
                     if (savedWifiCount > 1) {
@@ -5934,7 +5854,6 @@
             chunk = "";
 
             // Panel Zifferblatt: Anzeige-Einstellungen.
-
             // Clock face panel: display settings.
 
             chunk += "<div class='tabpanel panel-zifferblatt'>";
@@ -6575,13 +6494,11 @@
                     redirectTo("/?tab=wlan&msg=Connecting...");
 
                     // preferences.end() erfolgt in espReboot(), siehe dort.
-
                     // preferences.end() happens in espReboot(), see there.
 
                     delay(WAIT_1s);
 
                     // Neustart des ESP
-
                     // Restart the ESP
 
                     espReboot();
@@ -6712,7 +6629,6 @@
             });
 
         // Upload-Formular anzeigen
-
         // Show upload form
 
         webserver.on("/upload", HTTP_GET, []() {
@@ -6721,7 +6637,6 @@
             });
 
         // Datei-Upload verarbeiten
-
         // Process file upload
 
         webserver.on("/upload", HTTP_POST, []() {
@@ -6737,7 +6652,6 @@
             }, handleFileUpload);
 
         // Hintergrundbild setzen
-
         // Set background image
 
         webserver.on("/setbackground", HTTP_GET, []() {
@@ -6780,7 +6694,6 @@
             });
 
         // Datei löschen
-
         // Delete file
 
         webserver.on("/delete", HTTP_GET, []() {
@@ -6868,7 +6781,6 @@
         webserver.on("/deletepreset", HTTP_GET, []() {
 
             // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp() oben).
-
             // Only allowed from a private network (see isPrivateNetworkIp() above).
 
             if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
@@ -6888,7 +6800,6 @@
             });
 
         // Umbenennen-Formular fuer ein einzelnes Preset
-
         // Rename form for a single preset
 
         webserver.on("/renamepreset_form", HTTP_GET, []() {
@@ -6914,13 +6825,11 @@
             });
 
         // Preset umbenennen Aktion
-
         // Rename preset action
 
         webserver.on("/renamepreset", HTTP_POST, []() {
 
             // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp() oben).
-
             // Only allowed from a private network (see isPrivateNetworkIp() above).
 
             if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
@@ -6954,7 +6863,6 @@
             });
 
         // Datei anzeigen (BMP)
-
         // Show file (BMP)
 
         webserver.on("/file", HTTP_GET, []() {
@@ -6987,7 +6895,6 @@
                 if (LittleFS.exists(path)) {
 
                     // Prüfe den Dateityp basierend auf der Dateiendung
-
                     // Check the file type based on its extension
 
                     if (path.endsWith(".log") || path.endsWith(".txt")) {
@@ -7053,7 +6960,6 @@
             });
 
         // Hand-Sets verwalten
-
         // Manage hand sets
 
         webserver.on("/handsets", HTTP_GET, []() {
@@ -7123,7 +7029,6 @@
             String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
 
             // Default-Zeigersatz (eingebaut) - eigener Chunk
-
             // Default hand set (built-in) - its own chunk
 
             bool defaultSetActive = (activeSet == "default" || activeSet.isEmpty());
@@ -7171,7 +7076,6 @@
                 };
 
             // Zuerst alle numerisch benannten Zeigersaetze in aufsteigender Reihenfolge...
-
             // First all numerically named hand sets in ascending order...
 
             for (auto& entry : numericSets) {
@@ -7179,7 +7083,6 @@
             }
 
             // ...danach eventuelle Sonderfaelle mit nicht-numerischem Namen (unsortiert)
-
             // ...then any special cases with non-numeric names (unsorted)
 
             for (const String& setId : otherSets) {
@@ -7187,7 +7090,6 @@
             }
 
             // Ab hier sind die grossen Base64-Strings nicht mehr benoetigt.
-
             // From here on the large base64 strings are no longer needed.
 
             handHourBase64 = String();
@@ -7217,7 +7119,6 @@
             else {
 
                 // Vorhandene Zeigersatz-Dateinamen fuer den Vergleich mit GitHub einsammeln
-
                 // Collect existing hand-set filenames to compare with GitHub
 
                 std::vector<String> existingHandFiles;
@@ -7298,7 +7199,6 @@
                 uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16);
 
                 // 24-Bit RGB888 in RGB565 umwandeln
-
                 // Convert 24-bit RGB888 to RGB565
 
                 uint8_t r = (rgb >> 16) & 0xFF;
@@ -7316,14 +7216,12 @@
             });
 
         //  Handsets Datei-Upload verarbeiten
-
         // Process hand-set file upload
 
         webserver.on("/uploadhandset", HTTP_POST, []() {
             if (uploadSuccess) {
 
                 // Sicherheitsprüfung auf Dateinamenmuster
-
                 // Security check on the filename pattern
 
                 if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
@@ -7354,7 +7252,6 @@
 
 
         // Handset setzen
-
         // Set hand set
 
         webserver.on("/sethandset", HTTP_GET, []() {
@@ -7442,7 +7339,6 @@
                      ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
 
             // Zeigerstil wie in /preview, damit die Vorschau sich wie die Uhr bewegt
-
             // Hand style like in /preview, so the preview moves like the clock
 
             bool modeStation = preferences.getBool(PK_STATION_MODE, true);
@@ -7570,7 +7466,6 @@
             chunk += "<h2>" + translate("Clock Face Designer") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
 
             // Nur Zeichen uebernehmen, die in einem JS-String unkritisch sind
-
             // Only keep characters that are harmless inside a JS string
 
             auto jsSafe = [](const String& s) {
@@ -7605,7 +7500,6 @@
             long freeBytes = (long)LittleFS.totalBytes() - (long)LittleFS.usedBytes();
 
             // Zeigerstil wie in /preview, damit die Vorschau sich wie die Uhr bewegt
-
             // Hand style like in /preview, so the preview moves like the clock
 
             bool modeStation = preferences.getBool(PK_STATION_MODE, true);
@@ -7628,13 +7522,11 @@
             });
 
         // Handset löschen
-
         // Delete hand set
 
         webserver.on("/deletehandset", HTTP_GET, []() {
 
             // Nur aus einem privaten Netz erlaubt (siehe isPrivateNetworkIp() oben).
-
             // Only allowed from a private network (see isPrivateNetworkIp() above).
 
             if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
@@ -7892,7 +7784,6 @@
             });
 
         // Schritt 2: Eingabeseite fuer den auf dem Display gezeigten Code.
-
         // Step 2: entry page for the code shown on the display.
 
         webserver.on("/factoryReset/enterCode", HTTP_GET, []() {
@@ -7990,7 +7881,6 @@
 
 
     // Handhabt den Datei-Upload
-
     // Handles the file upload
 
     void handleFileUpload() {
@@ -8013,7 +7903,6 @@
             }
 
             // Nur bestimmte Dateinamenmuster zulassen
-
             // Only allow certain filename patterns
 
             if (!uploadFilePath.endsWith(".bmp") ||
@@ -8133,7 +8022,6 @@
                 if (correctValue != faceValue) {
 
                     // Gross-/Kleinschreibung weicht ab - URL korrigieren
-
                     // Case differs - correct the URL
 
                     url = url.substring(0, valueStart) + correctValue + url.substring(valueEnd);

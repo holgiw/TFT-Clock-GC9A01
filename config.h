@@ -102,7 +102,6 @@
 #define CS_1    12
 
     // SPI-CS Display 2 (baugleich) - bei der Uhranzeige nur bedient, solange die Rotation von Display 2 nicht "n.a." ist.
-
     // SPI CS for display 2 (identical) - for the clock display only driven while display 2's rotation is not "n.a.".
 
 #define CS_2    18
@@ -118,7 +117,6 @@
 #define TFT_ROTATION_NA 4
 
     // Werkseinstellung: Display 1 angeschlossen (0 Grad), Display 2 nicht angeschlossen.
-
     // Factory default: display 1 connected (0 degrees), display 2 not connected.
 
 #define TFT_ROTATION1_DEFAULT 0

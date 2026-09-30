@@ -237,7 +237,6 @@
         }
 
         // In den 24h-Bereich falten.
-
         // Fold into the 24h range.
 
         while (rocrailDisplaySeconds >= 86400.0f) rocrailDisplaySeconds -= 86400.0f;
@@ -249,7 +248,6 @@
         rocrailTimeinfo.tm_sec = wholeSeconds % 60;
 
         // Sekundenbruchteil fuer die glatte Zeigerbewegung (siehe renderClockFrame()).
-
         // Fractional second for the smooth hand motion (see renderClockFrame()).
 
         rocrailSecFrac = fmodf(rocrailDisplaySeconds, 60.0f);
@@ -273,7 +271,6 @@
         processRocrailClockPayload(rocrailRxBuffer.substring(clockPos, endPos + 2));
 
         // Verarbeiteten Teil verwerfen, Rest bleibt fuer die naechste Runde.
-
         // Discard the processed part, keep the rest for the next round.
 
         rocrailRxBuffer = rocrailRxBuffer.substring(endPos + 2);
@@ -342,7 +339,6 @@
                 float drift = (float)newModelSeconds - rocrailDisplaySeconds;
 
                 // Tagesgrenze beruecksichtigen (23:59:58->00:00:02 = +4s, nicht -86396s).
-
                 // Account for the day boundary (23:59:58->00:00:02 = +4s, not -86396s).
 
                 if (drift > 43200.0f) drift -= 86400.0f;
@@ -351,7 +347,6 @@
                 if (fabsf(drift) > ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS) {
 
                     // Zu gross fuer sanftes Angleichen - direkt setzen.
-
                     // Too large for a smooth ease-in - set directly.
 
                     rocrailDisplaySeconds = (float)newModelSeconds;
@@ -440,7 +435,6 @@
                                    // state unknown until the next state attribute
 
             // Naechstes <clock>-Update startet die Modellzeit neu.
-
             // Next <clock> update restarts the model time.
 
             rocrailLastClockMillis = 0;
@@ -567,7 +561,6 @@
     void pollRocrailClient() {
 
         // Laufende Connect-Task immer abfragen/aufraeumen, auch deaktiviert.
-
         // Always poll/clean up a running connect task, even if disabled.
 
         if (rocrailConnectTaskRunning) {

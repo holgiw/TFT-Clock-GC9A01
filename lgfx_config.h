@@ -156,13 +156,11 @@ protected:
     }
 
     // Keine Hardware-Rotation (MADCTL immer 0, mit rgb_order = RGB 0x00)
-
     // No hardware rotation (MADCTL always 0, with rgb_order = RGB 0x00)
 
     uint8_t getMadCtl(uint8_t) const override { return 0; }
 
     // Farbtiefe 0x05 (wie uhr3) statt LovyanGFX-Standard 0x55
-
     // Color depth 0x05 (as in uhr3) instead of the LovyanGFX default 0x55
 
     uint8_t getColMod(uint8_t bpp) const override { return (bpp > 16) ? RGB888_3BYTE : 0x05; }
@@ -242,13 +240,11 @@ public:
         }
 
         // GC9A01: INVON und BGR wie in der bisherigen Init-Sequenz
-
         // GC9A01: INVON and BGR as in the previous init sequence
 
         configPanel(_panel_gc9a01, 240, true, false);
 
         // GC9D01: keine Invertierung, RGB (Endzustand der Startsequenz)
-
         // GC9D01: no inversion, RGB (final state of the init sequence)
 
         configPanel(_panel_gc9d01, 160, false, true);
@@ -256,7 +252,6 @@ public:
     }
 
     // Panel-Treiber zum Displaytyp waehlen - nur VOR tft.init()
-
     // Choose the panel driver for the display type - only BEFORE tft.init()
 
     void selectPanel(bool gc9d01) {

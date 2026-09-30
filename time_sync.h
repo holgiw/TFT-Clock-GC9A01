@@ -68,7 +68,6 @@
 
 
     // Lädt die Zeit vom RTC-Modul und setzt die Systemzeit entsprechend
-
     // Loads the time from the RTC module and sets the system time accordingly
 
     void loadTimeFromRTC() {
@@ -82,7 +81,6 @@
                                       // read DS3231
 
             // RTClib liefert Year/Month/Day usw. "normal" (2026, 2, 11, ...)
-
             // RTClib returns Year/Month/Day etc. "normally" (2026, 2, 11, ...)
 
             struct tm tm_rtc = {};
@@ -99,7 +97,6 @@
                                         // -> Unix time (local interpretation depending on TZ!)
 
             // ESP32-Systemzeit setzen
-
             // Set ESP32 system time
 
             struct timeval tv;
@@ -108,7 +105,6 @@
             settimeofday(&tv, nullptr);
 
             // Optional: globales timeinfo aktualisieren
-
             // Optional: update the global timeinfo
 
             time_t now_esp = time(nullptr);
@@ -162,7 +158,6 @@
         if (len == 0 || len >= (int)sizeof(timezoneSnapshot)) return false;
 
         // Name: entweder <...> (mind. 1 Zeichen) oder mind. 3 Buchstaben
-
         // name: either <...> (at least 1 char) or at least 3 letters
 
         auto parseName = [&](int& i) -> bool {
@@ -346,7 +341,6 @@
 
 
     // Initialisiere die NTP-Server
-
     // Initialize the NTP servers
 
     void initializeNtpServers() {
@@ -652,7 +646,6 @@
         result.dst = (bits[17] == 1);
 
         // Minute (Bits 21-27, BCD), Paritaet Bit 28
-
         // Minute (bits 21-27, BCD), parity bit 28
 
         int minuteUnits = bits[21] + bits[22] * 2 + bits[23] * 4 + bits[24] * 8;
@@ -663,7 +656,6 @@
         result.parityMinOk = (minuteParitySum % 2) == 0;
 
         // Stunde (Bits 29-34, BCD), Paritaet Bit 35
-
         // Hour (bits 29-34, BCD), parity bit 35
 
         int hourUnits = bits[29] + bits[30] * 2 + bits[31] * 4 + bits[32] * 8;
@@ -887,7 +879,6 @@
             }
 
             // Ab hier beendet diese Flanke einen Impuls
-
             // From here on this edge ends a pulse
 
             int8_t bitValue = (duration >= DCF77_PULSE_ONE_MIN_MS) ? 1 : 0;
@@ -1201,7 +1192,6 @@
         testUdp.stop();
 
         // Transmit-Timestamp: Sekunden seit 1900 in Byte 40-43 (big-endian)
-
         // Transmit timestamp: seconds since 1900 in bytes 40-43 (big-endian)
 
         uint32_t secsSince1900 = ((uint32_t)packet[40] << 24) | ((uint32_t)packet[41] << 16) |
@@ -1555,7 +1545,6 @@
         struct tm localTime;
 
         // Versuche, die letzte bekannte Zeit zu verwenden
-
         // Try to use the last known time
 
         if (getLocalTime(&localTime, 100)) {
@@ -1579,7 +1568,6 @@
 
 
     // Setzt die Systemzeit manuell anhand einer `tm`-Struktur.
-
     // Sets the system time manually from a `tm` struct.
 
     void setTimeStruct(const struct tm& timeinfo, String source) {
@@ -1589,13 +1577,11 @@
         unsigned long oldTimeMillis = millis();
 
         // Konvertiere struct tm in time_t (unter Berücksichtigung der Zeitzone)
-
         // Convert struct tm to time_t (taking the timezone into account)
 
         time_t t = mktime(const_cast<struct tm*>(&timeinfo));
 
         // Setze die Systemzeit
-
         // Set the system time
 
         timeval tv = { t, 0 }; // Sekunden und Mikrosekunden
@@ -1653,7 +1639,6 @@
         logTimeSyncDifference("[USB]", oldTime, oldTimeMillis);
 
         // RTC mitstellen - auch eine als "ungueltig" markierte (wie NTP/DCF77)
-
         // Set the RTC too - also one flagged "invalid" (like NTP/DCF77)
 
         if (rtcOk == RTC_AVAILABLE || rtcOk == RTC_AVAILABLE_BUT_INVALID) {
@@ -1673,7 +1658,6 @@
 
 
     // Scannt den I2C-Bus nach Geraeten und gibt die Anzahl zurueck.
-
     // Scans the I2C bus for devices and returns the number found.
 
     uint16_t i2cScan() {
@@ -1685,7 +1669,6 @@
         i2cAddr = "";
 
         // teste direkt auf 0x68
-
         // test directly at 0x68
 
         Wire.beginTransmission(rtc3231Addr);
@@ -1794,7 +1777,6 @@
         packet[12] = 'D'; packet[13] = 'C'; packet[14] = 'F'; packet[15] = ' ';
 
         // NTP zaehlt Sekunden seit 1900, Unix seit 1970.
-
         // NTP counts seconds since 1900, Unix since 1970.
 
         const uint32_t NTP_UNIX_OFFSET = 2208988800UL;
@@ -1823,13 +1805,11 @@
         writeTimestamp(16, referenceTime);
 
         // Originate Timestamp: gespiegelter Transmit-Timestamp der Anfrage.
-
         // Originate timestamp: mirrored transmit timestamp of the request.
 
         memcpy(&packet[24], originateTimestamp, sizeof(originateTimestamp));
 
         // Receive Timestamp: Eintreffen der Anfrage.
-
         // Receive timestamp: when the request arrived.
 
         writeTimestamp(32, receivedAt);

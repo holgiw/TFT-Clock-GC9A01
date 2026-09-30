@@ -15,14 +15,12 @@
 #define ESP_WPS_MODE WPS_TYPE_PBC
 
     // WPS-Initialisierung
-
     // WPS initialization
 
     esp_wps_config_t wps_config = WPS_CONFIG_INIT_DEFAULT(ESP_WPS_MODE);
 
 
     // Aktiviert WPS (Push-Button-Methode) am ESP32 und startet den Verbindungsversuch
-
     // Activates WPS (push-button method) on the ESP32 and starts the connection attempt
 
     void startWPS() {
@@ -90,7 +88,6 @@
             else {
 
                 // schwaechsten Eintrag finden, nur ersetzen wenn staerker
-
                 // find weakest entry, replace only if new one is stronger
 
                 int weakest = 0;
@@ -108,7 +105,6 @@
         }
 
         // Einfuegesortierung reicht fuer maximal MAX_WLAN Eintraege
-
         // insertion sort is sufficient for at most MAX_WLAN entries
 
         for (int i = 1; i < foundNetworkCount; i++) {
@@ -133,7 +129,6 @@
 
 
     // überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
-
     // Checks the WiFi connection and tries to restore it every x minutes if disconnected.
 
     bool checkWiFiReconnect() {
@@ -277,7 +272,6 @@
     }
 
     // Schreibt und prueft durch Zuruecklesen (wie putStringVerified())
-
     // Writes and verifies by reading back (like putStringVerified())
 
     bool storeWifiPassVerified(int i, const String& pass) {
@@ -290,7 +284,6 @@
     }
 
     // Beim Start: Klartext-Passwoerter (aeltere Firmware, alte Sicherung) verschluesseln
-
     // At boot: encrypt plain-text passwords (older firmware, old backup)
 
     void migrateWifiPasswords() {
@@ -357,7 +350,6 @@
         }
 
         // neue SSID: ersten wirklich freien Slot suchen, sonst letzten ueberschreiben
-
         // new SSID: find first really free slot, otherwise overwrite the last one
 
         int freeIdx = -1;
@@ -370,7 +362,6 @@
         storeWifiPass(freeIdx, pass);
 
         // PK_LAST_WLAN bewusst NICHT setzen (siehe Kommentar oben).
-
         // PK_LAST_WLAN deliberately NOT set (see comment above).
 
         wifiSsid[freeIdx] = ssid;
@@ -569,7 +560,6 @@
         WiFi.macAddress(mac);
 
         // Festes Passwort aus der Firmware (AP_PASSWORD in config.h)
-
         // Fixed password from the firmware (AP_PASSWORD in config.h)
 
         strlcpy(apPassword, AP_PASSWORD, sizeof(apPassword));
@@ -578,7 +568,6 @@
         DEBUG_PRINTLN("[WiFi] Started Access Point: " + String(AP_SSID)); // Passwort bewusst nicht im Log / password deliberately not logged
 
         // Captive portal: leite alle DNS-Anfragen auf die AP-IP um
-
         // Captive portal: redirect all DNS requests to the AP IP
 
         dnsServer.start(53, "*", WiFi.softAPIP());
@@ -722,7 +711,6 @@
         WiFi.mode(WIFI_STA);
 
         // MAC-Adresse holen
-
         // Get MAC address
 
         WiFi.macAddress(mac);
@@ -882,13 +870,11 @@
 
 
     // Anzeige WLAN Parameter auf dem TFT
-
     // Display WiFi parameters on the TFT
 
     void showWlanCredentials(String wlan) {
 
         // Im Access-Point-Modus dessen Zugangsdaten zeigen (Taster, siehe checkButton())
-
         // In access point mode show its credentials (button, see checkButton())
 
         if (softAPIP && WiFi.status() != WL_CONNECTED) {
@@ -934,13 +920,11 @@
 
 
     // Loescht gespeicherte WLAN-Zugangsdaten
-
     // Deletes saved WiFi credentials
 
     void eraseWiFiConfig() {
 
         // WLAN trennen und komplett deaktivieren
-
         // Disconnect WiFi and turn it off completely
 
         WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen
@@ -952,7 +936,6 @@
         for (int i = 0; i < MAX_WLAN; i++) {
 
             // Dynamisch berechnete Schlüssel
-
             // Dynamically computed keys
 
             String ssidKey = pkSsid(i);
@@ -974,7 +957,6 @@
 
 
     // Startet asynchronen WiFi-Scan
-
     // Starts an asynchronous WiFi scan
 
     void startWiFiScan() {
@@ -994,7 +976,6 @@
 
 
     // Prüft Scan-Status und verarbeitet Ergebnisse
-
     // Checks scan status and processes results
 
     void checkWiFiScan() {
@@ -1011,7 +992,6 @@
             else if (scanStatus >= 0) {
 
                 // Scan abgeschlossen
-
                 // Scan complete
 
                 DEBUG_PRINTLN("[WiFi] found " + String(scanStatus) + " WiFi networks");
@@ -1028,7 +1008,6 @@
             else {
 
                 // Fehler beim Scan
-
                 // Error during scan
 
                 DEBUG_PRINTLN("[WiFi] Scan failed with error: " + String(scanStatus));
@@ -1056,7 +1035,6 @@
 
 
     // Scannt WLANs und cached Ergebnisse
-
     // Scans WiFi networks and caches results
 
     void scanAndCacheNetworks() {

@@ -12,7 +12,6 @@
 
 
     // Uebersetzungstabelle (Erklaerung siehe Dateianfang)
-
     // Translation table (see top of file for explanation)
 
     struct TranslationEntry {
@@ -315,7 +314,6 @@
         { "Gamma Correction", "Gamma-Korrektur" },
 
         // Komplettsicherung (backup.h, /backup)
-
         // Full backup (backup.h, /backup)
 
         { "Backup", "Sicherung" },
@@ -332,7 +330,6 @@
         { "Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards", "Ersetzt alle Einstellungen, Presets, Zifferbl&auml;tter und Zeigers&auml;tze durch den Inhalt der Sicherung - die Uhr startet danach neu" },
 
         // Steht in einem JavaScript-confirm() mit einfachen Anfuehrungszeichen - daher ohne Apostroph
-
         // Used inside a JavaScript confirm() with single quotes - hence no apostrophe
 
         { "Replace all current settings, clock faces and hand sets with the backup?", "Alle aktuellen Einstellungen, Zifferbl&auml;tter und Zeigers&auml;tze durch die Sicherung ersetzen?" },
@@ -343,7 +340,6 @@
         { "Display type", "Display-Typ" },
 
         // Steht in einem JavaScript-confirm() mit einfachen Anfuehrungszeichen - daher ohne Apostroph
-
         // Used inside a JavaScript confirm() with single quotes - hence no apostrophe
 
         { "The clock restarts to apply the display type", "Die Uhr startet neu, um den Display-Typ zu &uuml;bernehmen" },
@@ -385,7 +381,6 @@
         { "Use the host name", "Benutze den Hostnamen" },
 
         // Neu fuer die Statuszeile (Topbar, siehe generateTopBar() in webserver_routes.h)
-
         // New for the status bar (topbar, see generateTopBar() in webserver_routes.h)
 
         { "Time", "Zeit" },
@@ -488,7 +483,6 @@
         currentLanguage = preferences.getString(PK_LANGUAGE, "en");
 
         // Nicht (mehr) unterstuetzte gespeicherte Sprache -> Englisch
-
         // Stored language not (or no longer) supported -> English
 
         if (currentLanguage != "en" && !availableLanguages.count(currentLanguage)) currentLanguage = "en";
@@ -496,7 +490,6 @@
 
 
     // Setzt die aktive Sprache und speichert sie dauerhaft in den Preferences
-
     // English: sets the active language and persists it in Preferences
 
     void saveLanguage(String lang) {

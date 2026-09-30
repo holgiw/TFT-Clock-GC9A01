@@ -30,7 +30,6 @@
 
 
     // Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
-
     // Load presets, replacing the stored IP address with the ESP's current IP
 
     void loadPresets() {
@@ -57,7 +56,6 @@
             }
 
             // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
-
             // Replace the stored IP with the ESP's current IP
 
             if (presets[i].url.startsWith("http://")) {
@@ -77,7 +75,6 @@
 
 
     // Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
-
     // Save presets, using the ESP's current IP address in the URL
 
     void savePresets() {
@@ -87,7 +84,6 @@
             String urlKey = pkPresetUrl(i);
 
             // Ersetze eine vorhandene IP-Adresse durch die aktuelle IP des ESP
-
             // Replace an existing IP address with the ESP's current IP
 
             if (presets[i].url.startsWith("http://")) {
@@ -164,13 +160,11 @@
 
 
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
-
     // Creates a new preset based on the current settings in the preferences
 
     bool createPresetFromPreferences(const String& customName) {
 
         // Suche das erste leere Preset
-
         // Find the first empty preset
 
         int presetIndex = -1;
@@ -182,7 +176,6 @@
         }
 
         // Wenn kein leeres Preset gefunden wurde, abbrechen
-
         // Abort if no empty preset was found
 
         if (presetIndex == -1) {
@@ -191,7 +184,6 @@
         }
 
         // Lese die aktuellen Einstellungen aus den Preferences
-
         // Read the current settings from the preferences
 
         String background = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
@@ -212,7 +204,6 @@
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
         // URL bewusst OHNE "rotation": geraeteweite HW-Einstellung, bleibt beim Laden unveraendert.
-
         // Build URL deliberately WITHOUT "rotation": device-wide HW setting, stays unchanged when loading.
 
         String url = "http://" + ipAddress + "/api/setMode?";
@@ -254,7 +245,6 @@
         url += "&autoBrightness=" + String(useAdc ? "true" : "false");
 
         // Speichere das Preset
-
         // Save the preset
 
         String presetName;
@@ -297,7 +287,6 @@
         presets[presetIndex].url = url;
 
         // Schreibe das Preset in die Preferences
-
         // Write the preset to the preferences
 
         String nameKey = pkPresetName(presetIndex);
@@ -321,7 +310,6 @@
         uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) {
 
         // Sinnvolle Standardwerte, falls ein Parameter im Preset fehlt
-
         // Sensible defaults in case a parameter is missing from the preset
 
         faceOut = "/face_default.bmp";
@@ -401,7 +389,6 @@
 
 
     // Loescht alle gespeicherten Presets (leert alle Slots).
-
     // Deletes all saved presets (clears all slots).
 
     void resetAllPresets() {
@@ -416,7 +403,6 @@
     void switchToNextPreset() {
 
         // Sammle alle gültigen Presets
-
         // Collect all valid presets
 
         std::vector<int> validPresets;
@@ -432,7 +418,6 @@
         }
 
         // Bestimme den aktuellen Preset-Index
-
         // Determine the current preset index
 
         String currentPresetName = preferences.getString(PK_CURRENT_PRESET, "");
@@ -445,20 +430,17 @@
         }
 
         // Wähle das nächste Preset
-
         // Select the next preset
 
         int nextIndex = (currentIndex + 1) % validPresets.size();
         int nextPresetIndex = validPresets[nextIndex];
 
         // Lade das nächste Preset
-
         // Load the next preset
 
         String nextPresetUrl = presets[nextPresetIndex].url;
 
         // Sicherstellen, dass die URL ab "/api" beginnt
-
         // Ensure the URL starts with "/api"
 
         if (!nextPresetUrl.startsWith("/api")) {
@@ -489,7 +471,6 @@
         String query = nextPresetUrl.substring(queryStart + 1);
 
         // Parse die Parameter
-
         // Parse the parameters
 
         bool sawSmoothSecond = false;
@@ -511,7 +492,6 @@
                                                                              // like webserver.arg() (see presetUrlDecode())
 
             // Wende die Einstellungen an
-
             // Apply the settings
 
             if (key == "face") {
@@ -561,7 +541,6 @@
             else if (key == "rotation") {
 
                 // Bewusst ignoriert: Rotation ist eine geraeteweite HW-Einstellung.
-
                 // Deliberately ignored: rotation is a device-wide HW setting.
 
             }
@@ -610,7 +589,6 @@
         updateClock();
 
         // Speichere den aktuellen Preset-Namen
-
         // Save the current preset name
 
         preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);

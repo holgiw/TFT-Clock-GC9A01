@@ -20,7 +20,6 @@
 
 
     // Ein Display gilt als angeschlossen, solange seine Rotation nicht "n.a." ist
-
     // A display counts as connected as long as its rotation is not "n.a."
 
     bool isDisplayConnected(uint8_t displayNum) {
@@ -29,7 +28,6 @@
 
 
     // Rotation des ersten angeschlossenen Displays (Display 1 hat Vorrang), nie "n.a."
-
     // Rotation of the first connected display (display 1 takes priority), never "n.a."
 
     uint8_t primaryDisplayRotation() {
@@ -40,7 +38,6 @@
 
 
     // Rotation fuer Status-/Startmeldungen eines Displays: bei "n.a." 0 Grad, nie der Wert 4
-
     // Rotation for status/boot messages of a display: 0 degrees for "n.a.", never the value 4
 
     uint8_t effectiveRotation(uint8_t displayNum) {
@@ -422,7 +419,6 @@
             if (c < 0x80) { out += (char)c; i++; continue; }
 
             // UTF-8-Folge dekodieren (2 oder 3 Byte reichen fuer Latin-1)
-
             // Decode a UTF-8 sequence (2 or 3 bytes cover Latin-1)
 
             uint32_t cp = 0;
@@ -807,7 +803,6 @@
 
 
     // Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
-
     // Adjusts a pixel's brightness based on the current brightness setting.
 
     uint16_t setPixelBrightness(uint16_t pixel) {
@@ -821,7 +816,6 @@
         if (useBacklight) return pixel;
 
         // Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, direkt zurückgeben
-
         // If brightness is at maximum or the pixel is transparent/black, return immediately
 
         if (pixel == TRANSPARENT_COLOR || pixel == 0x0000 || currentBrightness == 255) {
@@ -829,13 +823,11 @@
         }
 
         // Multiplikator einmal berechnen (statt 3x Division)
-
         // Compute the multiplier once (instead of 3x division)
 
         uint32_t brightnessFactor = (uint32_t)currentBrightness;
 
         // Farben extrahieren
-
         // Extract colors
 
         uint32_t r = (pixel & 0xF800);
@@ -843,7 +835,6 @@
         uint32_t b = (pixel & 0x001F);
 
         // Multiplikation mit Brightness (optimiert, kein Shift nötig)
-
         // Multiply by brightness (optimized, no shift needed)
 
         r = ((r * brightnessFactor) >> 8) & 0xF800;
@@ -851,7 +842,6 @@
         b = ((b * brightnessFactor) >> 8) & 0x001F;
 
         // Farbwerte zusammenfügen; gedimmtes Reingrün kann genau TRANSPARENT_COLOR ergeben und würde sonst verschwinden
-
         // Combine color values; dimmed pure green can hit exactly TRANSPARENT_COLOR and would otherwise vanish
 
         uint16_t result = r | g | b;
@@ -873,7 +863,6 @@
 
 
     // Obergrenze fuer die kodierte Groesse (fuer die Allokation des Zielpuffers).
-
     // Upper bound for the encoded size (for allocating the destination buffer).
 
     size_t rleMaxEncodedSize(size_t pixelCount) {
@@ -1133,7 +1122,6 @@
     }
 
     // Eingebaute Standardzeiger liegen im alten Format vor
-
     // Built-in default hands are in the old format
 
     void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) {
@@ -1182,7 +1170,6 @@
     }
 
     // Breite und Hoehe aus dem Kopf einer BMP- oder RLEB-Datei, ohne Pixel zu lesen
-
     // Width and height from the header of a BMP or RLEB file, without reading pixels
 
     bool readImageSize(const char* path, int32_t& w, int32_t& h) {
@@ -1210,7 +1197,6 @@
     }
 
     // Kurzbezeichnung des Zeigerformats fuer den Dateimanager
-
     // Short label of the hand format for the file manager
 
     String handFormatLabel(const String& path) {
@@ -1235,7 +1221,6 @@
                                      // New clock face loaded -> cache must be recalculated
 
         // Prüfen, ob Buffer schon existiert
-
         // Check whether the buffer already exists
 
         if (!clockFaceBuffer) {
@@ -1265,7 +1250,6 @@
             if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
 
             // Bild aus Datei laden und dekodieren (Standard-BMP oder RLEB-komprimiert)
-
             // Load and decode the image from file (standard BMP or RLEB-compressed)
 
             bool loaded = false;
@@ -1288,7 +1272,6 @@
         }
 
         // Breiten aus Dateinamen extrahieren
-
         // Extract widths from the filename
 
         parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
@@ -1487,13 +1470,11 @@
 
 
     // Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
-
     // Free the buffer when a new clock face is selected
 
     void freeClockFaceBuffer() {
 
         // Zwischenbilder ungueltig machen: sie enthalten das alte Zifferblatt.
-
         // Invalidate the composite images: they contain the old clock face.
 
         clockAssetGeneration++;
@@ -1664,7 +1645,6 @@
 
 
     // Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
-
     // Helper function: adjust angle to the current display rotation
 
     float shortestAngleDiff(float from, float to) {
@@ -1712,7 +1692,6 @@
         }
 
         // Zielbewegung seit dem letzten Bild auffangen: der Zeiger bleibt, wo er ist
-
         // Absorb the target's movement since the last frame: the hand stays where it is
 
         float jump = shortestAngleDiff(m.lastTarget, target);
@@ -1805,7 +1784,6 @@
                                // renderClockFrame(): partial update not allowed then
 
         // Drehpunkt = Pivot des Zwischenbilds (Mitte, wie backgroundSprite)
-
         // pivot = the composite's pivot (centre, like backgroundSprite)
 
         hourHandSprite.pushRotatedWithAA(comp.sprite, hourAngle, TRANSPARENT_COLOR);
@@ -1922,7 +1900,6 @@
 
 
     // Zaehlt einen gesendeten Frame fuer die Statusseite; wertet alle 5 s aus.
-
     // Counts a sent frame for the status page; evaluates every 5 s.
 
     void recordRenderFrame(uint32_t durationMicros, bool partial) {
@@ -2040,7 +2017,6 @@
             if (sweepPosition >= 60.0f) {
 
                 // Der Zeiger waere schon oben angekommen und wuerde warten.
-
                 // The hand would already have arrived at the top and be waiting.
 
                 stationTick = 60;
@@ -2188,7 +2164,6 @@
                     stationLastMillis = currentMillis - (unsigned long)((expectedPosition - (float)stationTick) * stationStepMs);
 
                     // Sekundenzeiger korrekt synchronisieren
-
                     // Synchronize the second hand correctly
 
                     secAngle = rotatedAngle(expectedPosition * 6.0f, orientation);
@@ -2344,7 +2319,6 @@
             else {
 
                 // Normale Minutenanzeige mit sanfter Korrektur bei Wechsel
-
                 // Normal minute display with smooth correction on change
 
                 float rawMinAngle = t.tm_min * 6.0f;
@@ -2531,7 +2505,6 @@
         if (drawHub) {
 
             // Kantengeglaettet wie die Zeiger (gleiche Flaeche wie fillCircle())
-
             // anti-aliased like the hands (same area as fillCircle())
 
             backgroundSprite.fillSmoothCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hubSize, setPixelBrightness(hubColor));
@@ -2540,7 +2513,6 @@
         if (partial) {
 
             // Nur das Rechteck senden (siehe pushBackgroundRect())
-
             // Send only the rectangle (see pushBackgroundRect())
 
             backgroundSprite.clearClipRect();
@@ -2646,7 +2618,6 @@
         if (rtcOk == RTC_AVAILABLE) {
 
             // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
-
             // Check whether time has passed since the last call
 
             if (millis() - lastRtcReloadMillis >= WAIT_1h) {
@@ -2837,7 +2808,6 @@
             if (brightStartHour <= brightEndHour) {
 
                 // normaler Bereich z.B. 8..20
-
                 // normal range e.g. 8..20
 
                 withinDayWindow = (h >= brightStartHour && h < brightEndHour);
@@ -2845,7 +2815,6 @@
             else {
 
                 // über Mitternacht z.B. 20..6
-
                 // spanning midnight e.g. 20..6
 
                 withinDayWindow = (h >= brightStartHour || h < brightEndHour);
@@ -2938,14 +2907,12 @@
         else if (withinDayWindow) {
 
             // Zeitfenster aktiv und wir sind innerhalb davon: volle Helligkeit erzwingen
-
             // Time window active and we're inside it: force full brightness
 
             targetBrightness = maxBrightness;
             if (useBacklight) {
 
                 // sanfte Erhöhung, falls gewünscht (ähnlich wie ADC-Rampen)
-
                 // smooth increase if desired (similar to ADC ramps)
 
                 if (currentBrightness < targetBrightness) currentBrightness++;
@@ -2958,7 +2925,6 @@
         else {
 
             // Normale Auto-Brightness oder statische Helligkeit
-
             // Normal auto-brightness or static brightness
 
             if (useAdc) {
@@ -3020,7 +2986,6 @@
             else {
 
                 // kein ADC: Standardeinstellung
-
                 // No ADC: default setting
 
                 currentBrightness = minBrightness;
@@ -3037,7 +3002,6 @@
 
 
     // Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
-
     // Adjusts the ADC value when inversion is enabled
 
     uint16_t getAdjustedAdcValue(int rawValue) {
@@ -3051,7 +3015,6 @@
 
 
     /// Easing-Funktion für sanfte Animationen
-
     // Easing function for smooth animations
 
     float easeInOutSine(float t) {
@@ -3068,7 +3031,6 @@
 
 
     // CRC32 (Standard-Polynom 0xEDB88320) - fuer PNG-Chunk-Pruefsummen
-
     // CRC32 (standard polynomial 0xEDB88320) - for PNG chunk checksums
 
     uint32_t crc32Update(uint32_t crc, const uint8_t* buf, size_t len) {
@@ -3084,7 +3046,6 @@
 
 
     // Adler32 - fuer den zlib-Trailer im PNG-IDAT-Chunk
-
     // Adler32 - for the zlib trailer in the PNG IDAT chunk
 
     uint32_t adler32(const uint8_t* data, size_t len) {
@@ -3099,7 +3060,6 @@
 
 
     // Haengt einen PNG-Chunk (Typ + Daten + CRC32) an einen dynamischen Puffer an.
-
     // Appends a PNG chunk (type + data + CRC32) to a dynamic buffer.
 
     void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) {
@@ -3125,7 +3085,6 @@
     String encodePngToBase64(const uint16_t* data, int width, int height) {
 
         // Rohe Bilddaten: pro Zeile 1 Filter-Byte (0 = "None") + width*4 Byte RGBA
-
         // Raw image data: 1 filter byte per row (0 = "None") + width*4 bytes RGBA
 
         size_t rawRowSize = 1 + (size_t)width * 4;
@@ -3179,7 +3138,6 @@
         free(raw);
 
         // PNG zusammenbauen: Signatur + IHDR + IDAT + IEND
-
         // Assemble the PNG: signature + IHDR + IDAT + IEND
 
         std::vector<uint8_t> png;
@@ -3229,7 +3187,6 @@
         memset(bmpData, 0, fileSize);
 
         // BITMAPFILEHEADER (14 Byte)
-
         // BITMAPFILEHEADER (14 bytes)
 
         bmpData[0] = 'B'; bmpData[1] = 'M';
@@ -3238,7 +3195,6 @@
                                                // offset to the pixel data
 
         // BITMAPINFOHEADER (40 Byte)
-
         // BITMAPINFOHEADER (40 bytes)
 
         *(uint32_t*)&bmpData[14] = infoHeaderSize;
@@ -3252,7 +3208,6 @@
         *(uint32_t*)&bmpData[34] = dataSize;
 
         // Explizite RGB565-Bitmasken (direkt nach der BITMAPINFOHEADER)
-
         // Explicit RGB565 bit masks (right after the BITMAPINFOHEADER)
 
         *(uint32_t*)&bmpData[54] = 0xF800; // Rot:   5 Bit
@@ -3293,7 +3248,6 @@
 
 
     // TFT-Display loeschen
-
     // clear TFT display
 
     void clearTFT() {
@@ -3320,7 +3274,6 @@
 
 
     // überprüft, ob die BMP-Datei das erwartete Format hat
-
     // Checks whether the BMP file has the expected format
 
     bool checkBmpFormat(const String& filename, int expectedWidth, int expectedHeight) {
@@ -3386,13 +3339,11 @@
 
 
     // Liest die BMP-/RLEB-Header-Informationen und gibt sie als String zurück
-
     // Reads the BMP/RLEB header info and returns it as a string
 
     String getBmpInfo(const String& filename) {
 
         // Normalisiere Pfad (einfach und eindeutig)
-
         // Normalize path (simple and unambiguous)
 
         String file = filename;
@@ -3438,7 +3389,6 @@
 
 
     // Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
-
     // Scales a BMP file to the desired size and saves it
 
     bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
@@ -3457,7 +3407,6 @@
         }
 
         // Quelle einlesen: RLEB komplett dekodiert, Standard-BMP zeilenweise (speicherschonend)
-
         // Read source: RLEB fully decoded, standard BMP row by row (memory-friendly)
 
         int32_t inW = 0, inH = 0;
@@ -3596,7 +3545,6 @@
                 if (row16 != nullptr) {
 
                     // Aus bereits dekodiertem RLEB-Quellbild (immer 16 bpp RGB565)
-
                     // From an already decoded RLEB source image (always 16 bpp RGB565)
 
                     pixel = row16[srcX];
@@ -3604,7 +3552,6 @@
                 else if (bpp == 16) {
 
                     // 16 bpp (RGB565) → direkt übernehmen
-
                     // 16 bpp (RGB565) -> use directly
 
                     uint16_t* r16 = (uint16_t*)rowSource;
@@ -3613,7 +3560,6 @@
                 else if (bpp == 24) {
 
                     // 24 bpp (RGB888) → 16 bpp (RGB565)
-
                     // 24 bpp (RGB888) -> 16 bpp (RGB565)
 
                     uint8_t* row24 = rowSource + (srcX * 3);
@@ -3625,7 +3571,6 @@
                 else if (bpp == 32) {
 
                     // 32 bpp (ARGB8888) → 16 bpp (RGB565)
-
                     // 32 bpp (ARGB8888) -> 16 bpp (RGB565)
 
                     uint8_t* row32 = rowSource + (srcX * 4);
@@ -3740,7 +3685,6 @@
             *(uint32_t*)&bmpHeader[34] = dataSize;
 
             // RGB565-Farbmasken hinzufuegen
-
             // Add RGB565 color masks
 
             *(uint32_t*)&bmpHeader[54] = 0xF800; // Rot-Maske
@@ -4461,7 +4405,6 @@
         free(faceBuf);
 
         // 2) Zeiger laden (aus Datei, falls Set vorhanden, sonst eingebauter Standard)
-
         // 2) Load hands (from file if a set exists, otherwise built-in default)
 
         bool useCustomSet = (handSetName != "default" && handSetName != "");
@@ -4478,7 +4421,6 @@
         uint16_t* secondPix = showSecond ? loadPreviewHand("second", handSecond) : nullptr;
 
         // 3) Demo-Zeit 10:10:30 - klassischer Uhrenwerbung-Winkel
-
         // 3) Demo time 10:10:30 - the classic clock-advertisement angle
 
         const float hourAngle = (10 % 12) * 30.0f + (10 / 2.0f) + (30 / 120.0f);
@@ -4524,7 +4466,6 @@
         canvas.fillSmoothCircle(PREVIEW_SIZE / 2, PREVIEW_SIZE / 2, hubRadius, hubColorRgb565);
 
         // 5) Als Standard-BMP (mit BI_BITFIELDS-Header) verpacken
-
         // 5) Package as standard BMP (with BI_BITFIELDS header)
 
         const int rowSize = ((PREVIEW_SIZE * 2 + 3) / 4) * 4;
@@ -4569,7 +4510,6 @@
 
 
     // Schaltet die LED ein (wenn definiert)
-
     // Turns the LED on (if defined)
 
     void setLedOff() {
@@ -4579,7 +4519,6 @@
 
 
     // Schaltet die LED aus (wenn definiert)
-
     // Turns the LED off (if defined)
 
     void setLedOn() {
@@ -4589,7 +4528,6 @@
 
 
     // LED toggeln
-
     // Toggles the LED
 
     void toggleLED() {
@@ -4605,13 +4543,11 @@
 
 
     // Validiert den geladenen Preferences-Eintrag für background und repariert falls nötig
-
     // Validates the loaded preferences entry for background and repairs it if needed
 
     static void validateSelectedBackground() {
 
         // Normalisieren
-
         // Normalize
 
         selectedBackground.trim();
@@ -4621,14 +4557,12 @@
         DEBUG_PRINTLN("[BG] Pref load: '" + selectedBackground + "'");
 
         // LittleFS muss gemountet sein
-
         // LittleFS must be mounted
 
         if (!LittleFS.exists(selectedBackground)) {
             DEBUG_PRINTLN("[BG] File not found: " + selectedBackground);
 
             // Versuche tolerant auch ohne führenden Slash (falls gespeichert ohne '/')
-
             // Also try tolerantly without a leading slash (if saved without '/')
 
             String withoutSlash = selectedBackground;
@@ -4640,7 +4574,6 @@
             else {
 
                 // Fallback auf Default
-
                 // Fallback to default
 
                 selectedBackground = "/face_default.bmp";
@@ -4651,7 +4584,6 @@
         }
 
         // Prüfe BMP-Format (Größe / bpp)
-
         // Check BMP format (size / bpp)
 
         if (!checkBmpFormat(selectedBackground)) {
@@ -4667,7 +4599,6 @@
 
 
     // Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
-
     // Updates the hand widths and reloads the hand sprites
 
     void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) {
@@ -4689,7 +4620,6 @@
         }
 
         // Aktualisiere die globalen Breiten
-
         // Update the global widths
 
         hourHandWidth = newHourWidth;
@@ -4697,7 +4627,6 @@
         secondHandWidth = newSecondWidth;
 
         // Alte Sprites löschen
-
         // Delete old sprites
 
         hourHandSprite.deleteSprite();
@@ -4729,7 +4658,6 @@
         }
 
         // Zeiger neu laden
-
         // Reload hands
 
         loadHandSprites();
@@ -4737,13 +4665,11 @@
 
 
     // Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes (test)
-
     // Parses the hand widths from the background image filename (test)
 
     void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) {
 
         // Standardwerte setzen
-
         // Set default values
 
         hourWidth = HAND_WIDTH;
@@ -4751,27 +4677,23 @@
         secondWidth = HAND_WIDTH;
 
         // Suche nach dem ersten `!`
-
         // Search for the first `!`
 
         int firstHash = filename.indexOf('!');
         if (firstHash == -1) {
 
             // Kein `!` gefunden, Standardwerte verwenden
-
             // No `!` found, use default values
 
             return;
         }
 
         // Schneide den relevanten Teil nach dem ersten `#` ab
-
         // Cut off the relevant part after the first `#`
 
         String params = filename.substring(firstHash + 1);
 
         // Teile die Parameter anhand von `!`
-
         // Split the parameters by `!`
 
         int secondHash = params.indexOf('!');
@@ -4780,7 +4702,6 @@
         if (secondHash != -1 && thirdHash != -1) {
 
             // Extrahiere die Werte
-
             // Extract the values
 
             hourWidth = params.substring(0, secondHash).toInt();

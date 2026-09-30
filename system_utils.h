@@ -7,7 +7,6 @@
 
 
     // Button prüfen und ggf. Anzeige oder Factory Reset auslösen
-
     // Check button and trigger display or factory reset if needed
 
     void checkButton() {
@@ -20,13 +19,11 @@
             clearTFT();
 
             // Einmalig Anzeige zeichnen
-
             // Draw display once
 
             showWlanCredentials(WiFi.SSID());
 
             // Blockierender Loop während Button gedrückt
-
             // Blocking loop while button is pressed
 
             while (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
@@ -49,7 +46,6 @@
                 if (millis() - pressStart > WAIT_15s) {
 
                     // 15 Sekunden überschritten → Factory Reset
-
                     // 15 seconds exceeded → factory reset
 
                     DRAW_ON_BOTH_DISPLAYS(
@@ -67,7 +63,6 @@
             }
 
             // Button wurde vor 10secs losgelassen → WLAN-Credentials für 3 Sekunden anzeigen
-
             // Button released before 10 secs → show WLAN credentials for 3 seconds
 
             if (!resetStarted) {
@@ -362,7 +357,6 @@
         preferences.end();
 
         // Kurze Verzoegerung, gibt dem Flash-Subsystem Luft nach dem Log-Schreiben.
-
         // Short delay, gives the flash subsystem breathing room after the log write.
 
         delay(100);
@@ -588,7 +582,6 @@
         if (logBufferMutex == nullptr) return;
 
         // Laenge nur unter dem Mutex lesen - logLineBuffer wird auch von der NTP-/Rocrail-Task beschrieben.
-
         // Only read the length under the mutex - logLineBuffer is also written by the NTP/Rocrail task.
 
         size_t bufferedBytes = 0;
@@ -606,7 +599,6 @@
 
 
     // eigenes trim function
-
     // Custom trim function
 
     String trim(const String& str) {
