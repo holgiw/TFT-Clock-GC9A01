@@ -756,6 +756,31 @@
 
     bool infoStripDirty[2] = { true, true };
 
+    // Streifen fuer Uhrzeit/Datum, eingestellt im Zifferblatt-Designer: Farben als RGB888, Schriftart (Index in
+    // STRIP_FONTS, display.h) und Mitte der Zeilen im Streifen (hochkant) - -1 = automatisch. stripAuto* sind die
+    // zuletzt berechneten automatischen Positionen fuer den Designer.
+
+    // Time/date strip, set in the clock face designer: colors as RGB888, font (index into STRIP_FONTS,
+    // display.h) and centre of the lines in the strip (portrait) - -1 = automatic. stripAuto* are the last
+    // computed automatic positions for the designer.
+
+    uint32_t stripBgRgb = 0x000000;
+    uint32_t stripFgRgb = 0xFFFFFF;
+    uint8_t stripFont = 0;
+    bool stripBlink = true;   // Doppelpunkt der Uhrzeit "H:MM" blinkt im Sekundentakt
+                              // colon of the time "H:MM" blinks every second
+    bool stripBefore = false; // Streifen ueber der Uhr (quer: links davon) statt darunter (quer: rechts)
+                              // strip above the clock (landscape: left of it) instead of below (landscape: right)
+    int16_t stripTimeX = -1;
+    int16_t stripTimeY = -1;
+    int16_t stripDateX = -1;
+    int16_t stripDateY = -1;
+    int16_t stripAutoTimeY = 0;
+    int16_t stripAutoDateY = 0;
+    LGFX_Sprite infoStripSprite(&tft); // Streifen wird hier gezeichnet und in einem Stueck gesendet (kein Flackern)
+                                       // the strip is drawn here and sent in one piece (no flicker)
+    bool infoStripSpriteCreated = false;
+
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
     // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne
     // Aenderungsstelle das Zwischenbild selbst kennen muss.

@@ -121,6 +121,21 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       <label><input type="checkbox" id="live" checked><span id="tLive"></span></label>
       <label><input type="checkbox" id="showHands" checked><span id="tShowHands"></span></label>
       <small id="modeInfo"></small>
+      <div id="stripCard" style="display:none">
+        <h3 id="tStrip"></h3>
+        <div class="grid2">
+          <span id="tSPos"></span><span><select id="sBefore"></select></span>
+          <span id="tSBg"></span><span><input type="color" class="clr" id="sBg"></span>
+          <span id="tSFg"></span><span><input type="color" class="clr" id="sFg"></span>
+          <span id="tSFont"></span><span><select id="sFont"></select></span>
+          <span></span><span><label><input type="checkbox" id="sBlink"><span id="tSBlink"></span></label></span>
+          <span id="tSTime" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sTAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sTX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sTY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
+          <span id="tSDate" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sDAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sDX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sDY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
+        </div>
+        <small id="stripHint"></small>
+        <button type="button" class="tb" id="sDefBtn"></button>
+        <button type="button" id="sSaveBtn"></button>
+      </div>
     </div>
   </div>
 </div>
@@ -178,6 +193,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       roundHint: 'Rundes Display: der abgedunkelte Bereich ist auf der Uhr nicht sichtbar.',
       modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
+      strip: 'Streifen Uhrzeit/Datum', sPos: 'Lage:', sBelow: 'unter der Uhr (quer: rechts)', sAbove: '\u00fcber der Uhr (quer: links)', sBg: 'Hintergrund:', sFg: 'Schriftfarbe:', sFont: 'Schriftart:',
+      sTime: 'Uhrzeit:', sDate: 'Datum:', sAuto: 'automatisch', sBlink: 'Doppelpunkt blinkt', sDef: 'Standard', sSave: 'Streifen speichern',
+      stripHint: '\u00c4nderungen zeigt die Uhr sofort an, gespeichert wird erst mit \u201eStreifen speichern\u201c. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
+      stripSaved: 'Streifen gespeichert.', stripErr: 'Streifen konnte nicht an die Uhr gesendet werden.',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
       activate: 'activate new clock face', saveBtn: 'Save as new clock face', name: 'Name:',
@@ -226,6 +245,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       roundHint: 'Round display: the darkened area is not visible on the clock.',
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
+      strip: 'Time/date strip', sPos: 'Placement:', sBelow: 'below the clock (landscape: right)', sAbove: 'above the clock (landscape: left)', sBg: 'Background:', sFg: 'Text colour:', sFont: 'Font:',
+      sTime: 'Time:', sDate: 'Date:', sAuto: 'automatic', sBlink: 'Colon blinks', sDef: 'Default', sSave: 'Save strip',
+      stripHint: 'The clock shows changes right away, they are only stored with "Save strip". ' + 'X/Y = centre of the line in the strip (portrait); in landscape the lines are arranged below each other automatically.',
+      stripSaved: 'Strip saved.', stripErr: 'Could not send the strip to the clock.',
       pos: 'Pixel', center: 'Centre' },
   };
   var L = TX[FD.lang] ? FD.lang : 'en';
@@ -970,6 +993,32 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   var HW = FD.hand.w, HH = FD.hand.h, HPY = FD.hand.py, PARTS = ['hour', 'minute', 'second'];
   var pv = $('pv'), pctx = pv.getContext('2d'), S = W;
   pv.width = S; pv.height = S;
+
+  // Mit Streifen (ILI9341) zeigt die Vorschau das ganze Display: Uhr und Streifen an seiner Lage, den Streifen
+  // so, wie die Uhr ihn zeichnet (/api/stripimg, RGB565 big-endian).
+  // With a strip (ILI9341) the preview shows the whole display: clock and strip at its placement, the strip
+  // exactly as the clock draws it (/api/stripimg, RGB565 big-endian).
+  var stripImg = null;
+  if (FD.strip) pv.height = S + FD.strip.h;
+  function loadStripImg() {
+    var sp = FD.strip;
+    if (!sp) return;
+    fetch('/api/stripimg', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.arrayBuffer();
+    }).then(function (ab) {
+      var b = new Uint8Array(ab);
+      if (b.length < sp.w * sp.h * 2) return;
+      var c = stripImg || newCanvas(sp.w, sp.h), x = c.getContext('2d'), id = x.createImageData(sp.w, sp.h);
+      for (var i = 0; i < sp.w * sp.h; i++) {
+        var v = (b[2 * i] << 8) | b[2 * i + 1], rgb = rgbOf(v);
+        id.data[i * 4] = rgb[0]; id.data[i * 4 + 1] = rgb[1]; id.data[i * 4 + 2] = rgb[2]; id.data[i * 4 + 3] = 255;
+      }
+      x.putImageData(id, 0, 0);
+      stripImg = c;
+      schedulePreview();
+    }).catch(function () {});
+  }
   var hands = {}, previewTimer = null;
   $('live').onchange = schedulePreview;
   $('showHands').onchange = schedulePreview;
@@ -1014,7 +1063,13 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   }
   function renderPreview() {
     pctx.save();
-    pctx.clearRect(0, 0, S, S);
+    pctx.clearRect(0, 0, pv.width, pv.height);
+    if (FD.strip) {
+      var sy = FD.strip.before ? 0 : S;
+      if (stripImg) pctx.drawImage(stripImg, 0, sy);
+      else { pctx.fillStyle = FD.strip.bg; pctx.fillRect(0, sy, S, FD.strip.h); }
+      pctx.translate(0, FD.strip.before ? FD.strip.h : 0);
+    }
     if (FD.round) { pctx.beginPath(); pctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); pctx.clip(); }
     if (!pvFace) pvFace = bufCanvas(pix);
     pctx.drawImage(pvFace, 0, 0, S, S);
@@ -1112,6 +1167,75 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   $('faceName').value = nextName();
   var need = Math.ceil((N * 2 + 66) / 1024);
   $('spaceHint').textContent = (FD.free >= 0 && FD.free / 1024 < need) ? t('lowSpace', Math.floor(FD.free / 1024), need) : (FD.round ? t('roundHint') : '');
+
+  // Streifen Uhrzeit/Datum (nur Displays mit Streifen wie ILI9341): Aenderungen gehen sofort live an die Uhr
+  // (save=0), "Streifen speichern" legt sie dauerhaft ab.
+  // Time/date strip (only displays with a strip like the ILI9341): changes go live to the clock right away
+  // (save=0), "Save strip" stores them permanently.
+  if (FD.strip) {
+    var SP = FD.strip, stripTimer = null;
+    $('stripCard').style.display = '';
+    [['0', 'sBelow'], ['1', 'sAbove']].forEach(function (k) {
+      var o = document.createElement('option'); o.value = k[0]; o.textContent = t(k[1]); $('sBefore').appendChild(o);
+    });
+    SP.fonts.forEach(function (n, i) {
+      var o = document.createElement('option'); o.value = i; o.textContent = n; $('sFont').appendChild(o);
+    });
+    $('sTX').max = $('sDX').max = SP.w; $('sTY').max = $('sDY').max = SP.h;
+    var stripSync = function () {
+      [['T', SP.aty], ['D', SP.ady]].forEach(function (k) {
+        var auto = $('s' + k[0] + 'Auto').checked;
+        $('s' + k[0] + 'X').disabled = $('s' + k[0] + 'Y').disabled = auto;
+        if (auto) { $('s' + k[0] + 'X').value = SP.w >> 1; $('s' + k[0] + 'Y').value = k[1]; }
+      });
+    };
+    var stripFill = function () {
+      $('sBefore').value = SP.before ? '1' : '0'; $('sBlink').checked = !!SP.blink; $('sBg').value = SP.bg; $('sFg').value = SP.fg; $('sFont').value = SP.font;
+      $('sTAuto').checked = SP.tx < 0; $('sDAuto').checked = SP.dx < 0;
+      $('sTX').value = SP.tx < 0 ? SP.w >> 1 : SP.tx; $('sTY').value = SP.ty < 0 ? SP.aty : SP.ty;
+      $('sDX').value = SP.dx < 0 ? SP.w >> 1 : SP.dx; $('sDY').value = SP.dy < 0 ? SP.ady : SP.dy;
+      stripSync();
+    };
+    var stripSend = function (save) {
+      var p = new URLSearchParams();
+      SP.before = +$('sBefore').value; SP.bg = $('sBg').value;
+      p.set('before', $('sBefore').value); p.set('blink', $('sBlink').checked ? '1' : '0'); p.set('bg', $('sBg').value); p.set('fg', $('sFg').value); p.set('font', $('sFont').value);
+      p.set('tx', $('sTAuto').checked ? -1 : $('sTX').value); p.set('ty', $('sTAuto').checked ? -1 : $('sTY').value);
+      p.set('dx', $('sDAuto').checked ? -1 : $('sDX').value); p.set('dy', $('sDAuto').checked ? -1 : $('sDY').value);
+      p.set('save', save ? '1' : '0');
+      return fetch('/save_strip', { method: 'POST', body: p }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error();
+        SP.aty = j.aty; SP.ady = j.ady;
+        stripSync();
+        loadStripImg();
+        if (save) showMsg(t('stripSaved'), true);
+      }).catch(function () { showMsg(t('stripErr'), false); });
+    };
+    var stripLive = function () {
+      stripSync();
+      clearTimeout(stripTimer);
+      stripTimer = setTimeout(function () { stripSend(false); }, 250);
+    };
+    ['sBefore', 'sBlink', 'sBg', 'sFg', 'sFont', 'sTAuto', 'sDAuto', 'sTX', 'sTY', 'sDX', 'sDY'].forEach(function (id) {
+      $(id).addEventListener('input', stripLive);
+      $(id).addEventListener('change', stripLive);
+    });
+    $('sDefBtn').onclick = function () {
+      SP.before = 0; SP.blink = 1; SP.bg = '#000000'; SP.fg = '#ffffff'; SP.font = 0; SP.tx = SP.ty = SP.dx = SP.dy = -1;
+      stripFill(); stripLive();
+    };
+    $('sSaveBtn').onclick = function () { clearTimeout(stripTimer); stripSend(true); };
+    ['tStrip', 'tSPos', 'tSBg', 'tSFg', 'tSFont', 'tSTime', 'tSDate', 'stripHint'].forEach(function (id) {
+      $(id).textContent = t({ tStrip: 'strip', tSPos: 'sPos', tSBg: 'sBg', tSFg: 'sFg', tSFont: 'sFont', tSTime: 'sTime', tSDate: 'sDate', stripHint: 'stripHint' }[id]);
+    });
+    document.querySelectorAll('#stripCard .tSAuto').forEach(function (e) { e.textContent = t('sAuto'); });
+    $('tSBlink').textContent = t('sBlink');
+    $('sDefBtn').textContent = t('sDef'); $('sSaveBtn').textContent = t('sSave');
+    stripFill();
+    loadStripImg();
+    setInterval(loadStripImg, 15000); // Uhrzeit im Streifen der Vorschau aktuell halten
+                                      // keep the time in the preview's strip current
+  }
 
   // Start
   // Start

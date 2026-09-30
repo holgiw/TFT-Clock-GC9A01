@@ -46,21 +46,33 @@
 
 
     // Streifen neben der Uhr (nur rechteckige Displays wie das ILI9341): hochkant unter der Uhr, quer
-    // (Rotation 90/270 Grad) rechts daneben. false, wenn das Display keinen Streifen hat.
+    // (Rotation 90/270 Grad) rechts daneben - mit stripBefore ueber bzw. links davon. false ohne Streifen.
 
     // Strip next to the clock (rectangular displays like the ILI9341 only): portrait below the clock,
-    // landscape (rotation 90/270 degrees) to its right. false if the display has no strip.
+    // landscape (rotation 90/270 degrees) to its right - with stripBefore above or left of it. false without a strip.
 
     bool infoStripRect(uint8_t displayNum, int& x, int& y, int& w, int& h, bool& landscape) {
         if (TFT_WIDTH == CLOCK_WIDTH && TFT_HEIGHT == CLOCK_HEIGHT) return false;
         landscape = (effectiveRotation(displayNum) % 2) == 1;
         int pw = landscape ? TFT_HEIGHT : TFT_WIDTH;
         int ph = landscape ? TFT_WIDTH : TFT_HEIGHT;
-        x = (pw > CLOCK_WIDTH) ? CLOCK_WIDTH : 0;
-        y = (pw > CLOCK_WIDTH) ? 0 : CLOCK_HEIGHT;
-        w = pw - x;
-        h = ph - y;
+        w = (pw > CLOCK_WIDTH) ? pw - CLOCK_WIDTH : pw;
+        h = (pw > CLOCK_WIDTH) ? ph : ph - CLOCK_HEIGHT;
+        x = (!stripBefore && pw > CLOCK_WIDTH) ? CLOCK_WIDTH : 0;
+        y = (!stripBefore && pw <= CLOCK_WIDTH) ? CLOCK_HEIGHT : 0;
         return true;
+    }
+
+
+    // Linke obere Ecke der Uhr auf dem Display - nur verschoben, wenn der Streifen davor liegt (stripBefore)
+    // Top left corner of the clock on the display - only shifted when the strip lies before it (stripBefore)
+
+    void clockOrigin(uint8_t displayNum, int& ox, int& oy) {
+        ox = oy = 0;
+        int x, y, w, h;
+        bool landscape;
+        if (!stripBefore || !infoStripRect(displayNum, x, y, w, h, landscape)) return;
+        if (landscape) ox = w; else oy = h;
     }
 
 
@@ -549,12 +561,15 @@
         if (!gc9d01SwRotation || !created) {
             if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
 
-            // Uhrzeit/Datum neben der Uhr waehrend der Meldung ausblenden, statt sie eingefroren stehen zu lassen
-            // Hide the time/date next to the clock during the message instead of leaving it frozen
+            // Displays mit Streifen vor der ersten Meldung einmal ganz loeschen - Meldungen stehen oben links im
+            // Uhrbereich, sonst blieben Streifen und (liegt der Streifen oben) Teile der Uhr eingefroren stehen.
+
+            // Clear displays with a strip completely once before the first message - messages sit top left in the
+            // clock area, otherwise the strip and (with the strip on top) parts of the clock would stay frozen.
 
             int x, y, w, h;
             bool landscape;
-            if (stripShown && infoStripRect(displayNum, x, y, w, h, landscape)) tft.fillRect(x, y, w, h, TFT_BLACK);
+            if (stripShown && infoStripRect(displayNum, x, y, w, h, landscape)) tft.fillScreen(TFT_BLACK);
             return tft;
         }
 
@@ -1917,12 +1932,13 @@
     // Sends only the rectangle (x,y,w,h) of backgroundSprite, row by row. Requires SPI without a DMA channel
     // - otherwise LovyanGFX reroutes rows of 65..1023 bytes to DMA, which it silently drops on the ESP32-S2.
 
-    void pushBackgroundRect(int32_t x, int32_t y, int32_t w, int32_t h) {
+    void pushBackgroundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t ox, int32_t oy) {
         const lgfx::swap565_t* buf = (const lgfx::swap565_t*)backgroundSprite.getBuffer();
         const int32_t stride = backgroundSprite.width();
         if (!buf || w <= 0 || h <= 0) return;
         tft.startWrite();
-        tft.setAddrWindow(x, y, w, h);
+        tft.setAddrWindow(x + ox, y + oy, w, h); // ox/oy = Lage der Uhr (clockOrigin())
+                                                 // ox/oy = position of the clock (clockOrigin())
         for (int32_t row = 0; row < h; row++) {
             tft.writePixels(buf + (y + row) * stride + x, w);
         }
@@ -2545,12 +2561,16 @@
             // Send only the rectangle (see pushBackgroundRect())
 
             backgroundSprite.clearClipRect();
-            pushBackgroundRect(px0, py0, px1 - px0 + 1, py1 - py0 + 1);
+            int ox, oy;
+            clockOrigin(displayNum, ox, oy);
+            pushBackgroundRect(px0, py0, px1 - px0 + 1, py1 - py0 + 1, ox, oy);
             lastRenderRect[0] = px0; lastRenderRect[1] = py0;
             lastRenderRect[2] = px1 - px0 + 1; lastRenderRect[3] = py1 - py0 + 1;
         }
         else {
-            backgroundSprite.pushSprite(0, 0);
+            int ox, oy;
+            clockOrigin(displayNum, ox, oy);
+            backgroundSprite.pushSprite(ox, oy);
         }
         lastRenderPartial = partial;
         lastRenderSecondAngle = secAngle;
@@ -2573,29 +2593,234 @@
     }
 
 
-    // Streifen neben der Uhr bei rechteckigen Displays (ILI9341, wie in uhr3): Uhrzeit und Datum, mit
-    // Sekundenzeiger "H:MM" mit blinkendem Doppelpunkt, sonst "H:MM:SS". Hochkant unter der Uhr, quer rechts
-    // daneben. Gezeichnet nur bei Aenderung oder nach einer Meldung (infoStripDirty).
+    // Schriftarten fuer den Streifen mit Uhrzeit/Datum, Auswahl im Zifferblatt-Designer (stripFont). size =
+    // Vergroesserung, nur die GLCD-Schrift wird skaliert.
 
-    // Strip next to the clock on rectangular displays (ILI9341, as in uhr3): time and date, with the second
-    // hand "H:MM" with a blinking colon, otherwise "H:MM:SS". Portrait below the clock, landscape to its
-    // right. Drawn only on change or after a message (infoStripDirty).
+    // Fonts for the time/date strip, chosen in the clock face designer (stripFont). size = magnification, only
+    // the GLCD font is scaled.
 
-    void drawInfoStrips() {
-        int x, y, w, h;
-        bool landscape;
-        if (!infoStripRect(1, x, y, w, h, landscape)) return;
+    struct StripFont {
+        const char* name;
+        const lgfx::IFont* time;
+        const lgfx::IFont* date;
+        uint8_t size;
+    };
+    const StripFont STRIP_FONTS[] = {
+        { "GLCD", &fonts::Font0, &fonts::Font0, 3 },
+        { "7-Segment / DejaVu", &fonts::Font7, &fonts::DejaVu18, 1 },
+        { "FreeSans Bold", &fonts::FreeSansBold24pt7b, &fonts::FreeSansBold12pt7b, 1 },
+        { "DejaVu", &fonts::DejaVu40, &fonts::DejaVu18, 1 },
+        { "Orbitron", &fonts::Orbitron_Light_32, &fonts::Orbitron_Light_24, 1 },
+    };
+    constexpr uint8_t STRIP_FONT_COUNT = sizeof(STRIP_FONTS) / sizeof(STRIP_FONTS[0]);
 
-        // Zeitquelle wie bei den Zeigern (renderClockFrame()), das Datum immer aus der echten Zeit
-        // Time source as for the hands (renderClockFrame()), the date always from the real time
 
+    // Einstellungen des Streifens aus den Preferences laden (setup())
+    // Load the strip settings from preferences (setup())
+
+    void loadInfoStripSettings() {
+        stripBgRgb = preferences.getULong(PK_STRIP_BG, 0x000000) & 0xFFFFFF;
+        stripFgRgb = preferences.getULong(PK_STRIP_FG, 0xFFFFFF) & 0xFFFFFF;
+        stripFont = preferences.getUChar(PK_STRIP_FONT, 0);
+        if (stripFont >= STRIP_FONT_COUNT) stripFont = 0;
+        stripBefore = preferences.getBool(PK_STRIP_BEFORE, false);
+        stripBlink = preferences.getBool(PK_STRIP_BLINK, true);
+        stripTimeX = preferences.getShort(PK_STRIP_TIME_X, -1);
+        stripTimeY = preferences.getShort(PK_STRIP_TIME_Y, -1);
+        stripDateX = preferences.getShort(PK_STRIP_DATE_X, -1);
+        stripDateY = preferences.getShort(PK_STRIP_DATE_Y, -1);
+        infoStripDirty[0] = infoStripDirty[1] = true;
+    }
+
+
+    // Oberste und unterste gesetzte Pixelzeile der Ziffern einer Schrift (Oberkante = 0) - die Schriftarten liegen
+    // unterschiedlich in ihrer Zeilenhoehe, so lassen sich alle gleich mittig setzen. Einmal je Schrift gemessen.
+
+    // Top and bottom set pixel row of a font's digits (top edge = 0) - the fonts sit differently within their line
+    // height, this way all of them can be centred the same. Measured once per font.
+
+    void stripDigitRows(LGFX_Sprite& s, const lgfx::IFont* font, uint8_t size, int& top, int& bottom) {
+        static const lgfx::IFont* cachedFont[4] = { nullptr, nullptr, nullptr, nullptr };
+        static uint8_t cachedSize[4] = { 0, 0, 0, 0 };
+        static int16_t cachedTop[4], cachedBottom[4];
+        static uint8_t next = 0;
+        for (uint8_t i = 0; i < 4; i++) {
+            if (cachedFont[i] == font && cachedSize[i] == size) {
+                top = cachedTop[i];
+                bottom = cachedBottom[i];
+                return;
+            }
+        }
+        s.fillSprite(TFT_BLACK);
+        s.setFont(font);
+        s.setTextSize(size);
+        s.setTextDatum(lgfx::top_left);
+        s.setTextColor(TFT_WHITE);
+        s.drawString("0123456789:", 0, 0);
+        top = -1;
+        bottom = 0;
+        for (int yy = 0; yy < s.height(); yy++) {
+            for (int xx = 0; xx < s.width(); xx++) {
+                if (s.readPixel(xx, yy) != 0) {
+                    if (top < 0) top = yy;
+                    bottom = yy + 1;
+                    break;
+                }
+            }
+        }
+        if (top < 0) {
+            top = 0;
+            bottom = s.fontHeight();
+        }
+        cachedFont[next] = font;
+        cachedSize[next] = size;
+        cachedTop[next] = top;
+        cachedBottom[next] = bottom;
+        next = (next + 1) % 4;
+    }
+
+
+    // Uhrzeit mit Doppelpunkt zeichnen (Mitte cx, Oberkante y) - ein ausgeblendeter Doppelpunkt laesst seinen Platz
+    // frei, die Ziffern springen beim Blinken nicht.
+
+    // Draws the time with its colon (centre cx, top edge y) - a hidden colon keeps its space, the digits don't
+    // jump while blinking.
+
+    void drawStripTime(lgfx::LovyanGFX& g, const String& text, bool colon, int cx, int y) {
+        int sep = text.indexOf(':');
+        g.setTextDatum(lgfx::top_left);
+        if (sep < 0) {
+            g.drawString(text, cx - g.textWidth(text) / 2, y);
+            return;
+        }
+        String hours = text.substring(0, sep);
+        String rest = text.substring(sep + 1);
+        int wH = g.textWidth(hours), wC = g.textWidth(":"), wR = g.textWidth(rest);
+        int x0 = cx - (wH + wC + wR) / 2;
+        g.drawString(hours, x0, y);
+        if (colon) g.drawString(":", x0 + wH, y);
+        g.drawString(rest, x0 + wH + wC, y);
+    }
+
+
+    // Zeichnet den Streifen (x/y/w/h wie infoStripRect()) ins Sprite und sendet es. Hochkant: Uhrzeit und Datum an
+    // den eingestellten oder automatischen Positionen. Quer (80 px breit): Zeilen untereinander in der kleinen
+    // Schrift, zu Breites in GLCD Groesse 2. Ohne Sprite (kein Speicher) wird direkt gezeichnet.
+
+    // Draws the strip (x/y/w/h as infoStripRect()) into the sprite and sends it. Portrait: time and date at the
+    // set or automatic positions. Landscape (80 px wide): lines below each other in the small font, anything too
+    // wide in GLCD size 2. Without a sprite (no memory) it draws directly.
+
+    void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon,
+                         uint16_t bg, uint16_t fg, bool push) {
+        LGFX_Sprite& s = infoStripSprite;
+        if (infoStripSpriteCreated && (s.width() != w || s.height() != h)) {
+            s.deleteSprite();
+            infoStripSpriteCreated = false;
+        }
+        if (!infoStripSpriteCreated) infoStripSpriteCreated = createSprite16(s, w, h);
+        const bool useSprite = infoStripSpriteCreated;
+        if (!push && !useSprite) return; // Vorschau (push = false) geht nur mit Sprite
+                                         // preview (push = false) only works with a sprite
+        lgfx::LovyanGFX& g = useSprite ? (lgfx::LovyanGFX&)s : (lgfx::LovyanGFX&)tft;
+        const int ox = useSprite ? 0 : x, oy = useSprite ? 0 : y;
+        const StripFont& f = STRIP_FONTS[stripFont];
+
+        // Ziffernhoehe messen (ohne Sprite nur die Schrifthoehe)
+        // Measure the digit height (without a sprite only the font height)
+
+        auto rows = [&](const lgfx::IFont* font, uint8_t size, int& top, int& bottom) {
+            if (useSprite) {
+                stripDigitRows(s, font, size, top, bottom);
+                return;
+            }
+            g.setFont(font);
+            g.setTextSize(size);
+            top = 0;
+            bottom = g.fontHeight();
+        };
+
+        // Automatische Positionen immer fuer hochkant berechnen - der Designer zeigt sie an
+        // Always compute the automatic positions for portrait - the designer shows them
+
+        int tTop, tBottom, dTop, dBottom;
+        rows(f.time, f.size, tTop, tBottom);
+        rows(f.date, f.size, dTop, dBottom);
+        int portraitH = TFT_HEIGHT - CLOCK_HEIGHT;
+        int th = tBottom - tTop, dh = dBottom - dTop;
+        int gap = max(0, (portraitH - th - dh) / 3);
+        stripAutoTimeY = gap + th / 2;
+        stripAutoDateY = 2 * gap + th + dh / 2;
+
+        g.fillRect(ox, oy, w, h, bg);
+        g.setTextColor(fg);
+        if (!landscape) {
+            int tx = (stripTimeX >= 0) ? stripTimeX : w / 2;
+            int ty = (stripTimeX >= 0 && stripTimeY >= 0) ? stripTimeY : stripAutoTimeY;
+            int dx = (stripDateX >= 0) ? stripDateX : w / 2;
+            int dy = (stripDateX >= 0 && stripDateY >= 0) ? stripDateY : stripAutoDateY;
+            g.setFont(f.time);
+            g.setTextSize(f.size);
+            drawStripTime(g, lines[0], colon, ox + tx, oy + ty - (tTop + tBottom) / 2);
+            if (count > 1 && lines[1].length()) {
+                g.setFont(f.date);
+                g.setTextSize(f.size);
+                g.setTextDatum(lgfx::top_center);
+                g.drawString(lines[1], ox + dx, oy + dy - (dTop + dBottom) / 2);
+            }
+        }
+        else {
+            for (uint8_t n = 0; n < count; n++) {
+                const lgfx::IFont* font = f.date;
+                uint8_t size = (f.date == &fonts::Font0) ? 2 : f.size;
+                g.setFont(font);
+                g.setTextSize(size);
+                if (g.textWidth(lines[n]) > w - 4) {
+                    font = &fonts::Font0;
+                    size = 2;
+                }
+                int top, bottom;
+                rows(font, size, top, bottom);
+                g.setFont(font);
+                g.setTextSize(size);
+                g.setTextColor(fg);
+                int cy = h * (2 * n + 1) / (2 * count);
+                if (n == 0) {
+                    drawStripTime(g, lines[n], colon, ox + w / 2, oy + cy - (top + bottom) / 2);
+                }
+                else {
+                    g.setTextDatum(lgfx::top_center);
+                    g.drawString(lines[n], ox + w / 2, oy + cy - (top + bottom) / 2);
+                }
+            }
+        }
+
+        if (useSprite) {
+            if (push) s.pushSprite(x, y);
+        }
+        else {
+            setupTextStyle(tft);
+            tft.setTextDatum(lgfx::top_left);
+            tft.setTextSize(TFT_TEXT_SIZE);
+        }
+    }
+
+
+    // Inhalt des Streifens: hochkant Uhrzeit und Datum, quer (80 px breit) je Zeile Uhrzeit, Sekunden,
+    // Tag.Monat. und Jahr. Zeitquelle wie bei den Zeigern (renderClockFrame()), das Datum aus der echten Zeit.
+
+    // Content of the strip: portrait time and date, landscape (80 px wide) one line each for time, seconds,
+    // day.month. and year. Time source as for the hands (renderClockFrame()), the date from the real time.
+
+    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon) {
         bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
                                 (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
         const struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
         char hourMin[8];
         char seconds[4];
-        snprintf(hourMin, sizeof(hourMin), (showSecondHand && t.tm_sec % 2) ? "%d %02d" : "%d:%02d", t.tm_hour, t.tm_min);
+        snprintf(hourMin, sizeof(hourMin), "%d:%02d", t.tm_hour, t.tm_min);
         snprintf(seconds, sizeof(seconds), "%02d", t.tm_sec);
+        colon = !(stripBlink && showSecondHand && t.tm_sec % 2);
         char dayMonth[8] = "";
         char year[6] = "";
         if (timeinfo.tm_year >= 100) { // Jahr 0 = noch keine Zeitquelle, dann kein Datum
@@ -2603,54 +2828,74 @@
             snprintf(dayMonth, sizeof(dayMonth), "%d.%02d.", timeinfo.tm_mday, timeinfo.tm_mon + 1);
             snprintf(year, sizeof(year), "%04d", timeinfo.tm_year + 1900);
         }
-        uint16_t color = setPixelBrightness(TFT_WHITE);
+        count = 0;
+        if (landscape) {
+            lines[count++] = hourMin;
+            if (!showSecondHand) lines[count++] = seconds;
+            lines[count++] = dayMonth;
+            lines[count++] = year;
+        }
+        else {
+            lines[count++] = showSecondHand ? String(hourMin) : String(hourMin) + ":" + seconds;
+            lines[count++] = String(dayMonth) + year;
+        }
+    }
+
+    uint16_t stripColor565(uint32_t rgb) {
+        return tft.color565((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    }
+
+    // Streifen neben der Uhr bei rechteckigen Displays (ILI9341, wie in uhr3): Uhrzeit und Datum, mit
+    // Sekundenzeiger "H:MM" (Doppelpunkt blinkt wahlweise, stripBlink), sonst "H:MM:SS". Farben, Schrift und
+    // Lage aus dem Zifferblatt-Designer. Gezeichnet nur bei Aenderung oder nach einer Meldung (infoStripDirty).
+
+    // Strip next to the clock on rectangular displays (ILI9341, as in uhr3): time and date, with the second
+    // hand "H:MM" (colon optionally blinks, stripBlink), otherwise "H:MM:SS". Colors, font and placement from
+    // the clock face designer. Drawn only on change or after a message (infoStripDirty).
+
+    void drawInfoStrips() {
+        int x, y, w, h;
+        bool landscape;
+        if (!infoStripRect(1, x, y, w, h, landscape)) return;
+        uint16_t bg = setPixelBrightness(stripColor565(stripBgRgb));
+        uint16_t fg = setPixelBrightness(stripColor565(stripFgRgb));
 
         static String lastText[2];
-        static uint16_t lastColor[2] = { 0, 0 };
         for (uint8_t d = 1; d <= 2; d++) {
             if (!isDisplayConnected(d)) continue;
             uint8_t i = d - 1;
             infoStripRect(d, x, y, w, h, landscape);
-
-            // Zeilen: hochkant "H:MM[:SS]" und Datum in Groesse 3, quer (80 px breit) in Groesse 2 je Zeile
-            // Uhrzeit, Sekunden, Tag.Monat. und Jahr.
-
-            // Lines: portrait "H:MM[:SS]" and the date in size 3, landscape (80 px wide) in size 2 one line
-            // each for time, seconds, day.month. and year.
-
             String lines[4];
-            uint8_t count = 0;
-            if (landscape) {
-                lines[count++] = hourMin;
-                if (!showSecondHand) lines[count++] = seconds;
-                lines[count++] = dayMonth;
-                lines[count++] = year;
-            }
-            else {
-                lines[count++] = showSecondHand ? String(hourMin) : String(hourMin) + ":" + seconds;
-                lines[count++] = String(dayMonth) + year;
-            }
-            String text = lines[0];
-            for (uint8_t n = 1; n < count; n++) text += "|" + lines[n];
-            if (!infoStripDirty[i] && lastColor[i] == color && lastText[i] == text) continue;
+            uint8_t count;
+            bool colon;
+            stripContent(landscape, lines, count, colon);
+            String text = String(colon ? "1" : "0") + "|" + String(bg) + "|" + String(fg);
+            for (uint8_t n = 0; n < count; n++) text += "|" + lines[n];
+            if (!infoStripDirty[i] && lastText[i] == text) continue;
 
             if (d == 1) setCS1(LOW); else setCS2(LOW);
-            if (infoStripDirty[i]) tft.fillRect(x, y, w, h, TFT_BLACK);
-            setupTextStyle(tft);
-            tft.setTextSize(landscape ? 2 : 3);
-            tft.setTextColor(color, TFT_BLACK);
-            tft.setTextDatum(lgfx::middle_center);
-            tft.setTextPadding(w);
-            for (uint8_t n = 0; n < count; n++) {
-                tft.drawString(lines[n], x + w / 2, y + h * (2 * n + 1) / (2 * count));
-            }
-            tft.setTextPadding(0);
-            tft.setTextDatum(lgfx::top_left);
-            tft.setTextSize(TFT_TEXT_SIZE);
+            renderInfoStrip(x, y, w, h, landscape, lines, count, colon, bg, fg, true);
             lastText[i] = text;
-            lastColor[i] = color;
             infoStripDirty[i] = false;
         }
+    }
+
+
+    // Streifen hochkant und ungedimmt nur ins Sprite zeichnen - fuer die Vorschau im Zifferblatt-Designer
+    // (/api/stripimg). false ohne Streifen oder Sprite. Das Display zeichnet ihn danach neu (anderes Sprite-Format).
+
+    // Draw the strip in portrait and undimmed into the sprite only - for the preview in the clock face designer
+    // (/api/stripimg). false without a strip or sprite. The display redraws it afterwards (other sprite format).
+
+    bool renderStripPreview(int w, int h) {
+        if (h <= 0) return false;
+        String lines[4];
+        uint8_t count;
+        bool colon;
+        stripContent(false, lines, count, colon);
+        renderInfoStrip(0, 0, w, h, false, lines, count, true, stripColor565(stripBgRgb), stripColor565(stripFgRgb), false);
+        infoStripDirty[0] = infoStripDirty[1] = true;
+        return infoStripSpriteCreated && infoStripSprite.width() == w && infoStripSprite.height() == h;
     }
 
 
@@ -2834,11 +3079,13 @@
                 // is enough for display 2 - unless it got drawn over itself
                 // (clockFrameDirty[1]), then send in full.
 
+                int ox, oy;
+                clockOrigin(2, ox, oy);
                 if (lastRenderPartial && !clockFrameDirty[1]) {
-                    pushBackgroundRect(lastRenderRect[0], lastRenderRect[1], lastRenderRect[2], lastRenderRect[3]);
+                    pushBackgroundRect(lastRenderRect[0], lastRenderRect[1], lastRenderRect[2], lastRenderRect[3], ox, oy);
                 }
                 else {
-                    backgroundSprite.pushSprite(0, 0);
+                    backgroundSprite.pushSprite(ox, oy);
                 }
                 clockFrameDirty[1] = false;
             }

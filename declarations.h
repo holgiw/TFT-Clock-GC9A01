@@ -119,7 +119,8 @@
     void setDisplayType(uint8_t type, bool backlight) ;
     uint8_t hardwareRotation(uint8_t displayNum) ;
     void recordRenderFrame(uint32_t durationMicros, bool partial) ;
-    void pushBackgroundRect(int32_t x, int32_t y, int32_t w, int32_t h) ;
+    void pushBackgroundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t ox = 0, int32_t oy = 0) ;
+    void clockOrigin(uint8_t displayNum, int& ox, int& oy) ;
     bool createSprite16(LGFX_Sprite& sprite, int32_t w, int32_t h, bool preferPsram = true) ;
     void setupTextStyle(lgfx::LovyanGFX& gfx) ;
     String tftText(const String& text) ;
@@ -165,6 +166,13 @@
     bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
                                                                                                                                                                   // false = frame unchanged, nothing sent
+    void loadInfoStripSettings() ;
+    void stripDigitRows(LGFX_Sprite& s, const lgfx::IFont* font, uint8_t size, int& top, int& bottom) ;
+    void drawStripTime(lgfx::LovyanGFX& g, const String& text, bool colon, int cx, int y) ;
+    void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon, uint16_t bg, uint16_t fg, bool push) ;
+    void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon) ;
+    uint16_t stripColor565(uint32_t rgb) ;
+    bool renderStripPreview(int w, int h) ;
     void drawInfoStrips() ;
     void updateClock() ;
     void updateBrightness() ;

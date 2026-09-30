@@ -77,6 +77,19 @@
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
     constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_* (config.h), wirkt nach Neustart
                                                                  // DISPLAY_TYPE_* (config.h), takes effect after a restart
+    constexpr const char* PK_STRIP_BG          = "stripBg";      // Streifen Uhrzeit/Datum (ILI9341): Farben RGB888, Schriftart
+                                                                 // time/date strip (ILI9341): colors RGB888, font
+    constexpr const char* PK_STRIP_FG          = "stripFg";
+    constexpr const char* PK_STRIP_FONT        = "stripFont";
+    constexpr const char* PK_STRIP_TIME_X      = "stripTimeX";   // Mitte der Zeile im Streifen, -1 = automatisch
+                                                                 // centre of the line in the strip, -1 = automatic
+    constexpr const char* PK_STRIP_TIME_Y      = "stripTimeY";
+    constexpr const char* PK_STRIP_DATE_X      = "stripDateX";
+    constexpr const char* PK_STRIP_DATE_Y      = "stripDateY";
+    constexpr const char* PK_STRIP_BLINK       = "stripBlink";   // Doppelpunkt der Uhrzeit "H:MM" blinkt
+                                                                 // colon of the time "H:MM" blinks
+    constexpr const char* PK_STRIP_BEFORE      = "stripBefore";  // Streifen ueber (quer: links von) der Uhr statt darunter
+                                                                 // strip above (landscape: left of) the clock instead of below
     constexpr const char* PK_USE_BACKLIGHT     = "useBacklight"; // Hintergrundbeleuchtung per PWM auf Pin 3 (ersetzt Build GC9A01_WITH_BACKLIGHT)
                                                                  // backlight via PWM on pin 3 (replaces the GC9A01_WITH_BACKLIGHT build)
 

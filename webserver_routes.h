@@ -4233,8 +4233,19 @@
             // fixed at previewSize and is only scaled via transform:scale() -
             // the hands' pixel offsets don't need to be recalculated this way.
 
-            chunk += "<div id='previewSizer' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;margin:20px auto;'>";
-            chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;transform-origin:top left;'>";
+            // Streifen fuer Uhrzeit/Datum (ILI9341) ueber oder unter der Uhr, so wie die Uhr ihn zeichnet (/api/stripimg)
+            // Time/date strip (ILI9341) above or below the clock, exactly as the clock draws it (/api/stripimg)
+
+            int stripPrevH = (TFT_HEIGHT > CLOCK_HEIGHT) ? previewSize * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH : 0;
+            String stripCanvas = "";
+            if (stripPrevH > 0) {
+                stripCanvas = "<canvas id='liveStrip' width='" + String(TFT_WIDTH) + "' height='" + String(TFT_HEIGHT - CLOCK_HEIGHT) +
+                              "' style='display:block;width:" + String(previewSize) + "px;height:" + String(stripPrevH) +
+                              "px;image-rendering:pixelated;background:#000;'></canvas>";
+            }
+            chunk += "<div id='previewSizer' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;margin:20px auto;'>";
+            chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize + stripPrevH) + "px;transform-origin:top left;'>";
+            if (stripBefore) chunk += stripCanvas;
             chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;border:3px solid #333;" + String(displayGeom->round ? "border-radius:50%;" : "") + "background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
             chunk += handImg("liveHourHandFull", hourB64, hourW);
@@ -4245,6 +4256,7 @@
             chunk += "<div id='liveHubFull' style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
             chunk += "</div>"; // Ende Zifferblatt-Kreis
                                // end clock-face circle
+            if (!stripBefore) chunk += stripCanvas;
             chunk += "</div>"; // Ende previewInner
                                // end previewInner
             chunk += "</div>"; // Ende previewSizer
@@ -4256,6 +4268,8 @@
             chunk += "  var inner = document.getElementById('previewInner');";
             chunk += "  var sizeSlider = document.getElementById('previewSizeSlider');";
             chunk += "  var sizeValueEl = document.getElementById('previewSizeValue');";
+            chunk += "  var stripH = " + String(stripPrevH) + ";"; // Hoehe des Streifens bei baseSize (0 ohne Streifen)
+                                                                   // height of the strip at baseSize (0 without a strip)
             chunk += "  var baseSize = " + String(previewSize) + ";"; // Basisgroesse, bei der previewInner serverseitig gerendert wurde
                                                                        // base size previewInner was rendered at server-side
 
@@ -4270,7 +4284,7 @@
             chunk += "  function applySize(px) {";
             chunk += "    var scale = px / baseSize;";
             chunk += "    sizer.style.width = px + 'px';";
-            chunk += "    sizer.style.height = px + 'px';";
+            chunk += "    sizer.style.height = Math.round(px * (baseSize + stripH) / baseSize) + 'px';";
             chunk += "    inner.style.transform = 'scale(' + scale + ')';";
             chunk += "    if (sizeValueEl) sizeValueEl.textContent = px;";
             chunk += "  }";
@@ -4287,6 +4301,25 @@
             chunk += "  var minuteEl = document.getElementById('liveMinuteHandFull');";
             chunk += "  var secondEl = document.getElementById('liveSecondHandFull');";
             chunk += "  var hubEl = document.getElementById('liveHubFull');";
+
+            // Streifenbild alle 15 s neu holen (RGB565 big-endian) - oefter wuerde die Uhr unnoetig ausbremsen
+            // Fetch the strip image every 15 s (RGB565 big-endian) - more often would slow the clock down needlessly
+
+            chunk += "  var stripCv = document.getElementById('liveStrip');";
+            chunk += "  function loadStrip() {";
+            chunk += "    if (!stripCv) return;";
+            chunk += "    fetch('/api/stripimg', {cache:'no-store'}).then(function(r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(function(ab) {";
+            chunk += "      var b = new Uint8Array(ab), w = stripCv.width, h = stripCv.height;";
+            chunk += "      if (b.length < w * h * 2) return;";
+            chunk += "      var ctx = stripCv.getContext('2d'), id = ctx.createImageData(w, h);";
+            chunk += "      for (var i = 0; i < w * h; i++) {";
+            chunk += "        var v = (b[2 * i] << 8) | b[2 * i + 1];";
+            chunk += "        id.data[i * 4] = (v >> 11) * 255 / 31; id.data[i * 4 + 1] = ((v >> 5) & 63) * 255 / 63; id.data[i * 4 + 2] = (v & 31) * 255 / 31; id.data[i * 4 + 3] = 255;";
+            chunk += "      }";
+            chunk += "      ctx.putImageData(id, 0, 0);";
+            chunk += "    }).catch(function() {});";
+            chunk += "  }";
+            chunk += "  if (stripCv) { loadStrip(); setInterval(loadStrip, 15000); }";
             chunk += "  var hintEl = document.getElementById('rocrailPreviewHint');";
             chunk += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
             chunk += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
@@ -7464,6 +7497,27 @@
                      ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
 
             const char* roundJs = displayGeom->round ? "true" : "false";
+
+            // Streifen fuer Uhrzeit/Datum (nur Displays groesser als die Uhr, ILI9341) - Masse hochkant
+            // Time/date strip (only displays larger than the clock, ILI9341) - portrait dimensions
+
+            String stripJs = "null";
+            if (TFT_HEIGHT > CLOCK_HEIGHT) {
+                char bgHex[8], fgHex[8];
+                snprintf(bgHex, sizeof(bgHex), "#%06lx", (unsigned long)stripBgRgb);
+                snprintf(fgHex, sizeof(fgHex), "#%06lx", (unsigned long)stripFgRgb);
+                stripJs = "{w:" + String(TFT_WIDTH) + ",h:" + String(TFT_HEIGHT - CLOCK_HEIGHT) + ",bg:'" + String(bgHex) +
+                          "',fg:'" + String(fgHex) + "',font:" + String(stripFont) + ",before:" + String(stripBefore ? 1 : 0) +
+                          ",blink:" + String(stripBlink ? 1 : 0) +
+                          ",tx:" + String(stripTimeX) +
+                          ",ty:" + String(stripTimeY) + ",dx:" + String(stripDateX) + ",dy:" + String(stripDateY) +
+                          ",aty:" + String(stripAutoTimeY) + ",ady:" + String(stripAutoDateY) + ",fonts:[";
+                // Feste Namen aus der Firmware - ohne jsSafe(), das auch Leerzeichen entfernen wuerde
+                // Fixed names from the firmware - without jsSafe(), which would also strip spaces
+
+                for (uint8_t i = 0; i < STRIP_FONT_COUNT; i++) stripJs += String(i ? "," : "") + "'" + String(STRIP_FONTS[i].name) + "'";
+                stripJs += "]}";
+            }
             long freeBytes = (long)LittleFS.totalBytes() - (long)LittleFS.usedBytes();
 
             // Zeigerstil wie in /preview, damit die Vorschau sich wie die Uhr bewegt
@@ -7481,7 +7535,7 @@
                      ",set:'" + jsSafe(preferences.getString(PK_HANDSET, "")) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
-                     ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + "};</script>";
+                     ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + ",strip:" + stripJs + "};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(FACE_DESIGNER_HTML);
             webserver.sendContent("</body></html>");
@@ -7535,6 +7589,91 @@
             else {
                 webserver.send(400, "text/plain", "Missing set name");
             }
+            });
+
+        // Streifen fuer Uhrzeit/Datum aus dem Zifferblatt-Designer: Farben (#rrggbb), Schriftart, Lage (before=1:
+        // ueber bzw. links von der Uhr) und Positionen (-1 = automatisch). save=0 zeigt die Werte nur sofort an,
+        // save=1 speichert sie zusaetzlich.
+
+        // Time/date strip from the clock face designer: colors (#rrggbb), font, placement (before=1: above or left
+        // of the clock) and positions (-1 = automatic). save=0 only shows the values right away, save=1 also
+        // stores them.
+
+        webserver.on("/save_strip", HTTP_POST, []() {
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(403, "application/json", "{\"ok\":false}");
+                return;
+            }
+            auto colorArg = [](const char* name, uint32_t current) -> uint32_t {
+                String v = webserver.arg(name);
+                if (v.length() != 7 || v[0] != '#') return current;
+                return strtoul(v.c_str() + 1, nullptr, 16) & 0xFFFFFF;
+            };
+            auto posArg = [](const char* name, int16_t current, int maxValue) -> int16_t {
+                if (!webserver.hasArg(name)) return current;
+                long v = webserver.arg(name).toInt();
+                if (v < 0) return -1;
+                return (int16_t)min(v, (long)maxValue);
+            };
+            int stripW = TFT_WIDTH;
+            int stripH = max(0, TFT_HEIGHT - CLOCK_HEIGHT);
+            stripBgRgb = colorArg("bg", stripBgRgb);
+            stripFgRgb = colorArg("fg", stripFgRgb);
+            if (webserver.hasArg("font")) {
+                long f = webserver.arg("font").toInt();
+                if (f >= 0 && f < STRIP_FONT_COUNT) stripFont = (uint8_t)f;
+            }
+            stripTimeX = posArg("tx", stripTimeX, stripW);
+            stripTimeY = posArg("ty", stripTimeY, stripH);
+            stripDateX = posArg("dx", stripDateX, stripW);
+            stripDateY = posArg("dy", stripDateY, stripH);
+
+            // Neue Lage: beide Displays einmal loeschen, danach Uhr und Streifen komplett neu senden
+            // New placement: clear both displays once, then resend the clock and the strip completely
+
+            if (webserver.hasArg("before") && (webserver.arg("before") == "1") != stripBefore) {
+                stripBefore = !stripBefore;
+                for (uint8_t d = 1; d <= 2; d++) {
+                    if (!isDisplayConnected(d)) continue;
+                    if (d == 1) setCS1(LOW); else setCS2(LOW);
+                    tft.fillScreen(TFT_BLACK);
+                    clockFrameDirty[d - 1] = true;
+                }
+            }
+            if (webserver.hasArg("blink")) stripBlink = webserver.arg("blink") == "1";
+            if (webserver.arg("save") == "1") {
+                preferences.putBool(PK_STRIP_BEFORE, stripBefore);
+                preferences.putBool(PK_STRIP_BLINK, stripBlink);
+                preferences.putULong(PK_STRIP_BG, stripBgRgb);
+                preferences.putULong(PK_STRIP_FG, stripFgRgb);
+                preferences.putUChar(PK_STRIP_FONT, stripFont);
+                preferences.putShort(PK_STRIP_TIME_X, stripTimeX);
+                preferences.putShort(PK_STRIP_TIME_Y, stripTimeY);
+                preferences.putShort(PK_STRIP_DATE_X, stripDateX);
+                preferences.putShort(PK_STRIP_DATE_Y, stripDateY);
+            }
+            infoStripDirty[0] = infoStripDirty[1] = true;
+            drawInfoStrips();
+            setCSIdle();
+            webserver.send(200, "application/json", "{\"ok\":true,\"aty\":" + String(stripAutoTimeY) + ",\"ady\":" + String(stripAutoDateY) + "}");
+            });
+
+        // Vorschau des Streifens fuer den Zifferblatt-Designer: hochkant, ungedimmt, RGB565 big-endian (w x h aus
+        // FD.strip) - so wie die Uhr ihn zeichnet.
+
+        // Strip preview for the clock face designer: portrait, undimmed, RGB565 big-endian (w x h from FD.strip) -
+        // exactly as the clock draws it.
+
+        webserver.on("/api/stripimg", HTTP_GET, []() {
+            int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
+            if (!renderStripPreview(w, h)) {
+                webserver.send(404, "text/plain", "no strip");
+                return;
+            }
+            size_t n = (size_t)w * h * 2;
+            webserver.setContentLength(n);
+            webserver.send(200, "application/octet-stream", "");
+            webserver.sendContent((const char*)infoStripSprite.getBuffer(), n);
             });
 
         // Displaytyp speichern ("display" wie parseDisplayName()) und neu starten, da Puffer und Sprites nur

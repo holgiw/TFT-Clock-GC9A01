@@ -17,6 +17,13 @@ Neueste Einträge oben.
   Zifferblätter – im Zifferblatt-Designer und in der Vorschau sind die Ecken sichtbar und editierbar.
   Sicherungen lassen sich zwischen GC9A01 und ILI9341 wiederherstellen (gleiche Uhrgröße).
   Farbreihenfolge (BGR) und Invertierung sind LovyanGFX-Standard – am echten Modul prüfen.
+- **Streifen Uhrzeit/Datum einstellbar** (Zifferblatt-Designer, Karte „Streifen Uhrzeit/Datum“, nur ILI9341):
+  Lage über oder unter der Uhr (quer: links oder rechts), Hintergrund- und Schriftfarbe, Schriftart (GLCD,
+  7-Segment/DejaVu, FreeSans Bold, DejaVu, Orbitron) und Position von Uhrzeit und Datum (automatisch oder per
+  Regler). Änderungen zeigt die Uhr sofort, „Streifen speichern“ legt sie ab. Der Streifen wird in einem Stück
+  gesendet (kein Flackern), der Doppelpunkt blinkt wahlweise, ohne die Ziffern zu verschieben. Die Vorschau im
+  Designer und die Live-Vorschau auf der Hauptseite zeigen das ganze Display samt Streifen so, wie die Uhr ihn
+  zeichnet.
 - Zifferblatt-Designer: neue Werkzeuge **Kreis** und **Kreis gefüllt**. Kreis und Ellipse werden jetzt vom
   Mittelpunkt aus aufgezogen (Abstand = Radius bzw. Halbachsen), Mitte und Radius stehen beim Ziehen unter dem Bild.
 
@@ -136,6 +143,12 @@ Newest entries on top.
   corners are visible and editable in the clock face designer and the preview.
   Backups can be restored between GC9A01 and ILI9341 (same clock size). Color order (BGR) and inversion are the
   LovyanGFX defaults – check on a real module.
+- **Configurable time/date strip** (clock face designer, card "Time/date strip", ILI9341 only): placement above
+  or below the clock (landscape: left or right), background and text colour, font (GLCD, 7-segment/DejaVu,
+  FreeSans Bold, DejaVu, Orbitron) and position of time and date (automatic or via sliders). The clock shows
+  changes right away, "Save strip" stores them. The strip is sent in one piece (no flicker), the blinking colon
+  optionally blinks without shifting the digits. The designer preview and the live preview on the main page show the whole
+  display including the strip exactly as the clock draws it.
 - Clock face designer: new tools **Circle** and **Filled circle**. Circle and ellipse are now dragged out from the
   centre (distance = radius or semi-axes), centre and radius are shown below the image while dragging.
 

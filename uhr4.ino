@@ -807,6 +807,8 @@ void setup() {
                                                                                // DB red
         hubColor = tft.color565((hubColorRgb >> 16) & 0xFF, (hubColorRgb >> 8) & 0xFF, hubColorRgb & 0xFF);
         hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
+        loadInfoStripSettings(); // Streifen Uhrzeit/Datum (nur ILI9341)
+                                 // time/date strip (ILI9341 only)
 
         // Auf 0-100 begrenzen: fruehere Backlight-Builds speicherten 255, das
         // Formularfeld (max 100) liesse sich damit gar nicht mehr absenden.
