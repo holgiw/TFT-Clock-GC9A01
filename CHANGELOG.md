@@ -17,8 +17,12 @@ Neueste Einträge oben.
   Zifferblätter – im Zifferblatt-Designer und in der Vorschau sind die Ecken sichtbar und editierbar.
   Sicherungen lassen sich zwischen GC9A01 und ILI9341 wiederherstellen (gleiche Uhrgröße).
   Farbreihenfolge (BGR) und Invertierung sind LovyanGFX-Standard – am echten Modul prüfen.
+- Zifferblatt-Designer: neue Werkzeuge **Kreis** und **Kreis gefüllt**. Kreis und Ellipse werden jetzt vom
+  Mittelpunkt aus aufgezogen (Abstand = Radius bzw. Halbachsen), Mitte und Radius stehen beim Ziehen unter dem Bild.
 
 ### Geändert
+- Beim Drehen eines Displays wird es vorher einmal schwarz gelöscht – es bleiben keine Reste der alten Lage
+  stehen (z. B. der Uhrzeit-/Datumsstreifen des ILI9341).
 - Kommentare: Sind der deutsche und englische Teil jeweils nur eine Zeile, stehen sie jetzt direkt
   untereinander ohne Leerzeile dazwischen (nur Leerzeilen entfernt, Code unverändert, kein neuer Build nötig).
 - `flashESP.bat`/`flashESP.sh`: Wird keine Uhr erkannt, nennen sie jetzt auch den Fall eines neuen ESP32-S2
@@ -132,8 +136,12 @@ Newest entries on top.
   corners are visible and editable in the clock face designer and the preview.
   Backups can be restored between GC9A01 and ILI9341 (same clock size). Color order (BGR) and inversion are the
   LovyanGFX defaults – check on a real module.
+- Clock face designer: new tools **Circle** and **Filled circle**. Circle and ellipse are now dragged out from the
+  centre (distance = radius or semi-axes), centre and radius are shown below the image while dragging.
 
 ### Changed
+- When a display is rotated, it is cleared to black once beforehand – no remains of the old orientation stay
+  (e.g. the ILI9341 time/date strip).
 - Comments: if the German and English part are one line each, they now sit directly below each other
   without a blank line in between (only blank lines removed, code unchanged, no new build needed).
 - `flashESP.bat`/`flashESP.sh`: if no clock is detected, they now also mention a new ESP32-S2 without a

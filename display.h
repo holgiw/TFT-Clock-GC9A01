@@ -655,7 +655,8 @@
         // Only reset firstRun on an actual change, otherwise every save
         // restarts the station-mode wait phase.
 
-        if (rotation != newRotation) {
+        bool changed = rotation != newRotation;
+        if (changed) {
             firstRunFlag = true;
             clockFrameDirty[displayNum - 1] = true; // auch im Spiegelbetrieb (Display 2 ohne eigenes Rendern) neu senden
                                                     // resend in mirror mode too (display 2 without its own rendering)
@@ -665,15 +666,21 @@
         rotation = newRotation;
         preferences.putUChar((displayNum == 1) ? PK_TFT_ROTATION1 : PK_TFT_ROTATION2, rotation);
 
-        if (!gc9d01SwRotation) {
+        if (changed || !gc9d01SwRotation) {
 
-            // setCS1()/setCS2() setzen die neue Rotation am gewaehlten Chip
-            // (hardwareRotation()) - einmal auswaehlen genuegt.
+            // setCS1()/setCS2() setzen die neue Rotation am gewaehlten Chip (hardwareRotation()). Bei einer
+            // Aenderung das Display einmal schwarz loeschen - sonst blieben Reste der alten Lage stehen (beim
+            // ILI9341 z.B. der Streifen mit Uhrzeit/Datum).
 
-            // setCS1()/setCS2() set the new rotation on the selected chip
-            // (hardwareRotation()) - selecting it once is enough.
+            // setCS1()/setCS2() set the new rotation on the selected chip (hardwareRotation()). On a change,
+            // clear the display to black once - otherwise remains of the old orientation would stay (on the
+            // ILI9341 e.g. the time/date strip).
 
             if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
+            if (changed) {
+                tft.fillScreen(TFT_BLACK);
+                infoStripDirty[displayNum - 1] = true;
+            }
             setCSIdle(); // zurueck auf den Ausgangszustand, damit loop() im gewohnten Zustand weiterlaeuft
                          // back to the initial state, so loop() continues from its usual state
         }

@@ -134,7 +134,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     de: { base: 'Basis:', builtin: 'Standard (eingebaut)', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
       activate: 'neues Zifferblatt aktivieren', saveBtn: 'Als neues Zifferblatt speichern', name: 'Name:',
       saveCurBtn: 'Aktuelles Zifferblatt speichern und anwenden', tools: 'Werkzeug', bw: 'Stiftbreite:',
-      pen: 'Stift', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse', ellf: 'Ellipse gef\u00fcllt',
+      pen: 'Stift', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse', ellf: 'Ellipse gef\u00fcllt', circ: 'Kreis', circf: 'Kreis gef\u00fcllt', radius: 'Radius',
       poly: 'Polygon', fill: 'F\u00fcllen', text: 'Text', pick: 'Pipette', sym: 'Symmetrie:', txtSize: 'Gr\u00f6\u00dfe:',
       none: 'keine', mx: 'links/rechts gespiegelt', mxy: '4-fach gespiegelt', r4: '4-fach gedreht',
       r12: '12-fach gedreht (Stunden)', r60: '60-fach gedreht (Minuten)',
@@ -160,8 +160,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       h_pen: 'Stift: Pixel einzeln setzen oder freihand zeichnen, in der eingestellten Stiftbreite.',
       h_line: 'Linie: vom Anfangs- zum Endpunkt ziehen.', h_rect: 'Rahmen: Rechteck-Umriss aufziehen.',
       h_rectf: 'Rechteck: gef\u00fclltes Rechteck aufziehen.',
-      h_ell: 'Ellipse: Umriss aufziehen - ein Quadrat ergibt einen Kreis.',
-      h_ellf: 'Ellipse gef\u00fcllt: gef\u00fcllte Ellipse oder Kreis aufziehen.',
+      h_ell: 'Ellipse: im Mittelpunkt ansetzen und ziehen - waagerechter und senkrechter Abstand sind die Halbachsen.',
+      h_ellf: 'Ellipse gef\u00fcllt: im Mittelpunkt ansetzen und ziehen, wie Ellipse.',
+      h_circ: 'Kreis: im Mittelpunkt ansetzen und ziehen - der Abstand zur Maus ist der Radius, der Kreis ist exakt rund.',
+      h_circf: 'Kreis gef\u00fcllt: im Mittelpunkt ansetzen und ziehen, wie Kreis.',
       h_fill: 'F\u00fcllen: f\u00e4rbt die zusammenh\u00e4ngende gleichfarbige Fl\u00e4che um.',
       h_pick: 'Pipette: Klick \u00fcbernimmt die Farbe des Pixels.',
       h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schlie\u00dft, Esc bricht ab.',
@@ -180,7 +182,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
       activate: 'activate new clock face', saveBtn: 'Save as new clock face', name: 'Name:',
       saveCurBtn: 'Save and apply current clock face', tools: 'Tool', bw: 'Pen width:',
-      pen: 'Pen', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Filled ellipse',
+      pen: 'Pen', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Filled ellipse', circ: 'Circle', circf: 'Filled circle', radius: 'Radius',
       poly: 'Polygon', fill: 'Fill', text: 'Text', pick: 'Picker', sym: 'Symmetry:', txtSize: 'Size:',
       none: 'none', mx: 'mirrored left/right', mxy: 'mirrored 4 ways', r4: 'rotated 4 times',
       r12: 'rotated 12 times (hours)', r60: 'rotated 60 times (minutes)',
@@ -206,8 +208,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       h_pen: 'Pen: set single pixels or draw freehand, at the chosen pen width.',
       h_line: 'Line: drag from the start to the end point.', h_rect: 'Frame: drag out a rectangle outline.',
       h_rectf: 'Rectangle: drag out a filled rectangle.',
-      h_ell: 'Ellipse: drag out an outline - a square gives a circle.',
-      h_ellf: 'Filled ellipse: drag out a filled ellipse or circle.',
+      h_ell: 'Ellipse: start at the centre and drag - horizontal and vertical distance are the semi-axes.',
+      h_ellf: 'Filled ellipse: start at the centre and drag, like ellipse.',
+      h_circ: 'Circle: start at the centre and drag - the distance to the mouse is the radius, the circle is exactly round.',
+      h_circf: 'Filled circle: start at the centre and drag, like circle.',
       h_fill: 'Fill: recolours the connected area of the same colour.',
       h_pick: 'Picker: a click takes over the colour of the pixel.',
       h_poly: 'Polygon: click points, double-click or click the first point to close, Esc cancels.',
@@ -431,10 +435,19 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       else if (x === x0 || x === x1 || y === y0 || y === y1) mk.dot(x, y);
     }
   }
-  function ellOn(mk, a, b, filled) {
-    var x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
-    var cx = (x0 + x1 + 1) / 2, cy = (y0 + y1 + 1) / 2, rx = (x1 - x0 + 1) / 2, ry = (y1 - y0 + 1) / 2;
+  // Halbachsen fuer Ellipse/Kreis ab dem Mittelpunkt a (Kreis mit ganzzahligem Radius, wie im Zeiger-Designer)
+  // Semi-axes for ellipse/circle from the centre a (circle with an integer radius, as in the hand designer)
+  function shapeRadii(a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y;
+    if (tool === 'circ' || tool === 'circf') { var r = Math.round(Math.sqrt(dx * dx + dy * dy)) + 0.5; return { rx: r, ry: r }; }
+    return { rx: Math.abs(dx) + 0.5, ry: Math.abs(dy) + 0.5 };
+  }
+  // Ellipse/Kreis um die Mitte des Pixels c mit den Halbachsen rx/ry (mind. 0.5 = nur dieses Pixel)
+  // Ellipse/circle around the centre of pixel c with the semi-axes rx/ry (at least 0.5 = only this pixel)
+  function ellOn(mk, c, rx, ry, filled) {
+    var cx = c.x + 0.5, cy = c.y + 0.5;
     function inside(x, y) { var u = (x + 0.5 - cx) / rx, w = (y + 0.5 - cy) / ry; return u * u + w * w <= 1; }
+    var x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx), y0 = Math.floor(cy - ry), y1 = Math.ceil(cy + ry);
     for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
       if (!inside(x, y)) continue;
       if (filled) mk.set(x, y);
@@ -590,7 +603,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       if (tool === 'stamp' && logoImg && inGrid(c)) drawEditor(stampOn(pix, c.x, c.y));
       return;
     }
-    c.x = Math.max(0, Math.min(W - 1, c.x)); c.y = Math.max(0, Math.min(H - 1, c.y));
+    var fromCenter = /^(ell|circ)/.test(tool);
+    if (!fromCenter) { c.x = Math.max(0, Math.min(W - 1, c.x)); c.y = Math.max(0, Math.min(H - 1, c.y)); }
     if (tool === 'pen') {
       var mk = new Mask(); lineOn(mk, drag.last.x, drag.last.y, c.x, c.y); paint(pix, mk, color);
       drag.last = c;
@@ -598,6 +612,10 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       return;
     }
     drag.last = c;
+    if (fromCenter) {
+      var rr = shapeRadii(drag.start, c);
+      $('posInfo').textContent += '   ' + t('radius') + ' ' + (rr.rx === rr.ry ? rr.rx - 0.5 : (rr.rx - 0.5) + ' / ' + (rr.ry - 0.5));
+    }
     drawEditor(shapeBuf(drag.start, c));
   });
   ed.addEventListener('pointerup', function () {
@@ -620,8 +638,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     if (tool === 'line') lineOn(mk, a.x, a.y, b.x, b.y);
     else if (tool === 'rect') rectOn(mk, a, b, false);
     else if (tool === 'rectf') rectOn(mk, a, b, true);
-    else if (tool === 'ell') ellOn(mk, a, b, false);
-    else if (tool === 'ellf') ellOn(mk, a, b, true);
+    else if (/^(ell|circ)f?$/.test(tool)) { var rr = shapeRadii(a, b); ellOn(mk, a, rr.rx, rr.ry, /f$/.test(tool)); }
     paint(buf, mk, color);
     return buf;
   }
@@ -644,7 +661,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     keys.forEach(function (k) { var o = document.createElement('option'); o.value = k[0]; o.textContent = t(k[1]); sel.appendChild(o); });
   }
   var toolBtn = {};
-  ['pen', 'line', 'rect', 'rectf', 'ell', 'ellf', 'poly', 'fill', 'text', 'stamp', 'pick'].forEach(function (k) {
+  ['pen', 'line', 'rect', 'rectf', 'ell', 'ellf', 'circ', 'circf', 'poly', 'fill', 'text', 'stamp', 'pick'].forEach(function (k) {
     toolBtn[k] = button($('toolBtns'), t(k), function () { pickReturn = null; selectTool(k); });
     toolBtn[k].title = t('h_' + k);
   });
