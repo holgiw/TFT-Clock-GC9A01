@@ -4235,7 +4235,7 @@
 
             chunk += "<div id='previewSizer' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;margin:20px auto;'>";
             chunk += "<div id='previewInner' style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;transform-origin:top left;'>";
-            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;border:3px solid #333;border-radius:50%;background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
+            chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;border:3px solid #333;" + String(displayGeom->round ? "border-radius:50%;" : "") + "background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
             chunk += handImg("liveHourHandFull", hourB64, hourW);
             chunk += handImg("liveMinuteHandFull", minuteB64, minuteW);
@@ -4996,14 +4996,14 @@
             // Hinweis und Download-Link für die ZIP-Datei
             // Notice and download link for the ZIP file
 
-            if (TFT_WIDTH == 240) {
+            if (CLOCK_WIDTH == 240) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
                 chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
                 chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
             }
 
-            if (TFT_WIDTH == 160) {
+            if (CLOCK_WIDTH == 160) {
                 chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
                 chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
                 chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
@@ -5906,13 +5906,13 @@
                 chunk += " <span title='" + translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal") + ".' style='cursor:help;'>&#9432;</span></div><br>";
             }
 
-            // Displaytyp mit drei Eintraegen wie in flashESP (Werte = parseDisplayName()), ohne
+            // Displaytyp mit vier Eintraegen wie in flashESP (Werte = parseDisplayName()), ohne
             // name-Attribut. Wirkt nach Sicherheitsabfrage sofort per eigenem POST an /save_displaytype; nur
-            // ein Wechsel der Displaygroesse startet neu.
+            // ein Wechsel des Displaytyps startet neu (GC9A01 ohne/mit BL nicht).
 
-            // Display type with three entries as in flashESP (values = parseDisplayName()), without a name
+            // Display type with four entries as in flashESP (values = parseDisplayName()), without a name
             // attribute. Takes effect after a confirmation via its own POST to /save_displaytype; only a
-            // change of display size restarts.
+            // change of the display type restarts (GC9A01 without/with BL does not).
 
             {
                 const char* curChoice = displayChoiceName(displayType, useBacklight);
@@ -5920,8 +5920,9 @@
                     { "GC9A01", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) without backlight (BL)" },
                     { "GC9A01_WITH_BACKLIGHT", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) with backlight (BL) on pin 3" },
                     { "GC9D01", DISPLAY_TYPE_GC9D01, "GC9D01 (160x160)" },
+                    { "ILI9341", DISPLAY_TYPE_ILI9341, "ILI9341 (240x320) with time and date below the clock" },
                 };
-                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": <span title='" + translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching between GC9A01 and GC9D01 restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for") + ".' style='cursor:help;'>&#9432;</span> ";
+                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": <span title='" + translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching to another display type restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for (GC9A01 and ILI9341 share the 240 size)") + ".' style='cursor:help;'>&#9432;</span> ";
                 chunk += "<select data-cur='" + String(curChoice) + "' data-t='" + String(displayType) + "' style='min-width:190px;max-width:100%;' onchange=\"var o=this.options[this.selectedIndex];if(confirm('" + translate("Change the display type to") + ": '+o.text+'?'+(o.dataset.t!=this.dataset.t?'\\n" + translate("The clock restarts to apply the display type") + ".':''))){var f=document.createElement('form');f.method='POST';f.action='/save_displaytype';var i=document.createElement('input');i.type='hidden';i.name='display';i.value=this.value;f.appendChild(i);document.body.appendChild(f);f.submit();}else{this.value=this.dataset.cur;}\">";
                 for (const auto& c : choices) {
                     chunk += "<option value='" + String(c.name) + "' data-t='" + String(c.type) + "'";
@@ -7462,11 +7463,7 @@
             snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x",
                      ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
 
-#ifdef ROUND_DISPLAY
-            const char* roundJs = "true";
-#else
-            const char* roundJs = "false";
-#endif
+            const char* roundJs = displayGeom->round ? "true" : "false";
             long freeBytes = (long)LittleFS.totalBytes() - (long)LittleFS.usedBytes();
 
             // Zeigerstil wie in /preview, damit die Vorschau sich wie die Uhr bewegt
@@ -7629,7 +7626,7 @@
 
             html += "<h3>" + translate("Restore Backup") + "</h3>";
             html += "<p>" + translate("Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards") + ".</p>";
-            html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. The backup must come from a clock with the same display type") + " (" + String(displayGeom->name) + ").</small></p>";
+            html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. The backup must come from a clock with the same clock size") + " (" + String(displayGeom->name) + ").</small></p>";
             html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' onsubmit=\"return confirm('" + translate("Replace all current settings, clock faces and hand sets with the backup?") + "');\">";
             html += "<label><input type='checkbox' name='restoreWifi' value='1' style='width:auto;margin:0 6px 0 0;'>" + translate("Restore WiFi credentials (network names, passwords, hostname)") + "</label>";
             html += "<p><small>" + translate("Without this option the clock keeps its own WiFi and hostname - recommended when transferring the settings to another clock") + ".</small></p>";

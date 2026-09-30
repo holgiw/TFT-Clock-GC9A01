@@ -97,6 +97,7 @@
     bool isDisplayConnected(uint8_t displayNum) ;
     uint8_t primaryDisplayRotation() ;
     uint8_t effectiveRotation(uint8_t displayNum) ;
+    bool infoStripRect(uint8_t displayNum, int& x, int& y, int& w, int& h, bool& landscape) ;
     bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) ;
     const char* displayChoiceName(uint8_t type, bool backlight) ;
     void adoptUhr3BuildDisplay() ;
@@ -164,6 +165,7 @@
     bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
                                                                                                                                                                   // false = frame unchanged, nothing sent
+    void drawInfoStrips() ;
     void updateClock() ;
     void updateBrightness() ;
     uint16_t getAdjustedAdcValue(int rawValue) ;

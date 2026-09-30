@@ -45,27 +45,48 @@
     }
 
 
-    // Displayname wie bei den uhr3-Builds und in flashESP ("GC9A01",
-    // "GC9A01_WITH_BACKLIGHT", "GC9D01") -> Displaytyp + Backlight-Regelung.
+    // Streifen neben der Uhr (nur rechteckige Displays wie das ILI9341): hochkant unter der Uhr, quer
+    // (Rotation 90/270 Grad) rechts daneben. false, wenn das Display keinen Streifen hat.
 
-    // Display name as in the uhr3 builds and in flashESP ("GC9A01",
-    // "GC9A01_WITH_BACKLIGHT", "GC9D01") -> display type + backlight control.
+    // Strip next to the clock (rectangular displays like the ILI9341 only): portrait below the clock,
+    // landscape (rotation 90/270 degrees) to its right. false if the display has no strip.
+
+    bool infoStripRect(uint8_t displayNum, int& x, int& y, int& w, int& h, bool& landscape) {
+        if (TFT_WIDTH == CLOCK_WIDTH && TFT_HEIGHT == CLOCK_HEIGHT) return false;
+        landscape = (effectiveRotation(displayNum) % 2) == 1;
+        int pw = landscape ? TFT_HEIGHT : TFT_WIDTH;
+        int ph = landscape ? TFT_WIDTH : TFT_HEIGHT;
+        x = (pw > CLOCK_WIDTH) ? CLOCK_WIDTH : 0;
+        y = (pw > CLOCK_WIDTH) ? 0 : CLOCK_HEIGHT;
+        w = pw - x;
+        h = ph - y;
+        return true;
+    }
+
+
+    // Displayname wie bei den uhr3-Builds und in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
+    // "ILI9341") -> Displaytyp + Backlight-Regelung. Das ILI9341 hat wie in uhr3 feste Beleuchtung.
+
+    // Display name as in the uhr3 builds and in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
+    // "ILI9341") -> display type + backlight control. The ILI9341 has a fixed backlight as in uhr3.
 
     bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) {
         if (name == "GC9A01") { type = DISPLAY_TYPE_GC9A01; backlight = false; return true; }
         if (name == "GC9A01_WITH_BACKLIGHT") { type = DISPLAY_TYPE_GC9A01; backlight = true; return true; }
         if (name == "GC9D01") { type = DISPLAY_TYPE_GC9D01; backlight = true; return true; }
+        if (name == "ILI9341") { type = DISPLAY_TYPE_ILI9341; backlight = false; return true; }
         return false;
     }
 
-    // Umkehrung von parseDisplayName(): beim GC9D01 zaehlt die
-    // Backlight-Einstellung nicht (immer an Pin 3 verdrahtet).
+    // Umkehrung von parseDisplayName(): beim GC9D01 (immer an Pin 3) und ILI9341 (feste Beleuchtung) zaehlt
+    // die Backlight-Einstellung nicht.
 
-    // Inverse of parseDisplayName(): for the GC9D01 the backlight setting
-    // does not matter (always wired to pin 3).
+    // Inverse of parseDisplayName(): for the GC9D01 (always on pin 3) and the ILI9341 (fixed backlight) the
+    // backlight setting does not matter.
 
     const char* displayChoiceName(uint8_t type, bool backlight) {
         if (type == DISPLAY_TYPE_GC9D01) return "GC9D01";
+        if (type == DISPLAY_TYPE_ILI9341) return "ILI9341";
         return backlight ? "GC9A01_WITH_BACKLIGHT" : "GC9A01";
     }
 
@@ -254,7 +275,7 @@
         uint8_t type;
         bool backlight;
         if (!parseDisplayName(name, type, backlight)) {
-            serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01)");
+            serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01, ILI9341)");
             return;
         }
 
@@ -501,6 +522,9 @@
                                                   // message on the display - a "n.a." display has to go black again later
         clockFrameDirty[displayNum - 1] = true;   // Uhrbild ist ueberzeichnet - naechster Frame voll senden
                                                   // clock image got drawn over - send the next frame in full
+        bool stripShown = !infoStripDirty[displayNum - 1];
+        infoStripDirty[displayNum - 1] = true;    // Streifen fuer Uhrzeit/Datum ebenso (nur ILI9341)
+                                                  // the time/date strip as well (ILI9341 only)
         LGFX_Sprite& sprite = (displayNum == 1) ? statusSprite1 : statusSprite2;
         bool& created = (displayNum == 1) ? statusSprite1Created : statusSprite2Created;
 
@@ -524,6 +548,13 @@
 
         if (!gc9d01SwRotation || !created) {
             if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
+
+            // Uhrzeit/Datum neben der Uhr waehrend der Meldung ausblenden, statt sie eingefroren stehen zu lassen
+            // Hide the time/date next to the clock during the message instead of leaving it frozen
+
+            int x, y, w, h;
+            bool landscape;
+            if (stripShown && infoStripRect(displayNum, x, y, w, h, landscape)) tft.fillRect(x, y, w, h, TFT_BLACK);
             return tft;
         }
 
@@ -2535,6 +2566,87 @@
     }
 
 
+    // Streifen neben der Uhr bei rechteckigen Displays (ILI9341, wie in uhr3): Uhrzeit und Datum, mit
+    // Sekundenzeiger "H:MM" mit blinkendem Doppelpunkt, sonst "H:MM:SS". Hochkant unter der Uhr, quer rechts
+    // daneben. Gezeichnet nur bei Aenderung oder nach einer Meldung (infoStripDirty).
+
+    // Strip next to the clock on rectangular displays (ILI9341, as in uhr3): time and date, with the second
+    // hand "H:MM" with a blinking colon, otherwise "H:MM:SS". Portrait below the clock, landscape to its
+    // right. Drawn only on change or after a message (infoStripDirty).
+
+    void drawInfoStrips() {
+        int x, y, w, h;
+        bool landscape;
+        if (!infoStripRect(1, x, y, w, h, landscape)) return;
+
+        // Zeitquelle wie bei den Zeigern (renderClockFrame()), das Datum immer aus der echten Zeit
+        // Time source as for the hands (renderClockFrame()), the date always from the real time
+
+        bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
+                                (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
+        const struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
+        char hourMin[8];
+        char seconds[4];
+        snprintf(hourMin, sizeof(hourMin), (showSecondHand && t.tm_sec % 2) ? "%d %02d" : "%d:%02d", t.tm_hour, t.tm_min);
+        snprintf(seconds, sizeof(seconds), "%02d", t.tm_sec);
+        char dayMonth[8] = "";
+        char year[6] = "";
+        if (timeinfo.tm_year >= 100) { // Jahr 0 = noch keine Zeitquelle, dann kein Datum
+                                       // year 0 = no time source yet, then no date
+            snprintf(dayMonth, sizeof(dayMonth), "%d.%02d.", timeinfo.tm_mday, timeinfo.tm_mon + 1);
+            snprintf(year, sizeof(year), "%04d", timeinfo.tm_year + 1900);
+        }
+        uint16_t color = setPixelBrightness(TFT_WHITE);
+
+        static String lastText[2];
+        static uint16_t lastColor[2] = { 0, 0 };
+        for (uint8_t d = 1; d <= 2; d++) {
+            if (!isDisplayConnected(d)) continue;
+            uint8_t i = d - 1;
+            infoStripRect(d, x, y, w, h, landscape);
+
+            // Zeilen: hochkant "H:MM[:SS]" und Datum in Groesse 3, quer (80 px breit) in Groesse 2 je Zeile
+            // Uhrzeit, Sekunden, Tag.Monat. und Jahr.
+
+            // Lines: portrait "H:MM[:SS]" and the date in size 3, landscape (80 px wide) in size 2 one line
+            // each for time, seconds, day.month. and year.
+
+            String lines[4];
+            uint8_t count = 0;
+            if (landscape) {
+                lines[count++] = hourMin;
+                if (!showSecondHand) lines[count++] = seconds;
+                lines[count++] = dayMonth;
+                lines[count++] = year;
+            }
+            else {
+                lines[count++] = showSecondHand ? String(hourMin) : String(hourMin) + ":" + seconds;
+                lines[count++] = String(dayMonth) + year;
+            }
+            String text = lines[0];
+            for (uint8_t n = 1; n < count; n++) text += "|" + lines[n];
+            if (!infoStripDirty[i] && lastColor[i] == color && lastText[i] == text) continue;
+
+            if (d == 1) setCS1(LOW); else setCS2(LOW);
+            if (infoStripDirty[i]) tft.fillRect(x, y, w, h, TFT_BLACK);
+            setupTextStyle(tft);
+            tft.setTextSize(landscape ? 2 : 3);
+            tft.setTextColor(color, TFT_BLACK);
+            tft.setTextDatum(lgfx::middle_center);
+            tft.setTextPadding(w);
+            for (uint8_t n = 0; n < count; n++) {
+                tft.drawString(lines[n], x + w / 2, y + h * (2 * n + 1) / (2 * count));
+            }
+            tft.setTextPadding(0);
+            tft.setTextDatum(lgfx::top_left);
+            tft.setTextSize(TFT_TEXT_SIZE);
+            lastText[i] = text;
+            lastColor[i] = color;
+            infoStripDirty[i] = false;
+        }
+    }
+
+
     // Liest Zeit/RTC einmal, dann ein renderClockFrame() pro angeschlossenem
     // Display ("n.a." wird uebersprungen). Bei Hardware-Rotation genuegt fuer
     // Display 2 erneutes Senden; bei GC9D01 nur, wenn tftRotation2 von tftRotation1 abweicht.
@@ -2672,6 +2784,7 @@
                 if (d == 1) setCS1(LOW); else setCS2(LOW);
                 tft.fillScreen(TFT_BLACK);
                 displayNeedsBlank[d - 1] = false;
+                infoStripDirty[d - 1] = true;
             }
         }
 
@@ -2731,6 +2844,8 @@
 
             firstRun2 = true;
         }
+
+        drawInfoStrips();
 
         setCSIdle(); // definierter Zustand fuer alles, was danach noch direkt auf 'tft' zeichnet
                      // defined state for anything that draws directly to 'tft' afterwards
@@ -3598,8 +3713,7 @@
         // a circle - everything outside is set white. ILI9341 (rectangular)
         // keeps the corners, masking only applies to clock faces.
 
-#ifdef ROUND_DISPLAY
-        if (isFaceTarget) {
+        if (isFaceTarget && displayGeom->round) {
             float cx = outW / 2.0f;
             float cy = outH / 2.0f;
             float radius = (outW < outH ? outW : outH) / 2.0f;
@@ -3617,7 +3731,6 @@
                 }
             }
         }
-#endif
 
         File out = LittleFS.open(targetPath, "w");
         if (!out) {
@@ -3846,10 +3959,8 @@
     // peekFirstPixelIsWhite() skips ones already masked).
 
     void remaskExistingFaceCorners() {
-#ifndef ROUND_DISPLAY
-        return; // Rechteckiges Display (z.B. ILI9341) - keine Kreismaskierung noetig
-                // rectangular display (e.g. ILI9341) - no circular masking needed
-#endif
+        if (!displayGeom->round) return; // Rechteckiges Display (ILI9341) - keine Kreismaskierung noetig
+                                         // rectangular display (ILI9341) - no circular masking needed
         File root = LittleFS.open("/");
         if (!root) return;
 

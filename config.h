@@ -8,31 +8,30 @@
 
 
     // Displaytyp und Hintergrundbeleuchtung sind Einstellungen (PK_DISPLAY_TYPE, useBacklight) - eine
-    // Firmware fuer GC9A01 (240x240) und GC9D01 (160x160). Masse je Typ in DISPLAY_GEOMETRY,
-    // DISPLAY_TYPE_DEFAULT ist nur die Werkseinstellung.
+    // Firmware fuer GC9A01 (240x240), GC9D01 (160x160) und ILI9341 (240x320, Uhr oben, darunter Uhrzeit und
+    // Datum). Masse je Typ in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT ist nur die Werkseinstellung.
 
     // Display type and backlight are settings (PK_DISPLAY_TYPE, useBacklight) - one firmware for GC9A01
-    // (240x240) and GC9D01 (160x160). Dimensions per type in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT is only
-    // the factory default.
+    // (240x240), GC9D01 (160x160) and ILI9341 (240x320, clock on top, time and date below). Dimensions per
+    // type in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT is only the factory default.
 
-#define DISPLAY_TYPE_GC9A01 0
-#define DISPLAY_TYPE_GC9D01 1
-#define DISPLAY_TYPE_COUNT  2
+#define DISPLAY_TYPE_GC9A01  0
+#define DISPLAY_TYPE_GC9D01  1
+#define DISPLAY_TYPE_ILI9341 2
+#define DISPLAY_TYPE_COUNT   3
 #define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_GC9A01
 
 #if defined(GC9A01) || defined(GC9D01) || defined(GC9A01_WITH_BACKLIGHT) || defined(ILI9341)
 #error "Displaytyp wird nicht mehr per #define gewaehlt - Einstellung im Zifferblatt-Tab / display type is no longer chosen via #define - setting in the clock face tab"
 #endif
 
-    // Build-Kennung - steht auf den Info-Seiten und damit in jeder .bin
-    // (Suche nach "UHR4_BUILD_DISPLAY="). Seit der Laufzeitauswahl enthaelt
-    // jedes Build beide Displaytypen.
+    // Build-Kennung - steht auf den Info-Seiten und damit in jeder .bin (Suche nach "UHR4_BUILD_DISPLAY=").
+    // Jedes Build enthaelt alle Displaytypen.
 
-    // Build marker - shown on the info pages and therefore in every .bin
-    // (search for "UHR4_BUILD_DISPLAY="). Since runtime selection, every build
-    // contains both display types.
+    // Build marker - shown on the info pages and therefore in every .bin (search for "UHR4_BUILD_DISPLAY=").
+    // Every build contains all display types.
 
-#define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01+GC9D01"
+#define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01+GC9D01+ILI9341"
 
     // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Daten in Sicherungen. Muss in allen
     // uhr4-Firmwares gleich sein (Wiederherstellen auf anderer Uhr); Aendern macht aeltere Sicherungen
@@ -164,9 +163,6 @@ struct RleImage {
 };
 #define RLE_IMAGE(ns, name) { ns::name##Rle, sizeof(ns::name##Rle), ns::name##Pixels }
 
-#define ROUND_DISPLAY // rundes Display - Kreismaskierung der Ecken (siehe scaleAndSaveBmp() in display.h)
-                      // round display - circular corner masking (see scaleAndSaveBmp() in display.h)
-
     // Zeigerformat: Drehpunkte und Breiten je Display fest (Dateiformat), Drehpunkt-Spalte = halbe Breite.
     // Alte Zeiger werden oben und seitlich transparent aufgefuellt. handPivotY = Displayradius, der Zeiger
     // reicht bis zum Rand.
@@ -196,6 +192,11 @@ struct DisplayGeometry {
                            // factory default useBacklight: GC9D01 always wired to pin 3
     bool swRotation;       // Hardware-Rotation wirkungslos -> Software-Rotation (mit PSRAM)
                            // hardware rotation ineffective -> software rotation (with PSRAM)
+    int panelWidth;        // Panel bei Rotation 0 - groesser als clock: Streifen fuer Uhrzeit/Datum
+                           // panel at rotation 0 - larger than clock: strip for time/date
+    int panelHeight;
+    bool round;            // rundes Display: Ecken der Zifferblaetter weiss maskieren (scaleAndSaveBmp())
+                           // round display: mask the clock face corners white (scaleAndSaveBmp())
     RleImage face;         // Standard-Zifferblatt, clock x clock, RLE
                            // default clock face, clock x clock, RLE
     const uint16_t* hour;  // Standardzeiger im alten Format (handLegacyWidth x handLegacyHeight), unkomprimiert
@@ -208,14 +209,17 @@ struct DisplayGeometry {
 
 constexpr DisplayGeometry DISPLAY_GEOMETRY[DISPLAY_TYPE_COUNT] = {
 
-    // name      clock legW  W  legH legPiv piv text hub   BL     swRot
+    // name       clock legW  W  legH legPiv piv text hub   BL     swRot  panelW panelH round
 
-    { "GC9A01",  240,  21,  25, 131, 100,  120,  2,  6,  false, false,
+    { "GC9A01",   240,  21,  25, 131, 100,  120,  2,  6,  false, false, 240,   240,   true,
       RLE_IMAGE(gfx240, clockFace), gfx240::handHour, gfx240::handMinute, gfx240::handSecond,
       sizeof(gfx240::handHour) / sizeof(uint16_t) },
-    { "GC9D01",  160,  13,  15,  86,  66,   80,  1,  3,  true,  true,
+    { "GC9D01",   160,  13,  15,  86,  66,   80,  1,  3,  true,  true,  160,   160,   true,
       RLE_IMAGE(gfx160, clockFace), gfx160::handHour, gfx160::handMinute, gfx160::handSecond,
       sizeof(gfx160::handHour) / sizeof(uint16_t) },
+    { "ILI9341",  240,  21,  25, 131, 100,  120,  2,  6,  false, false, 240,   320,   false,
+      RLE_IMAGE(gfx240, clockFace), gfx240::handHour, gfx240::handMinute, gfx240::handSecond,
+      sizeof(gfx240::handHour) / sizeof(uint16_t) },
 };
 
     // Alle drei Standardzeiger je Typ muessen gleich gross sein - handPixels
@@ -240,11 +244,13 @@ constexpr bool displayGeometryValid(const DisplayGeometry& g) {
         && g.handWidth >= g.handLegacyWidth && (g.handWidth - g.handLegacyWidth) % 2 == 0 // Drehpunkt-Spalte bleibt mittig / pivot column stays centred
         && g.handPivotY <= g.clock / 2                                              // Drehpunkt innerhalb des Radius / pivot inside the radius
         && g.clock <= CLOCK_MAX
+        && g.panelWidth >= g.clock && g.panelHeight >= g.clock                      // Uhr passt aufs Panel / clock fits the panel
         && g.face.pixels == (uint32_t)(g.clock * g.clock)                           // Standardgrafiken passen zur Groesse / default graphics match the size
         && g.handPixels == (uint32_t)(g.handLegacyWidth * g.handLegacyHeight);
 }
 static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
-              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9D01]),
+              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9D01]) &&
+              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_ILI9341]),
               "DISPLAY_GEOMETRY: hand pivot/width/clock size inconsistent");
 
     // Diese Namen zeigen auf den zur Laufzeit gewaehlten Typ (displayGeom, globals.h) - daher NICHT in
@@ -255,8 +261,8 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 
 #define CLOCK_WIDTH         (displayGeom->clock)
 #define CLOCK_HEIGHT        (displayGeom->clock)
-#define TFT_WIDTH           CLOCK_WIDTH
-#define TFT_HEIGHT          CLOCK_HEIGHT
+#define TFT_WIDTH           (displayGeom->panelWidth)
+#define TFT_HEIGHT          (displayGeom->panelHeight)
 #define HAND_LEGACY_WIDTH   (displayGeom->handLegacyWidth)
 #define HAND_WIDTH          (displayGeom->handWidth)
 #define HAND_LEGACY_HEIGHT  (displayGeom->handLegacyHeight)

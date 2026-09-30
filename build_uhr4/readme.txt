@@ -20,6 +20,7 @@ Linux-Abschnitt, Port /dev/cu.usbmodem...).
 3. flashESP.bat per Doppelklick starten.
 	flashESP.bat sucht zuerst die Uhr und fragt dann, welches Display sie hat:
 	  1 = GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01 (160x160),
+	  4 = ILI9341 (240x320, Uhr oben, darunter Uhrzeit und Datum),
 	  Enter = unverändert (beim Update einer bereits eingerichteten Uhr).
 	Läuft auf der Uhr schon uhr4, fragt flashESP.bat sie vorher nach ihrem Displaytyp und wählt ihn
 	vor (Enter behält ihn); hat sie noch keinen, muss er angegeben werden.
@@ -91,12 +92,12 @@ ODER
 Wird der Taster (BUTTON, siehe Pinbelegung) im laufenden Betrieb kurz gedrückt, zeigt die Uhr das aktuell verbundene WLAN an. Wird er länger als 10 Sekunden gehalten, startet auf dem Display ein roter "Factory Reset"-Countdown - bis zu diesem Punkt passiert noch nichts, Loslassen bricht harmlos ab. Erst wenn er länger als 15 Sekunden durchgehend gehalten wird, löst das einen vollständigen Werksreset aus: dabei werden WLAN-Zugangsdaten UND alle hochgeladenen Zifferblätter/Zeigersätze/Presets gelöscht (kein reines "nur WLAN löschen" mehr). Alternativ funktioniert dafür auch der eingebaute Boot-Taster (BOOT_BUTTON). Nach einem Werksreset geht die Uhr wieder in den WPS-/AccessPoint-Modus.
 Für ein WLAN-Reset ohne Verlust der eigenen Zifferblätter/Zeigersätze/Presets stattdessen in der Weboberfläche die Seite "Werkseinstellungen" nutzen ("Gespeicherte Netzwerke zurücksetzen").
 
-Displaytyp (GC9A01 240x240 oder GC9D01 160x160):
-	Eine Firmware für beide Displays, der Typ ist eine Einstellung. Festlegen:
+Displaytyp (GC9A01 240x240, GC9D01 160x160 oder ILI9341 240x320):
+	Eine Firmware für alle Displays, der Typ ist eine Einstellung. Festlegen:
 	- beim Flashen: flashESP.bat fragt ihn ab (siehe oben, Schritt 3),
-	- in der Weboberfläche: Tab "Uhr Einstellungen", Auswahl "Display-Typ" mit denselben drei Einträgen
-	  wie flashESP (GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01); beim Wechsel
-	  zwischen GC9A01 und GC9D01 startet die Uhr neu,
+	- in der Weboberfläche: Tab "Uhr Einstellungen", Auswahl "Display-Typ" mit denselben vier Einträgen
+	  wie flashESP (GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01, ILI9341); beim
+	  Wechsel auf einen anderen Displaytyp startet die Uhr neu,
 	- beim Umstieg von uhr3 automatisch: uhr3 (ab 2026-09-29) vermerkt, für welches Display es
 	  kompiliert wurde, uhr4 übernimmt das beim ersten Start - nur solange uhr4 noch keinen
 	  Displaytyp gespeichert hat; ein einmal eingestellter Typ bleibt erhalten.
@@ -176,7 +177,7 @@ cd build_uhr4/
 bash flashESP.sh
 
 # Wie unter Windows: flashESP.sh sucht zuerst die Uhr, fragt dann den Displaytyp ab
-# (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01,
+# (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01, 4 = ILI9341,
 # Enter = unverändert; bei einer laufenden uhr4 ist ihr Typ vorgewählt), danach das WLAN
 # (2,4-GHz-Netze per nmcli, Passwort verdeckt, Enter = überspringen; ist der PC mit einem
 # 2,4-GHz-Netz verbunden, bietet es an, Name und Passwort zu übernehmen). Nach dem Flashen
@@ -227,6 +228,7 @@ section, port /dev/cu.usbmodem...).
 3. Start flashESP.bat by double-click.
 	flashESP.bat first finds the clock and then asks which display it has:
 	  1 = GC9A01 (240x240) without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01 (160x160),
+	  4 = ILI9341 (240x320, clock on top, time and date below),
 	  Enter = unchanged (when updating a clock that is already set up).
 	If the clock already runs uhr4, flashESP.bat asks it for its display type beforehand and
 	preselects it (Enter keeps it); if it has none yet, it must be chosen.
@@ -298,12 +300,12 @@ OR
 If the button (BUTTON, see pinout) is pressed briefly during operation, the clock shows the currently connected WiFi network. If held down for more than 10 seconds, a red "Factory Reset" countdown starts on the display - up to that point nothing happens yet, releasing it aborts harmlessly. Only holding it continuously for more than 15 seconds triggers a full factory reset: this erases the WiFi credentials AND all uploaded clock faces/hand sets/presets (there is no longer a "WiFi only" reset tier). The built-in Boot button (BOOT_BUTTON) works the same way. After a factory reset, the clock goes back into WPS/Access Point mode.
 For a WiFi-only reset without losing your own clock faces/hand sets/presets, use the "Factory Reset" page in the web interface instead ("Reset Saved Networks").
 
-Display type (GC9A01 240x240 or GC9D01 160x160):
-	One firmware for both displays, the type is a setting. Set it:
+Display type (GC9A01 240x240, GC9D01 160x160 or ILI9341 240x320):
+	One firmware for all displays, the type is a setting. Set it:
 	- when flashing: flashESP.bat asks for it (see above, step 3),
-	- in the web interface: "Clock Setup" tab, "Display type" selection with the same three entries
-	  as flashESP (GC9A01 without / with backlight (BL) on pin 3, GC9D01); switching between
-	  GC9A01 and GC9D01 restarts the clock,
+	- in the web interface: "Clock Setup" tab, "Display type" selection with the same four entries
+	  as flashESP (GC9A01 without / with backlight (BL) on pin 3, GC9D01, ILI9341); switching to
+	  another display type restarts the clock,
 	- automatically when switching from uhr3: uhr3 (from 2026-09-29) records which display it was
 	  compiled for, uhr4 takes that over at the first start - only as long as uhr4 has not stored a
 	  display type yet; a type once set is kept.
@@ -383,7 +385,7 @@ cd build_uhr4/
 bash flashESP.sh
 
 # As on Windows: flashESP.sh first finds the clock, then asks for the display type
-# (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01,
+# (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01, 4 = ILI9341,
 # Enter = unchanged; for a running uhr4 its type is preselected), then for the WiFi
 # (2.4 GHz networks via nmcli, password hidden, Enter = skip; if the PC is connected to a
 # 2.4 GHz network, it offers to take over its name and password). After flashing it sends

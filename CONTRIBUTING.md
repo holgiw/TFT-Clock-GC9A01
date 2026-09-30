@@ -13,11 +13,13 @@ that makes them much easier to review and merge.
 - Release builds (`uhr4.ino.bin`, `.bootloader.bin`, `.partitions.bin`,
   `.merged.bin`) go directly into `build_uhr4/` - `flashESP.bat`/`flashESP.sh`
   flash exactly those files.
-- Displays: GC9A01 (240x240, without or with backlight on pin 3) or GC9D01
-  (160x160) - one firmware for all, the type is a setting in the web UI ("Clock Setup" tab, takes effect after a restart).
+- Displays: GC9A01 (240x240, without or with backlight on pin 3), GC9D01
+  (160x160) or ILI9341 (240x320, 240 clock on top, time/date strip below; fixed backlight) -
+  one firmware for all, the type is a setting in the web UI ("Clock Setup" tab, takes effect after a restart).
   Dimensions per type live in `DISPLAY_GEOMETRY` (`config.h`); `CLOCK_WIDTH`,
   `HAND_WIDTH` etc. read the active type at runtime, so never use them in array
-  sizes, `static_assert` or `#if`. ILI9341 support was dropped.
+  sizes, `static_assert` or `#if`. `TFT_WIDTH`/`TFT_HEIGHT` are the panel size, which is only larger
+  than the clock on the ILI9341 (`drawInfoStrips()` in `display.h`).
 - Graphics library: **LovyanGFX** (tested with 1.2.30), installed unchanged from
   the Library Manager - bus, panel and init sequence live in `lgfx_config.h`
 
@@ -29,7 +31,7 @@ clear responsibility:
 | File | Responsibility |
 |---|---|
 | `config.h` | Display geometry per type, hardware pins, constants |
-| `lgfx_config.h` | LovyanGFX device: SPI bus, GC9A01 and GC9D01 panels (own init sequences) |
+| `lgfx_config.h` | LovyanGFX device: SPI bus, GC9A01 and GC9D01 panels (own init sequences), ILI9341 (LovyanGFX default driver) |
 | `globals.h` | Global variables and shared state |
 | `declarations.h` | Forward declarations for every function (see below) |
 | `translation.h` | UI translations (DE) |
@@ -131,6 +133,6 @@ Please check:
 
 When reporting a bug, please include:
 - Board variant and display type (GC9A01 without backlight, GC9A01 with
-  backlight on pin 3, or GC9D01) and the firmware version/build date
+  backlight on pin 3, GC9D01 or ILI9341) and the firmware version/build date
 - Steps to reproduce
 - Serial monitor output if the device crashed or behaved unexpectedly

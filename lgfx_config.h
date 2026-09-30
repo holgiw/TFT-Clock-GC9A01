@@ -167,20 +167,19 @@ protected:
 };
 
 
-    // Ein Geraet fuer BEIDE Displays: CS wird manuell umgeschaltet (setCS1()/
-    // setCS2() in display.h), daher pin_cs = -1. Zwei Panel-Treiber, gewaehlt
-    // nach dem Displaytyp per selectPanel() VOR tft.init() (setup()).
+    // Ein Geraet fuer BEIDE Displays: CS wird manuell umgeschaltet (setCS1()/setCS2() in display.h), daher
+    // pin_cs = -1. Drei Panel-Treiber, gewaehlt nach dem Displaytyp per selectPanel() VOR tft.init() (setup()).
 
-    // One device for BOTH displays: CS is switched manually (setCS1()/
-    // setCS2() in display.h), hence pin_cs = -1. Two panel drivers, chosen by
-    // the display type via selectPanel() BEFORE tft.init() (setup()).
+    // One device for BOTH displays: CS is switched manually (setCS1()/setCS2() in display.h), hence
+    // pin_cs = -1. Three panel drivers, chosen by the display type via selectPanel() BEFORE tft.init() (setup()).
 
 class UhrLGFX : public lgfx::LGFX_Device {
     Panel_UhrGC9A01 _panel_gc9a01;
     Panel_UhrGC9D01 _panel_gc9d01;
+    lgfx::Panel_ILI9341 _panel_ili9341;
     lgfx::Bus_SPI _bus_instance;
 
-    void configPanel(lgfx::Panel_LCD& panel, uint16_t size, bool invert, bool rgbOrder) {
+    void configPanel(lgfx::Panel_LCD& panel, uint16_t width, uint16_t height, bool invert, bool rgbOrder) {
         panel.setBus(&_bus_instance);
         auto cfg = panel.config();
         cfg.pin_cs = -1;              // manuell, siehe CS_1/CS_2 in config.h
@@ -196,10 +195,10 @@ class UhrLGFX : public lgfx::LGFX_Device {
 
         cfg.pin_rst = -1;
         cfg.pin_busy = -1;
-        cfg.panel_width = size;
-        cfg.panel_height = size;
-        cfg.memory_width = size;
-        cfg.memory_height = size;
+        cfg.panel_width = width;
+        cfg.panel_height = height;
+        cfg.memory_width = width;
+        cfg.memory_height = height;
         cfg.offset_x = 0;
         cfg.offset_y = 0;
         cfg.offset_rotation = 0;
@@ -242,20 +241,26 @@ public:
         // GC9A01: Invertierung an (INVON), BGR-Farbreihenfolge
         // GC9A01: inversion on (INVON), BGR color order
 
-        configPanel(_panel_gc9a01, 240, true, false);
+        configPanel(_panel_gc9a01, 240, 240, true, false);
 
         // GC9D01: keine Invertierung, RGB (Endzustand der Startsequenz)
         // GC9D01: no inversion, RGB (final state of the init sequence)
 
-        configPanel(_panel_gc9d01, 160, false, true);
+        configPanel(_panel_gc9d01, 160, 160, false, true);
+
+        // ILI9341 (240x320): LovyanGFX-Standardtreiber, keine Invertierung, BGR wie bei den meisten Modulen
+        // ILI9341 (240x320): LovyanGFX default driver, no inversion, BGR as on most modules
+
+        configPanel(_panel_ili9341, 240, 320, false, false);
         setPanel(&_panel_gc9a01);
     }
 
     // Panel-Treiber zum Displaytyp waehlen - nur VOR tft.init()
     // Choose the panel driver for the display type - only BEFORE tft.init()
 
-    void selectPanel(bool gc9d01) {
-        if (gc9d01) setPanel(&_panel_gc9d01);
+    void selectPanel(uint8_t type) {
+        if (type == DISPLAY_TYPE_GC9D01) setPanel(&_panel_gc9d01);
+        else if (type == DISPLAY_TYPE_ILI9341) setPanel(&_panel_ili9341);
         else setPanel(&_panel_gc9a01);
     }
 };

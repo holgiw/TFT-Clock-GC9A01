@@ -12,7 +12,7 @@
 # verwendet.
 #
 # Optional als zweiter Parameter der Displaytyp: ./flashESP.sh 0 GC9D01
-# (1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01). Ohne Parameter: zuerst die Uhr
+# (1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341). Ohne Parameter: zuerst die Uhr
 # suchen, eine laufende Uhr nach ihrem Displaytyp fragen (Vorwahl), dann
 # Displaytyp und WLAN abfragen, danach flashen und beides per USB an die Uhr senden (siehe
 # handleSerialCommands() in display.h), zuletzt die Uhrzeit des PCs. Das
@@ -33,7 +33,7 @@
 # does, and the port that then appears is used.
 #
 # Optionally the display type as second parameter: ./flashESP.sh 0 GC9D01
-# (1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01). Without a parameter: first
+# (1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341). Without a parameter: first
 # find the clock, ask a running clock for its display type (preselection),
 # then ask for display type and WiFi, afterwards flash and send both to the clock via USB (see handleSerialCommands() in
 # display.h), finally the PC's time. The WiFi password is entered hidden and
@@ -390,6 +390,7 @@ display_name() {
         1|GC9A01) echo GC9A01 ;;
         2|GC9A01_WITH_BACKLIGHT) echo GC9A01_WITH_BACKLIGHT ;;
         3|GC9D01) echo GC9D01 ;;
+        4|ILI9341) echo ILI9341 ;;
     esac
 }
 
@@ -427,11 +428,11 @@ query_clock_info() {
 # Sets DISP (empty = send nothing).
 ask_display() {
     local k mark answer choice
-    local labels=("" "GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)" "GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3" "GC9D01 (160x160)")
-    local names=("" GC9A01 GC9A01_WITH_BACKLIGHT GC9D01)
+    local labels=("" "GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)" "GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3" "GC9D01 (160x160)" "ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock")
+    local names=("" GC9A01 GC9A01_WITH_BACKLIGHT GC9D01 ILI9341)
     echo
     echo "Welches Display hat die Uhr? / Which display does the clock have?"
-    for k in 1 2 3; do
+    for k in 1 2 3 4; do
         mark=""
         [ "$CLOCK_SET" = 1 ] && [ "${names[$k]}" = "$CLOCK_NAME" ] && mark="   <- eingestellt / configured"
         echo "  $k = ${labels[$k]}$mark"
@@ -461,7 +462,7 @@ ask_display() {
             if [ "$CLOCK_SET" = 1 ] && [ "$choice" = "$CLOCK_NAME" ]; then DISP=""; else DISP="$choice"; fi
             break
         fi
-        echo "Bitte 1, 2 oder 3 eingeben / please enter 1, 2 or 3"
+        echo "Bitte 1, 2, 3 oder 4 eingeben / please enter 1, 2, 3 or 4"
     done
     echo
 }

@@ -9,6 +9,15 @@ Neueste Einträge oben.
 
 ## 2026-09-30
 
+### Neu
+- **ILI9341 (240x320) wieder unterstützt** – als vierter Eintrag der Displayauswahl (Web, `flashESP` 1–4,
+  `UHR4 DISPLAY ILI9341`), wie früher in uhr3: Uhr (240x240, dieselben Zifferblätter und Zeiger wie beim GC9A01)
+  oben, darunter Uhrzeit („H:MM“ mit blinkendem Doppelpunkt, ohne Sekundenzeiger „H:MM:SS“) und Datum. Quer
+  (90°/270°) steht der Streifen rechts neben der Uhr. Feste Hintergrundbeleuchtung, keine Kreismaskierung der
+  Zifferblätter – im Zifferblatt-Designer und in der Vorschau sind die Ecken sichtbar und editierbar.
+  Sicherungen lassen sich zwischen GC9A01 und ILI9341 wiederherstellen (gleiche Uhrgröße).
+  Farbreihenfolge (BGR) und Invertierung sind LovyanGFX-Standard – am echten Modul prüfen.
+
 ### Geändert
 - Kommentare: Sind der deutsche und englische Teil jeweils nur eine Zeile, stehen sie jetzt direkt
   untereinander ohne Leerzeile dazwischen (nur Leerzeilen entfernt, Code unverändert, kein neuer Build nötig).
@@ -114,6 +123,15 @@ All notable changes to the uhr4 firmware (TFT clock with GC9A01/GC9D01 on ESP32-
 Newest entries on top.
 
 ## 2026-09-30
+
+### New
+- **ILI9341 (240x320) supported again** – as the fourth entry of the display selection (web, `flashESP` 1–4,
+  `UHR4 DISPLAY ILI9341`), as formerly in uhr3: clock (240x240, the same clock faces and hands as the GC9A01) on
+  top, time below ("H:MM" with a blinking colon, without the second hand "H:MM:SS") and date. In landscape
+  (90°/270°) the strip is to the right of the clock. Fixed backlight, no circular masking of the clock faces - the
+  corners are visible and editable in the clock face designer and the preview.
+  Backups can be restored between GC9A01 and ILI9341 (same clock size). Color order (BGR) and inversion are the
+  LovyanGFX defaults – check on a real module.
 
 ### Changed
 - Comments: if the German and English part are one line each, they now sit directly below each other

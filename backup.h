@@ -551,8 +551,12 @@
             return false;
         }
         if (backupType < 0 || backupType >= DISPLAY_TYPE_COUNT) backupType = DISPLAY_TYPE_DEFAULT;
-        if (backupType != displayType) {
-            const DisplayGeometry& from = DISPLAY_GEOMETRY[backupType];
+
+        // Nur die Uhrgroesse muss passen - GC9A01 und ILI9341 teilen sich die 240er Zifferblaetter und Zeiger.
+        // Only the clock size has to match - GC9A01 and ILI9341 share the 240 clock faces and hands.
+
+        const DisplayGeometry& from = DISPLAY_GEOMETRY[backupType];
+        if (from.clock != displayGeom->clock) {
             error = "the backup is from a " + String(from.name) + " clock (" + String(from.clock) + "x" + String(from.clock) +
                     "), this clock is set to " + String(displayGeom->name) + " (" + String(displayGeom->clock) + "x" +
                     String(displayGeom->clock) + ") - clock faces and hands would not fit";

@@ -748,6 +748,14 @@
 
     bool clockFrameDirty[2] = { true, true };
 
+    // Je Display: Streifen fuer Uhrzeit/Datum neben der Uhr (nur ILI9341, drawInfoStrips()) komplett neu
+    // zeichnen - gesetzt, wenn eine Meldung das Display ueberschrieben hat.
+
+    // Per display: redraw the time/date strip next to the clock (ILI9341 only, drawInfoStrips()) completely -
+    // set when a message drew over the display.
+
+    bool infoStripDirty[2] = { true, true };
+
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
     // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne
     // Aenderungsstelle das Zwischenbild selbst kennen muss.

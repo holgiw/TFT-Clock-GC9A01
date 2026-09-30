@@ -1,6 +1,6 @@
 # uhr4 (Version 4) – Uhr auf rundem Display
 
-uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 Pico) zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem runden TFT-Display (GC9A01 oder GC9D01). Die Uhrzeit kommt per NTP (WLAN), DCF77 oder RTC; Zifferblätter, Zeiger und alle Einstellungen lassen sich über die Weboberfläche anpassen.
+uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 Pico) zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem runden TFT-Display (GC9A01 oder GC9D01) oder einem rechteckigen ILI9341 (Uhr oben, darunter Uhrzeit und Datum). Die Uhrzeit kommt per NTP (WLAN), DCF77 oder RTC; Zifferblätter, Zeiger und alle Einstellungen lassen sich über die Weboberfläche anpassen.
 
 **Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/TFT-Clock-GC9A01/releases/latest) bzw. im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Die Vorgängerversion uhr3 (Version 3, mit TFT_eSPI) gibt es als ZIP im Release [Version 3](https://github.com/holgiw/TFT-Clock-GC9A01/releases/tag/v3); ein Update von uhr3 auf uhr4 übernimmt den Displaytyp automatisch.
 
@@ -10,7 +10,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 1. Unterstützung mehrerer TFT-Displays
 
-- Unterstützte Displays: GC9A01 (240 × 240) und GC9D01 (160 × 160) – eine Firmware für beide, der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01 – wie in `flashESP`; beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
+- Unterstützte Displays: GC9A01 (240 × 240), GC9D01 (160 × 160) und ILI9341 (240 × 320, Zifferblätter und Zeiger wie beim GC9A01) – eine Firmware für alle, der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01, ILI9341 – wie in `flashESP`; beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
 - Zweites, baugleiches Display optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
 
 ---
@@ -112,13 +112,13 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 # English Version
 
-uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) shows the time as a clock face with hands on a round TFT display (GC9A01 or GC9D01). The time comes via NTP (WiFi), DCF77 or RTC; clock faces, hands and all settings can be customized via the web interface.
+uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) shows the time as a clock face with hands on a round TFT display (GC9A01 or GC9D01) or a rectangular ILI9341 (clock on top, time and date below). The time comes via NTP (WiFi), DCF77 or RTC; clock faces, hands and all settings can be customized via the web interface.
 
 **Download:** firmware with flash tool under [Releases](https://github.com/holgiw/TFT-Clock-GC9A01/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). The previous version uhr3 (version 3, with TFT_eSPI) is available as a ZIP in the release [Version 3](https://github.com/holgiw/TFT-Clock-GC9A01/releases/tag/v3); updating from uhr3 to uhr4 takes over the display type automatically.
 
 ## 1. Support for Multiple TFT Displays
 
-- Supported displays: GC9A01 (240 × 240) and GC9D01 (160 × 160) – one firmware for both, the display type is a setting ("Clock Setup" tab: GC9A01 without / with backlight (BL) on pin 3, GC9D01 – as in `flashESP`; when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
+- Supported displays: GC9A01 (240 × 240), GC9D01 (160 × 160) and ILI9341 (240 × 320, clock faces and hands as for the GC9A01) – one firmware for all, the display type is a setting ("Clock Setup" tab: GC9A01 without / with backlight (BL) on pin 3, GC9D01, ILI9341 – as in `flashESP`; when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
 - A second, identical display can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock takes over (the settings page notes this).
 
 ---

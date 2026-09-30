@@ -13,7 +13,7 @@
 # Gesendet wird "UHR4 WIFI <Name-Hex> <Passwort-Hex>", "UHR4 DISPLAY <Name>",
 # bei Bedarf "UHR4 RESTART", danach "UHR4 TIME <Unix-Sekunden>" (siehe
 # handleSerialCommands() in display.h).
-# Displaytyp: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 0 = unveraendert.
+# Displaytyp: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341, 0 = unveraendert.
 # Das WLAN-Passwort wird verdeckt eingegeben, bleibt nur im Speicher dieses
 # Skripts (keine Datei, keine Umgebungsvariable) und geht nur per USB an die Uhr.
 #
@@ -32,17 +32,17 @@
 # Sent are "UHR4 WIFI <name hex> <password hex>", "UHR4 DISPLAY <name>",
 # "UHR4 RESTART" if needed, then "UHR4 TIME <unix seconds>" (see
 # handleSerialCommands() in display.h).
-# Display type: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 0 = unchanged.
+# Display type: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341, 0 = unchanged.
 # The WiFi password is entered hidden, stays only in this script's memory (no
 # file, no environment variable) and only goes to the clock via USB.
 param([switch]$Flash, [string]$Port, [string]$Display, [string]$Send, [switch]$Time)
 
-$names = @{ 1 = 'GC9A01'; 2 = 'GC9A01_WITH_BACKLIGHT'; 3 = 'GC9D01' }
+$names = @{ 1 = 'GC9A01'; 2 = 'GC9A01_WITH_BACKLIGHT'; 3 = 'GC9D01'; 4 = 'ILI9341' }
 
-# Auswahl als Zahl 1-3 oder Name, sonst 0 / choice as number 1-3 or name, else 0
+# Auswahl als Zahl 1-4 oder Name, sonst 0 / choice as number 1-4 or name, else 0
 function Get-Choice([string]$value) {
     $v = $value.Trim().ToUpper()
-    if ($v -match '^[1-3]$') { return [int]$v }
+    if ($v -match '^[1-4]$') { return [int]$v }
     foreach ($k in $names.Keys) { if ($names[$k] -eq $v) { return $k } }
     return 0
 }
@@ -59,8 +59,8 @@ function Read-DisplayChoice($info) {
     $current = if ($info) { Get-Choice $info.Name } else { 0 }
     Write-Host ''
     Write-Host 'Welches Display hat die Uhr? / Which display does the clock have?'
-    $labels = @{ 1 = 'GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)'; 2 = 'GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3'; 3 = 'GC9D01 (160x160)' }
-    foreach ($k in 1, 2, 3) {
+    $labels = @{ 1 = 'GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)'; 2 = 'GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3'; 3 = 'GC9D01 (160x160)'; 4 = 'ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock' }
+    foreach ($k in 1, 2, 3, 4) {
         $mark = if ($info -and $info.Set -and $k -eq $current) { '   <- eingestellt / configured' } else { '' }
         Write-Host ("  {0} = {1}{2}" -f $k, $labels[$k], $mark)
     }
@@ -89,7 +89,7 @@ function Read-DisplayChoice($info) {
             if ($info -and $info.Set -and $choice -eq $current) { return 0 }
             return $choice
         }
-        Write-Host 'Bitte 1, 2 oder 3 eingeben / please enter 1, 2 or 3'
+        Write-Host 'Bitte 1, 2, 3 oder 4 eingeben / please enter 1, 2, 3 or 4'
     }
 }
 

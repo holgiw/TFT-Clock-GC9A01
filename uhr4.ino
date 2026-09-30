@@ -914,8 +914,8 @@ void setup() {
         digitalWrite(CS_1, LOW);
         digitalWrite(CS_2, LOW);
 
-        tft.selectPanel(displayType == DISPLAY_TYPE_GC9D01); // GC9D01 mit eigenem Treiber (lgfx_config.h)
-                                                            // GC9D01 with its own driver (lgfx_config.h)
+        tft.selectPanel(displayType); // Panel-Treiber je Displaytyp (lgfx_config.h)
+                                      // panel driver per display type (lgfx_config.h)
         resetPanels();
         tft.init();
         tftInitialized = true; // ab jetzt duerfen setCS1()/setCS2() die Rotation am Chip setzen

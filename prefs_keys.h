@@ -75,8 +75,8 @@
     constexpr const char* PK_USE_ADC           = "use_adc";
     constexpr const char* PK_BRIGHT_START_HOUR = "brightStart";
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
-    constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_GC9A01/_GC9D01 (config.h), wirkt nach Neustart
-                                                                 // DISPLAY_TYPE_GC9A01/_GC9D01 (config.h), takes effect after a restart
+    constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_* (config.h), wirkt nach Neustart
+                                                                 // DISPLAY_TYPE_* (config.h), takes effect after a restart
     constexpr const char* PK_USE_BACKLIGHT     = "useBacklight"; // Hintergrundbeleuchtung per PWM auf Pin 3 (ersetzt Build GC9A01_WITH_BACKLIGHT)
                                                                  // backlight via PWM on pin 3 (replaces the GC9A01_WITH_BACKLIGHT build)
 
