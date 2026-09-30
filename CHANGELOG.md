@@ -55,6 +55,8 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Dateiname der Komplettsicherung enthält neben dem Hostnamen den Displaytyp, z.B.
+  `uhr4-backup-clock-E405-ILI9341-20260930.tar`.
 - Beim Drehen eines Displays wird es vorher einmal schwarz gelöscht – es bleiben keine Reste der alten Lage
   stehen (z. B. der Uhrzeit-/Datumsstreifen des ILI9341).
 - Kommentare: Sind der deutsche und englische Teil jeweils nur eine Zeile, stehen sie jetzt direkt
@@ -206,6 +208,8 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- The full backup's file name contains the display type next to the host name, e.g.
+  `uhr4-backup-clock-E405-ILI9341-20260930.tar`.
 - When a display is rotated, it is cleared to black once beforehand – no remains of the old orientation stay
   (e.g. the ILI9341 time/date strip).
 - Comments: if the German and English part are one line each, they now sit directly below each other

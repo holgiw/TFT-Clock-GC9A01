@@ -465,9 +465,12 @@
         size_t total = 512 + settings.length() + tarPadding(settings.length()) + 1024;
         for (size_t i = 0; i < names.size(); i++) total += 512 + sizes[i] + tarPadding(sizes[i]);
 
+        // Dateiname mit Hostname, Displaytyp (wie in flashESP, z.B. GC9A01_WITH_BACKLIGHT) und Datum
+        // File name with host name, display type (as in flashESP, e.g. GC9A01_WITH_BACKLIGHT) and date
+
         char date[16] = "";
         if (timeinfo.tm_year >= 100) strftime(date, sizeof(date), "-%Y%m%d", &timeinfo);
-        String fileName = "uhr4-backup-" + String(hostname) + date + ".tar";
+        String fileName = "uhr4-backup-" + String(hostname) + "-" + displayChoiceName(displayType, useBacklight) + date + ".tar";
 
         webserver.sendHeader("Content-Disposition", "attachment; filename=" + fileName);
         webserver.sendHeader("Cache-Control", "no-store");
