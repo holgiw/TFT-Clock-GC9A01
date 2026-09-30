@@ -28,8 +28,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 .hd .num{width:72px;padding:6px 4px 6px 8px}
 .hd label{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0}
 .hd .grid2{display:grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center}
-.hd .ok{background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:8px 0}
-.hd .err{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:8px 0}
+.hd .msg{margin:8px 0;max-width:none}
 .hd small{display:block;margin:4px 0}
 </style>
 
@@ -733,7 +732,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
 
   // Laden und Speichern
   // Load and save
-  function showMsg(text, ok) { $('msg').className = ok === undefined ? '' : (ok ? 'ok' : 'err'); $('msg').textContent = text; }
+  function showMsg(text, ok) { $('msg').className = ok === undefined ? '' : (ok ? 'msg ok' : 'msg err'); $('msg').textContent = text; }
   // Basis ist immer das aktive Design - fehlt dort ein Zeiger, nimmt die Uhr
   // den eingebauten Standard, daher hier genauso.
 

@@ -50,6 +50,18 @@
         html += "<style>";
         html += ":root{--bg:#10151a;--panel:#1a2129;--panel-border:#2a333c;--text:#e8edf2;--muted:#8f9ba7;--accent:#f5a623;--accent-dim:#7a530f;--ok:#3ddc84;--bad:#ff5c5c;--mono:ui-monospace,\"SFMono-Regular\",Menlo,Consolas,monospace;}";
 
+        // Meldungen einheitlich im dunklen Design: .msg.ok Erfolg, .msg.warn Hinweis, .msg.err Fehler - das Symbol
+        // setzt das CSS, der Text bleibt ohne.
+
+        // Messages uniform in the dark design: .msg.ok success, .msg.warn note, .msg.err error - the CSS sets the
+        // symbol, the text stays without.
+
+        html += ".msg{border:1px solid;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;}";
+        html += ".msg::before{margin-right:.45em;}";
+        html += ".msg.ok{background:rgba(61,220,132,.12);color:var(--ok);border-color:var(--ok);}.msg.ok::before{content:\"\\2705\";}";
+        html += ".msg.warn{background:rgba(245,166,35,.12);color:var(--accent);border-color:var(--accent);}.msg.warn::before{content:\"\\26A0\";}";
+        html += ".msg.err{background:rgba(255,92,92,.12);color:var(--bad);border-color:var(--bad);}.msg.err::before{content:\"\\274C\";}";
+
         // Bewusst kein padding-top auf body: die Topbar ist sticky
         // positioniert und wuerde sonst mitverschoben statt nur der Inhalt
         // darunter.
@@ -936,17 +948,17 @@
     }
 
 
-    // Zeigt eine einheitliche Erfolgsmeldung, wenn die Route per Weiterleitung
-    // einen "msg"-Parameter mitgibt (translate()-Schluessel, automatisch uebersetzt) -
-    // blendet sich nach ein paar Sekunden per JS aus, ein Muster fuer alle Aktionen.
+    // Zeigt nach einer Weiterleitung eine einheitliche Meldung (translate()-Schluessel): "msg" Erfolg, blendet
+    // sich nach 4 s aus - "warn" Hinweis und "err" Fehler bleiben stehen.
 
-    // Shows a uniform success message when the route redirect passes a
-    // "msg" parameter (translate() key, auto-translated) - fades out after
-    // a few seconds via JS, a pattern used for all actions.
+    // Shows a uniform message after a redirect (translate() key): "msg" success, fades out after 4 s - "warn"
+    // note and "err" error stay.
 
     String generateFlashMessage() {
-        if (!webserver.hasArg("msg")) return "";
-        String rawMsg = webserver.arg("msg");
+        String kind = webserver.hasArg("err") ? "err" : (webserver.hasArg("warn") ? "warn" : "ok");
+        String param = (kind == "ok") ? "msg" : kind;
+        if (!webserver.hasArg(param)) return "";
+        String rawMsg = webserver.arg(param);
         String message = translate(rawMsg);
 
         // escapeHtmlText() nur anwenden, wenn KEINE Uebersetzung stattfand -
@@ -971,9 +983,7 @@
 
         bool isWpsBanner = (rawMsg == "WPS active - press the WPS button on your router now. Connection to the clock may be lost for about 2 minutes while this happens");
 
-        String html = "<div id='flashMsg' style='background:rgba(61,220,132,0.12);color:var(--ok);border:1px solid var(--ok);border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>";
-        html += "&#9989; " + message;
-        html += "</div>";
+        String html = "<div id='flashMsg' class='msg " + kind + "'>" + message + "</div>";
         if (isWpsBanner) {
 
             // Waehrend WPS laeuft, ist die Uhr kurz nicht erreichbar - jeder
@@ -986,7 +996,7 @@
 
             html += "<script>(function(){var e=document.getElementById('flashMsg');var startedAt=Date.now();function poll(){if(!e)return;if(Date.now()-startedAt>180000){e.style.display='none';return;}var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;var timer=ctrl?setTimeout(function(){ctrl.abort();},3000):null;fetch('/api/wpsStatus',ctrl?{signal:ctrl.signal}:{}).then(function(r){if(timer)clearTimeout(timer);return r.json();}).then(function(d){if(!d.pending){e.style.display='none';}else{setTimeout(poll,1000);}}).catch(function(){if(timer)clearTimeout(timer);setTimeout(poll,1000);});}poll();})();</script>";
         }
-        else {
+        else if (kind == "ok") {
             html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 4000);</script>";
         }
         return html;
@@ -1320,7 +1330,7 @@
             }
             else {
                 DEBUG_PRINTLN("[SECURITY] wlanDeleteActive but no pending slot - nothing to do (from " + webserver.client().remoteIP().toString() + ")");
-                redirectTo("/?tab=wlan&msg=Nothing%20to%20delete");
+                redirectTo("/?tab=wlan&err=Nothing%20to%20delete");
             }
         }
         else if (action == "wlanOverwriteActive") {
@@ -1365,7 +1375,7 @@
             }
             else {
                 DEBUG_PRINTLN("[SECURITY] wlanSwitchActive but slot no longer valid - nothing to do (from " + webserver.client().remoteIP().toString() + ")");
-                redirectTo("/?tab=wlan&msg=Network%20no%20longer%20available");
+                redirectTo("/?tab=wlan&err=Network%20no%20longer%20available");
             }
         }
     }
@@ -1638,7 +1648,7 @@
                     // so the automatic name is generated again.
 
                     preferences.remove(PK_HOSTNAME);
-                    redirectTo("/?tab=wlan&msg=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
+                    redirectTo("/?tab=wlan&warn=No%20valid%20hostname%20could%20be%20derived%20from%20the%20input%20-%20falling%20back%20to%20the%20automatic%20name%20based%20on%20the%20MAC%20address");
                     return;
                 }
 
@@ -2230,7 +2240,7 @@
                 redirectTo("/presets?msg=Presets%20imported%20successfully");
             }
             else {
-                redirectTo("/presets?msg=Import%20failed%20-%20please%20check%20the%20file");
+                redirectTo("/presets?err=Import%20failed%20-%20please%20check%20the%20file");
             }
             }, handlePresetImportUpload);
 
@@ -4409,7 +4419,7 @@
             // active. Same banner style as in the Brightness tab. max-width
             // deliberately fixed, so the text stays readable while the clock is resized.
 
-            chunk += "<div id='rocrailPreviewHint' hidden style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:6px;padding:8px 12px;margin:0 auto 10px;max-width:400px;text-align:center;'></div>";
+            chunk += "<div id='rocrailPreviewHint' class='msg warn' hidden style='margin:0 auto 10px;text-align:center;'></div>";
 
             // Groessenregler: skaliert die fertige Uhr client-seitig per CSS
             // transform:scale() - kein Server-Request, kein Neuaufbau der Zeigerbilder noetig.
@@ -5920,7 +5930,7 @@
             }
 
             if (apMode) {
-                chunk += "<div style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>" +
+                chunk += "<div class='msg warn'>" +
                     translate("No WiFi network configured yet, or the last known network is unavailable - the clock created its own WiFi network. Enter your home WiFi details below, save, and the clock will restart and try to connect") + ".</div>";
             }
 
@@ -6050,9 +6060,15 @@
             chunk += "  btn.disabled = true;";
             chunk += "  var hint = document.createElement('div');";
             chunk += "  hint.id = 'rescanHint';";
-            chunk += "  hint.style.cssText = 'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;';";
+
+            // Wie die Erfolgsmeldung (z.B. nach "WPS starten") oben ueber der Sprachauswahl, dorthin scrollen
+            // Like the success message (e.g. after "Start WPS") at the top above the language selector, scroll there
+
+            chunk += "  hint.className = 'msg ok';";
             chunk += "  hint.innerHTML = '" + translate("Scanning for WiFi networks - the page will reload automatically in 10 seconds") + "';";
-            chunk += "  btn.parentNode.insertBefore(hint, btn.nextSibling);";
+            chunk += "  var lang = document.querySelector(\"form[action='/setLanguage']\");";
+            chunk += "  if (lang) lang.parentNode.insertBefore(hint, lang); else btn.parentNode.insertBefore(hint, btn.nextSibling);";
+            chunk += "  hint.scrollIntoView({behavior: 'smooth', block: 'center'});";
             chunk += "  fetch('/api/rescanwifi', {method: 'POST'})";
             chunk += "    .catch(function() {})";
             chunk += "    .finally(function() {";
@@ -6272,7 +6288,7 @@
             bool rocrailBrightnessActiveForDisplay = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
                                                       (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
             if (rocrailBrightnessActiveForDisplay) {
-                chunk += "<div style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:6px;padding:10px 15px;margin:10px auto;max-width:500px;'>" +
+                chunk += "<div class='msg warn'>" +
                     translate("Brightness is currently taken over from Rocrail - the photoresistor and time-window settings below are inactive while connected") + ".</div><br>";
             }
 
@@ -6471,12 +6487,12 @@
                 chunk += "    var r = await fetch('/api/testNtp?server=' + encodeURIComponent(input.value));";
                 chunk += "    var text = await r.text();";
                 chunk += "    if (text.indexOf('OK|') === 0) {";
-                chunk += "      result.innerHTML = '<div style=\\'background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10004; ' + text.substring(3) + '</div>';";
+                chunk += "      result.innerHTML = '<div class=\\'msg ok\\'>' + text.substring(3) + '</div>';";
                 chunk += "    } else {";
-                chunk += "      result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
+                chunk += "      result.innerHTML = '<div class=\\'msg err\\'>" + translate("Server not reachable") + "</div>';";
                 chunk += "    }";
                 chunk += "  } catch (e) {";
-                chunk += "    result.innerHTML = '<div style=\\'background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:10px auto;max-width:400px;\\'>&#10008; " + translate("Server not reachable") + "</div>';";
+                chunk += "    result.innerHTML = '<div class=\\'msg err\\'>" + translate("Server not reachable") + "</div>';";
                 chunk += "  }";
                 chunk += "}";
                 chunk += "</script>";
@@ -7010,7 +7026,7 @@
                 if (path.indexOf("..") >= 0) continue;
                 if (deleteFileWithSideEffects(path)) deleted++;
             }
-            redirectTo(String("/files?msg=") + (deleted ? "Files%20deleted" : "No%20files%20selected"));
+            redirectTo(deleted ? "/files?msg=Files%20deleted" : "/files?err=No%20files%20selected");
             });
 
         // Einzelnes Preset loeschen (Slot wird dadurch wieder frei fuer
@@ -8038,7 +8054,7 @@
 
             html += "<form method='POST' action='/backup/download'>";
             html += "<label><input type='checkbox' name='wifi' value='1' style='width:auto;margin:0 6px 0 0;' onchange=\"document.getElementById('bkWifiWarn').hidden=!this.checked;\">" + translate("Include WiFi credentials (network names, passwords, hostname)") + "</label>";
-            html += "<p id='bkWifiWarn' hidden><small style='color:var(--bad);'>&#9888; " + translate("Saving the WiFi credentials is not secure: they are encrypted in the file, but with a key that is the same in every uhr4 firmware - anyone with the firmware or its source code can decrypt them. Keep the file safe and do not pass it on") + ".</small></p>";
+            html += "<div id='bkWifiWarn' class='msg warn' hidden>" + translate("Saving the WiFi credentials is not secure: they are encrypted in the file, but with a key that is the same in every uhr4 firmware - anyone with the firmware or its source code can decrypt them. Keep the file safe and do not pass it on") + ".</div>";
             html += "<button type='submit'>" + translate("Download Backup") + "</button></form><hr>";
 
             // Reihenfolge wichtig: die WLAN-Option VOR dem Dateifeld - nur so
@@ -8125,7 +8141,7 @@
             String myDisplay = displayChoiceName(displayType, useBacklight);
             String note = "";
             if (backupDisplay.length() && backupDisplay != myDisplay) {
-                note = "<p>&#9888; " + translate("The backup is from a {b} clock - the display type of this clock ({c}) was kept") + ".</p>";
+                note = "<div class='msg warn'>" + translate("The backup is from a {b} clock - the display type of this clock ({c}) was kept") + ".</div>";
                 note.replace("{b}", backupDisplay);
                 note.replace("{c}", myDisplay);
             }
@@ -8262,7 +8278,7 @@
                 factoryResetPendingAction = "";
                 factoryResetCodeAttempts = 0;
                 DEBUG_PRINTLN("[SECURITY] Confirmation attempted from " + webserver.client().remoteIP().toString() + " with no valid code pending");
-                redirectTo("/factoryReset?msg=Code%20expired%2C%20please%20try%20again");
+                redirectTo("/factoryReset?err=Code%20expired%2C%20please%20try%20again");
                 return;
             }
             if (!webserver.hasArg("code") || webserver.arg("code") != factoryResetCode) {
@@ -8279,11 +8295,11 @@
                     factoryResetCode = "";
                     factoryResetPendingAction = "";
                     DEBUG_PRINTLN("[SECURITY] Too many wrong attempts from " + webserver.client().remoteIP().toString() + " - code invalidated");
-                    redirectTo("/factoryReset?msg=Too%20many%20wrong%20attempts%2C%20please%20try%20again");
+                    redirectTo("/factoryReset?err=Too%20many%20wrong%20attempts%2C%20please%20try%20again");
                     return;
                 }
 
-                redirectTo("/factoryReset/enterCode?msg=Wrong%20code%2C%20please%20try%20again");
+                redirectTo("/factoryReset/enterCode?err=Wrong%20code%2C%20please%20try%20again");
                 return;
             }
 

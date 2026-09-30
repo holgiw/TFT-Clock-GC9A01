@@ -32,8 +32,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
 .hd .edwrap{overflow:auto;max-width:100%;max-height:calc(100vh - var(--hdTop,70px) - 110px)}
 @media (min-width:900px){.hd .row.main{flex-wrap:nowrap}}
 .hd.stickon .stick{position:sticky;top:var(--hdTop,70px);max-height:calc(100vh - var(--hdTop,70px) - 8px);overflow-y:auto}
-.hd .ok{background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:6px;padding:8px 12px;margin:8px 0}
-.hd .err{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin:8px 0}
+.hd .msg{margin:8px 0;max-width:none}
 .hd small{display:block;margin:4px 0}
 </style>
 
@@ -1046,7 +1045,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
 
   // Laden und Speichern
   // Load and save
-  function showMsg(text, ok) { $('msg').className = ok === undefined ? '' : (ok ? 'ok' : 'err'); $('msg').textContent = text; }
+  function showMsg(text, ok) { $('msg').className = ok === undefined ? '' : (ok ? 'msg ok' : 'msg err'); $('msg').textContent = text; }
   function faceLabel(path) { return path.replace(/^\/?face_/, '').replace(/\.bmp$/, ''); }
   function showBase() {
     $('baseInfo').textContent = t('base') + ' ' + (base === DEF ? t('builtin') : faceLabel(base)) + ' (' + t('active') + ')';

@@ -61,6 +61,12 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Meldungen überall einheitlich im dunklen Design: Erfolg grün mit ✅, Hinweis orange mit ⚠, Fehler rot mit ❌ –
+  auch in den Designern, beim Rocrail-Test, bei den Warnhinweisen (eigenes WLAN, Helligkeit von Rocrail) und auf der
+  Sicherungsseite. Fehler nach einer Aktion (z. B. falscher Code, Import fehlgeschlagen, keine Dateien ausgewählt)
+  erscheinen jetzt rot statt grün und bleiben stehen.
+- „WLAN Netzwerke neu scannen“: Der Hinweis erscheint wie die Meldung nach „WPS starten“ – gleiche grüne
+  Darstellung mit ✅, oben auf der Seite.
 - Sprachauswahl: Einträge wie die Beschriftung „Language/Sprache“ erst Englisch, dann Deutsch („German / Deutsch“,
   „English / Englisch“).
 - Sicherung wiederherstellen: Vor dem Hochladen liest die Seite den Displaytyp aus der Sicherung (settings.txt)
@@ -247,6 +253,12 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Messages uniform everywhere in the dark design: success green with ✅, note orange with ⚠, error red with ❌ –
+  also in the designers, the Rocrail test, the warnings (own WiFi, brightness from Rocrail) and on the backup page.
+  Errors after an action (e.g. wrong code, import failed, no files selected) now appear red instead of green and
+  stay visible.
+- "Rescan networks": the note appears like the message after "Start WPS" – same green style with ✅, at the top
+  of the page.
 - Language selection: entries in the same order as the label "Language/Sprache", English first ("German /
   Deutsch", "English / Englisch").
 - Restore backup: before uploading, the page reads the display type from the backup (settings.txt) and from the
