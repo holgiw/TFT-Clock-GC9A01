@@ -527,7 +527,7 @@
     // backlight mode (differing: keepBrightness) and optionally the WiFi data (format 2 encrypted, format 1
     // plain text). Returns what applyBackupSettings() writes later.
 
-    bool checkBackupSettings(const String& settings, bool restoreWifi, bool& applyWifi, bool& keepBrightness, String& wifiPlain, String& error) {
+    bool checkBackupSettings(const String& settings, bool restoreWifi, bool& applyWifi, bool& keepBrightness, String& wifiPlain, String& backupDisplay, String& error) {
         applyWifi = false;
         keepBrightness = false;
         wifiPlain = "";
@@ -558,6 +558,8 @@
             return false;
         }
         if (backupType < 0 || backupType >= DISPLAY_TYPE_COUNT) backupType = DISPLAY_TYPE_DEFAULT;
+        if (backupBacklight < 0) backupBacklight = DISPLAY_GEOMETRY[backupType].backlightDefault ? 1 : 0;
+        backupDisplay = displayChoiceName(backupType, backupBacklight == 1);
 
         // Nur die Uhrgroesse muss passen - GC9A01 und ILI9341 teilen sich die 240er Zifferblaetter und Zeiger.
         // Only the clock size has to match - GC9A01 and ILI9341 share the 240 clock faces and hands.
@@ -569,7 +571,6 @@
                     String(displayGeom->clock) + ") - clock faces and hands would not fit";
             return false;
         }
-        if (backupBacklight < 0) backupBacklight = DISPLAY_GEOMETRY[backupType].backlightDefault ? 1 : 0;
         keepBrightness = (backupBacklight == 1) != useBacklight;
 
         if (!restoreWifi) return true;
@@ -818,6 +819,7 @@
                                       // from here on something was changed on the clock
         bool applyWifi = false;
         bool keepBrightness = false;  // anderer Backlight-Modus / other backlight mode
+        String backupDisplay;         // Displaytyp der Sicherung wie im Dateinamen / backup's display type as in the file name
         String wifiPlain;             // entschluesselte WLAN-Zeilen / decrypted WiFi lines
 
         ~BackupRestoreState() {
@@ -860,7 +862,7 @@
         BackupRestoreState& s = *backupRestore;
         s.toSettings = false;
         String error;
-        bool ok = checkBackupSettings(s.settings, s.restoreWifi, s.applyWifi, s.keepBrightness, s.wifiPlain, error);
+        bool ok = checkBackupSettings(s.settings, s.restoreWifi, s.applyWifi, s.keepBrightness, s.wifiPlain, s.backupDisplay, error);
         if (!ok) {
             backupRestoreFail(error);
             return false;

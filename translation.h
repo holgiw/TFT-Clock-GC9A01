@@ -347,6 +347,12 @@
         { "Replace all current settings, clock faces and hand sets with the backup?", "Alle aktuellen Einstellungen, Zifferbl&auml;tter und Zeigers&auml;tze durch die Sicherung ersetzen?" },
         { "The backup could not be restored", "Die Sicherung konnte nicht wiederhergestellt werden" },
         { "Backup restored", "Sicherung wiederhergestellt" },
+        { "This backup is from a {b} clock, this clock is a {c}", "Diese Sicherung stammt von einer {b}-Uhr, diese Uhr ist eine {c}" },
+        { "Clock faces and hands fit (same clock size); display type, rotation and backlight of this clock stay unchanged", "Zifferbl&auml;tter und Zeiger passen (gleiche Uhrgr&ouml;&szlig;e); Displaytyp, Rotation und Hintergrundbeleuchtung dieser Uhr bleiben unver&auml;ndert" },
+        { "The clock size differs - the clock will reject the backup", "Die Uhrgr&ouml;&szlig;e ist anders - die Uhr wird die Sicherung ablehnen" },
+        { "The file name says {n}", "Der Dateiname nennt {n}" },
+        { "Restore anyway?", "Trotzdem wiederherstellen?" },
+        { "The backup is from a {b} clock - the display type of this clock ({c}) was kept", "Die Sicherung stammt von einer {b}-Uhr - der Displaytyp dieser Uhr ({c}) bleibt" },
         { "files", "Dateien" },
 
         { "Display type", "Display-Typ" },

@@ -8052,11 +8052,48 @@
             html += "<h3>" + translate("Restore Backup") + "</h3>";
             html += "<p>" + translate("Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards") + ".</p>";
             html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. The backup must come from a clock with the same clock size") + " (" + String(displayGeom->name) + ").</small></p>";
-            html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' onsubmit=\"return confirm('" + translate("Replace all current settings, clock faces and hand sets with the backup?") + "');\">";
+            html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' id='restoreForm' data-ask='" + translate("Replace all current settings, clock faces and hand sets with the backup?") + "'>";
             html += "<label><input type='checkbox' name='restoreWifi' value='1' style='width:auto;margin:0 6px 0 0;'>" + translate("Restore WiFi credentials (network names, passwords, hostname)") + "</label>";
             html += "<p><small>" + translate("Without this option the clock keeps its own WiFi and hostname - recommended when transferring the settings to another clock") + ".</small></p>";
             html += "<input type='file' name='backupfile' accept='.tar' required> ";
             html += "<button type='submit'>" + translate("Restore Backup") + "</button></form>";
+
+            // Vor dem Hochladen den Displaytyp der Sicherung pruefen: aus settings.txt (erster Eintrag im TAR) und aus
+            // dem Dateinamen. Weicht er ab, warnt die Seite - passt die Uhrgroesse nicht, lehnt die Uhr ohnehin ab.
+
+            // Check the backup's display type before uploading: from settings.txt (first entry in the TAR) and from
+            // the file name. If it differs, the page warns - if the clock size does not fit, the clock rejects it anyway.
+
+            String names = "", namesBl = "", clocks = "", blDefaults = "";
+            for (uint8_t i = 0; i < DISPLAY_TYPE_COUNT; i++) {
+                String sep = i ? "," : "";
+                names += sep + "'" + displayChoiceName(i, false) + "'";
+                namesBl += sep + "'" + displayChoiceName(i, true) + "'";
+                clocks += sep + String(DISPLAY_GEOMETRY[i].clock);
+                blDefaults += sep + String(DISPLAY_GEOMETRY[i].backlightDefault ? 1 : 0);
+            }
+            html += "<div id='restoreTexts' hidden data-from='" + translate("This backup is from a {b} clock, this clock is a {c}") +
+                    "' data-fits='" + translate("Clock faces and hands fit (same clock size); display type, rotation and backlight of this clock stay unchanged") +
+                    "' data-size='" + translate("The clock size differs - the clock will reject the backup") +
+                    "' data-fname='" + translate("The file name says {n}") + "' data-anyway='" + translate("Restore anyway?") + "'></div>";
+            html += "<script>(function(){";
+            html += "var names=[" + names + "],namesBl=[" + namesBl + "],clocks=[" + clocks + "],blDef=[" + blDefaults + "];";
+            html += "var myType=" + String(displayType) + ",myName='" + String(displayChoiceName(displayType, useBacklight)) + "';";
+            html += "var f=document.getElementById('restoreForm'),T=document.getElementById('restoreTexts').dataset;";
+            html += "function readSettings(file){return file.slice(0,65536).arrayBuffer().then(function(ab){var b=new Uint8Array(ab);if(b.length<512)return null;";
+            html += "var name=new TextDecoder().decode(b.subarray(0,100)).replace(/\\0.*$/,'');if(name!=='" BACKUP_SETTINGS_NAME "')return null;";
+            html += "var size=parseInt(new TextDecoder().decode(b.subarray(124,136)).replace(/[^0-7]/g,''),8)||0;";
+            html += "return new TextDecoder().decode(b.subarray(512,512+Math.min(size,b.length-512)));}).catch(function(){return null;});}";
+            html += "f.addEventListener('submit',function(ev){ev.preventDefault();var file=f.backupfile.files[0];if(!file)return;";
+            html += "readSettings(file).then(function(txt){var warn=[];";
+            html += "var m=/(GC9A01_WITH_BACKLIGHT|GC9A01|GC9D01|ILI9341)\\d{8}\\.tar$/i.exec(file.name),fromName=m?m[1].toUpperCase():null;";
+            html += "if(txt){var t=/^u8\\tdisplayType\\t(\\d+)/m.exec(txt),bl=/^u8\\tuseBacklight\\t(\\d+)/m.exec(txt);";
+            html += "var type=t?+t[1]:0;if(!(type>=0&&type<names.length))type=0;var useBl=bl?+bl[1]!==0:blDef[type]===1;var bName=useBl?namesBl[type]:names[type];";
+            html += "if(bName!==myName){warn.push(T.from.replace('{b}',bName).replace('{c}',myName)+'.');warn.push((clocks[type]===clocks[myType]?T.fits:T.size)+'.');}";
+            html += "if(fromName&&fromName!==bName)warn.push(T.fname.replace('{n}',fromName)+'.');}";
+            html += "else if(fromName&&fromName!==myName)warn.push(T.from.replace('{b}',fromName).replace('{c}',myName)+'.');";
+            html += "if(confirm(warn.length?warn.join('\\n')+'\\n\\n'+T.anyway:f.dataset.ask))f.submit();});});";
+            html += "})();</script>";
             html += "</body></html>";
             webserver.send(200, "text/html", html);
             });
@@ -8074,6 +8111,7 @@
             bool changed = backupRestore && backupRestore->settingsChecked;
             String error = backupRestore ? backupRestore->error : String("no upload received");
             size_t files = backupRestore ? backupRestore->restoredFiles.size() : 0;
+            String backupDisplay = backupRestore ? backupRestore->backupDisplay : String("");
             delete backupRestore;
             backupRestore = nullptr;
 
@@ -8084,9 +8122,16 @@
                 webserver.send(400, "text/html", simpleMessagePage(translate("Restore Backup"), body));
                 return;
             }
+            String myDisplay = displayChoiceName(displayType, useBacklight);
+            String note = "";
+            if (backupDisplay.length() && backupDisplay != myDisplay) {
+                note = "<p>&#9888; " + translate("The backup is from a {b} clock - the display type of this clock ({c}) was kept") + ".</p>";
+                note.replace("{b}", backupDisplay);
+                note.replace("{c}", myDisplay);
+            }
             webserver.send(200, "text/html", simpleMessagePage(translate("Rebooting..."),
                 "<p>" + translate("Backup restored") + " (" + String(files) + " " + translate("files") + "). " +
-                translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>",
+                translate("Return to the main page in 10 seconds or refresh the website when the ESP is online again") + ".</p>" + note,
                 "<meta http-equiv='refresh' content='10; url=/'>"));
             espReboot();
             }, handleBackupRestoreUpload);

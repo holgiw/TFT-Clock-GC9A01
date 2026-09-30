@@ -61,6 +61,10 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Sicherung wiederherstellen: Vor dem Hochladen liest die Seite den Displaytyp aus der Sicherung (settings.txt)
+  und aus dem Dateinamen. Stammt sie von einem anderen Displaytyp, erscheint eine Warnung mit „Trotzdem
+  wiederherstellen?“ – bei anderer Uhrgröße mit dem Hinweis, dass die Uhr sie ablehnt. Die Erfolgsmeldung nennt den
+  abweichenden Typ ebenfalls.
 - Einstellungen, Tab Zifferblatt: „Sekundenzeiger anzeigen“ steht jetzt oben. Ist er nicht angehakt, sind
   Bahnhofsmodus und sanfter Sekundenzeiger ausgeschaltet und ausgegraut; wieder angehakt kehrt ihr vorheriger Zustand
   zurück.
@@ -241,6 +245,9 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Restore backup: before uploading, the page reads the display type from the backup (settings.txt) and from the
+  file name. If it comes from another display type, a warning with "Restore anyway?" appears – with a different
+  clock size including the note that the clock will reject it. The success message names the differing type too.
 - Settings, clock face tab: "Show seconds" is now at the top. When it is unchecked, station mode and smooth second
   hand are switched off and greyed out; checked again, their previous state returns.
 - License notices: new file THIRD_PARTY_LICENSES.md with copyright notices and license texts of the included
