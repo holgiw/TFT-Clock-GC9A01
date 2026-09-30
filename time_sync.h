@@ -1459,13 +1459,11 @@
     }
 
 
-    // Wertet eine beendete NTP-Sync-Task aus - in jedem loop()-Durchlauf
-    // aufgerufen, no-op solange keine Task fertig ist. Bei Fehlschlag greift
-    // der DCF77-Fallback (gleiche Logik wie zuvor synchron in uhr4.ino).
+    // Wertet eine beendete NTP-Sync-Task aus - in jedem loop()-Durchlauf aufgerufen, no-op solange keine Task
+    // fertig ist. Bei Fehlschlag greift der DCF77-Fallback.
 
-    // Evaluates a finished NTP sync task - called on every loop() iteration,
-    // no-op as long as no task has finished. On failure, the DCF77 fallback
-    // kicks in (same logic that previously ran synchronously in uhr4.ino).
+    // Evaluates a finished NTP sync task - called on every loop() iteration, no-op as long as no task has
+    // finished. On failure, the DCF77 fallback kicks in.
 
     void pollNtpSyncTask() {
         if (!ntpSyncTaskDone) return;

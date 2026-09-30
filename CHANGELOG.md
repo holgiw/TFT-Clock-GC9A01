@@ -20,6 +20,8 @@ Neueste Einträge oben.
   wird als „kein ESP32-S2“ erkannt. Schlägt das Flashen fehl, nennt die Meldung jetzt die häufigen Ursachen
   (Bootmodus, falscher Chip, Port belegt, USB-Hub, Virenscanner) statt nur den Bootmodus. `readme.txt`: Hinweise
   zu USB-Hub, Virenscanner, Windows 7/8 und macOS.
+- Kommentare: Historie entfernt („kein … mehr“, „früher“, „bisher“, „Bugfix:“). Reine Historien-Kommentare
+  sind gelöscht, bei den übrigen bleibt nur, was der Code heute tut und warum (nur Kommentare geändert).
 
 ## 2026-09-29
 
@@ -124,6 +126,8 @@ Newest entries on top.
   303A:1001) is detected as "not an ESP32-S2". If flashing fails, the message now lists the common causes (boot
   mode, wrong chip, port in use, USB hub, virus scanner) instead of only the boot mode. `readme.txt`: notes on
   USB hubs, virus scanners, Windows 7/8 and macOS.
+- Comments: history removed ("no more ...", "previously", "used to", "Bugfix:"). Pure history comments are
+  deleted, the others only keep what the code does today and why (only comments changed).
 
 ## 2026-09-29
 

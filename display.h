@@ -356,13 +356,11 @@
     }
 
 
-    // Textdarstellung fuer Display und Status-Sprites: GLCD-Schrift (wie
-    // bisher Font 1) als CP437-Zeichensatz, ohne UTF-8-Dekodierung - Umlaute
-    // und Akzente kommen ueber tftText() als einzelne CP437-Bytes.
+    // Textdarstellung fuer Display und Status-Sprites: GLCD-Schrift als CP437-Zeichensatz, ohne
+    // UTF-8-Dekodierung - Umlaute und Akzente kommen ueber tftText() als einzelne CP437-Bytes.
 
-    // Text rendering for the display and status sprites: GLCD font (Font 1
-    // as before) as the CP437 charset, without UTF-8 decoding - umlauts and
-    // accents arrive via tftText() as single CP437 bytes.
+    // Text rendering for the display and status sprites: GLCD font as the CP437 charset, without UTF-8
+    // decoding - umlauts and accents arrive via tftText() as single CP437 bytes.
 
     void setupTextStyle(lgfx::LovyanGFX& gfx) {
         gfx.setFont(&fonts::Font0);
@@ -1153,11 +1151,11 @@
         return ok;
     }
 
-    // Zielgroesse beim Speichern einer Zeigerdatei: eines der vier gueltigen
-    // Formate bleibt unskaliert, alles andere wird wie frueher aufs alte skaliert.
+    // Zielgroesse beim Speichern einer Zeigerdatei: eines der vier gueltigen Formate bleibt unskaliert, alles
+    // andere wird auf das Legacy-Format (HAND_LEGACY_WIDTH/-HEIGHT) skaliert.
 
-    // Target size when storing a hand file: one of the four valid formats stays
-    // unscaled, everything else is scaled to the old format as before.
+    // Target size when storing a hand file: one of the four valid formats stays unscaled, everything else is
+    // scaled to the legacy format (HAND_LEGACY_WIDTH/-HEIGHT).
 
     void handTargetSize(const char* path, int& outW, int& outH) {
         outW = HAND_LEGACY_WIDTH;
@@ -1258,13 +1256,11 @@
             }
             if (!loaded) {
 
-                // Fallback: Standard-Zifferblatt aus Array kopieren (auch bei
-                // Lesefehler oder falschen Dimensionen - vorher blieb der
-                // Puffer in diesem Fall unveraendert/undefiniert)
+                // Fallback: Standard-Zifferblatt aus dem Array kopieren (auch bei Lesefehler oder falschen
+                // Dimensionen).
 
-                // Fallback: copy the built-in default clock face from the array (also on
-                // read errors or wrong dimensions - previously the buffer
-                // was left unchanged/undefined in this case)
+                // Fallback: copy the built-in default clock face from the array (also on read errors or wrong
+                // dimensions).
 
                 decodeDefaultFace(clockFaceBuffer);
             }
@@ -1385,11 +1381,8 @@
     }
 
 
-    // Zeichnet das Zifferblatt ins backgroundSprite - unveraendertes Verhalten
-    // fuer alle bisherigen Aufrufer.
-
-    // Draws the clock face into backgroundSprite - unchanged behaviour for all
-    // existing callers.
+    // Zeichnet das Zifferblatt ins backgroundSprite.
+    // Draws the clock face into backgroundSprite.
 
     void loadClockFace(uint8_t rotation) {
         int cacheState = prepareClockFaceCache();
@@ -1765,11 +1758,11 @@
             comp.sprite = new (std::nothrow) LGFX_Sprite(&tft);
             if (!comp.sprite || !createSprite16(*comp.sprite, CLOCK_WIDTH, CLOCK_HEIGHT)) {
 
-                // Einmal melden und danach dauerhaft den bisherigen Weg nutzen,
-                // statt bei jedem Tick erneut zu versuchen.
+                // Einmal melden und danach dauerhaft je Tick ohne Composite-Sprite zeichnen, statt es bei
+                // jedem Tick erneut zu versuchen.
 
-                // Report once and then permanently use the previous path instead
-                // of retrying on every tick.
+                // Report once and then permanently render per tick without the composite sprite instead of
+                // retrying on every tick.
 
                 DEBUG_PRINTLN("[Display] couldnt allocate hand composite sprite - falling back to per-tick rendering");
                 delete comp.sprite;
@@ -2044,13 +2037,11 @@
             lastSecondAngleRef = rotatedAngle(secAngle, orientation); // Basiswert fuer die Ruecksprung-Abfederung unten (Normalmodus)
                                                                      // baseline for the jump-back easing below (normal mode)
 
-            // Hier bewusst NICHT zeichnen - das Bild entsteht weiter unten im selben Durchlauf (forceRender).
-            // Frueher blitzten die Zeiger beim Zeitempfang kurz doppelt auf, bevor animateHand() sie von 12
-            // aus laufen liess.
+            // Hier bewusst NICHT zeichnen - das Bild entsteht weiter unten im selben Durchlauf (forceRender),
+            // sonst blitzen die Zeiger beim Zeitempfang kurz doppelt auf.
 
             // Deliberately do NOT draw here - the frame is produced further below in the same pass
-            // (forceRender). The hands used to flash doubled on receiving the time before animateHand() let
-            // them start from 12.
+            // (forceRender), otherwise the hands flash doubled for a moment on receiving the time.
 
         }
 
@@ -3587,13 +3578,11 @@
         if (rowBuf) { bmp.close(); free(rowBuf); }
         if (rleSrcBuf) free(rleSrcBuf);
 
-        // Zielformat entscheiden: face_*.bmp UND hand_set*.bmp werden RLE-
-        // komprimiert (spart Flash-Platz, bei Zeigern wegen grosser einfarbiger
-        // Flaechen noch mehr) - alles andere bleibt Standard-BMP wie bisher.
+        // Zielformat: face_*.bmp UND hand_set*.bmp werden RLE-komprimiert (spart Flash-Platz, bei Zeigern
+        // wegen grosser einfarbiger Flaechen noch mehr) - alles andere bleibt Standard-BMP.
 
-        // Decide the target format: face_*.bmp AND hand_set*.bmp are RLE-
-        // compressed (saves flash space, even more so for hands due to large
-        // solid-color areas) - everything else stays standard BMP as before.
+        // Target format: face_*.bmp AND hand_set*.bmp are RLE-compressed (saves flash space, even more so for
+        // hands due to large solid-color areas) - everything else stays standard BMP.
 
         String targetPathStr = String(targetPath);
         if (!targetPathStr.startsWith("/")) targetPathStr = "/" + targetPathStr;

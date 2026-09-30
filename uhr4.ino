@@ -921,13 +921,11 @@ void setup() {
         tftInitialized = true; // ab jetzt duerfen setCS1()/setCS2() die Rotation am Chip setzen
                                // from now on setCS1()/setCS2() may set the rotation on the chip
 
-        // GLCD-Schrift wie bisher, aber als echter CP437-Zeichensatz ohne
-        // UTF-8-Dekodierung - tftText() (display.h) liefert Umlaute/Akzente
-        // passend dazu als CP437-Bytes.
+        // GLCD-Schrift als CP437-Zeichensatz ohne UTF-8-Dekodierung - tftText() (display.h) liefert
+        // Umlaute/Akzente passend dazu als CP437-Bytes.
 
-        // GLCD font as before, but as a real CP437 charset without UTF-8
-        // decoding - tftText() (display.h) delivers umlauts/accents as
-        // matching CP437 bytes.
+        // GLCD font as the CP437 charset without UTF-8 decoding - tftText() (display.h) delivers
+        // umlauts/accents as matching CP437 bytes.
 
         setupTextStyle(tft);
 
@@ -1006,11 +1004,8 @@ void setup() {
         setupWebServer();
         webserver.begin();
 
-        // DCF77-Interrupt einrichten - dcf.Start() entfaellt, die Bibliothek
-        // wird nicht mehr benutzt (siehe isr() in time_sync.h).
-
-        // Set up the DCF77 interrupt - dcf.Start() is gone, the library
-        // is no longer used (see isr() in time_sync.h).
+        // DCF77-Interrupt einrichten - dekodiert wird in isr() (time_sync.h), ohne DCF77-Bibliothek.
+        // Set up the DCF77 interrupt - decoding happens in isr() (time_sync.h), without a DCF77 library.
 
         pinMode(DCF77_DATAPIN, INPUT_PULLUP);
         attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
@@ -1437,14 +1432,6 @@ void setup() {
             pollR2rnetDebugListener();
         }
 
-        //  checkWiFiScan(); // Überprüfe den Status des Scans
-        // NTP-/DCF77-Zeitsynchronisation laeuft jetzt periodisch weiter oben
-        // (unabhaengig vom WLAN-Status abgearbeitet) - hier daher nichts
-
-        // mehr zu tun.
-        // NTP/DCF77 time sync now runs periodically further above (handled
-        // independent of WiFi status) - nothing left to do here.
-
         initial = false;
 
         }
@@ -1545,14 +1532,6 @@ void setup() {
                 espReboot();
             }
         }
-
-        // Kein unbedingtes setLedOff() mehr am Zeilenende von loop() (loeschte
-        // den DCF77-Blitz sofort) - Abschaltung erfolgt jetzt ueber
-        // DCF77_LED_BLINK_MS und die Sicherheits-Abschaltung oben.
-
-        // No more unconditional setLedOff() at the end of loop() (it cleared
-        // the DCF77 flash immediately) - switch-off now happens via
-        // DCF77_LED_BLINK_MS and the safety switch-off above.
 
     }
 

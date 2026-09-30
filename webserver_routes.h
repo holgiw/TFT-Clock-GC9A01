@@ -120,13 +120,11 @@
         html += ".dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,92,92,.15);}";
         html += ".dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,132,.18);}";
 
-        // "na" (grau) gilt nur noch fuer den Zeit-Punkt (Systemzeit noch nie
-        // gesetzt). RTC/DCF77 nutzen es nicht mehr - fehlende Hardware macht
-        // den Eintrag komplett unsichtbar statt dauerhaft grau.
+        // "na" (grau) gilt nur fuer den Zeit-Punkt (Systemzeit noch nie gesetzt) - bei RTC/DCF77 blendet
+        // fehlende Hardware den ganzen Eintrag aus.
 
-        // "na" (gray) now only applies to the Time dot (system time never
-        // set). RTC/DCF77 no longer use it - missing hardware hides the
-        // whole entry instead of showing it permanently gray.
+        // "na" (gray) only applies to the Time dot (system time never set) - for RTC/DCF77, missing hardware
+        // hides the whole entry.
 
         html += ".dot.na{background:var(--muted);box-shadow:0 0 0 3px rgba(143,155,167,.18);}";
 
@@ -387,10 +385,10 @@
 
 
     // Seite, zu der /delete und /rename zurueckspringen: /files und /listfilesFaces haengen ein explizites
-    // "from" an (frueher aus dem Dateinamen geraten). Unbekannt/fehlend -> allgemeiner Dateimanager.
+    // "from" an. Unbekannt/fehlend -> allgemeiner Dateimanager.
 
-    // Page /delete and /rename return to: /files and /listfilesFaces attach an explicit "from" (previously
-    // guessed from the filename). Unknown/missing -> general file manager.
+    // Page /delete and /rename return to: /files and /listfilesFaces attach an explicit "from".
+    // Unknown/missing -> general file manager.
 
     String fileManagerReturnTarget(const String& from) {
         if (from == "listfilesFaces") return "/listfilesFaces";
@@ -649,13 +647,11 @@
     }
 
 
-    // Tagesfenster wie in updateBrightness() (display.h): Stunde >= Start und < Ende,
-    // also Ende exklusiv; aus den Laufzeitwerten statt aus den Preferences, deren
-    // Ladedefaults (7/21) sich von frueheren Anzeige-Defaults (8/20) unterschieden.
+    // Tagesfenster wie in updateBrightness() (display.h): Stunde >= Start und < Ende, also Ende exklusiv -
+    // aus den Laufzeitwerten, damit die Anzeige zur tatsaechlich verwendeten Einstellung passt.
 
-    // Day window like in updateBrightness() (display.h): hour >= start and < end,
-    // i.e. end exclusive; from the runtime values instead of the preferences, whose
-    // load defaults (7/21) differed from earlier display defaults (8/20).
+    // Day window like in updateBrightness() (display.h): hour >= start and < end, i.e. end exclusive - from
+    // the runtime values, so the display matches the setting actually in use.
 
     String dayWindowText() {
         if (brightStartHour == brightEndHour) return "off (start = end)";
@@ -736,11 +732,11 @@
                                    // optional: confirmation message
         } navItems[] = {
 
-            // WiFi/Zeit/Helligkeit/Status sind jetzt Tabs auf "/", daher hier
-            // nicht mehr gelistet - Routen bleiben fuer Lesezeichen bestehen.
+            // WLAN/Zeit/Helligkeit/Status sind Tabs auf "/" und fehlen daher hier - die Routen bleiben fuer
+            // Lesezeichen.
 
-            // WiFi/time/brightness/status are now tabs on "/", so no longer
-            // listed here - routes stay for bookmarks.
+            // WiFi/time/brightness/status are tabs on "/" and therefore missing here - the routes stay for
+            // bookmarks.
 
             {"/", translate("Main"), ""},
             {"/preview", translate("Preview"), ""},
@@ -749,12 +745,10 @@
             {"/handsets", translate("Hand&nbsp;Set"), ""},
             {"/files", translate("File&nbsp;Manager"), ""},
 
-            // "/reboot" nicht mehr gelistet - der reset-btn in der Topbar
-            // deckt das ab, die Route bleibt fuer Lesezeichen bestehen.
-            // "/reboot" no longer listed - the topbar's reset-btn covers
+            // "/reboot" fehlt bewusst (reset-btn in der Topbar), die Route bleibt fuer Lesezeichen. "DCF77"
+            // bewusst unuebersetzt (Protokollname, wie in generateTopBar()).
 
-            // this, the route stays for bookmarks.
-            // "DCF77" bewusst unuebersetzt (Protokollname, wie in generateTopBar()).
+            // "/reboot" deliberately missing (reset-btn in the topbar), the route stays for bookmarks.
             // "DCF77" deliberately untranslated (a protocol name, as in generateTopBar()).
 
             {"/dcf77", "DCF77", ""},
@@ -1358,13 +1352,11 @@
     }
 
 
-    // Baut den wiederverwendeten inneren Teil des Helligkeits-Formulars -
-    // vermeidet die fruehere Duplizierung an mehreren Stellen. Umschliessendes
-    // <form>/<div> und Save-Button bleiben bei den Aufrufern.
+    // Baut den gemeinsamen inneren Teil des Helligkeits-Formulars - umschliessendes <form>/<div> und
+    // Save-Button bleiben bei den Aufrufern.
 
-    // Builds the reused inner part of the brightness form - avoids the
-    // previous duplication in several places. Surrounding <form>/<div> and
-    // the save button stay with the callers.
+    // Builds the shared inner part of the brightness form - the surrounding <form>/<div> and the save button
+    // stay with the callers.
 
     String brightnessFormFieldsHtml() {
         String html = "";
@@ -1695,10 +1687,10 @@
             if (webserver.hasArg("rotation") && webserver.arg("source") != "preset") {
                 String rotationArg = webserver.arg("rotation");
 
-                // Eigener Name statt "tftRotation" (verdeckte frueher die globale Variable). Als long, damit
+                // Eigener Name statt "tftRotation" (wuerde die globale Variable verdecken). Als long, damit
                 // z.B. "rotation=256" nicht vor der Pruefung zu 0 abgeschnitten wird.
 
-                // Own name instead of "tftRotation" (it used to shadow the global variable). As long, so e.g.
+                // Own name instead of "tftRotation" (would shadow the global variable). As long, so e.g.
                 // "rotation=256" is not truncated to 0 before validation.
 
                 long requestedRotation = -1;
@@ -1881,13 +1873,13 @@
                     }
                     displayUrl += "&source=preset";
 
-                    // presetName ist eine lokale Kopie (frueher veraenderte ein GET den globalen Zustand).
-                    // Der Name kommt vom Nutzer - daher escapen (escapeHtmlText()/escapeForJsStringInAttr()),
+                    // presetName ist eine lokale Kopie - ein GET darf den globalen Zustand nicht aendern. Der
+                    // Name kommt vom Nutzer - daher escapen (escapeHtmlText()/escapeForJsStringInAttr()),
                     // sonst gespeichertes XSS.
 
-                    // presetName is a local copy (a GET used to change the global state). The name comes from
-                    // the user - so escape it (escapeHtmlText()/escapeForJsStringInAttr()), otherwise stored
-                    // XSS.
+                    // presetName is a local copy - a GET must not change the global state. The name comes
+                    // from the user - so escape it (escapeHtmlText()/escapeForJsStringInAttr()), otherwise
+                    // stored XSS.
 
                     String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
@@ -2414,13 +2406,11 @@
                 if (!oldName.startsWith("/")) oldName = "/" + oldName;
                 if (!newName.startsWith("/")) newName = "/" + newName;
 
-                // Neuer Dateiname wurde bisher ungeprueft uebernommen -
-                // Dateinamen landen ungeescaped in HTML-Attributen (/files,
-                // /listfilesFaces, /handsets), ein "'" oder "<" haette dort gespeichertes XSS ermoeglicht.
+                // Neuen Dateinamen pruefen: Dateinamen landen ungeescaped in HTML-Attributen (/files,
+                // /listfilesFaces, /handsets) - ein "'" oder "<" ermoeglichte dort gespeichertes XSS.
 
-                // The new filename was previously accepted unchecked -
-                // filenames get embedded unescaped into HTML attributes
-                // (/files, /listfilesFaces, /handsets), a "'" or "<" would have enabled stored XSS there.
+                // Validate the new filename: filenames get embedded unescaped into HTML attributes (/files,
+                // /listfilesFaces, /handsets) - a "'" or "<" would enable stored XSS there.
 
                 bool newNameValid = (newName.length() > 1 && newName.length() < 96);
                 for (size_t i = 1; newNameValid && i < newName.length(); i++) {
@@ -3143,13 +3133,13 @@
 
             if (serverChanged) {
 
-                // Bestehende Verbindung trennen, damit connectRocrailClient()
-                // sofort den neuen Server versucht. Anlagenname muss nicht
-                // geleert werden - haengt jetzt am Listenplatz, nicht mehr am globalen aktiven Server.
+                // Bestehende Verbindung trennen, damit connectRocrailClient() sofort den neuen Server
+                // versucht. Der Anlagenname muss nicht geleert werden - er haengt am Listenplatz, nicht am
+                // aktiven Server.
 
-                // Disconnect the existing connection, so connectRocrailClient()
-                // tries the new server immediately. Layout name doesn't need
-                // clearing - it now lives per list slot, not on the global active server.
+                // Disconnect the existing connection, so connectRocrailClient() tries the new server
+                // immediately. The layout name doesn't need clearing - it lives per list slot, not on the
+                // active server.
 
                 if (rocrailClient.connected()) rocrailClient.stop();
                 rocrailConnected = false;
@@ -4167,13 +4157,11 @@
             bool showSecond = preferences.getBool(PK_SHOW_SECOND_HAND, true);
             bool stationModeActive = preferences.getBool(PK_STATION_MODE, true);
 
-            // Default false, wie ueberall sonst im Projekt - hier stand
-            // abweichend "true", wodurch diese Anzeige nach einem Werkreset
-            // einen anderen Zustand behauptete als tatsaechlich angewendet.
+            // Default false wie ueberall sonst im Projekt - sonst zeigte die Anzeige nach einem Werksreset
+            // einen anderen Zustand als tatsaechlich angewendet.
 
-            // Default false, matching everywhere else in the project - this
-            // used to say "true" here, so after a factory reset this
-            // display claimed a different state than what was actually applied.
+            // Default false, matching everywhere else in the project - otherwise this display would claim a
+            // different state after a factory reset than actually applied.
 
             bool smoothMinuteActive = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
@@ -4420,13 +4408,11 @@
             chunk += "    if (stationMode) {";
             chunk += "      var elapsedMs = (s + ms / 1000) * 1000;";
 
-            // Bugfix: fastSecondMs wurde hier zusaetzlich durch rocrailDivider
-            // geteilt, obwohl elapsedMs bereits durch "elapsed" oben mit
-            // demselben Divider beschleunigt ist - lief dadurch doppelt so schnell (bei divider 2 4x statt 2x).
+            // fastSecondMs NICHT zusaetzlich durch rocrailDivider teilen - elapsedMs ist ueber "elapsed" oben
+            // schon mit demselben Divider beschleunigt (sonst doppelt so schnell).
 
-            // Bugfix: fastSecondMs used to be additionally divided by
-            // rocrailDivider here, even though elapsedMs is already
-            // accelerated by that divider via "elapsed" above - ran twice as fast (4x instead of 2x at divider 2).
+            // Do NOT additionally divide fastSecondMs by rocrailDivider - elapsedMs is already accelerated by
+            // that divider via "elapsed" above (otherwise twice as fast).
 
             chunk += "      if (rocrailDivider > 1) {";
             chunk += "        var smoothPos = elapsedMs / fastSecondMs;";
@@ -5142,13 +5128,11 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Panel Status: identisch zur bisherigen /status-Seite, in eine
-            // .card gepackt (900px breit, zentriert, scrollbar) statt volle
-            // Seitenbreite - siehe Kommentar an der Kartenoeffnung unten.
+            // Panel Status in einer .card (900px breit, zentriert, scrollbar) statt voller Seitenbreite -
+            // siehe Kommentar an der Kartenoeffnung unten.
 
-            // Status panel: identical to the previous /status page, wrapped
-            // in a .card (900px wide, centered, scrollable) instead of full
-            // page width - see the comment at the card's opening below.
+            // Status panel in a .card (900px wide, centered, scrollable) instead of full page width - see the
+            // comment at the card's opening below.
 
             chunk += "<div class='tabpanel panel-status'>";
 
@@ -5508,11 +5492,8 @@
             chunk += "</div>";
             chunk += "</div>";
 
-            // Kein serverseitiges Vorlesen mehr - nur ein Platzhalter, Inhalt
-            // kommt per JS von /api/currentLog (siehe "Lazy-Load" unten).
-
-            // No more server-side pre-reading - just a placeholder, content
-            // arrives via JS from /api/currentLog (see "lazy load" below).
+            // Nur ein Platzhalter - der Inhalt kommt per JS von /api/currentLog (siehe "Lazy-Load" unten).
+            // Just a placeholder - the content arrives via JS from /api/currentLog (see "lazy load" below).
 
             chunk += "<pre id='logContent' style='background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;max-width:900px;" INFO_LOG_WINDOW_HEIGHT_CSS "overflow-y:auto;margin:15px auto;padding:12px 16px;text-align:left;white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:.85rem;'>";
             chunk += loggingEnabled ? translate("Loading&hellip;") : translate("Logging is disabled.");
@@ -5616,11 +5597,8 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Panel: WLAN, uebernommen aus der frueheren eigenstaendigen
-            // /wifi-Seite (Hostname-Formular, WPS/Rescan, WLAN-Slots).
-
-            // Panel: WiFi, taken over from the former standalone /wifi
-            // page (hostname form, WPS/rescan, WiFi slots).
+            // Panel: WLAN (Hostname-Formular, WPS/Rescan, WLAN-Slots).
+            // Panel: WiFi (hostname form, WPS/rescan, WiFi slots).
 
             chunk += "<div class='tabpanel panel-wlan'>";
 
@@ -5991,11 +5969,8 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Panel: Helligkeit, uebernommen aus der frueheren /brightness-Seite
-            // (inkl. optionalem Plotly-Gamma-Chart).
-
-            // Panel: brightness, taken over from the former /brightness
-            // page (incl. optional Plotly gamma chart).
+            // Panel: Helligkeit (inkl. optionalem Plotly-Gamma-Chart).
+            // Panel: brightness (incl. optional Plotly gamma chart).
 
             chunk += "<div class='tabpanel panel-helligkeit'>";
 
@@ -6132,11 +6107,8 @@
             webserver.sendContent(chunk);
             chunk = "";
 
-            // Panel: Zeit/NTP/Timezone, uebernommen aus der frueheren
-            // /timezone_form-Seite.
-
-            // Panel: time/NTP/timezone, taken over from the former
-            // /timezone_form page.
+            // Panel: Zeit/NTP/Zeitzone.
+            // Panel: time/NTP/time zone.
 
             chunk += "<div class='tabpanel panel-zeit'>";
             {
@@ -6600,13 +6572,11 @@
                     return;
                 }
 
-                // Nur nicht-aktive Slots betroffen: nur aus einem privaten
-                // Netz erlaubt (siehe isPrivateNetworkIp() oben) - bisher
-                // ohne jede Ruecksprache sofort uebernommen.
+                // Nur nicht-aktive Slots betroffen: nur aus einem privaten Netz erlaubt (siehe
+                // isPrivateNetworkIp() oben).
 
-                // Only non-active slots affected: only allowed from a
-                // private network (see isPrivateNetworkIp() above) -
-                // previously applied immediately without any confirmation.
+                // Only non-active slots affected: only allowed from a private network (see
+                // isPrivateNetworkIp() above).
 
                 if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
                     webserver.send(200, "text/html", simpleMessagePage(translate("Settings saved"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));

@@ -464,13 +464,11 @@
         unsigned long currentMillis = millis();
         unsigned long millisInSecond = currentMillis % 1000;
 
-        // Eigene lokale Zeitstruktur wie in checkWeeklyRestart() (siehe dort).
-        // Timeout 0 statt 500ms, keine WiFi-Bedingung mehr - Zeit ist auch
-        // ohne WLAN gueltig, wenn sie von RTC oder DCF77 stammt.
+        // Eigene lokale Zeitstruktur wie in checkWeeklyRestart() (siehe dort). Timeout 0 und keine
+        // WLAN-Bedingung - die Zeit ist auch ohne WLAN gueltig, wenn sie von RTC oder DCF77 stammt.
 
-        // Own local time struct, same reason as in checkWeeklyRestart() (see
-        // there). Timeout 0 instead of 500ms, no WiFi condition anymore - time
-        // is valid without WiFi too when it comes from RTC or DCF77.
+        // Own local time struct, same reason as in checkWeeklyRestart() (see there). Timeout 0 and no WiFi
+        // condition - the time is valid without WiFi too when it comes from RTC or DCF77.
 
         struct tm logTime;
         if (getLocalTime(&logTime, 0)) {

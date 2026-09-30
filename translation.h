@@ -471,13 +471,11 @@
     static const size_t translationTableSize = sizeof(translationTable) / sizeof(translationTable[0]);
 
 
-    // Laedt die zuletzt gespeicherte Spracheinstellung aus den Preferences
-    // (wird einmalig in setup() aufgerufen). Es muss nichts mehr aufgebaut
-    // werden - translate() liest direkt aus der flash-residenten Tabelle.
+    // Laedt die zuletzt gespeicherte Spracheinstellung aus den Preferences (einmalig in setup()) -
+    // translate() liest direkt aus der flash-residenten Tabelle.
 
-    // English: loads the last saved language setting from Preferences
-    // (called once in setup()). Nothing needs to be built anymore -
-    // translate() reads directly from the flash-resident table.
+    // Loads the last saved language setting from Preferences (once in setup()) - translate() reads directly
+    // from the flash-resident table.
 
     void loadLanguage() {
         currentLanguage = preferences.getString(PK_LANGUAGE, "en");

@@ -239,8 +239,8 @@ public:
             _bus_instance.config(cfg);
         }
 
-        // GC9A01: INVON und BGR wie in der bisherigen Init-Sequenz
-        // GC9A01: INVON and BGR as in the previous init sequence
+        // GC9A01: Invertierung an (INVON), BGR-Farbreihenfolge
+        // GC9A01: inversion on (INVON), BGR color order
 
         configPanel(_panel_gc9a01, 240, true, false);
 

@@ -7,13 +7,13 @@
     // Variables (tft, webserver, preferences, ...) are only in globals.h.
 
 
-    // Displaytyp und Hintergrundbeleuchtung sind Einstellungen (PK_DISPLAY_TYPE, useBacklight), kein #define
-    // mehr - eine Firmware fuer GC9A01 (240x240) und GC9D01 (160x160). Masse je Typ in DISPLAY_GEOMETRY,
+    // Displaytyp und Hintergrundbeleuchtung sind Einstellungen (PK_DISPLAY_TYPE, useBacklight) - eine
+    // Firmware fuer GC9A01 (240x240) und GC9D01 (160x160). Masse je Typ in DISPLAY_GEOMETRY,
     // DISPLAY_TYPE_DEFAULT ist nur die Werkseinstellung.
 
-    // Display type and backlight are settings (PK_DISPLAY_TYPE, useBacklight), no #define anymore - one
-    // firmware for GC9A01 (240x240) and GC9D01 (160x160). Dimensions per type in DISPLAY_GEOMETRY,
-    // DISPLAY_TYPE_DEFAULT is only the factory default.
+    // Display type and backlight are settings (PK_DISPLAY_TYPE, useBacklight) - one firmware for GC9A01
+    // (240x240) and GC9D01 (160x160). Dimensions per type in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT is only
+    // the factory default.
 
 #define DISPLAY_TYPE_GC9A01 0
 #define DISPLAY_TYPE_GC9D01 1
@@ -127,11 +127,10 @@
 #define DCF77_INTERRUPT 0
 #define DCF77_DATAPIN 35
 
-    // Hintergrundbeleuchtung - ob Pin 3 per PWM geregelt wird, entscheidet
-    // die Einstellung useBacklight (globals.h), nicht mehr das Build.
+    // Hintergrundbeleuchtung - ob Pin 3 per PWM geregelt wird, entscheidet die Einstellung useBacklight
+    // (globals.h).
 
-    // Backlight - whether pin 3 is PWM-controlled is decided by the
-    // useBacklight setting (globals.h), no longer by the build.
+    // Backlight - whether pin 3 is PWM-controlled is decided by the useBacklight setting (globals.h).
 
 #define TFT_Backlight 3  // Hintergrundbeleuchtung
                          // Backlight
@@ -248,13 +247,11 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
               displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9D01]),
               "DISPLAY_GEOMETRY: hand pivot/width/clock size inconsistent");
 
-    // Bisherige Konstanten-Namen bleiben erhalten, zeigen aber auf den zur
-    // Laufzeit gewaehlten Typ (displayGeom, globals.h) - daher NICHT in
+    // Diese Namen zeigen auf den zur Laufzeit gewaehlten Typ (displayGeom, globals.h) - daher NICHT in
     // Array-Groessen, static_assert oder #if verwenden.
 
-    // The former constant names stay, but point to the type selected at
-    // runtime (displayGeom, globals.h) - so do NOT use them in array sizes,
-    // static_assert or #if.
+    // These names point to the type selected at runtime (displayGeom, globals.h) - so do NOT use them in
+    // array sizes, static_assert or #if.
 
 #define CLOCK_WIDTH         (displayGeom->clock)
 #define CLOCK_HEIGHT        (displayGeom->clock)
@@ -514,11 +511,10 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
 #define ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS 30.0f
 
     // Diagnose: R2RNet-Multicast mithoeren und jedes Paket unveraendert loggen (startR2rnetDebugListener()) -
-    // nur zur Analyse, die Discovery wurde entfernt. 224.0.1.20:8051 ist laut wiki.rocrail.net die
-    // R2RNet-Adresse.
+    // nur zur Analyse. 224.0.1.20:8051 ist laut wiki.rocrail.net die R2RNet-Adresse.
 
     // Diagnostic: listen on the R2RNet multicast and log every packet unchanged (startR2rnetDebugListener())
-    // - analysis only, discovery was removed. 224.0.1.20:8051 is the R2RNet address per wiki.rocrail.net.
+    // - analysis only. 224.0.1.20:8051 is the R2RNet address per wiki.rocrail.net.
 
 #define R2RNET_DEBUG_MULTICAST_IP "224.0.1.20"
 #define R2RNET_DEBUG_MULTICAST_PORT 8051

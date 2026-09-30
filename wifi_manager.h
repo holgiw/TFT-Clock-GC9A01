@@ -411,13 +411,8 @@
         WiFi.disconnect();
 
 
-        // WPS versuchen, wenn möglich. Die Slot-Suche (leer/zuletzt benutzt)
-        // uebernimmt jetzt saveWpsCredentials() nach einem WPS-Erfolg -
-        // hier vorab keine mehr noetig.
-
-        // Try WPS if possible. Slot lookup (empty/last used) is now handled
-        // by saveWpsCredentials() after a WPS success - no longer needed
-        // here beforehand.
+        // WPS versuchen, wenn moeglich. Den Slot waehlt saveWpsCredentials() nach einem WPS-Erfolg.
+        // Try WPS if possible. The slot is chosen by saveWpsCredentials() after a WPS success.
 
         DRAW_ON_BOTH_DISPLAYS(
             tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
@@ -605,13 +600,11 @@
 
         collectStrongestNetworks(networkCount);
 
-        // Vom Treiber fuer die Scan-Ergebnisse belegten Speicher freigeben -
-        // fehlte hier bisher, obwohl checkWiFiScan()/scanAndCacheNetworks()
-        // das nach demselben collectStrongestNetworks()-Aufruf konsequent tun.
+        // Vom Treiber fuer die Scan-Ergebnisse belegten Speicher freigeben (wie in
+        // checkWiFiScan()/scanAndCacheNetworks()).
 
-        // Free the memory the driver allocated for the scan results - this
-        // was missing here even though checkWiFiScan()/scanAndCacheNetworks()
-        // consistently do it right after the same collectStrongestNetworks() call.
+        // Free the memory the driver allocated for the scan results (as in
+        // checkWiFiScan()/scanAndCacheNetworks()).
 
         WiFi.scanDelete();
 

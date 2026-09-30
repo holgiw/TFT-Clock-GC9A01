@@ -47,9 +47,6 @@
     constexpr const char* PK_HANDSET           = "handset";
     constexpr const char* PK_BACKGROUND        = "background";
 
-    // PK_USE_CS2 entfernt: Display 2 (CS2-Pin) wird ueber die Rotation "n.a." (TFT_ROTATION_NA) abgeschaltet, kein eigener Preferences-Schalter (siehe config.h/globals.h/uhr4.ino).
-    // PK_USE_CS2 removed: Display 2 (CS2 pin) is switched off via the rotation value "n.a." (TFT_ROTATION_NA), no separate preferences toggle (see config.h/globals.h/uhr4.ino).
-
     constexpr const char* PK_STATION_MODE      = "stationMode"; // "wartet auf 12" (siehe globals.h) - "waits at 12" (see globals.h)
     constexpr const char* PK_SMOOTH_SECOND     = "smoothSecond"; // Darstellungsstil des Sekundenzeigers (siehe globals.h)
                                                                  // second hand rendering style (see globals.h)

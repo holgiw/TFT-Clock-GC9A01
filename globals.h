@@ -267,12 +267,6 @@
 #define DCF77_EDGE_BUFFER_SIZE 64
     volatile unsigned long dcf77EdgeMillis[DCF77_EDGE_BUFFER_SIZE];
 
-    // dcf77EdgeLevel[] entfernt: Pegel wurde nie ausgewertet (Klassifizierung
-    // laeuft ueber die Flankendauer), digitalRead() lag aber im Flash - Absturzrisiko in der ISR.
-
-    // dcf77EdgeLevel[] removed: level was never evaluated (classification
-    // works via edge duration), but digitalRead() lived in flash - crash risk in the ISR.
-
     volatile uint8_t dcf77EdgeHead = 0; // naechster freier Schreibindex - NUR von der ISR veraendert
                                         // next free write index - ONLY changed by the ISR
     volatile uint32_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer - uint32_t, da uint8_t nach 256 ueberlaufen wuerde (Diagnose).
