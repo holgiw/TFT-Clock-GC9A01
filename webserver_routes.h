@@ -3233,7 +3233,10 @@
             chunk.reserve(1024);
             chunk += generateFlashMessage();
 
-            chunk += "<h2>" + translate("All Files on LittleFS") + "</h2><table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
+            chunk += "<h2>" + translate("All Files on LittleFS") + "</h2>";
+            chunk += "<p>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes()) + "</p>"; // wie bei Zifferblaettern/Zeigern
+                                                                                                        // as for faces/hands
+            chunk += "<table border = '1'><tr><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
 
             webserver.sendContent(chunk);
             chunk = "";
