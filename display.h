@@ -3113,10 +3113,10 @@
         snprintf(hourMin, sizeof(hourMin), "%d:%02d", hour, t.tm_min);
         snprintf(seconds, sizeof(seconds), "%02d", t.tm_sec);
 
-        // Sekunden: automatisch nur ohne Sekundenzeiger; der Doppelpunkt blinkt nur ohne Sekunden
-        // Seconds: automatically only without the second hand; the colon only blinks without seconds
+        // Der Doppelpunkt blinkt nur ohne Sekunden
+        // The colon only blinks without seconds
 
-        bool withSeconds = stripSeconds == 2 || (stripSeconds == 0 && !showSecondHand);
+        bool withSeconds = stripShowsSeconds();
         colon = !(stripBlink && !withSeconds && t.tm_sec % 2);
         String dateFull, dateA, dateB;
         if (timeinfo.tm_year >= 100) stripDateText(timeinfo, dateFull, dateA, dateB); // Jahr 0 = noch keine Zeitquelle
@@ -3134,6 +3134,16 @@
             lines[count++] = withSeconds ? String(hourMin) + ":" + seconds : String(hourMin);
             lines[count++] = dateFull;
         }
+    }
+
+    // Zeigt der Streifen Sekunden? Automatisch nur ohne Sekundenzeiger. Die Vorschauen laden ihn danach jede
+    // Sekunde oder nur beim Minutenwechsel neu.
+
+    // Does the strip show seconds? Automatically only without the second hand. The previews reload it every
+    // second or only on a minute change accordingly.
+
+    bool stripShowsSeconds() {
+        return stripSeconds == 2 || (stripSeconds == 0 && !showSecondHand);
     }
 
     uint16_t stripColor565(uint32_t rgb) {

@@ -825,15 +825,15 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   var pv = $('pv'), pctx = pv.getContext('2d'), S = HD.cw;
 
   // Mit Streifen-Grafik (ILI9341) haengt der Streifen wie auf dem Display ohne Abstand unter bzw. ueber der Uhr;
-  // die Uhr zeichnet ihn (/api/stripimg, RGB565 big-endian), alle 15 s neu fuer die Uhrzeit.
+  // die Uhr zeichnet ihn (/api/stripimg, RGB565 big-endian) - ohne Live-Uhrzeit mit der Zeit der Zeiger.
 
   // With a strip graphic (ILI9341) the strip hangs below or above the clock without a gap, like on the display;
-  // the clock draws it (/api/stripimg, RGB565 big-endian), again every 15 s for the time.
+  // the clock draws it (/api/stripimg, RGB565 big-endian) - without live time at the time of the hands.
 
   var SP = HD.strip, SH = SP ? SP.h : 0, OY = (SP && SP.before) ? SH : 0, stripImg = null;
   pv.width = S; pv.height = S + SH;
   function loadStripImg() {
-    fetch('/api/stripimg', { cache: 'no-store' }).then(function (r) {
+    return fetch('/api/stripimg' + ($('live').checked ? '' : '?h=10&m=8&s=37'), { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.arrayBuffer();
     }).then(function (ab) {
@@ -851,7 +851,20 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
       schedulePreview();
     }).catch(function () {});
   }
-  if (SP) { loadStripImg(); setInterval(function () { if ($('live').checked && !document.hidden) loadStripImg(); }, 15000); }
+
+  // Neu laden, sobald sich die angezeigte Uhrzeit aendert (ohne Sekunden einmal pro Minute), hoechstens einmal
+  // pro Sekunde - jeder Abruf haelt die Uhr kurz an.
+
+  // Reload as soon as the displayed time changes (without seconds once a minute), at most once per second - each
+  // fetch briefly stalls the clock.
+
+  var stripKey = null, stripBusy = false, stripLastAt = 0;
+  function syncStrip() {
+    var d = new Date(), key = $('live').checked ? (SP.sec ? d.getMinutes() * 60 + d.getSeconds() : d.getMinutes()) : 'fix';
+    if (key === stripKey || stripBusy || performance.now() - stripLastAt < 900) return;
+    stripKey = key; stripBusy = true; stripLastAt = performance.now();
+    setTimeout(function () { loadStripImg().then(function () { stripBusy = false; }); }, 200);
+  }
   var faceCanvas = null, previewTimer = null;
   ['bgFace', 'bgDark', 'bgLight'].forEach(function (k) {
     var o = document.createElement('option'); o.value = k; o.textContent = t(k); $('bgSel').appendChild(o);
@@ -950,6 +963,7 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   // Live-Uhrzeit fluessig pro Bildschirmbild, pausiert bei verstecktem Tab
   // Live time smoothly per display frame, paused while the tab is hidden
   (function animate() {
+    if (SP && !document.hidden) syncStrip();
     if ($('live').checked && !document.hidden) renderPreview();
     requestAnimationFrame(animate);
   })();

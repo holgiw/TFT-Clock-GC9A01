@@ -180,6 +180,7 @@
     void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix, const struct tm* fixedTime = nullptr) ;
     uint16_t stripColor565(uint32_t rgb) ;
     bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime = nullptr) ;
+    bool stripShowsSeconds() ;
     bool renderPresetStripPreview(const String& presetUrl, const String& faceFile, bool& before) ;
     void drawStripThumb(LGFX_Sprite& canvas, int y0, int w, int h) ;
     bool generateFaceStripBmp(const String& faceFile, int outW, uint8_t** outBytes, size_t& outSize) ;

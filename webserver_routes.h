@@ -3963,11 +3963,34 @@
 
             bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
                                      (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
-            const struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
+            struct tm t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
+
+            // Millisekunden dazu, sonst setzt jeder Abgleich die Vorschau um bis zu 1 s daneben. Ohne Rocrail frisch
+            // aus der Systemzeit, solange sie gueltig ist (sonst rechnet die Uhr selbst aus timeinfo weiter).
+
+            // Plus milliseconds, otherwise every sync puts the preview up to 1 s off. Without Rocrail fresh from the
+            // system time as long as it is valid (otherwise the clock itself keeps extrapolating from timeinfo).
+
+            int ms = 0;
+            if (rocrailTimeReady) {
+                ms = constrain((int)((rocrailSecFrac - t.tm_sec) * 1000.0f), 0, 999);
+            }
+            else {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                time_t sec = tv.tv_sec;
+                struct tm fresh;
+                localtime_r(&sec, &fresh);
+                if (fresh.tm_year >= 100) {
+                    t = fresh;
+                    ms = tv.tv_usec / 1000;
+                }
+            }
 
             String json = "{\"hour\":" + String(t.tm_hour) +
                           ",\"minute\":" + String(t.tm_min) +
                           ",\"second\":" + String(t.tm_sec) +
+                          ",\"ms\":" + String(ms) +
                           ",\"rocrail\":" + String(rocrailTimeReady ? "true" : "false") +
                           ",\"divider\":" + String(rocrailTimeReady ? rocrailDivider : 1) +
                           ",\"frozen\":" + String((rocrailTimeReady && rocrailFrozen) ? "true" : "false") +
@@ -4480,13 +4503,22 @@
             chunk += "  var secondEl = document.getElementById('liveSecondHandFull');";
             chunk += "  var hubEl = document.getElementById('liveHubFull');";
 
-            // Streifenbild alle 15 s neu holen (RGB565 big-endian) - oefter wuerde die Uhr unnoetig ausbremsen
-            // Fetch the strip image every 15 s (RGB565 big-endian) - more often would slow the clock down needlessly
+            // Streifenbild (RGB565 big-endian) neu holen, sobald sich die angezeigte Uhrzeit aendert - ohne Sekunden
+            // einmal pro Minute. Jeder Abruf haelt die Uhr kurz an (ca. 130 ms), daher hoechstens einmal pro Sekunde.
+
+            // Fetch the strip image (RGB565 big-endian) again as soon as the displayed time changes - without seconds
+            // once a minute. Each fetch briefly stalls the clock (about 130 ms), hence at most once per second.
 
             chunk += "  var stripCv = document.getElementById('liveStrip');";
+            chunk += "  var stripSec = " + String(stripShowsSeconds() ? "true" : "false") + ", stripKey = null, stripBusy = false, stripLastAt = 0;";
+            chunk += "  function syncStrip(m, s) {";
+            chunk += "    var key = stripSec ? m * 60 + s : m;";
+            chunk += "    if (!stripCv || key === stripKey || stripBusy || performance.now() - stripLastAt < 900) return;";
+            chunk += "    stripKey = key; stripBusy = true; stripLastAt = performance.now();";
+            chunk += "    setTimeout(function() { loadStrip().then(function() { stripBusy = false; }); }, 200);";
+            chunk += "  }";
             chunk += "  function loadStrip() {";
-            chunk += "    if (!stripCv) return;";
-            chunk += "    fetch('/api/stripimg', {cache:'no-store'}).then(function(r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(function(ab) {";
+            chunk += "    return fetch('/api/stripimg', {cache:'no-store'}).then(function(r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(function(ab) {";
             chunk += "      var b = new Uint8Array(ab), w = stripCv.width, h = stripCv.height;";
             chunk += "      if (b.length < w * h * 2) return;";
             chunk += "      var ctx = stripCv.getContext('2d'), id = ctx.createImageData(w, h);";
@@ -4497,7 +4529,6 @@
             chunk += "      ctx.putImageData(id, 0, 0);";
             chunk += "    }).catch(function() {});";
             chunk += "  }";
-            chunk += "  if (stripCv) { loadStrip(); setInterval(loadStrip, 15000); }";
             chunk += "  var hintEl = document.getElementById('rocrailPreviewHint');";
             chunk += "  var stationMode = " + String(stationModeActive ? "true" : "false") + ";";
             chunk += "  var smoothMinute = " + String(smoothMinuteActive ? "true" : "false") + ";";
@@ -4505,7 +4536,8 @@
             chunk += "  var fastSecondMs = " + String((int)FAST_SECOND) + ";";
             chunk += "  var rocrailHideDetailsDivider = " + String(ROCRAIL_HIDE_DETAILS_DIVIDER) + ";";
             chunk += "  var rocrailHintTpl = '" + translate("Showing Rocrail model time ({divider}&times; speed)") + "';";
-            chunk += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false;";
+            chunk += "  var baseH = 0, baseM = 0, baseS = 0, baseAt = 0, haveBase = false, pendingBase = null;";
+            chunk += "  function setBase(b) { baseH = b.h; baseM = b.m; baseS = b.s; baseAt = b.at; haveBase = true; }";
             chunk += "  var rocrailDivider = 1, rocrailFrozen = false;";
 
             // Beim Laden eingebetteter Fingerabdruck (siehe
@@ -4548,7 +4580,19 @@
             // otherwise the preview lagged behind the display by the network and server time.
 
             chunk += "      var roundTrip = performance.now() - fetchStart;";
-            chunk += "      baseH = t.hour; baseM = t.minute; baseS = t.second; baseAt = fetchStart + roundTrip / 2; haveBase = true;";
+            chunk += "      var nb = { h: t.hour, m: t.minute, s: t.second + (t.ms || 0) / 1000, at: fetchStart + roundTrip / 2 };";
+            chunk += "      var div = t.rocrail ? t.divider : 1, frz = t.rocrail && t.frozen;";
+
+            // Erste Zeit und Rocrail-Wechsel sofort, sonst erst in der naechsten Sekunde 59 (tick()) - im
+            // Bahnhofsmodus wartet der Sekundenzeiger dann auf der 12, die Korrektur bleibt unsichtbar. Langsame
+            // Antworten (Uhr gerade beschaeftigt) verwerfen: ihre Mitte trifft den Antwortzeitpunkt nicht.
+
+            // First time and Rocrail changes right away, otherwise only in the next second 59 (tick()) - in station
+            // mode the second hand then waits at 12, the correction stays invisible. Discard slow answers (clock
+            // busy): their midpoint doesn't match the moment of the answer.
+
+            chunk += "      if (!haveBase || div !== rocrailDivider || frz !== rocrailFrozen) { pendingBase = null; setBase(nb); }";
+            chunk += "      else if (roundTrip < 150) pendingBase = nb;";
 
             // rocrailDivider/-Frozen: siehe /api/currentTime - dieselbe
             // rocrailTimeReady-Bedingung wie in renderClockFrame() (display.h).
@@ -4558,8 +4602,8 @@
             // rocrailTimeReady condition as in renderClockFrame() (display.h).
             // Without an active Rocrail time, divider stays 1, frozen stays false.
 
-            chunk += "      rocrailDivider = t.rocrail ? t.divider : 1;";
-            chunk += "      rocrailFrozen = t.rocrail && t.frozen;";
+            chunk += "      rocrailDivider = div;";
+            chunk += "      rocrailFrozen = frz;";
             chunk += "      if (hintEl) { hintEl.hidden = !t.rocrail; if (t.rocrail) hintEl.innerHTML = rocrailHintTpl.replace('{divider}', rocrailDivider); }";
             chunk += "    }).catch(function() {});";
             chunk += "  }";
@@ -4576,6 +4620,7 @@
             chunk += "  if (!document.hidden) startPoll();";
             chunk += "  function tick() {";
             chunk += "    var h, m, s, ms;";
+            chunk += "    if (pendingBase && (baseS + (performance.now() - baseAt) / 1000 * rocrailDivider) % 60 >= 59) { setBase(pendingBase); pendingBase = null; }";
             chunk += "    if (haveBase) {";
 
             // Bei angehaltener Rocrail-Modellzeit (frozen) bleiben die Zeiger
@@ -4645,6 +4690,7 @@
             chunk += "    } else {";
             chunk += "      secDeg = smoothSecond ? (s + ms / 1000) * 6 : s * 6;";
             chunk += "    }";
+            chunk += "    syncStrip(m, s);";
             chunk += "    hourEl.style.transform = 'rotate(' + hourDeg + 'deg)';";
             chunk += "    minuteEl.style.transform = 'rotate(' + minuteDeg + 'deg)';";
 
@@ -7529,7 +7575,8 @@
 
             String stripPath = stripPathForFace(selectedBackground);
             if (TFT_HEIGHT > CLOCK_HEIGHT && stripPath.length() && LittleFS.exists(stripPath)) {
-                modeJs += ",strip:{w:" + String(TFT_WIDTH) + ",h:" + String(TFT_HEIGHT - CLOCK_HEIGHT) + ",before:" + String(stripBefore ? "true" : "false") + "}";
+                modeJs += ",strip:{w:" + String(TFT_WIDTH) + ",h:" + String(TFT_HEIGHT - CLOCK_HEIGHT) + ",before:" + String(stripBefore ? "true" : "false") +
+                          ",sec:" + String(stripShowsSeconds() ? "true" : "false") + "}";
             }
 
             chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) +
@@ -7872,13 +7919,22 @@
 
         // Vorschau des Streifens: hochkant, ungedimmt, RGB565 big-endian (w x h aus FD.strip) - so wie die Uhr ihn
         // zeichnet. text=1: nur die Schrift auf TRANSPARENT_COLOR (fuer die Zeichenflaeche des Designers).
+        // h/m/s: feste Uhrzeit wie die Zeiger der Designer-Vorschau ohne Live-Uhrzeit.
 
         // Strip preview: portrait, undimmed, RGB565 big-endian (w x h from FD.strip) - exactly as the clock draws
-        // it. text=1: only the text on TRANSPARENT_COLOR (for the designer's drawing area).
+        // it. text=1: only the text on TRANSPARENT_COLOR (for the designer's drawing area). h/m/s: fixed time like
+        // the hands of the designer preview without live time.
 
         webserver.on("/api/stripimg", HTTP_GET, []() {
             int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
-            if (!renderStripPreview(w, h, webserver.arg("text") == "1")) {
+            struct tm fixed = timeinfo;
+            bool useFixed = webserver.hasArg("h");
+            if (useFixed) {
+                fixed.tm_hour = constrain(webserver.arg("h").toInt(), 0, 23);
+                fixed.tm_min = constrain(webserver.arg("m").toInt(), 0, 59);
+                fixed.tm_sec = constrain(webserver.arg("s").toInt(), 0, 59);
+            }
+            if (!renderStripPreview(w, h, webserver.arg("text") == "1", useFixed ? &fixed : nullptr)) {
                 webserver.send(404, "text/plain", "no strip");
                 return;
             }

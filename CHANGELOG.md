@@ -51,6 +51,12 @@ Neueste Einträge oben.
   Mittelpunkt aus aufgezogen (Abstand = Radius bzw. Halbachsen), Mitte und Radius stehen beim Ziehen unter dem Bild.
 
 ### Behoben
+- Vorschau: Der Sekundenzeiger sprang beim Zeitabgleich mit der Uhr (alle 15 s) – die Uhr lieferte nur ganze
+  Sekunden. Jetzt mit Millisekunden; die Korrektur wird erst in Sekunde 59 übernommen (im Bahnhofsmodus wartet der
+  Zeiger dann auf der 12) und langsame Antworten werden verworfen.
+- Vorschau, Zifferblatt- und Zeiger-Designer (ILI9341): Die Digitalzeit im Streifen hinkte bis zu 15 s hinter
+  den Zeigern her. Der Streifen wird jetzt geladen, sobald sich die angezeigte Zeit ändert (ohne Sekunden einmal pro
+  Minute); ohne „Live-Uhrzeit“ zeigt er dieselbe feste Zeit wie die Zeiger.
 - Vorschau-Seite: Der Streifen lag im Zifferblatt statt darunter bzw. darüber – ein `</div>` fehlte, die Verschachtelung
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
@@ -222,6 +228,12 @@ Newest entries on top.
   centre (distance = radius or semi-axes), centre and radius are shown below the image while dragging.
 
 ### Fixed
+- Preview: the second hand jumped when syncing the time with the clock (every 15 s) – the clock only delivered
+  whole seconds. Now with milliseconds; the correction is only applied in second 59 (in station mode the hand then
+  waits at 12) and slow answers are discarded.
+- Preview, clock face and hand designer (ILI9341): the digital time in the strip lagged up to 15 s behind the
+  hands. The strip is now loaded as soon as the displayed time changes (without seconds once a minute); without
+  "Live time" it shows the same fixed time as the hands.
 - Preview page: the strip lay inside the clock face instead of below or above it – a `</div>` was missing, the
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 

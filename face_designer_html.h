@@ -1142,8 +1142,8 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   var stripImg = null;
   function loadStripImg() {
     var sp = FD.strip;
-    if (!sp) return;
-    fetch('/api/stripimg?text=1', { cache: 'no-store' }).then(function (r) {
+    if (!sp) return Promise.resolve();
+    return fetch('/api/stripimg?text=1' + ($('live').checked ? '' : '&h=10&m=8&s=37'), { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.arrayBuffer();
     }).then(function (ab) {
@@ -1158,6 +1158,21 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
       stripImg = c;
       schedulePreview();
     }).catch(function () {});
+  }
+
+  // Neu laden, sobald sich die angezeigte Uhrzeit aendert (ohne Sekunden einmal pro Minute; ohne Live-Uhrzeit
+  // die Zeit der Zeiger), hoechstens einmal pro Sekunde - jeder Abruf haelt die Uhr kurz an.
+
+  // Reload as soon as the displayed time changes (without seconds once a minute; without live time the time of
+  // the hands), at most once per second - each fetch briefly stalls the clock.
+
+  var stripKey = null, stripBusy = false, stripLastAt = 0;
+  function syncStrip() {
+    var d = new Date(), sec = +$('sSec').value, withSec = sec === 2 || (sec === 0 && !FD.showSec);
+    var key = $('live').checked ? (withSec ? d.getMinutes() * 60 + d.getSeconds() : d.getMinutes()) : 'fix';
+    if (key === stripKey || stripBusy || performance.now() - stripLastAt < 900) return;
+    stripKey = key; stripBusy = true; stripLastAt = performance.now();
+    setTimeout(function () { loadStripImg().then(function () { stripBusy = false; }); }, 200);
   }
   var hands = {}, previewTimer = null;
   $('live').onchange = schedulePreview;
@@ -1254,6 +1269,7 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
   // Live-Uhrzeit fluessig pro Bildschirmbild, pausiert bei verstecktem Tab
   // Live time smoothly per display frame, paused while the tab is hidden
   (function animate() {
+    if (FD.strip && !document.hidden) syncStrip();
     if ($('live').checked && $('showHands').checked && !document.hidden) renderPreview();
     requestAnimationFrame(animate);
   })();
@@ -1434,9 +1450,6 @@ static const char FACE_DESIGNER_HTML[] PROGMEM = R"FDRAW(
     $('tSBlink').textContent = t('sBlink');
     $('sDefBtn').textContent = t('sDef'); $('sSaveBtn').textContent = t('sSave');
     stripFill();
-    loadStripImg();
-    setInterval(loadStripImg, 15000); // Uhrzeit im Streifen der Vorschau aktuell halten
-                                      // keep the time in the preview's strip current
   }
 
   // Start
