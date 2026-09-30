@@ -1,0 +1,108 @@
+
+<div class="hd" id="hdRoot">
+  <div class="card" style="margin-bottom:14px">
+    <div class="row" style="justify-content:flex-start;align-items:center">
+      <span id="baseInfo"></span>
+      <button type="button" class="tb" id="resetBtn"></button>
+      <span style="flex:1"></span>
+      <button type="button" id="saveCurBtn"></button>
+      <label><span id="tName"></span><input type="text" id="faceName" maxlength="20" spellcheck="false" style="width:130px"></label>
+      <label><input type="checkbox" id="activate" checked><span id="tActivate"></span></label>
+      <button type="button" id="saveBtn"></button>
+    </div>
+    <small id="spaceHint"></small>
+    <div id="msg"></div>
+  </div>
+
+  <div class="row main">
+    <div class="card stick" style="max-width:250px">
+      <h3 id="tTools"></h3>
+      <div id="toolBtns"></div>
+      <small id="toolHint"></small>
+      <span id="tBw"></span> <input type="number" class="num2" id="bw" min="1" max="15" value="1"><br>
+      <span id="tSym"></span> <select id="symSel"></select>
+      <div id="textOpts" style="display:none">
+        <input type="text" id="txtVal" value="12" style="width:200px"><br>
+        <span id="tTxtSize"></span> <input type="number" class="num2" id="txtSize" min="4" max="120">
+        <select id="txtFont"><option value="sans-serif">Sans</option><option value="serif">Serif</option><option value="monospace">Mono</option></select>
+        <label><input type="checkbox" id="txtBold" checked>B</label><br>
+        <span id="tTxtMode"></span> <select id="txtMode"></select>
+        <span id="rotRow"><br><span id="tTxtRot"></span> <input type="number" class="num2" id="txtRot" min="-360" max="360" value="0"> &deg;</span>
+      </div>
+      <h3 id="tColor"></h3>
+      <input type="color" id="color" value="#000000" style="padding:0;height:32px;width:48px;vertical-align:middle">
+      <input type="text" id="colorHex" class="hex" maxlength="7" spellcheck="false" style="vertical-align:middle">
+      <button type="button" class="tb" id="pickBtn" style="vertical-align:middle"></button>
+      <small id="tStd"></small>
+      <div id="swatches"></div>
+      <small id="tPal"></small>
+      <div id="palette" class="pal"></div>
+      <h3 id="tEdit"></h3>
+      <button type="button" class="tb" id="undoBtn"></button>
+      <button type="button" class="tb" id="redoBtn"></button>
+      <button type="button" class="tb" id="clearBtn"></button>
+      <h3 id="tImport"></h3>
+      <select id="fitSel"></select>
+      <input type="file" id="imgFile" accept="image/*,.bmp" style="max-width:220px">
+      <h3 id="tLogo"></h3>
+      <input type="file" id="logoFile" accept="image/*,.bmp" style="max-width:220px"><br>
+      <span id="tLogoW"></span> <input type="number" class="num2" id="logoW" min="2"> px
+      <small id="logoHint"></small>
+      <h3 id="tFonts"></h3>
+      <input type="text" id="fontName" spellcheck="false" style="width:140px"><button type="button" class="tb" id="fontAddBtn"></button>
+      <small id="fontFileHint"></small>
+      <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2" style="max-width:220px">
+    </div>
+
+    <div class="card edcard">
+      <div style="text-align:center">
+        <button type="button" class="tb" id="zoomOut">&minus;</button>
+        <span id="zoomInfo" style="display:inline-block;min-width:70px"></span>
+        <button type="button" class="tb" id="zoomIn">+</button>
+      </div>
+      <div class="edwrap"><canvas id="ed"></canvas></div>
+      <small id="posInfo" style="text-align:center"></small>
+    </div>
+
+    <div class="card stick" style="max-width:340px">
+      <h3 id="tGen"></h3>
+      <div class="grid2">
+        <span id="tBg"></span><span><input type="color" class="clr" id="gBg"></span>
+        <span id="tRing"></span><span><input type="number" class="num2" id="gRing" min="0"><input type="color" class="clr" id="gRingC"></span>
+        <span id="tHourM"></span><span><input type="number" class="num2" id="gHLen" min="0"><input type="number" class="num2" id="gHW" min="0"><input type="color" class="clr" id="gHC"></span>
+        <span id="tMinM"></span><span><input type="number" class="num2" id="gMLen" min="0"><input type="number" class="num2" id="gMW" min="0"><input type="color" class="clr" id="gMC"></span>
+        <span id="tNum"></span><span><select id="gNum"></select></span>
+        <span id="tNSize"></span><span><input type="number" class="num2" id="gNSize" min="4"><input type="color" class="clr" id="gNC"></span>
+        <span id="tNDist"></span><span><input type="number" class="num2" id="gNDist" min="0"></span>
+        <span id="tNFont"></span><span><select id="gNFont"><option value="sans-serif">Sans</option><option value="serif">Serif</option><option value="monospace">Mono</option></select><label><input type="checkbox" id="gNBold" checked>B</label></span>
+      </div>
+      <small id="genHint"></small>
+      <button type="button" id="genBtn"></button>
+      <h3 id="tPreview"></h3>
+      <canvas id="pv"></canvas>
+      <label><input type="checkbox" id="live" checked><span id="tLive"></span></label>
+      <label><input type="checkbox" id="showHands" checked><span id="tShowHands"></span></label>
+      <small id="modeInfo"></small>
+      <div id="stripCard" style="display:none">
+        <h3 id="tStrip"></h3>
+        <div class="grid2">
+          <span id="tSPos"></span><span><select id="sBefore"></select></span>
+          <span id="tSBg"></span><span><input type="color" class="clr" id="sBg"></span>
+          <span id="tSFg"></span><span><input type="color" class="clr" id="sFg"></span>
+          <span id="tSFont"></span><span><select id="sFont"></select></span>
+          <span class="vlwRow" id="tSVSize"></span><span class="vlwRow"><input type="number" class="num2" id="sVT" min="8" max="120"> / <input type="number" class="num2" id="sVD" min="8" max="120"> px <label><input type="checkbox" id="sVB">B</label></span>
+          <span id="tSTFmt"></span><span><select id="sTFmt"></select></span>
+          <span id="tSSec"></span><span><select id="sSec"></select></span>
+          <span id="tSDFmt"></span><span><select id="sDFmt"></select></span>
+          <span></span><span><label><input type="checkbox" id="sBlink"><span id="tSBlink"></span></label></span>
+          <span id="tSTime" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sTAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sTX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sTY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
+          <span id="tSDate" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sDAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sDX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sDY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
+        </div>
+        <small id="stripHint"></small>
+        <button type="button" class="tb" id="sDefBtn"></button>
+        <button type="button" id="sSaveBtn"></button>
+      </div>
+    </div>
+  </div>
+</div>
+

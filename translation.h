@@ -139,7 +139,8 @@
         { "Clock faces", "Zifferbl&auml;tter" },
         { "Strip graphics", "Streifen-Grafiken" },
         { "Hand sets", "Zeiger" },
-        { "Fonts", "Schriften" },
+        { "Fonts", "Schriftarten" },
+        { "View", "Anzeigen" },
         { "Log files", "Logdateien" },
         { "Other files", "Sonstige Dateien" },
         { "rename", "Umbenennen" },
@@ -395,7 +396,6 @@
         { "Reset WLan...", "WLAN zur&uuml;cksetzen..." },
         { "Saved as", "Gespeichert als" },
         { "Scaling successful", "Skalierung erfolgreich" },
-        { "View", "Anzeigen" },
         { "Warning: Not enough free space to upload new clock faces! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zifferbl&auml;tter! Bitte zuerst Speicherplatz freigeben" },
         { "Use the host name", "Benutze den Hostnamen" },
 

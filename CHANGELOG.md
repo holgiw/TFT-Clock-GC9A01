@@ -61,6 +61,14 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Zifferblatt- und Zeiger-Designer werden komprimiert ausgeliefert: CSS und Skript liegen gzip-komprimiert in der
+  Firmware (der Browser entpackt, die Uhr rechnet nichts), das spart rund 90 KB Flash – frei sind jetzt etwa
+  140 KB statt 49 KB. Die Designer laden schneller und bleiben im Browser zwischengespeichert. Quellen in `web/`,
+  `python web/build_web.py` erzeugt daraus die Header.
+- Dateimanager: feste Breite (schmale Fenster scrollen nur die Liste), alle Spalten linksbündig und in allen
+  Abschnitten gleich breit; die Änderungszeit mit Sekunden. Bei Dateien ohne Bild bleibt die Spalte Info leer statt
+  „n/a“. Der Abschnitt heißt „Schriftarten“; Ansehen nur noch bei Bildern
+  (BMP) und Textdateien (Logs).
 - Meldungen überall einheitlich im dunklen Design: Erfolg grün mit ✅, Hinweis orange mit ⚠, Fehler rot mit ❌ –
   auch in den Designern, beim Rocrail-Test, bei den Warnhinweisen (eigenes WLAN, Helligkeit von Rocrail) und auf der
   Sicherungsseite. Fehler nach einer Aktion (z. B. falscher Code, Import fehlgeschlagen, keine Dateien ausgewählt)
@@ -253,6 +261,14 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Clock face and hand designer are served compressed: CSS and script are stored gzip-compressed in the firmware
+  (the browser unpacks, the clock computes nothing), which saves about 90 KB of flash – about 140 KB are free now
+  instead of 49 KB. The designers load faster and stay cached in the browser. Sources in `web/`,
+  `python web/build_web.py` generates the headers from them.
+- File manager: fixed width (narrow windows scroll only the list), all columns left-aligned and equally wide in
+  all sections; the modification time with seconds. For files that are not images the Info column stays empty
+  instead of "n/a". The section is named "Schriftarten" (fonts) in German; view only for images (BMP) and
+  text files (logs).
 - Messages uniform everywhere in the dark design: success green with ✅, note orange with ⚠, error red with ❌ –
   also in the designers, the Rocrail test, the warnings (own WiFi, brightness from Rocrail) and on the backup page.
   Errors after an action (e.g. wrong code, import failed, no files selected) now appear red instead of green and

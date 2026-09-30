@@ -3324,7 +3324,16 @@
             chunk += "<h2>" + translate("All Files on LittleFS") + "</h2>";
             chunk += "<p>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes()) + "</p>"; // wie bei Zifferblaettern/Zeigern
                                                                                                         // as for faces/hands
-            chunk += "<div style='display:inline-block;text-align:left;'>";
+
+            // Feste Breite, alle Spalten linksbuendig; die Tabellen aller Abschnitte teilen dasselbe Raster (Auswahl
+            // schmal, die uebrigen fuenf gleich breit). Schmale Fenster scrollen nur die Liste, nicht die Seite.
+
+            // Fixed width, all columns left-aligned; the tables of all sections share the same grid (selection narrow,
+            // the other five equally wide). Narrow windows scroll only the list, not the page.
+
+            chunk += "<style>.fm{width:960px;max-width:100%;overflow-x:auto;margin:0 auto;text-align:left;}";
+            chunk += ".fm table{table-layout:fixed;width:960px;}.fm th,.fm td{text-align:left;overflow-wrap:anywhere;vertical-align:top;}</style>";
+            chunk += "<div class='fm'>";
             chunk += "<label><input type='checkbox' id='fselAll'> " + translate("Select all") + "</label>";
             webserver.sendContent(chunk);
             chunk = "";
@@ -3381,7 +3390,8 @@
                 if (!count) continue;
                 chunk += "<details open data-g='" + String(groupKeys[g]) + "' style='margin:12px 0;'>";
                 chunk += "<summary style='cursor:pointer;font-weight:bold;'>" + translate(groupTitles[g]) + " (" + String(count) + ", " + String((bytes + 1023) / 1024) + " KB)</summary>";
-                chunk += "<table border = '1'><tr><th><input type='checkbox' class='fselGroup' title='" + translate("Select all") + "'></th><th style='text-align:left;'>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Modified") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
+                chunk += "<table border = '1'><colgroup><col style='width:36px'><col><col><col><col><col></colgroup>";
+                chunk += "<tr><th><input type='checkbox' class='fselGroup' title='" + translate("Select all") + "'></th><th>" + translate("Filename") + "</th><th>" + translate("Size(bytes)") + "</th><th>" + translate("Modified") + "</th><th>" + translate("Info") + "</th><th>" + translate("Action") + "</th></tr>";
 
                 for (const FileEntry& e : entries) {
                     if (groupOf(e.name) != g) continue;
@@ -3396,8 +3406,8 @@
                     if (e.modified > 1577836800) { // nach dem 1.1.2020 / after 1 Jan 2020
                         struct tm lt;
                         localtime_r(&e.modified, &lt);
-                        char buf[20];
-                        strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M", &lt);
+                        char buf[24];
+                        strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S", &lt);
                         modifiedText = buf;
                     }
 
@@ -3411,13 +3421,13 @@
                         String label = handFormatLabel(openPath);
                         if (label.length()) info += " (" + label + ")";
                     }
-                    chunk += "<tr><td><input type='checkbox' class='fsel' value='" + name + "'></td><td style='text-align:left;'>" + name + "</td><td align=right>" + String(e.size) + "</td>";
-                    chunk += "<td align=right>" + modifiedText + "</td>";
-                    chunk += "<td align=right>" + String(info) + "</td>";
+                    chunk += "<tr><td><input type='checkbox' class='fsel' value='" + name + "'></td><td>" + name + "</td><td>" + String(e.size) + "</td>";
+                    chunk += "<td>" + modifiedText + "</td>";
+                    chunk += "<td>" + String(info) + "</td>";
                     chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
 
-                    // Scale-Option nur für .bmp-Dateien anzeigen
-                    // Show the scale option only for .bmp files
+                    // Skalieren und Umbenennen nur fuer .bmp-Dateien
+                    // Scale and rename only for .bmp files
 
                     if (name.endsWith(".bmp")) {
                         chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
@@ -3428,9 +3438,17 @@
                         chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#9999;&#65039;</span> ";
                     }
 
+                    // Ansehen nur, wo der Browser etwas anzeigen kann: Bilder (/file liefert RLE als normales BMP) und Text
+                    // View only where the browser can show something: images (/file serves RLE as a standard BMP) and text
+
+                    if (name.endsWith(".bmp") || name.endsWith(".log") || name.endsWith(".txt")) {
+                        chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;&#65039;</a> ";
+                    }
+                    else {
+                        chunk += "<span style='opacity:0.25;' title='" + translate("Not applicable to this file type") + "'>&#128065;&#65039;</span> ";
+                    }
+
                     chunk += "<a href='/download?file=" + name + "' title='" + translate("Download") + "'>&#11015;&#65039;</a> ";
-                    chunk += "<a href='/file?name=" + name + "' title='" + translate("View") + "'>&#128065;&#65039;</a> "; // "View"-Link für Logdateien
-                                                                                                                           // "View" link for log files
 
                     chunk += "</td></tr>";
 
@@ -3448,12 +3466,11 @@
                 }
                 chunk += "</table></details>";
             }
-            chunk += "</div><br><br>";
 
             // Mehrfachauswahl: Texte als data-Attribute, damit der Browser die HTML-Entities der Uebersetzung aufloest
             // Multi-selection: texts as data attributes, so the browser resolves the translation's HTML entities
 
-            chunk += "<button type='button' id='fselDel' data-none='" + translate("No files selected") + "' data-ask='" + translate("Delete the selected files?") + "'>" + translate("Delete selected") + "</button><br><br>";
+            chunk += "<button type='button' id='fselDel' data-none='" + translate("No files selected") + "' data-ask='" + translate("Delete the selected files?") + "'>" + translate("Delete selected") + "</button></div><br><br>";
             chunk += "<script>(function(){";
             chunk += "var all=document.getElementById('fselAll'),btn=document.getElementById('fselDel');";
             chunk += "all.onchange=function(){document.querySelectorAll('.fsel,.fselGroup').forEach(function(c){c.checked=all.checked;});};";
@@ -7535,11 +7552,38 @@
             }
             });
 
-        // Zeiger-Designer: gemeinsamer Seitenkopf + Editor aus dem Flash
-        // (HAND_DESIGNER_HTML in hand_designer_html.h).
+        // CSS und Skript der Designer gzip-komprimiert aus dem Flash (erzeugt von web/build_web.py) - der Browser
+        // entpackt. ?v= in der Adresse wechselt mit dem Inhalt, daher darf er sie dauerhaft zwischenspeichern.
 
-        // Hand designer: shared page header + editor from flash
-        // (HAND_DESIGNER_HTML in hand_designer_html.h).
+        // The designers' CSS and script gzip-compressed from flash (generated by web/build_web.py) - the browser
+        // unpacks. ?v= in the address changes with the content, so it may cache them permanently.
+
+        struct GzAsset {
+            const char* path;
+            const char* type;
+            const uint8_t* data;
+            size_t len;
+        };
+        static const GzAsset gzAssets[] = {
+            { "/facedesigner.css", "text/css; charset=utf-8", FACE_DESIGNER_CSS_GZ, sizeof(FACE_DESIGNER_CSS_GZ) },
+            { "/facedesigner.js", "application/javascript; charset=utf-8", FACE_DESIGNER_JS_GZ, sizeof(FACE_DESIGNER_JS_GZ) },
+            { "/handdesigner.css", "text/css; charset=utf-8", HAND_DESIGNER_CSS_GZ, sizeof(HAND_DESIGNER_CSS_GZ) },
+            { "/handdesigner.js", "application/javascript; charset=utf-8", HAND_DESIGNER_JS_GZ, sizeof(HAND_DESIGNER_JS_GZ) },
+        };
+        for (const GzAsset& asset : gzAssets) {
+            const GzAsset* a = &asset;
+            webserver.on(a->path, HTTP_GET, [a]() {
+                webserver.sendHeader("Cache-Control", "public, max-age=31536000, immutable");
+                webserver.sendHeader("Content-Encoding", "gzip");
+                webserver.send_P(200, a->type, (const char*)a->data, a->len);
+                });
+        }
+
+        // Zeiger-Designer: gemeinsamer Seitenkopf + Markup aus dem Flash (HAND_DESIGNER_HTML in hand_designer_html.h),
+        // das CSS und Skript von /handdesigner.css und .js nachlaedt.
+
+        // Hand designer: shared page header + markup from flash (HAND_DESIGNER_HTML in hand_designer_html.h), which
+        // loads CSS and script from /handdesigner.css and .js.
 
         webserver.on("/handdesigner", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -7718,11 +7762,11 @@
             if (fill > 0) webserver.sendContent((const char*)chunkPx, fill * sizeof(uint16_t));
             });
 
-        // Zifferblatt-Designer: gemeinsamer Seitenkopf + Editor aus dem Flash
-        // (FACE_DESIGNER_HTML in face_designer_html.h).
+        // Zifferblatt-Designer: gemeinsamer Seitenkopf + Markup aus dem Flash (FACE_DESIGNER_HTML in
+        // face_designer_html.h), das CSS und Skript von /facedesigner.css und .js nachlaedt.
 
-        // Clock face designer: shared page header + editor from flash
-        // (FACE_DESIGNER_HTML in face_designer_html.h).
+        // Clock face designer: shared page header + markup from flash (FACE_DESIGNER_HTML in face_designer_html.h),
+        // which loads CSS and script from /facedesigner.css and .js.
 
         webserver.on("/facedesigner", HTTP_GET, []() {
             webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);

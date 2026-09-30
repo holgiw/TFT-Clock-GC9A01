@@ -68,10 +68,10 @@
                                // dial, hands, brightness
 #include "presets_manager.h"   // Presets laden/speichern/wechseln
                                // load/save/switch presets
-#include "hand_designer_html.h" // Zeiger-Designer-Seite (HTML/JS im Flash)
-                                // hand designer page (HTML/JS in flash)
-#include "face_designer_html.h" // Zifferblatt-Designer-Seite (HTML/JS im Flash)
-                                // clock face designer page (HTML/JS in flash)
+#include "hand_designer_html.h" // Zeiger-Designer-Seite (erzeugt aus web/, CSS/JS gzip)
+                                // hand designer page (generated from web/, CSS/JS gzip)
+#include "face_designer_html.h" // Zifferblatt-Designer-Seite (erzeugt aus web/, CSS/JS gzip)
+                                // clock face designer page (generated from web/, CSS/JS gzip)
 #include "backup.h"            // Komplettsicherung/-wiederherstellung (TAR)
                                // full backup/restore (TAR)
 #include "webserver_routes.h"  // Webinterface (alle HTTP-Routen)

@@ -1,0 +1,78 @@
+
+<div class="hd" id="hdRoot">
+  <div class="card" style="margin-bottom:14px">
+    <div class="row" style="justify-content:flex-start;align-items:center">
+      <span id="baseInfo"></span>
+      <button type="button" class="tb" id="resetBtn"></button>
+      <span style="flex:1"></span>
+      <button type="button" id="saveCurBtn"></button>
+      <label><input type="checkbox" id="activate" checked><span id="tActivate"></span></label>
+      <button type="button" id="saveBtn"></button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="row">
+    <div class="card stick" style="max-width:250px">
+      <h3 id="tPart"></h3>
+      <div id="partBtns"></div>
+      <h3 id="tTools"></h3>
+      <div id="toolBtns"></div>
+      <small id="toolHint"></small>
+      <label><input type="checkbox" id="sym" checked><span id="tSym"></span></label>
+      <h3 id="tColor"></h3>
+      <input type="color" id="color" value="#000000" style="padding:0;height:32px;width:48px;vertical-align:middle">
+      <input type="text" id="colorHex" class="hex" maxlength="7" spellcheck="false" style="vertical-align:middle">
+      <button type="button" class="tb" id="pickBtn" style="vertical-align:middle"></button>
+      <small id="colorHint"></small>
+      <small id="tStd"></small>
+      <div id="swatches"></div>
+      <small id="tPal"></small>
+      <div id="palette" class="pal"></div>
+      <h3 id="tEdit"></h3>
+      <button type="button" class="tb" id="undoBtn"></button>
+      <button type="button" class="tb" id="redoBtn"></button>
+      <button type="button" class="tb" id="clearBtn"></button>
+      <button type="button" class="tb" id="blurAllBtn"></button><br>
+      <span id="tShift"></span>
+      <button type="button" class="tb" data-shift="0,-1">&#8593;</button>
+      <button type="button" class="tb" data-shift="0,1">&#8595;</button>
+      <button type="button" class="tb" data-shift="-1,0">&#8592;</button>
+      <button type="button" class="tb" data-shift="1,0">&#8594;</button><br>
+      <span id="tCopy"></span>
+      <select id="copySel"></select>
+      <button type="button" class="tb" id="copyBtn">OK</button>
+    </div>
+
+    <div class="card">
+      <div style="text-align:center">
+        <button type="button" class="tb" id="zoomOut">&minus;</button>
+        <span id="zoomInfo" style="display:inline-block;min-width:70px"></span>
+        <button type="button" class="tb" id="zoomIn">+</button>
+      </div>
+      <canvas id="ed"></canvas>
+      <small id="posInfo" style="text-align:center"></small>
+      <small id="widthHint" style="text-align:center;max-width:220px;margin:4px auto"></small>
+    </div>
+
+    <div class="card stick" style="max-width:300px">
+      <h3 id="tGen"></h3>
+      <div class="grid2">
+        <span id="tLen"></span><input type="number" class="num" id="gLen" min="1">
+        <span id="tTipW"></span><input type="number" class="num" id="gTipW" min="0">
+        <span id="tBaseW"></span><input type="number" class="num" id="gBaseW" min="1">
+        <span id="tTail"></span><input type="number" class="num" id="gTail" min="0">
+        <span id="tTailW"></span><input type="number" class="num" id="gTailW" min="0">
+        <span id="tDisc"></span><input type="number" class="num" id="gDisc" min="0">
+        <span id="tDiscPos"></span><input type="number" class="num" id="gDiscPos" min="0">
+      </div>
+      <button type="button" id="genBtn"></button>
+      <h3 id="tPreview"></h3>
+      <canvas id="pv"></canvas>
+      <label><input type="checkbox" id="live" checked><span id="tLive"></span></label>
+      <small id="modeInfo"></small>
+      <select id="bgSel"></select>
+    </div>
+  </div>
+</div>
+

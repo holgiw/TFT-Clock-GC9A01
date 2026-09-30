@@ -46,8 +46,9 @@ clear responsibility:
 | `presets_manager.h` | Preset storage/retrieval logic |
 | `backup.h` | Full backup/restore (TAR), WiFi encryption |
 | `webserver_routes.h` | All HTTP routes and generated HTML |
-| `face_designer_html.h` | Clock face designer (browser page, HTML/JS) |
-| `hand_designer_html.h` | Hand designer (browser page, HTML/JS) |
+| `face_designer_html.h` | Clock face designer (browser page) - **generated**, see below |
+| `hand_designer_html.h` | Hand designer (browser page) - **generated**, see below |
+| `web/` | Sources of both designers (`*.css`, `*.html`, `*.js`) and the generator `build_web.py` |
 | `rocrail_client.h` | Rocrail model time connection |
 | `system_utils.h` | Heap monitoring, misc helpers |
 | `prefs_keys.h` | `Preferences` (NVS) key name constants |
@@ -56,6 +57,20 @@ clear responsibility:
 **Any new function needs a matching forward declaration in
 `declarations.h`** - the project relies on this instead of reordering
 `#include`s.
+
+### Designer pages (`web/`)
+
+The clock face and hand designers are edited in `web/face_designer.*` and `web/hand_designer.*`, never in the
+generated headers. After a change, run from the project folder:
+
+```bash
+python web/build_web.py
+```
+
+It writes `face_designer_html.h` and `hand_designer_html.h`: the markup stays text, CSS and script are stored
+gzip-compressed without comment lines (served at `/facedesigner.css|.js` and `/handdesigner.css|.js`, unpacked by
+the browser). This saves ~90 KB of flash. Commit the regenerated headers together with the `web/` sources - building
+the firmware itself needs no extra step.
 
 ## Code Style
 

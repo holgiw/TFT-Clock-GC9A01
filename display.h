@@ -4009,8 +4009,8 @@
     }
 
 
-    // Liest die BMP-/RLEB-Header-Informationen und gibt sie als String zurück
-    // Reads the BMP/RLEB header info and returns it as a string
+    // Liest die BMP-/RLEB-Header-Informationen und gibt sie als String zurück - leer, wenn die Datei kein Bild ist
+    // Reads the BMP/RLEB header info and returns it as a string - empty if the file is not an image
 
     String getBmpInfo(const String& filename) {
 
@@ -4022,19 +4022,19 @@
 
         File bmp = LittleFS.open(file, "r");
         if (!bmp) {
-            return "n/a";
+            return "";
         }
         uint8_t magic[4];
         if (bmp.read(magic, 4) != 4) {
             bmp.close();
-            return "n/a";
+            return "";
         }
 
         if (isRleFace(magic)) {
             uint8_t rest[16];
             bool ok = bmp.read(rest, 16) == 16;
             bmp.close();
-            if (!ok) return "n/a";
+            if (!ok) return "";
             int32_t width = *(int32_t*)&rest[0];
             int32_t height = *(int32_t*)&rest[4];
             uint32_t compressedSize = *(uint32_t*)&rest[8];
@@ -4047,7 +4047,7 @@
         uint8_t header[54];
         if (bmp.read(header, 54) != 54 || header[0] != 'B' || header[1] != 'M') {
             bmp.close();
-            return "n/a";
+            return "";
         }
 
         int32_t width = *(int32_t*)&header[18];

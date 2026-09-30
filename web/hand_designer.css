@@ -1,0 +1,21 @@
+.hd{max-width:1150px;margin:0 auto;text-align:left}
+.hd .row{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:flex-start}
+.hd .card{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;padding:10px 12px}
+.hd h3{margin:4px 0 8px;font-size:1rem}
+.hd button,.hd select,.hd input{width:auto;margin:3px;padding:6px 10px}
+.hd .tb{background:var(--panel);border:1px solid var(--panel-border);color:var(--text);font-weight:normal}
+.hd .tb.on{background:var(--accent);border-color:var(--accent);color:#1a1200;font-weight:bold}
+.hd button:disabled{opacity:.4;cursor:default}
+.hd canvas{touch-action:none;border:1px solid var(--panel-border);display:block;margin:0 auto}
+.hd .sw{width:22px;height:22px;border-radius:4px;border:1px solid var(--panel-border);display:inline-block;cursor:pointer;margin:2px;vertical-align:middle}
+.hd .pal{display:grid;grid-template-columns:repeat(16,1fr);gap:1px;max-width:224px;margin:2px 0 4px}
+.hd .pal span{aspect-ratio:1;cursor:pointer;border-radius:2px}
+.hd .sw.on,.hd .pal span.on{outline:2px solid var(--accent);outline-offset:1px}
+.hd .sw.transp{background:repeating-conic-gradient(#2b3138 0% 25%,#1f252b 0% 50%) 50%/8px 8px}
+.hd .hex{width:86px;font-family:monospace}
+.hd.stickon .stick{position:sticky;top:var(--hdTop,70px);max-height:calc(100vh - var(--hdTop,70px) - 8px);overflow-y:auto}
+.hd .num{width:72px;padding:6px 4px 6px 8px}
+.hd label{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0}
+.hd .grid2{display:grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center}
+.hd .msg{margin:8px 0;max-width:none}
+.hd small{display:block;margin:4px 0}
