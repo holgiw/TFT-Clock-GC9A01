@@ -1002,8 +1002,8 @@
                             // language selector: small
         html += "<label for='lang'>Language/Sprache:</label>";
         html += "<select name='lang' onchange='this.form.submit()'>";
-        html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">Englisch / English</option>";
-        html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">Deutsch / German</option>";
+        html += "<option value='en'" + String(currentLanguage == "en" ? " selected" : "") + ">English / Englisch</option>";
+        html += "<option value='de'" + String(currentLanguage == "de" ? " selected" : "") + ">German / Deutsch</option>";
         html += "</select>";
         html += "<noscript><button type='submit'>Save / Speichern</button></noscript>";
         html += "</form><hr>";
@@ -2674,7 +2674,7 @@
             if (wasLoggingEnabled && !loggingEnabled) {
                 deleteAllLogFiles();
 
-                // Gepufferte Log-Zeilen verwerfen - ein spaeterer Flush schriebe sie sonst in die gerade
+                // Gepufferte Log-Zeilen verwerfen - ein spaeteres Leeren schriebe sie sonst in die gerade
                 // geloeschte Datei.
 
                 // Discard buffered log lines - a later flush would otherwise write them into the file just

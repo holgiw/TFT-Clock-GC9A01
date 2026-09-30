@@ -40,9 +40,9 @@
     SemaphoreHandle_t logBufferMutex = nullptr; // erzeugt in setup() via xSemaphoreCreateMutex()
                                                 // created in setup() via xSemaphoreCreateMutex()
     unsigned long lastLogFlushMillis = 0;
-#define LOG_FLUSH_INTERVAL_MS 3000 // spaetestens nach dieser Zeit spuelen, auch bei nur einer Zeile
+#define LOG_FLUSH_INTERVAL_MS 3000 // spaetestens nach dieser Zeit leeren, auch bei nur einer Zeile
                                   // flush at the latest after this long, even for just one line
-#define LOG_FLUSH_MAX_BUFFER_BYTES 1024 // frueher spuelen, wenn der Puffer waechst, statt RAM zu verschwenden
+#define LOG_FLUSH_MAX_BUFFER_BYTES 1024 // frueher leeren, wenn der Puffer waechst, statt RAM zu verschwenden
                                         // flush earlier if the buffer grows, instead of wasting RAM
 
     bool initial = true;

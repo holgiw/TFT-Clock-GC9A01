@@ -61,6 +61,8 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Sprachauswahl: Einträge wie die Beschriftung „Language/Sprache“ erst Englisch, dann Deutsch („German / Deutsch“,
+  „English / Englisch“).
 - Sicherung wiederherstellen: Vor dem Hochladen liest die Seite den Displaytyp aus der Sicherung (settings.txt)
   und aus dem Dateinamen. Stammt sie von einem anderen Displaytyp, erscheint eine Warnung mit „Trotzdem
   wiederherstellen?“ – bei anderer Uhrgröße mit dem Hinweis, dass die Uhr sie ablehnt. Die Erfolgsmeldung nennt den
@@ -245,6 +247,8 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Language selection: entries in the same order as the label "Language/Sprache", English first ("German /
+  Deutsch", "English / Englisch").
 - Restore backup: before uploading, the page reads the display type from the backup (settings.txt) and from the
   file name. If it comes from another display type, a warning with "Restore anyway?" appears – with a different
   clock size including the note that the clock will reject it. The success message names the differing type too.

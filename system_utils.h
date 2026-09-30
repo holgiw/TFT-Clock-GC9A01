@@ -569,7 +569,7 @@
 
 
     // Aus loop() bei jedem Tick aufgerufen (no-op, solange nichts zu tun
-    // ist): spuelt den Log-Puffer, sobald er seit dem letzten Flush
+    // ist): leert den Log-Puffer, sobald er seit dem letzten Leeren
     // LOG_FLUSH_INTERVAL_MS alt ist oder LOG_FLUSH_MAX_BUFFER_BYTES erreicht.
 
     // Called from loop() on every tick (no-op as long as there's nothing to
