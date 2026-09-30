@@ -61,6 +61,9 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Einstellungen, Tab Zifferblatt: „Sekundenzeiger anzeigen“ steht jetzt oben. Ist er nicht angehakt, sind
+  Bahnhofsmodus und sanfter Sekundenzeiger ausgeschaltet und ausgegraut; wieder angehakt kehrt ihr vorheriger Zustand
+  zurück.
 - Lizenzhinweise: neue Datei THIRD_PARTY_LICENSES.md mit Copyright-Hinweisen und Lizenztexten der
   enthaltenen Bibliotheken und Schriften, Abschnitt „Lizenz“ in README und build_uhr4/readme.txt. Das Release-Zip
   enthält jetzt auch LICENSE und THIRD_PARTY_LICENSES.md.
@@ -238,6 +241,8 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Settings, clock face tab: "Show seconds" is now at the top. When it is unchecked, station mode and smooth second
+  hand are switched off and greyed out; checked again, their previous state returns.
 - License notices: new file THIRD_PARTY_LICENSES.md with copyright notices and license texts of the included
   libraries and fonts, section "License" in README and build_uhr4/readme.txt. The release zip now also contains
   LICENSE and THIRD_PARTY_LICENSES.md.

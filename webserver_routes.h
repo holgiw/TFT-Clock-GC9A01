@@ -2652,6 +2652,14 @@
             smoothMinute = webserver.hasArg("smoothMinute");
             smoothSecond = webserver.hasArg("smoothSecond");
 
+            // Ohne Sekundenzeiger haben Bahnhofsmodus und sanfter Sekundenzeiger keine Bedeutung - aus, wie im Formular
+            // Without a second hand, station mode and smooth second hand have no meaning - off, as in the form
+
+            if (!showSecondHand) {
+                stationMode = false;
+                smoothSecond = false;
+            }
+
 
             // Logging-Einstellung speichern - beim Ausschalten alle Logdateien loeschen und den Zaehler
             // zuruecksetzen (deleteAllLogFiles()).
@@ -6109,12 +6117,17 @@
             chunk += "<form action='/applydisplaysettings' method='POST'>";
             chunk += "<div class='card'>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='stationMode' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='showSecondHand' id='cbShowSec' value='1' ";
+            chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
+            chunk += " style='width:auto;margin:0;'>" + translate("Show Seconds");
+            chunk += " <span title='" + translate("Shows or hides the second hand on the clock face") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='stationMode' id='cbStation' value='1' ";
             chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Train Station Mode");
             chunk += " <span title='" + translate("The second hand completes its lap in about 58.5 seconds and then waits at 60 until the minute changes, like a classic train station clock") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothSecond' value='1' ";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothSecond' id='cbSmoothSec' value='1' ";
 
             // Fallback bewusst PK_STATION_MODE (siehe smoothSecond in uhr4.ino) - Uhren ohne gespeichertes
             // smoothSecond behalten ihr Aussehen.
@@ -6126,11 +6139,6 @@
             chunk += " style='width:auto;margin:0;'>" + translate("Smooth Second Hand");
             chunk += " <span title='" + translate("The second hand moves smoothly instead of jumping in 1-second steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='showSecondHand' value='1' ";
-            chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Show Seconds");
-            chunk += " <span title='" + translate("Shows or hides the second hand on the clock face") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothMinute' value='1' ";
 
             // Default false - sonst zeigte die Checkbox nach einem Werksreset faelschlich "aktiviert".
@@ -6139,6 +6147,16 @@
             chunk += preferences.getBool(PK_SMOOTH_MINUTE, false) ? "checked" : "";
             chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
             chunk += " <span title='" + translate("The minute hand moves smoothly instead of jumping in 1-minute steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+
+            // Ohne Sekundenzeiger sind Bahnhofsmodus und sanfter Sekundenzeiger aus und ausgegraut (abgeschaltete
+            // Felder werden nicht gesendet); wieder angehakt kommt ihr vorheriger Zustand zurueck.
+
+            // Without a second hand, station mode and smooth second hand are off and greyed out (disabled fields
+            // are not sent); checked again, their previous state returns.
+
+            chunk += "<script>(function(){var show=document.getElementById('cbShowSec'),deps=['cbStation','cbSmoothSec'].map(function(i){return document.getElementById(i);});";
+            chunk += "function upd(){deps.forEach(function(c){if(!show.checked){if(!c.disabled)c.dataset.was=c.checked?'1':'0';c.checked=false;}else if(c.disabled){c.checked=c.dataset.was==='1';}";
+            chunk += "c.disabled=!show.checked;c.parentNode.style.opacity=show.checked?'':'0.45';});}show.addEventListener('change',upd);upd();})();</script>";
 
             chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='wifiActive' value='1' ";
             chunk += wifiActive ? "checked" : "";
