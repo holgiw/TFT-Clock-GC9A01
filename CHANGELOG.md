@@ -55,6 +55,9 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Lizenzhinweise: neue Datei THIRD_PARTY_LICENSES.md mit Copyright-Hinweisen und Lizenztexten der
+  enthaltenen Bibliotheken und Schriften, Abschnitt „Lizenz“ in README und build_uhr4/readme.txt. Das Release-Zip
+  enthält jetzt auch LICENSE und THIRD_PARTY_LICENSES.md.
 - Status- und Infoseite: Diagnosezeile „Partial update“ (letztes Rechteck, Sekundenwinkel) entfernt; der Anteil
   der Teil-Updates steht weiter in der Zeile „Render“, `/api/partialUpdate` bleibt zur Diagnose.
 - Zeiger-Designer (ILI9341): Hat das aktive Zifferblatt eine Streifen-Grafik, hängt die Vorschau den Streifen mit
@@ -223,6 +226,9 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- License notices: new file THIRD_PARTY_LICENSES.md with copyright notices and license texts of the included
+  libraries and fonts, section "License" in README and build_uhr4/readme.txt. The release zip now also contains
+  LICENSE and THIRD_PARTY_LICENSES.md.
 - Status and info page: diagnostic line "Partial update" (last rectangle, second angle) removed; the share of
   partial updates is still shown in the "Render" line, `/api/partialUpdate` remains for diagnosis.
 - Hand designer (ILI9341): if the active clock face has a strip graphic, the preview attaches the strip with time

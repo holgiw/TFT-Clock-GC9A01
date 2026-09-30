@@ -108,6 +108,15 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 - Meldet der Server zusätzlich einen Helligkeitswert, übernimmt die Uhr auch die Display-Helligkeit von dort (siehe Abschnitt 4); die Web-Vorschau ("Vorschau") spiegelt Modellzeit und Divider auf dieselbe Weise.
 
 ---
+
+## Lizenz
+
+uhr4 steht unter der GNU General Public License v3.0 (siehe [LICENSE](LICENSE)): Du darfst es nutzen, ändern und
+weitergeben – geänderte Versionen, auch als fertige Firmware, nur zusammen mit ihrem Quellcode und unter derselben
+Lizenz. Die Lizenzen der enthaltenen Bibliotheken und Schriften (LovyanGFX, RTClib, arduino-esp32, DejaVu,
+FreeSans, Orbitron) stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+---
 ---
 
 # English Version
@@ -214,3 +223,12 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 - If updates stop coming in for more than 2 minutes, the clock falls back to the normal NTP/RTC/DCF77 time instead of getting stuck on a stale model time. Model time runs at Rocrail's own acceleration factor (the "divider"); the station-clock second-hand animation scales with it instead of switching off (above a threshold the second hand is hidden entirely).
 - The tab shows a live connection status, the divider and the current model time for diagnostics; each server can also be given a layout name for your own reference.
 - If the server also reports a brightness value, the display takes its brightness from there too (see section 4); the web preview (Preview page) mirrors the model time and divider the same way.
+
+---
+
+## License
+
+uhr4 is licensed under the GNU General Public License v3.0 (see [LICENSE](LICENSE)): you may use, modify and
+share it – modified versions, including ready-made firmware, only together with their source code and under the
+same license. The licenses of the included libraries and fonts (LovyanGFX, RTClib, arduino-esp32, DejaVu,
+FreeSans, Orbitron) are listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
