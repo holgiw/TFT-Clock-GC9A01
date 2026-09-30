@@ -250,7 +250,7 @@ function Read-Wifi {
 }
 
 function Get-RunningClockPort {
-    Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\(COM(\d+)\)' -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002' } |
+    Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\(COM(\d+)\)' -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002|PID_1001' } |
         ForEach-Object { [int]([regex]::Match($_.Name, '\(COM(\d+)\)').Groups[1].Value) } | Select-Object -First 1
 }
 
@@ -403,6 +403,21 @@ elseif ($Send) {
 }
 elseif ($Flash) {
     $interactive = -not $Port
+
+    # Alle Dateien da? Fehlen sie, wurde meist direkt aus dem Zip gestartet oder der Virenscanner hat
+    # esptool.exe entfernt.
+    # All files present? If not, it was usually started directly from the zip or the virus scanner
+    # removed esptool.exe.
+    $missing = @('esptool.exe', 'port.ps1', 'uhr4.ino.bootloader.bin', 'uhr4.ino.partitions.bin', 'uhr4.ino.bin') |
+        Where-Object { -not (Test-Path (Join-Path $PSScriptRoot $_)) }
+    if ($missing) {
+        Write-Host "Fehlende Dateien / missing files: $($missing -join ', ')"
+        Write-Host 'Das Zip zuerst komplett in einen Ordner auspacken und flashESP.bat dort starten. Fehlt nur'
+        Write-Host 'esptool.exe, hat es meist der Virenscanner entfernt (Fehlalarm) - Ausnahme einrichten, neu auspacken.'
+        Write-Host 'First unpack the whole zip into a folder and start flashESP.bat there. If only esptool.exe is'
+        Write-Host 'missing, the virus scanner usually removed it (false alarm) - add an exception, unpack again.'
+        exit 1
+    }
     $portScript = Join-Path $PSScriptRoot 'port.ps1'
 
     # 1) Uhr suchen und COM-Port bestimmen - noch NICHT in den Download-Modus,
@@ -418,7 +433,7 @@ elseif ($Flash) {
     # 2) Questions (display type preselected from the clock, WiFi) - flashing
     #    and setup then run without intervention
     if ($interactive) {
-        $running = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match "\(COM$selPort\)" -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002' }
+        $running = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match "\(COM$selPort\)" -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002|PID_1001' }
         $info = if ($running) { Get-ClockInfo $selPort } else { $null }
         $c = Read-DisplayChoice $info
         Read-Wifi
@@ -439,19 +454,34 @@ elseif ($Flash) {
 
     # 4) Flashen / flash
     Push-Location $PSScriptRoot
-    & .\esptool.exe --chip esp32-S2 --port "COM$comPort" --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode keep --flash_freq keep --flash_size keep 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin
+
+    # Vorbelegen: startet esptool.exe gar nicht (z.B. vom Virenscanner blockiert), bliebe sonst der
+    # Exit-Code von port.ps1 stehen.
+    # Preset: if esptool.exe does not start at all (e.g. blocked by the virus scanner), the exit code
+    # of port.ps1 would remain otherwise.
+    $global:LASTEXITCODE = 1
+    try { & .\esptool.exe --chip esp32-S2 --port "COM$comPort" --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode keep --flash_freq keep --flash_size keep 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin }
+    catch { Write-Host "esptool.exe: $($_.Exception.Message)" }
     $flashOk = ($LASTEXITCODE -eq 0)
     Pop-Location
     if (-not $flashOk) {
         $script:wifiPass = $null
         Write-Host ''
-        Write-Host 'Flashen fehlgeschlagen. Den ESP32-S2 von Hand in den Bootmodus bringen:'
-        Write-Host '  Boot-Taste druecken und halten, erst DANACH den USB anstecken'
-        Write-Host '  ODER bei angestecktem USB: Reset und Boot druecken, Reset loslassen, Boot kurz danach loslassen.'
+        Write-Host 'Flashen fehlgeschlagen - siehe Meldung von esptool oben. Haeufige Ursachen:'
+        Write-Host '  * ESP nicht im Bootmodus: Boot-Taste druecken und halten, erst DANACH den USB anstecken'
+        Write-Host '    ODER bei angestecktem USB: Reset und Boot druecken, Reset loslassen, Boot kurz danach loslassen.'
+        Write-Host '  * "Wrong --chip" / "This chip is ...": kein ESP32-S2 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico).'
+        Write-Host '  * "could not open port" / Zugriff verweigert: Port belegt - seriellen Monitor schliessen.'
+        Write-Host '  * USB-Hub oder Frontanschluss: die Uhr direkt an einen USB-Anschluss am PC stecken.'
+        Write-Host '  * esptool.exe startet nicht: vom Virenscanner blockiert - Ausnahme fuer diesen Ordner einrichten.'
         Write-Host 'Danach flashESP.bat erneut starten.'
-        Write-Host 'Flashing failed. Put the ESP32-S2 into boot mode manually:'
-        Write-Host '  press and hold the Boot button, only THEN plug in USB'
-        Write-Host '  OR with USB connected: press Reset and Boot, release Reset, release Boot shortly after.'
+        Write-Host 'Flashing failed - see the esptool message above. Common causes:'
+        Write-Host '  * ESP not in boot mode: press and hold the Boot button, only THEN plug in USB'
+        Write-Host '    OR with USB connected: press Reset and Boot, release Reset, release Boot shortly after.'
+        Write-Host '  * "Wrong --chip" / "This chip is ...": not an ESP32-S2 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico).'
+        Write-Host '  * "could not open port" / access denied: port in use - close the serial monitor.'
+        Write-Host '  * USB hub or front port: plug the clock directly into a USB port of the PC.'
+        Write-Host '  * esptool.exe does not start: blocked by the virus scanner - add an exception for this folder.'
         Write-Host 'Then run flashESP.bat again.'
         exit 1
     }

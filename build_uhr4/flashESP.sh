@@ -64,13 +64,14 @@ usb_id() {
     [ -n "$vid" ] && echo "${vid,,}:${pid,,}"
 }
 
-# Zustand: download, running oder other
-# State: download, running or other
+# Zustand: download, running, nots2 (303a:1001 = USB-Serial-JTAG von ESP32-S3/C3/C6) oder other
+# State: download, running, nots2 (303a:1001 = USB serial JTAG of ESP32-S3/C3/C6) or other
 port_state() {
     local id
     id=$(usb_id "$1")
     case "$id" in
         303a:0002) echo download ;;
+        303a:1001) echo nots2 ;;
         303a:*)    echo running ;;
         *)         echo other ;;
     esac
@@ -494,6 +495,19 @@ if [ "$1" = "--time" ]; then
     exit $?
 fi
 
+# Alle Dateien da? Sonst wurde das Zip nicht komplett ausgepackt.
+# All files present? Otherwise the zip was not fully unpacked.
+missing=""
+for f in uhr4.ino.bootloader.bin uhr4.ino.partitions.bin uhr4.ino.bin; do
+    [ -f "$f" ] || missing="$missing $f"
+done
+if [ -n "$missing" ]; then
+    echo "Fehlende Dateien / missing files:$missing"
+    echo "Das Zip zuerst komplett in einen Ordner auspacken und flashESP.sh dort starten."
+    echo "First unpack the whole zip into a folder and start flashESP.sh there."
+    exit 1
+fi
+
 PORT="$1"
 DISP="$2"
 
@@ -507,6 +521,7 @@ if [ -z "$PORT" ]; then
         case "$state" in
             download) text="UHR - Download-Modus / download mode"; clocks+=("$dev") ;;
             running)  text="UHR - laeuft / running"; clocks+=("$dev") ;;
+            nots2)    text="ESP32-S3/C3/C6 - kein ESP32-S2 / not an ESP32-S2" ;;
             *)        text="-" ;;
         esac
         echo "  $dev  $text  [$(usb_id "$dev")]"
@@ -549,6 +564,11 @@ if [ ! -e "$PORT" ]; then
 fi
 
 state=$(port_state "$PORT")
+if [ "$state" = nots2 ]; then
+    echo "$PORT ist ein ESP32-S3/C3/C6 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico)."
+    echo "$PORT is an ESP32-S3/C3/C6 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico)."
+    exit 1
+fi
 if [ "$state" = other ]; then
     echo "Hinweis: an $PORT wurde keine Uhr erkannt - es wird trotzdem versucht."
     echo "Note: no clock detected on $PORT - trying anyway."
@@ -617,13 +637,19 @@ fi
 if ! "$ESPTOOL" --chip esp32s2 -p "$PORT" -b 460800 "$WRITE" \
     0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin; then
     echo
-    echo "Flashen fehlgeschlagen. Den ESP32-S2 von Hand in den Bootmodus bringen:"
-    echo "  Boot-Taste druecken und halten, erst DANACH den USB anstecken"
-    echo "  ODER bei angestecktem USB: Reset und Boot druecken, Reset loslassen, Boot kurz danach loslassen."
+    echo "Flashen fehlgeschlagen - siehe Meldung von esptool oben. Haeufige Ursachen:"
+    echo "  * ESP nicht im Bootmodus: Boot-Taste druecken und halten, erst DANACH den USB anstecken"
+    echo "    ODER bei angestecktem USB: Reset und Boot druecken, Reset loslassen, Boot kurz danach loslassen."
+    echo "  * 'Wrong --chip' / 'This chip is ...': kein ESP32-S2 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico)."
+    echo "  * 'could not open port' / Permission denied: Port belegt oder keine Rechte (Gruppe dialout)."
+    echo "  * USB-Hub oder Frontanschluss: die Uhr direkt an einen USB-Anschluss am PC stecken."
     echo "Danach flashESP.sh erneut starten."
-    echo "Flashing failed. Put the ESP32-S2 into boot mode manually:"
-    echo "  press and hold the Boot button, only THEN plug in USB"
-    echo "  OR with USB connected: press Reset and Boot, release Reset, release Boot shortly after."
+    echo "Flashing failed - see the esptool message above. Common causes:"
+    echo "  * ESP not in boot mode: press and hold the Boot button, only THEN plug in USB"
+    echo "    OR with USB connected: press Reset and Boot, release Reset, release Boot shortly after."
+    echo "  * 'Wrong --chip' / 'This chip is ...': not an ESP32-S2 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico)."
+    echo "  * 'could not open port' / permission denied: port in use or no rights (group dialout)."
+    echo "  * USB hub or front port: plug the clock directly into a USB port of the PC."
     echo "Then run flashESP.sh again."
     exit 1
 fi

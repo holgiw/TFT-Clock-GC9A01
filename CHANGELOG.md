@@ -15,6 +15,11 @@ Neueste Einträge oben.
 - `flashESP.bat`/`flashESP.sh`: Wird keine Uhr erkannt, nennen sie jetzt auch den Fall eines neuen ESP32-S2
   ohne Programm (oder mit fremdem Programm) - der meldet sich erst im Bootmodus (Boot halten, USB einstecken)
   und wird dann automatisch als Download-Modus erkannt. `readme.txt` entsprechend ergänzt.
+- Flashen robuster: `flashESP.bat`/`setTime.bat`/`flashESP.sh` prüfen, ob alle Dateien da sind (Start direkt aus
+  dem Zip, esptool.exe vom Virenscanner entfernt) und melden das klar. Ein ESP32-S3/C3/C6 (USB-Kennung 303A:1001)
+  wird als „kein ESP32-S2“ erkannt. Schlägt das Flashen fehl, nennt die Meldung jetzt die häufigen Ursachen
+  (Bootmodus, falscher Chip, Port belegt, USB-Hub, Virenscanner) statt nur den Bootmodus. `readme.txt`: Hinweise
+  zu USB-Hub, Virenscanner, Windows 7/8 und macOS.
 
 ## 2026-09-29
 
@@ -114,6 +119,11 @@ Newest entries on top.
 - `flashESP.bat`/`flashESP.sh`: if no clock is detected, they now also mention a new ESP32-S2 without a
   program (or with a foreign program) - it only shows up in boot mode (hold Boot, plug in USB) and is then
   detected automatically as download mode. `readme.txt` extended accordingly.
+- More robust flashing: `flashESP.bat`/`setTime.bat`/`flashESP.sh` check that all files are present (started
+  directly from the zip, esptool.exe removed by the virus scanner) and say so clearly. An ESP32-S3/C3/C6 (USB id
+  303A:1001) is detected as "not an ESP32-S2". If flashing fails, the message now lists the common causes (boot
+  mode, wrong chip, port in use, USB hub, virus scanner) instead of only the boot mode. `readme.txt`: notes on
+  USB hubs, virus scanners, Windows 7/8 and macOS.
 
 ## 2026-09-29
 

@@ -3,12 +3,19 @@
 #######################################################################################
 # Flashen unter Windows (10, 11) getestet
 
+Nur für den ESP32-S2 (Lolin S2 Pico). Windows 7/8 haben keinen passenden USB-Treiber eingebaut und
+werden nicht unterstützt. macOS: flashESP.sh läuft dort nicht - von Hand mit esptool flashen (siehe
+Linux-Abschnitt, Port /dev/cu.usbmodem...).
 
 1. Nach dem Download die .zip Datei in ein Verzeichnis auspacken.
    flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe und die .bin Dateien müssen im
-   selben Verzeichnis liegen.
+   selben Verzeichnis liegen. Nicht direkt aus dem Zip heraus starten.
+   Meldet der Virenscanner esptool.exe, ist das ein bekannter Fehlalarm (gepacktes Python-Programm):
+   für diesen Ordner eine Ausnahme einrichten und das Zip erneut auspacken.
 
 2. Die Uhr (ESP32-S2) per USB am PC anstecken - mit einem Datenkabel, nicht nur einem Ladekabel.
+   Möglichst direkt am PC, nicht über einen USB-Hub oder Frontanschluss: beim Wechsel in den
+   Download-Modus meldet sich der ESP neu an, das klappt dort nicht immer.
 
 3. flashESP.bat per Doppelklick starten.
 	flashESP.bat sucht zuerst die Uhr und fragt dann, welches Display sie hat:
@@ -203,12 +210,19 @@ esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bo
 #######################################################################################
 # Flashing on Windows (10, 11) - tested
 
+Only for the ESP32-S2 (Lolin S2 Pico). Windows 7/8 have no suitable built-in USB driver and are not
+supported. macOS: flashESP.sh does not run there - flash manually with esptool (see the Linux
+section, port /dev/cu.usbmodem...).
 
 1. After downloading, unpack the .zip file into a directory.
    flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe and the .bin files must be
-   in the same directory.
+   in the same directory. Do not start it directly from within the zip.
+   If the virus scanner reports esptool.exe, that is a known false alarm (packed Python program):
+   add an exception for this folder and unpack the zip again.
 
 2. Connect the clock (ESP32-S2) to the PC via USB - with a data cable, not just a charging cable.
+   Preferably directly to the PC, not via a USB hub or front port: when switching into download
+   mode the ESP re-enumerates, which does not always work there.
 
 3. Start flashESP.bat by double-click.
 	flashESP.bat first finds the clock and then asks which display it has:

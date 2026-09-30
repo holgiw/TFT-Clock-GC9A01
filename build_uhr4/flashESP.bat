@@ -15,5 +15,11 @@ rem 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01). Flow in clocksetup.ps1, port search
 rem and switching a running clock into download mode in port.ps1.
 setlocal
 cd /d "%~dp0"
+if not exist "%~dp0clocksetup.ps1" (
+    echo clocksetup.ps1 fehlt - das Zip zuerst komplett in einen Ordner auspacken und dort starten.
+    echo clocksetup.ps1 is missing - first unpack the whole zip into a folder and start it there.
+    pause
+    exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0clocksetup.ps1" -Flash -Port "%~1" -Display "%~2"
 if "%~1"=="" pause

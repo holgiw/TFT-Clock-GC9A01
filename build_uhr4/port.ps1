@@ -26,6 +26,9 @@ function Get-ComPorts {
         $num = [int]([regex]::Match($_.Name, '\(COM(\d+)\)').Groups[1].Value)
         $state = 'other'
         if ($_.DeviceID -match 'VID_303A&PID_0002') { $state = 'download' }
+        # 303A:1001 = eingebautes USB-Serial-JTAG von ESP32-S3/C3/C6 - kein ESP32-S2
+        # 303A:1001 = built-in USB serial JTAG of ESP32-S3/C3/C6 - not an ESP32-S2
+        elseif ($_.DeviceID -match 'VID_303A&PID_1001') { $state = 'nots2' }
         elseif ($_.DeviceID -match 'VID_303A') { $state = 'running' }
         [pscustomobject]@{ Num = $num; State = $state; Name = $_.Name }
     } | Sort-Object Num
@@ -35,6 +38,7 @@ function Get-StateText($state) {
     switch ($state) {
         'download' { 'UHR - Download-Modus / download mode' }
         'running'  { 'UHR - laeuft / running' }
+        'nots2'    { 'ESP32-S3/C3/C6 - kein ESP32-S2 / not an ESP32-S2' }
         default    { '-' }
     }
 }
@@ -48,7 +52,7 @@ if (-not $PortArg) {
     Write-Host ''
     # Genau eine Uhr: ohne Rueckfrage verwenden. Sonst nach der Nummer fragen.
     # Exactly one clock: use it without asking. Otherwise ask for the number.
-    $clocks = @($ports | Where-Object { $_.State -ne 'other' })
+    $clocks = @($ports | Where-Object { $_.State -in 'download', 'running' })
     if ($clocks.Count -eq 1) {
         $PortArg = [string]$clocks[0].Num
         Write-Host "Uhr auf / clock on COM$PortArg"
@@ -84,6 +88,12 @@ $port = $ports | Where-Object { $_.Num -eq $num } | Select-Object -First 1
 
 if (-not $port) {
     Write-Host "COM$num nicht vorhanden / not present."
+    exit 0
+}
+
+if ($port.State -eq 'nots2') {
+    Write-Host "COM$num ist ein ESP32-S3/C3/C6 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico)."
+    Write-Host "COM$num is an ESP32-S3/C3/C6 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico)."
     exit 0
 }
 
