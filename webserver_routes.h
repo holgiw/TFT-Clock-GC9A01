@@ -3623,7 +3623,6 @@
 
             chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
             chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
-            chunk += "<li>Partial update: " + String(partialUpdateEnabled ? "on" : "off") + ", last rect x" + String(lastRenderRect[0]) + " y" + String(lastRenderRect[1]) + " " + String(lastRenderRect[2]) + "x" + String(lastRenderRect[3]) + ", second angle " + String(lastRenderSecondAngle, 1) + "&deg; (/api/partialUpdate?enabled=0|1)</li>";
 
             chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
 
@@ -5437,7 +5436,6 @@
 
             chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
             chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
-            chunk += "<li>Partial update: " + String(partialUpdateEnabled ? "on" : "off") + ", last rect x" + String(lastRenderRect[0]) + " y" + String(lastRenderRect[1]) + " " + String(lastRenderRect[2]) + "x" + String(lastRenderRect[3]) + ", second angle " + String(lastRenderSecondAngle, 1) + "&deg; (/api/partialUpdate?enabled=0|1)</li>";
             chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
             chunk += "<br>";
 

@@ -55,6 +55,8 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Status- und Infoseite: Diagnosezeile „Partial update“ (letztes Rechteck, Sekundenwinkel) entfernt; der Anteil
+  der Teil-Updates steht weiter in der Zeile „Render“, `/api/partialUpdate` bleibt zur Diagnose.
 - Zeiger-Designer (ILI9341): Hat das aktive Zifferblatt eine Streifen-Grafik, hängt die Vorschau den Streifen mit
   Uhrzeit und Datum ohne Abstand unter bzw. über der Uhr an – wie auf dem Display.
 - Zifferblatt-Übersicht (ILI9341): Zifferblätter mit Streifen-Grafik zeigen ihren Streifen nahtlos darunter bzw.
@@ -221,6 +223,8 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Status and info page: diagnostic line "Partial update" (last rectangle, second angle) removed; the share of
+  partial updates is still shown in the "Render" line, `/api/partialUpdate` remains for diagnosis.
 - Hand designer (ILI9341): if the active clock face has a strip graphic, the preview attaches the strip with time
   and date below or above the clock without a gap – like on the display.
 - Clock face overview (ILI9341): clock faces with a strip graphic show their strip seamlessly below or above,

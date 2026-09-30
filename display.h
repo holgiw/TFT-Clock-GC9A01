@@ -2572,7 +2572,6 @@
             backgroundSprite.pushSprite(ox, oy);
         }
         lastRenderPartial = partial;
-        lastRenderSecondAngle = secAngle;
         recordRenderFrame(micros() - renderStartMicros, partial);
 
         lastFrame.valid = true;

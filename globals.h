@@ -716,8 +716,6 @@
     bool lastRenderPartial = false;
     bool partialUpdateEnabled = true; // zur Diagnose abschaltbar: /api/partialUpdate?enabled=0 (nicht gespeichert)
                                       // switchable for diagnosis: /api/partialUpdate?enabled=0 (not stored)
-    float lastRenderSecondAngle = 0.0f; // Winkel des zuletzt gesendeten Sekundenzeigers (Statusseite)
-                                        // angle of the last sent second hand (status page)
     uint32_t compositeBuildCount = 0; // zaehlt Neuaufbauten des Zwischenbilds (buildHandComposite())
                                       // counts composite rebuilds (buildHandComposite())
 
