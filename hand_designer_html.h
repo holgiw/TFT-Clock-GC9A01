@@ -823,7 +823,35 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
   // Vorschau
   // Preview
   var pv = $('pv'), pctx = pv.getContext('2d'), S = HD.cw;
-  pv.width = S; pv.height = S;
+
+  // Mit Streifen-Grafik (ILI9341) haengt der Streifen wie auf dem Display ohne Abstand unter bzw. ueber der Uhr;
+  // die Uhr zeichnet ihn (/api/stripimg, RGB565 big-endian), alle 15 s neu fuer die Uhrzeit.
+
+  // With a strip graphic (ILI9341) the strip hangs below or above the clock without a gap, like on the display;
+  // the clock draws it (/api/stripimg, RGB565 big-endian), again every 15 s for the time.
+
+  var SP = HD.strip, SH = SP ? SP.h : 0, OY = (SP && SP.before) ? SH : 0, stripImg = null;
+  pv.width = S; pv.height = S + SH;
+  function loadStripImg() {
+    fetch('/api/stripimg', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.arrayBuffer();
+    }).then(function (ab) {
+      var b = new Uint8Array(ab);
+      if (b.length < SP.w * SH * 2) return;
+      var c = stripImg || document.createElement('canvas');
+      c.width = SP.w; c.height = SH;
+      var x = c.getContext('2d'), id = x.createImageData(SP.w, SH);
+      for (var i = 0; i < SP.w * SH; i++) {
+        var rgb = rgbOf((b[2 * i] << 8) | b[2 * i + 1]);
+        id.data[i * 4] = rgb[0]; id.data[i * 4 + 1] = rgb[1]; id.data[i * 4 + 2] = rgb[2]; id.data[i * 4 + 3] = 255;
+      }
+      x.putImageData(id, 0, 0);
+      stripImg = c;
+      schedulePreview();
+    }).catch(function () {});
+  }
+  if (SP) { loadStripImg(); setInterval(function () { if ($('live').checked && !document.hidden) loadStripImg(); }, 15000); }
   var faceCanvas = null, previewTimer = null;
   ['bgFace', 'bgDark', 'bgLight'].forEach(function (k) {
     var o = document.createElement('option'); o.value = k; o.textContent = t(k); $('bgSel').appendChild(o);
@@ -879,19 +907,20 @@ static const char HAND_DESIGNER_HTML[] PROGMEM = R"HDRAW(
     var bg = $('bgSel').value;
     pctx.imageSmoothingEnabled = true;
     pctx.fillStyle = bg === 'bgLight' ? '#f2f2f2' : '#111';
-    pctx.fillRect(0, 0, S, S);
-    if (bg === 'bgFace' && faceCanvas) pctx.drawImage(faceCanvas, 0, 0, S, S);
+    pctx.fillRect(0, 0, S, S + SH);
+    if (bg === 'bgFace' && faceCanvas) pctx.drawImage(faceCanvas, 0, OY, S, S);
+    if (bg === 'bgFace' && stripImg) pctx.drawImage(stripImg, 0, OY ? 0 : S, S, SH);
     var ang = handAngles($('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37), HD.mode);
     PARTS.forEach(function (p) {
       pctx.save();
-      pctx.translate(S / 2, S / 2);
+      pctx.translate(S / 2, OY + S / 2);
       pctx.rotate(ang[p] * Math.PI / 180);
       pctx.drawImage(handCanvas(pix[p], p), -((spriteWidth(p) >> 1) + 0.5), -(PY + 0.5));
       pctx.restore();
     });
     if (HD.hub > 0) {
       pctx.fillStyle = HD.hubColor;
-      pctx.beginPath(); pctx.arc(S / 2, S / 2, HD.hub, 0, Math.PI * 2); pctx.fill();
+      pctx.beginPath(); pctx.arc(S / 2, OY + S / 2, HD.hub, 0, Math.PI * 2); pctx.fill();
     }
   }
   // Zeigerwinkel wie renderClockFrame() im Geraet: Bahnhofsuhr (Sekunde eilt

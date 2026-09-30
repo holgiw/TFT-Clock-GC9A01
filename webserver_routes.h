@@ -7526,6 +7526,14 @@
                             ",smoothSec:" + String(getSmoothSecondPref(modeStation) ? "true" : "false") +
                             ",fastMs:" + String((int)FAST_SECOND) + "}";
 
+            // Streifen (ILI9341) nur, wenn das aktive Zifferblatt eine Streifen-Grafik hat - wie in der Uebersicht
+            // Strip (ILI9341) only if the active clock face has a strip graphic - as in the overview
+
+            String stripPath = stripPathForFace(selectedBackground);
+            if (TFT_HEIGHT > CLOCK_HEIGHT && stripPath.length() && LittleFS.exists(stripPath)) {
+                modeJs += ",strip:{w:" + String(TFT_WIDTH) + ",h:" + String(TFT_HEIGHT - CLOCK_HEIGHT) + ",before:" + String(stripBefore ? "true" : "false") + "}";
+            }
+
             chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) +
                      ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
                      ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(preferences.getString(PK_HANDSET, "")) +

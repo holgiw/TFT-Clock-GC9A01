@@ -367,6 +367,7 @@ FodyWeavers.xsd
 # --- uhr4 / Arduino / Visual Micro ---
 # Visual Micro Zustandsdateien und VS-Projektdateien (lokal, nicht versioniert)
 __vm/
+uhr4.sln
 uhr4.vcxproj
 uhr4.vcxproj.filters
 # Build-Nebenprodukte; nur die Flash-Dateien in build_<Display>/ werden eingecheckt
