@@ -1,33 +1,20 @@
 #pragma once
 
-    // Reihenfolge: zuerst Prozessor-/Display-Auswahl (Pins, Display-Masse),
-    // danach die restlichen Werte nach Modul sortiert.
-    // tft/webserver/preferences/dnsServer/udp/rtc/DCF77-Variablen: nur in globals.h.
-    // Board-Auswahl (Prozessor, TFT-Typ)
-    // Board selection (processor, TFT type)
+    // Reihenfolge: zuerst Prozessor/Display (Pins, Displaymasse), danach die restlichen Werte nach Modul
+    // sortiert. Variablen (tft, webserver, preferences, ...) stehen nur in globals.h.
 
-    // Order: processor/display selection (pins, display dimensions) first,
-    // then the rest sorted by module.
-    // tft/webserver/preferences/dnsServer/udp/rtc/DCF77 variables: only in globals.h.
-    // Prozessor
-    // Processor
+    // Order: processor/display first (pins, display dimensions), then the remaining values sorted by module.
+    // Variables (tft, webserver, preferences, ...) are only in globals.h.
 
-#define ESP32_S2  //nur ESP32-S2 unterstuetzt
-                  // only ESP32-S2 supported
 
-    // Displaytyp: KEIN #define mehr - GC9A01 (240x240) oder GC9D01 (160x160)
-    // ist eine Einstellung (PK_DISPLAY_TYPE, Zifferblatt-Tab "Display-Typ", wirkt
-    // nach Neustart). Eine Firmware fuer alle Varianten; die Masse je Typ
-    // stehen in DISPLAY_GEOMETRY weiter unten. DISPLAY_TYPE_DEFAULT legt nur
-    // die Werkseinstellung fest. Hintergrundbeleuchtung: ebenfalls eine
-    // Einstellung (useBacklight, Helligkeits-Tab).
+    // Displaytyp und Hintergrundbeleuchtung sind Einstellungen (PK_DISPLAY_TYPE, useBacklight), kein #define
+    // mehr - eine Firmware fuer GC9A01 (240x240) und GC9D01 (160x160). Masse je Typ in DISPLAY_GEOMETRY,
+    // DISPLAY_TYPE_DEFAULT ist nur die Werkseinstellung.
 
-    // Display type: NO #define anymore - GC9A01 (240x240) or GC9D01 (160x160)
-    // is a setting (PK_DISPLAY_TYPE, clock face tab "display type", takes effect
-    // after a restart). One firmware for all variants; the dimensions per
-    // type are in DISPLAY_GEOMETRY further below. DISPLAY_TYPE_DEFAULT only
-    // sets the factory default. Backlight: also a setting (useBacklight,
-    // brightness tab).
+    // Display type and backlight are settings (PK_DISPLAY_TYPE, useBacklight), no #define anymore - one
+    // firmware for GC9A01 (240x240) and GC9D01 (160x160). Dimensions per type in DISPLAY_GEOMETRY,
+    // DISPLAY_TYPE_DEFAULT is only the factory default.
+
 #define DISPLAY_TYPE_GC9A01 0
 #define DISPLAY_TYPE_GC9D01 1
 #define DISPLAY_TYPE_COUNT  2
@@ -44,45 +31,34 @@
     // Build marker - shown on the info pages and therefore in every .bin
     // (search for "UHR4_BUILD_DISPLAY="). Since runtime selection, every build
     // contains both display types.
+
 #define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01+GC9D01"
 
-    // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Daten in
-    // Sicherungen (backup.h). Muss in allen uhr4-Firmwares gleich sein, damit
-    // eine Sicherung auf einer anderen Uhr wiederhergestellt werden kann.
-    // Aendern macht WLAN-Daten aelterer Sicherungen unlesbar. Schuetzt die
-    // Datei, nicht gegen jemanden, der diesen Schluessel aus Quelltext oder
-    // Firmware ausliest.
+    // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Daten in Sicherungen. Muss in allen
+    // uhr4-Firmwares gleich sein (Wiederherstellen auf anderer Uhr); Aendern macht aeltere Sicherungen
+    // unlesbar. Kein echter Schutz - der Schluessel steckt in Quelltext und Firmware.
 
-    // Internal key (AES-256, 64 hex characters) for the WiFi data in backups
-    // (backup.h). Must be the same in all uhr4 firmwares so a backup can be
-    // restored on another clock. Changing it makes the WiFi data of older
-    // backups unreadable. Protects the file, not against someone who reads
-    // this key from the source code or firmware.
+    // Internal key (AES-256, 64 hex characters) for the WiFi data in backups. Must be the same in all uhr4
+    // firmwares (restore on another clock); changing it makes older backups unreadable. No real protection -
+    // the key is in the source code and firmware.
+
 #define BACKUP_WIFI_KEY "ade1b6a09c1f5b970301983cddf75b160e99f45a70771438015f88eddbc3d174"
 
-    // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Passwoerter
-    // in den Einstellungen (NVS, storeWifiPass() in wifi_manager.h): ein
-    // Speicherabzug per esptool zeigt sie so nicht im Klartext. Schutz nur
-    // gegen blosses Durchsehen - der Schluessel steckt in derselben Firmware.
-    // Muss in allen uhr4-Firmwares gleich sein (Sicherungen enthalten die
-    // verschluesselten Werte). Aendern macht gespeicherte Passwoerter unlesbar.
+    // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Passwoerter im NVS - ein Speicherabzug
+    // zeigt sie nicht im Klartext, schuetzt aber nur gegen blosses Durchsehen. In allen uhr4-Firmwares
+    // gleich; Aendern macht gespeicherte Passwoerter unlesbar.
 
-    // Internal key (AES-256, 64 hex characters) for the WiFi passwords in the
-    // settings (NVS, storeWifiPass() in wifi_manager.h): a flash dump via
-    // esptool does not show them in plain text. Protects only against simply
-    // looking through - the key is in the same firmware. Must be the same in
-    // all uhr4 firmwares (backups contain the encrypted values). Changing it
-    // makes stored passwords unreadable.
+    // Internal key (AES-256, 64 hex characters) for the WiFi passwords in NVS - a flash dump does not show
+    // them in plain text, but it only protects against simply looking through. Same in all uhr4 firmwares;
+    // changing it makes stored passwords unreadable.
+
 #define WIFI_STORE_KEY "06c92514eb89bb624df9f3f7b291777edd2b44adf583e3ac403d916992664bdd"
 
-    // Pin-Belegung: ESP32-S2 (Lolin S2 Pico)
-    // Pin mapping: ESP32-S2 (Lolin S2 Pico)
-#ifdef ESP32_S2  // Lolin S2 Pico
-    // Pinbelegung ESP32<->TFT: 3.3V->vcc (rot), GND->gnd (blau), Rest siehe
+    // Pinbelegung ESP32-S2 (Lolin S2 Pico) <-> TFT: 3.3V->VCC (rot), GND->GND (blau), Rest siehe
     // PCB-Referenz: https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
-    // ESP32<->TFT pinout: 3.3V->vcc (red), GND->gnd (blue), rest see
-    // PCB reference: https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
+    // Pin mapping ESP32-S2 (Lolin S2 Pico) <-> TFT: 3.3V->VCC (red), GND->GND (blue), rest see PCB reference:
+    // https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
 
 #define LED_BOARD 15 // BUILTIN LED
@@ -94,10 +70,9 @@
 #define BUTTON1 16
 #define BOOT_BUTTON 0
 
-    // Touch
-    // #define TOUCH_PIN 9
 
     // I2C / RTC
+
 #define SDA_PIN 39
 #define SCL_PIN 37
 
@@ -108,6 +83,7 @@
     // TFT SPI (both displays on the same bus) - used in lgfx_config.h,
     // nothing has to be configured inside the LovyanGFX library itself.
     // Mapping per PCB reference: 7 scl, 11 sda, 33 dc, 5 rst.
+
 #define TFT_SCLK  7
 #define TFT_MOSI  11
 #define TFT_DC    33  // Data/Command
@@ -122,10 +98,13 @@
     // SPI CS for display 1 - driven manually (setCS1()/setCS2() in
     // display.h), LovyanGFX gets pin_cs = -1 (lgfx_config.h). Both displays
     // hang off one device, switching CS only selects the chip.
+
 #define CS_1    12
 
     // SPI-CS Display 2 (baugleich) - bei der Uhranzeige nur bedient, solange die Rotation von Display 2 nicht "n.a." ist.
+
     // SPI CS for display 2 (identical) - for the clock display only driven while display 2's rotation is not "n.a.".
+
 #define CS_2    18
 
     // Rotationswert "nicht angeschlossen (n.a.)": fuer die Uhranzeige wird das Display
@@ -135,14 +114,18 @@
     // Rotation value "not connected (n.a.)": for the clock display the display is then
     // neither driven nor calculated (face/hands are skipped). Status and boot messages
     // (boot, AP mode, codes) still always appear on both displays.
+
 #define TFT_ROTATION_NA 4
 
     // Werkseinstellung: Display 1 angeschlossen (0 Grad), Display 2 nicht angeschlossen.
+
     // Factory default: display 1 connected (0 degrees), display 2 not connected.
+
 #define TFT_ROTATION1_DEFAULT 0
 #define TFT_ROTATION2_DEFAULT TFT_ROTATION_NA
 
     // DCF77
+
 #define DCF77_INTERRUPT 0
 #define DCF77_DATAPIN 35
 
@@ -151,6 +134,7 @@
 
     // Backlight - whether pin 3 is PWM-controlled is decided by the
     // useBacklight setting (globals.h), no longer by the build.
+
 #define TFT_Backlight 3  // Hintergrundbeleuchtung
                          // Backlight
 #define BACKLIGHT_CHANNEL 0  // PWM-Kanal
@@ -158,25 +142,15 @@
 #define BACKLIGHT_FREQ 5000
 #define BACKLIGHT_RESOLUTION 8
 
-#endif
 
-    // Display: Masse und Standardgrafiken je Displaytyp. Beide Grafiksaetze
-    // sind in der Firmware (eigene Namensraeume, da gleiche Array-Namen) -
-    // ausgewaehlt wird zur Laufzeit ueber displayGeom (globals.h,
-    // loadDisplayType() in display.h). Die Zifferblaetter sind RLE-komprimiert
-    // (~33 statt ~166 KB), die kleinen Zeiger nicht. Erzeugt von
-    // graphic/make_rle_defaults.py aus clock_default.h - nach einer Aenderung
-    // an clock_default.h das Skript erneut laufen lassen. Das Zifferblatt wird
-    // bei Bedarf entpackt (decodeDefaultFace()/allocDefaultFace() in display.h).
+    // Masse und Standardgrafiken je Displaytyp, beide Saetze in der Firmware (eigene Namensraeume), Auswahl
+    // zur Laufzeit ueber displayGeom. Zifferblaetter RLE-komprimiert (~33 statt ~166 KB), erzeugt von
+    // graphic/make_rle_defaults.py aus clock_default.h - nach Aenderungen dort erneut ausfuehren.
 
-    // Display: dimensions and default graphics per display type. Both
-    // graphics sets are in the firmware (own namespaces, since the array
-    // names are identical) - selected at runtime via displayGeom (globals.h,
-    // loadDisplayType() in display.h). The clock faces are RLE-compressed
-    // (~33 instead of ~166 KB), the small hands aren't. Generated by
-    // graphic/make_rle_defaults.py from clock_default.h - rerun the script
-    // after changing clock_default.h. The clock face is unpacked on demand
-    // (decodeDefaultFace()/allocDefaultFace() in display.h).
+    // Dimensions and default graphics per display type, both sets in the firmware (own namespaces), selected
+    // at runtime via displayGeom. Clock faces RLE-compressed (~33 instead of ~166 KB), generated by
+    // graphic/make_rle_defaults.py from clock_default.h - rerun it after changes there.
+
 namespace gfx240 {
 #include "graphic/240/clock_default_rle.h"
 }
@@ -196,15 +170,14 @@ struct RleImage {
 #define ROUND_DISPLAY // rundes Display - Kreismaskierung der Ecken (siehe scaleAndSaveBmp() in display.h)
                       // round display - circular corner masking (see scaleAndSaveBmp() in display.h)
 
-    // Zeigerformat: Drehpunkte und Breiten je Display fest (Dateiformat, darf
-    // sich nicht aendern); Drehpunkt-Spalte ist die halbe Breite. Alte Zeiger
-    // werden oben (HAND_TOP_PAD) und seitlich (HAND_SIDE_PAD) transparent
-    // aufgefuellt. handPivotY = Displayradius, der Zeiger reicht bis zum Rand.
+    // Zeigerformat: Drehpunkte und Breiten je Display fest (Dateiformat), Drehpunkt-Spalte = halbe Breite.
+    // Alte Zeiger werden oben und seitlich transparent aufgefuellt. handPivotY = Displayradius, der Zeiger
+    // reicht bis zum Rand.
 
-    // Hand format: pivots and widths are fixed per display (file format, must
-    // not change); the pivot column is half the width. Old hands are padded
-    // transparent at the top (HAND_TOP_PAD) and at the sides (HAND_SIDE_PAD).
-    // handPivotY = display radius, the hand reaches the edge.
+    // Hand format: pivots and widths fixed per display (file format), pivot column = half the width. Old
+    // hands are padded transparent at the top and sides. handPivotY = display radius, the hand reaches the
+    // edge.
+
 struct DisplayGeometry {
     const char* name;
     int clock;             // Zifferblatt = Displayausschnitt, quadratisch
@@ -237,7 +210,9 @@ struct DisplayGeometry {
 };
 
 constexpr DisplayGeometry DISPLAY_GEOMETRY[DISPLAY_TYPE_COUNT] = {
+
     // name      clock legW  W  legH legPiv piv text hub   BL     swRot
+
     { "GC9A01",  240,  21,  25, 131, 100,  120,  2,  6,  false, false,
       RLE_IMAGE(gfx240, clockFace), gfx240::handHour, gfx240::handMinute, gfx240::handSecond,
       sizeof(gfx240::handHour) / sizeof(uint16_t) },
@@ -248,15 +223,19 @@ constexpr DisplayGeometry DISPLAY_GEOMETRY[DISPLAY_TYPE_COUNT] = {
 
     // Alle drei Standardzeiger je Typ muessen gleich gross sein - handPixels
     // wird nur am Stundenzeiger gemessen.
+
     // All three default hands per type must be the same size - handPixels is
     // only measured on the hour hand.
+
 static_assert(sizeof(gfx240::handHour) == sizeof(gfx240::handMinute) && sizeof(gfx240::handHour) == sizeof(gfx240::handSecond) &&
               sizeof(gfx160::handHour) == sizeof(gfx160::handMinute) && sizeof(gfx160::handHour) == sizeof(gfx160::handSecond),
               "default hands of one display type differ in size");
 
     // Obergrenzen ueber alle Typen - fuer fest dimensionierte Puffer
     // (rowBuffer in globals.h).
+
     // Upper bounds across all types - for fixed-size buffers (rowBuffer in globals.h).
+
 #define CLOCK_MAX 240
 
 constexpr bool displayGeometryValid(const DisplayGeometry& g) {
@@ -278,6 +257,7 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
     // The former constant names stay, but point to the type selected at
     // runtime (displayGeom, globals.h) - so do NOT use them in array sizes,
     // static_assert or #if.
+
 #define CLOCK_WIDTH         (displayGeom->clock)
 #define CLOCK_HEIGHT        (displayGeom->clock)
 #define TFT_WIDTH           CLOCK_WIDTH
@@ -309,6 +289,7 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 
 
     // System / Debug
+
 #define DEBUG_PRINT(x)    { if (loggingEnabled) { Serial.print(x);   logToFile(String(x));}}
 #define DEBUG_PRINTLN(x)  { if (loggingEnabled) { Serial.println(x); logToFile(String(x));}}
 #define DEBUG_PRINTF(...) { if (loggingEnabled) { char buffer[128]; snprintf(buffer, sizeof(buffer), __VA_ARGS__); Serial.print(buffer); logToFile(String(buffer));}}
@@ -318,6 +299,7 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 
     // Heap warning threshold (see checkHeapWarning() in system_utils.h) -
     // logs early instead of only being noticed later via /status.
+
 #define HEAP_WARNING_THRESHOLD 20480 // 20 KB
 
     // Erlaubter Wertebereich fuer die Groesse der Web-Vorschau (/preview) -
@@ -327,19 +309,17 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
     // Allowed value range for the web preview's size (/preview) - user-
     // adjustable via a slider, stored in PK_PREVIEW_SIZE. Centralized here
     // instead of duplicated in /preview and /api/setPreviewSize.
+
 #define PREVIEW_SIZE_MIN 150
 #define PREVIEW_SIZE_MAX 800
 #define PREVIEW_SIZE_DEFAULT 400
 
-    // Fuehrt einen Zeichenblock je einmal fuer Display 1 und 2 aus, korrekt
-    // rotiert (beginStatusDraw()/endStatusDraw() in display.h). Bedient immer
-    // BEIDE Displays, auch bei Rotation "n.a." (Boot, AP-Modus, Codes).
-    // Makro statt Funktion, da schon vor display.h benutzt (wifi_manager.h).
+    // Fuehrt einen Zeichenblock fuer Display 1 und 2 aus, korrekt rotiert (beginStatusDraw()/endStatusDraw())
+    // - immer fuer BEIDE Displays, auch bei "n.a.". Makro, da schon vor display.h benutzt (wifi_manager.h).
 
-    // Runs a drawing block once for display 1 and once for 2, correctly
-    // rotated (beginStatusDraw()/endStatusDraw() in display.h). Always serves
-    // BOTH displays, even with rotation "n.a." (boot, AP mode, codes).
-    // Macro instead of function since it's used before display.h is included (wifi_manager.h).
+    // Runs a drawing block for display 1 and 2, correctly rotated (beginStatusDraw()/endStatusDraw()) -
+    // always for BOTH displays, even with "n.a.". Macro since it is used before display.h (wifi_manager.h).
+
 #define DRAW_ON_BOTH_DISPLAYS(...) \
     do { \
         { lgfx::LovyanGFX& tft = beginStatusDraw(1); __VA_ARGS__ } \
@@ -354,6 +334,7 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 
     // GitHub repository - kept centrally here, so a fork/move only needs
     // changing this spot instead of several in webserver_routes.h.
+
 #define GITHUB_REPO_OWNER "holgiw"
 #define GITHUB_REPO_NAME "TFT-Clock-GC9A01"
 #define GITHUB_REPO_URL "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME
@@ -366,22 +347,19 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 
     // Zeitserver & Zeitzone Standardwert
     // time server & timezone default
+
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "ptbtime1.ptb.de"
 #define TIMEZONE_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3" // Mitteleuropaeische Zeit
                                                       // Central European Time
 
-    // Versuche PRO NTP-Server, bevor setupNTP() zum naechsten wechselt (siehe
-    // time_sync.h) - ein einzelnes verlorenes UDP-Paket soll nicht sofort als
+    // Versuche PRO NTP-Server, bevor setupNTP() zum naechsten wechselt - ein verlorenes UDP-Paket soll nicht
+    // gleich als Fehlschlag zaehlen. configTzTime() wird je Versuch neu aufgerufen, sonst sendet der
+    // SNTP-Client keine neue Anfrage.
 
-    // Fehlschlag zaehlen. configTzTime() wird pro Versuch neu aufgerufen,
-    // da der SNTP-Client sonst keine neue Anfrage verschickt.
+    // Attempts PER NTP server before setupNTP() moves on - a single lost UDP packet should not count as a
+    // failure. configTzTime() is called again per attempt, otherwise the SNTP client sends no new request.
 
-    // Attempts PER NTP server before setupNTP() moves to the next one (see
-    // time_sync.h) - a single lost UDP packet shouldn't count as a failure
-
-    // right away. configTzTime() is called fresh each attempt, since
-    // otherwise the SNTP client won't send a new request.
 #define NTP_SYNC_ATTEMPTS 2
 
     // Ab dieser Abweichung (Sekunden) wird die RTC bei einem NTP-/DCF77-Sync
@@ -391,56 +369,44 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
     // Above this deviation (seconds) the RTC is actually written on an NTP/
     // DCF77 sync (see rtcDriftSec() in time_sync.h) - smaller differences
     // are normal rounding, not worth an unnecessary I2C write.
+
 #define RTC_UPDATE_MIN_DRIFT_SEC 2
 
-    // Startzeit der Anzeige, solange noch keine Uhrzeit aus NTP/DCF77/RTC/USB
-    // vorliegt (klassische Uhrmacher-Stellung 10:10:30 statt 12:00:00). Die
-    // Uhr laeuft ab dem Start von dort aus weiter (updateClock() in
-    // display.h), bis eine echte Zeit kommt - die Systemzeit bleibt dabei
-    // ungueltig (NTP-Server schweigt, Einrichtungs-Helligkeit bleibt).
+    // Startzeit der Anzeige ohne Uhrzeit aus NTP/DCF77/RTC/USB (Uhrmacher-Stellung 10:10:30). Die Uhr laeuft
+    // von dort weiter, bis eine echte Zeit kommt; die Systemzeit bleibt ungueltig (NTP-Server schweigt).
 
-    // Start time of the display as long as no time from NTP/DCF77/RTC/USB is
-    // available yet (classic watchmaker position 10:10:30 instead of
-    // 12:00:00). The clock keeps running from there after boot (updateClock()
-    // in display.h) until a real time arrives - the system time stays invalid
-    // meanwhile (NTP server stays silent, setup brightness stays).
+    // Display start time without a time from NTP/DCF77/RTC/USB (watchmaker position 10:10:30). The clock
+    // keeps running from there until a real time arrives; the system time stays invalid (NTP server stays
+    // silent).
+
 #define START_TIME_HOUR 10
 #define START_TIME_MIN  10
 #define START_TIME_SEC  30
 
-    // So lange zeigt das Display nach dem Start des Access Points (kein WLAN)
-    // dessen Zugangsdaten, danach laeuft die Uhr (ohne Zeitquelle ab der
-    // Startzeit). Der Access Point bleibt aktiv, ein kurzer Tasterdruck zeigt
-    // die Daten erneut.
-    // For this long after starting the access point (no WiFi) the display
-    // shows its credentials, then the clock runs (from the start time without
-    // a time source). The access point stays active, a short button press
-    // shows the credentials again.
+    // So lange zeigt das Display nach dem Start des Access Points dessen Zugangsdaten, danach laeuft die Uhr.
+    // Der Access Point bleibt aktiv, ein kurzer Tasterdruck zeigt die Daten erneut.
+
+    // For this long after starting the access point the display shows its credentials, then the clock runs.
+    // The access point stays active, a short button press shows the credentials again.
+
 #define AP_INFO_SHOW_MS (2 * WAIT_1m)
 
-    // Versuche PRO WLAN-Netzwerk beim Boot (siehe connectWiFiAtBoot() in
-    // uhr4.ino), bevor mit dem naechsten Netzwerk weitergemacht bzw. ganz
-    // aufgegeben wird (-> WPS/Access-Point) - ein einzelner fehlgeschlagener
-    // Verbindungsversuch (z.B. Router kurz beschaeftigt) soll das gefundene
-    // Netzwerk nicht gleich verwerfen.
+    // Versuche PRO WLAN-Netz beim Start (connectWiFiAtBoot()), bevor das naechste versucht bzw. aufgegeben
+    // wird (WPS/AP) - ein einzelner Fehlversuch soll ein gefundenes Netz nicht gleich verwerfen.
 
-    // Attempts PER WiFi network at boot (see connectWiFiAtBoot() in
-    // uhr4.ino), before moving on to the next network or giving up entirely
-    // (-> WPS/access point) - a single failed connection attempt (e.g. the
-    // router being briefly busy) shouldn't discard a network that was found.
+    // Attempts PER WiFi network at boot (connectWiFiAtBoot()), before trying the next one or giving up
+    // (WPS/AP) - a single failed attempt should not discard a network that was found.
+
 #define WIFI_CONNECT_ATTEMPTS 2
 
-    // Access-Point (Einrichtungsmodus): SSID und Passwort fest in der Firmware
-    // - stehen in der Anleitung und auf dem Display, die Einrichtung klappt so
-    // auch, wenn das Display (noch) nichts Lesbares zeigt. Das Passwort ist
-    // damit auf jeder Uhr gleich; wer das nicht will, setzt hier ein eigenes.
-    // WPA2 verlangt 8 bis 63 Zeichen.
+    // Access Point (Einrichtung): SSID und Passwort fest in der Firmware - stehen in Anleitung und auf dem
+    // Display, das klappt auch ohne lesbares Display. Auf jeder Uhr gleich; eigenes Passwort hier setzen
+    // (WPA2: 8-63 Zeichen).
 
-    // Access point (setup mode): SSID and password fixed in the firmware -
-    // they are in the manual and on the display, so setup also works if the
-    // display shows nothing readable (yet). The password is therefore the same
-    // on every clock; set your own here if you don't want that. WPA2 requires
-    // 8 to 63 characters.
+    // Access point (setup): SSID and password fixed in the firmware - they are in the manual and on the
+    // display, this works even without a readable display. Same on every clock; set your own password here
+    // (WPA2: 8-63 characters).
+
 #define AP_SSID "clock123"
 #define AP_PASSWORD "clocksetup"
 static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP_PASSWORD: WPA2 verlangt 8-63 Zeichen / WPA2 requires 8-63 characters");
@@ -469,6 +435,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Validity period of the web factory-reset code (see factoryResetCode in
     // globals.h) - after this it disappears from the display again, unused,
     // and has to be requested again if still needed.
+
 #define FACTORY_RESET_CODE_TIMEOUT_MS WAIT_1m
 
     // Maximale Fehlversuche fuer einen einzelnen Bestaetigungscode (siehe
@@ -478,6 +445,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Maximum wrong attempts for a single confirmation code (see
     // factoryResetCodeAttempts in globals.h) before it becomes invalid and a
     // new one has to be requested - a brake against brute-force guessing.
+
 #define FACTORY_RESET_MAX_ATTEMPTS 5
 #define WAIT_30m 1800000 // 30 Minuten in Millisekunden
                          // 30 minutes in milliseconds
@@ -486,23 +454,14 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
 #define WAIT_6h 21600000 // 6 Stunden in Millisekunden
                          // 6 hours in milliseconds
 
-    // Rocrail-Modellzeit (siehe rocrail_client.h): TCP-Client-Port des
-    // Servers ist IANA-registriert und praktisch immer 8051. Verbindungs-
-    // versuch laeuft minuetlich - ein haengender Modellbahn-PC soll nicht
+    // Rocrail-Modellzeit: der TCP-Port des Servers ist praktisch immer 8051. Verbindungsversuch minuetlich,
+    // in eigener Task (rocrailConnectTaskFunc()) - ein nicht erreichbarer Server blockiert loop()/Webserver
+    // nicht.
 
-    // im Sekundentakt angeklopft werden. Der Verbindungsaufbau laeuft in einer
-    // eigenen Task (siehe rocrailConnectTaskFunc()), ein nicht erreichbarer
-    // Server blockiert loop()/den Webserver daher NICHT mehr - der Timeout
-    // kann grosszuegiger als noetig gewaehlt werden, ohne das zu riskieren.
+    // Rocrail model time: the server's TCP port is practically always 8051. Connection attempt once a minute,
+    // in its own task (rocrailConnectTaskFunc()) - an unreachable server does not block loop()/the web
+    // server.
 
-    // Rocrail model time (see rocrail_client.h): the server's TCP client
-    // port is IANA-registered and practically always 8051. The connection
-    // attempt runs once a minute - an unreachable layout PC shouldn't be
-
-    // knocked on every second. The connection attempt runs in its own task
-    // (see rocrailConnectTaskFunc()), so an unreachable server no longer
-    // blocks loop()/the web server - the timeout can be set generously
-    // without risking that.
 #define ROCRAIL_DEFAULT_PORT 8051
 #define ROCRAIL_CONNECT_TIMEOUT_MS 5000 // 5 Sekunden in Millisekunden - laeuft in einer eigenen Task, blockiert also nichts (siehe oben)
                                         // 5 seconds in milliseconds - runs in its own task, so this blocks nothing (see above)
@@ -522,6 +481,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Above this angle difference, a forward frame counts as abnormal (a
     // delayed frame, e.g. a blocking web request) instead of a normal tick
     // - see the easing in renderClockFrame() (display.h).
+
 #define SECOND_HAND_MAX_NORMAL_FORWARD_STEP_DEG 6.5f
 
     // Ab diesem Divider werden Sekundenzeiger UND Nabe ausgeblendet (siehe
@@ -531,6 +491,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // From this divider onwards, the second hand AND the hub are hidden
     // (see renderClockFrame()) - at such high acceleration their movement/
     // visibility isn't meaningfully useful anyway.
+
 #define ROCRAIL_HIDE_DETAILS_DIVIDER 11
 
     // Bleibt ein <clock>-Update laenger als das aus, gilt die Modellzeit als
@@ -540,6 +501,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // If a <clock> update stays absent longer than this, the model time
     // counts as stale - the clock then falls back to NTP/RTC/DCF77 (see
     // rocrailTimeReady in renderClockFrame()).
+
 #define ROCRAIL_STALE_TIMEOUT_MS (2 * WAIT_1m)
 
     // Weicht eine neu gemeldete <clock>-Zeit ab, wird sanft statt schlagartig
@@ -549,25 +511,16 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // If a newly reported <clock> time differs, it's eased in smoothly
     // instead of abruptly (see advanceRocrailTime()) - fraction of the
     // deviation corrected per second. Above SNAP_THRESHOLD it snaps directly instead.
+
 #define ROCRAIL_DRIFT_CORRECTION_RATE 0.5f
 #define ROCRAIL_DRIFT_SNAP_THRESHOLD_SECONDS 30.0f
 
-    // Diagnose: R2RNet-Multicast-Gruppe mithoeren und jedes empfangene Paket
-    // unveraendert loggen (siehe startR2rnetDebugListener() in rocrail_client.h).
-    // Dient NUR der Analyse des Antwortformats - echte R2RNet-Discovery wurde
-    // entfernt (siehe Kommentar am Kopf von rocrail_client.h).
-    // 224.0.1.20:8051 ist laut wiki.rocrail.net die tatsaechliche R2RNet-
-    // Adresse - 224.0.0.1 (zuvor hier) ist die reservierte "All Hosts"-
-    // Gruppe (RFC 1112), fuer die ein expliziter IGMP-Join meist scheitert.
+    // Diagnose: R2RNet-Multicast mithoeren und jedes Paket unveraendert loggen (startR2rnetDebugListener()) -
+    // nur zur Analyse, die Discovery wurde entfernt. 224.0.1.20:8051 ist laut wiki.rocrail.net die
+    // R2RNet-Adresse.
 
-    // Diagnostic: listen on the R2RNet multicast group and log every
-    // received packet unchanged (see startR2rnetDebugListener() in
-    // rocrail_client.h). ONLY for analyzing the reply format - actual
-    // R2RNet discovery was removed (see the comment at the top of
-    // rocrail_client.h).
-    // 224.0.1.20:8051 is the actual R2RNet address per wiki.rocrail.net -
-    // 224.0.0.1 (previously here) is the reserved "All Hosts" group
-    // (RFC 1112), for which an explicit IGMP join usually fails.
+    // Diagnostic: listen on the R2RNet multicast and log every packet unchanged (startR2rnetDebugListener())
+    // - analysis only, discovery was removed. 224.0.1.20:8051 is the R2RNet address per wiki.rocrail.net.
 
 #define R2RNET_DEBUG_MULTICAST_IP "224.0.1.20"
 #define R2RNET_DEBUG_MULTICAST_PORT 8051
@@ -582,6 +535,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // DCF77 status dot in the topbar: dcfTimeFound/dcf77Count are never
     // reset, hence these thresholds so the dot falls back to yellow/red on
     // a reception outage instead of staying green forever.
+
 #define DCF77_SYNC_STALE_AFTER (15 * WAIT_1m)
 #define DCF77_PULSE_STALE_AFTER WAIT_1m
 
@@ -592,18 +546,15 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // DCF77 presence detection: a floating pin can trigger stray interrupts
     // from noise, genuine reception changes dcf77Count regularly instead -
     // MIN_STREAK/MAX_GAP_MS require several matching changes in a row.
+
 #define DCF77_PRESENCE_MIN_STREAK 6
 #define DCF77_PRESENCE_MAX_GAP_MS 1500
 
-    // Rausch-Filter fuer den Bit-Fortschritt (processDcf77Bits() in
-    // time_sync.h): sehr kurze Stoerflanken (Prellen) sind deutlich kuerzer
-    // als jeder echte Zustand (kuerzester: ~100ms). Flanken unter diesem Wert
-    // werden verworfen, ohne den Referenzzeitpunkt zu verschieben.
+    // Rauschfilter fuer den Bit-Fortschritt (processDcf77Bits()): Flanken unter diesem Wert (Prellen, echte
+    // Zustaende dauern >= ~100 ms) werden verworfen, ohne den Referenzzeitpunkt zu verschieben.
 
-    // Noise filter for the bit progress (processDcf77Bits() in time_sync.h):
-    // very short spurious edges (bounce) are much shorter than any genuine
-    // state (shortest: ~100ms). Edges below this value are discarded without
-    // shifting the reference timestamp.
+    // Noise filter for the bit progress (processDcf77Bits()): edges below this value (bounce, genuine states
+    // last >= ~100 ms) are discarded without shifting the reference timestamp.
 
 #define DCF77_BIT_NOISE_IGNORE_MS 70
 
@@ -614,6 +565,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Second-grid decoder: with DCF77 the pulse spacing is always a whole
     // number of seconds, so the position survives even weak reception.
     // PULSE_MAX/ONE_MIN: pulse/bit-1 threshold, SECOND_MS: grid width, STEP_TOLERANCE: allowed deviation.
+
 #define DCF77_PULSE_MAX_MS 450
 #define DCF77_PULSE_ONE_MIN_MS 150
 #define DCF77_SECOND_MS 1000
@@ -634,6 +586,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Minute marker detection: a grid position counts as the marker once it
     // missed at least MIN_MISSES times and leads the next best candidate by
     // at least MIN_LEAD. COUNT_MAX halves the counters, MISS_COUNT_MAX_GAP bounds a single dropped second.
+
 #define DCF77_MISS_COUNT_MAX_GAP 5
 
 #define DCF77_MARKER_MIN_MISSES 3
@@ -647,27 +600,22 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // This many consecutive telegrams with impossible fixed bits (bit0!=0
     // resp. bit20!=1) count as proof the minute marker is wrong - more than
     // one, since a single spurious pulse can happen to hit just these bits.
+
 #define DCF77_STRUCT_FAIL_LIMIT 3
 
-    // Maximalalter des letzten dekodierten Telegramms, um noch als
-    // Zeitquelle zu gelten (applyDcf77DecodedTime() in time_sync.h) - ein
-    // aelteres Telegramm ist unproblematisch, da die verstrichene Zeit ueber
-    // millis() exakt nachgerechnet wird.
+    // Maximalalter des letzten dekodierten Telegramms als Zeitquelle (applyDcf77DecodedTime()) - die
+    // verstrichene Zeit wird ueber millis() exakt nachgerechnet.
 
-    // Max age of the last decoded telegram to still count as a time source
-    // (applyDcf77DecodedTime() in time_sync.h) - an older telegram is fine,
-    // since the elapsed time is added back precisely via millis().
+    // Max age of the last decoded telegram as a time source (applyDcf77DecodedTime()) - the elapsed time is
+    // added back precisely via millis().
 
 #define DCF77_DECODED_MAX_AGE (10 * WAIT_1m)
 
-    // Dauer des LED-Aufblitzens pro DCF77-Impuls (loop() in uhr4.ino) -
-    // bewusst ein Blitz mit fester Abschaltzeit statt toggleLED(), da sonst
-    // der Endzustand von der (geraden/ungeraden) Impulsanzahl abhinge.
+    // Dauer des LED-Blitzes je DCF77-Impuls - fester Blitz statt toggleLED(), sonst hinge der Endzustand von
+    // der Impulsanzahl ab.
 
-    // Duration of the LED flash per DCF77 pulse (loop() in uhr4.ino) -
-    // deliberately a flash with a fixed switch-off time instead of
-    // toggleLED(), since the final state would otherwise depend on whether
-    // the pulse count was even or odd.
+    // Duration of the LED flash per DCF77 pulse - a fixed flash instead of toggleLED(), otherwise the final
+    // state would depend on the pulse count.
 
 #define DCF77_LED_BLINK_MS 80
 
@@ -678,6 +626,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Second hand speed in station-clock mode: 60*975ms = 58.5s per sweep
     // (original Hilfiker value), the hand rests at the top for the rest of
     // the minute. Also used by the web live preview.
+
 #define FAST_SECOND 975.0f
 
     // Web: Live-Vorschau (/preview-Route)
@@ -685,6 +634,7 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
 
     // Web: live preview (/preview route)
     // Size of the hand preview in pixels - kept here instead of a magic number in route code.
+
 #define LIVE_PREVIEW_SIZE 400
 
     // Hoehe der scrollbaren Textfenster im Log-Tab und auf der Info-Seite -
@@ -694,8 +644,10 @@ static_assert(sizeof(AP_PASSWORD) - 1 >= 8 && sizeof(AP_PASSWORD) - 1 <= 63, "AP
     // Height of the scrollable text windows in the Log tab and on the info
     // page - in ONE place, so both windows stay the same height. vh instead
     // of fixed pixels: reaches further down on large monitors, min-height still keeps it usable on phones.
+
 #define INFO_LOG_WINDOW_HEIGHT_CSS "height:72vh;min-height:400px;"
 
     // Transparent in R5G6B5 RGB(16)
+
 #define TRANSPARENT_COLOR 0x0120
 

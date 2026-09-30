@@ -1,33 +1,26 @@
 #pragma once
 
-    // Globale Objekte/Variablen, nach Modul sortiert. Echte Definitionen statt
-    // extern, da nur von uhr4.ino eingebunden (eine Uebersetzungseinheit).
-    // Fuer den Mutex des Log-Puffers (siehe logBufferMutex weiter unten) -
-    // xTaskCreate() u.ae. kommen bereits transitiv rein, Semaphoren nicht
-    // unbedingt, deshalb hier explizit.
+    // Globale Objekte/Variablen, nach Modul sortiert - echte Definitionen statt extern, da nur uhr4.ino sie
+    // einbindet. Semaphoren-Header explizit fuer logBufferMutex (kommt nicht sicher transitiv mit).
 
-    // Global objects/variables, sorted by module. Real definitions instead of
-    // extern, since only included from uhr4.ino (one translation unit).
-    // For the log buffer's mutex (see logBufferMutex further below) -
-    // xTaskCreate() etc. already come in transitively, semaphores not
-    // necessarily, hence explicit here.
+    // Global objects/variables, sorted by module - real definitions instead of extern, since only uhr4.ino
+    // includes them. Semaphore header explicitly for logBufferMutex (not reliably included transitively).
 
 #include <freertos/semphr.h>
 
-    // Aktiver Displaytyp (Index in DISPLAY_GEOMETRY, config.h) - CLOCK_WIDTH,
-    // HAND_WIDTH usw. lesen ueber displayGeom. Startwert = Werkseinstellung,
-    // loadDisplayType() (display.h) setzt ihn ganz am Anfang von setup()
-    // aus den Preferences, noch vor allem, was Masse braucht.
+    // Aktiver Displaytyp (Index in DISPLAY_GEOMETRY) - CLOCK_WIDTH, HAND_WIDTH usw. lesen ueber displayGeom.
+    // loadDisplayType() setzt ihn ganz am Anfang von setup(), vor allem, was Masse braucht.
 
-    // Active display type (index into DISPLAY_GEOMETRY, config.h) -
-    // CLOCK_WIDTH, HAND_WIDTH etc. read via displayGeom. Initial value =
-    // factory default, loadDisplayType() (display.h) sets it from preferences
-    // at the very start of setup(), before anything that needs dimensions.
+    // Active display type (index into DISPLAY_GEOMETRY) - CLOCK_WIDTH, HAND_WIDTH etc. read via displayGeom.
+    // loadDisplayType() sets it at the very start of setup(), before anything that needs dimensions.
+
     uint8_t displayType = DISPLAY_TYPE_DEFAULT;
     const DisplayGeometry* displayGeom = &DISPLAY_GEOMETRY[DISPLAY_TYPE_DEFAULT];
 
     // System / Allgemein
+
     // System / General
+
     String currentLanguage = "de"; // Standardmäßig Deutsch
                                    // Default: German
 
@@ -36,23 +29,14 @@
 
     bool loggingEnabled = false;
 
-    // Log-Zeilen werden gesammelt statt bei jeder DEBUG_PRINTLN() sofort auf
-    // Flash geschrieben (siehe logToFile()/flushLogBuffer() in
-    // system_utils.h) - jeder Flash-Zugriff blockiert kurz die komplette
-    // Ausfuehrung (auch eine laufende SPI-Uebertragung zum Display), waehrend
-    // NTP-Sync fallen viele Log-Zeilen kurz hintereinander an. logBufferMutex
-    // schuetzt logLineBuffer, da sowohl der Haupt-Loop als auch die NTP-/
-    // Rocrail-Sync-Tasks (eigene FreeRTOS-Tasks, siehe time_sync.h/
-    // rocrail_client.h) hineinschreiben.
+    // Log-Zeilen werden gesammelt statt einzeln auf Flash geschrieben - jeder Flash-Zugriff haelt kurz alles
+    // an (auch die Displayuebertragung). logBufferMutex schuetzt logLineBuffer, da auch NTP-/Rocrail-Tasks
+    // hineinschreiben.
 
-    // Log lines are collected instead of being written to flash immediately
-    // on every DEBUG_PRINTLN() call (see logToFile()/flushLogBuffer() in
-    // system_utils.h) - each flash access briefly stalls ALL execution
-    // (including any SPI transfer to the display in progress); many log
-    // lines occur in quick succession during NTP sync. logBufferMutex
-    // protects logLineBuffer, since both the main loop and the NTP/Rocrail
-    // sync tasks (their own FreeRTOS tasks, see time_sync.h/
-    // rocrail_client.h) write into it.
+    // Log lines are collected instead of written to flash one by one - every flash access briefly stalls
+    // everything (including the display transfer). logBufferMutex protects logLineBuffer, since NTP/Rocrail
+    // tasks write into it too.
+
     String logLineBuffer = "";
     SemaphoreHandle_t logBufferMutex = nullptr; // erzeugt in setup() via xSemaphoreCreateMutex()
                                                 // created in setup() via xSemaphoreCreateMutex()
@@ -68,7 +52,9 @@
 
 
     // Kern-Hardwareobjekte (TFT, Webserver, Preferences, RTC, ...)
+
     // Core hardware objects (TFT, web server, preferences, RTC, ...)
+
     UhrLGFX tft; // ein Geraet fuer beide Displays, siehe lgfx_config.h
                  // one device for both displays, see lgfx_config.h
 
@@ -77,32 +63,29 @@
 
     // false until tft.init() has run - before that setCS1()/setCS2()
     // (display.h) must not send a rotation to the chip yet.
+
     bool tftInitialized = false;
     WebServer webserver(80);
     Preferences preferences;
     DNSServer dnsServer;
     WiFiUDP udp;
 
-    // Eigene, separate WiFiUDP-Instanz fuer die R2RNet-Multicast-Diagnose
-    // (siehe startR2rnetDebugListener() in rocrail_client.h) - unabhaengig
-    // von 'udp' oben (eigener NTP-Server, anderer Port/Zweck).
+    // Eigene WiFiUDP-Instanz fuer die R2RNet-Multicast-Diagnose - unabhaengig von 'udp' (eigener NTP-Server).
 
-    // Own, separate WiFiUDP instance for the R2RNet multicast diagnostic
-    // listener (see startR2rnetDebugListener() in rocrail_client.h) -
-    // independent of 'udp' above (the clock's own NTP server, different
-    // port/purpose).
+    // Separate WiFiUDP instance for the R2RNet multicast diagnostics - independent of 'udp' (own NTP server).
+
     WiFiUDP r2rnetDebugUdp;
     uint8_t r2rnetDebugLogCount = 0; // geloggte R2RNet-Pakete seit dem letzten Beitritt (siehe R2RNET_DEBUG_LOG_LIMIT)
                                      // R2RNet packets logged since the last join (see R2RNET_DEBUG_LOG_LIMIT)
     bool r2rnetDebugListening = false; // true, sobald der Multicast-Gruppe erfolgreich beigetreten wurde
                                        // true once the multicast group has been joined successfully
 
-#if defined SDA_PIN && defined SCL_PIN
     RTC_DS3231 rtc;
-#endif
 
     // WLAN
+
     // WiFi
+
 #define MAX_WLAN 15
     String wifiSsid[MAX_WLAN];
     String wifiPass[MAX_WLAN];
@@ -119,6 +102,7 @@
     // State for a web-button-triggered WPS request (see loop() in uhr4.ino,
     // /api/startWPS in webserver_routes.h) - runs asynchronously and event-based
     // via WiFi.onEvent(), so the web server isn't blocked.
+
     bool wpsPending = false;
     unsigned long wpsStartMillis = 0;
     String wpsPreviousSsid = ""; // Verbindung vor dem WPS-Start, um danach ggf. dorthin zurueckzuwechseln
@@ -134,11 +118,14 @@
     // Deferred WPS start: the HTTP handler must not block with delay(),
     // otherwise the web server can't accept the redirect target page's
     // follow-up request - loop() starts WPS on a timer a bit later instead.
+
     bool wpsStartRequested = false;
     unsigned long wpsStartRequestedAtMillis = 0;
 
     // MAC Adresse
+
     // MAC address
+
     uint8_t mac[6];
     char hostname[32];
 
@@ -149,6 +136,7 @@
     // AP password generated at runtime (from MAC bytes, see startAP() in
     // wifi_manager.h) - as a buffer so both the display and web UI status line
     // can show it. Empty as long as the AP has never run.
+
     char apPassword[64] = ""; // AP_PASSWORD (config.h), max. 63 Zeichen + NUL / max. 63 chars + NUL
     bool pingHostname = false;
 
@@ -157,26 +145,14 @@
     long softAPIPstart = 0;  // Startzeit für SoftAP IP
                              // Start time for SoftAP IP
 
-    // Bestaetigungscode fuer destruktive Aktionen, die physischen Zugriff auf
-    // die Uhr voraussetzen sollen: die fuenf Factory-Reset-Aktionen UND das
-    // Loeschen/Ueberschreiben des AKTUELL VERBUNDENEN WLAN-Netzwerks (siehe
-    // checkFactoryResetCodePending() in system_utils.h sowie die
-    // /factoryReset/*-Routen, /deletewifi und /save in webserver_routes.h):
-    // "" = keine Aktion angefordert, sonst der aktuell auf dem Display
-    // gezeigte 3-stellige Code. Verhindert eine Aktion aus der Ferne (z.B.
-    // ueber eine DMZ/Port-Weiterleitung erreichbar) ohne physischen Zugriff
-    // auf die Uhr. Andere (nicht aktive) WLAN-Netzwerke bleiben ohne Code
-    // aenderbar/loeschbar.
+    // Bestaetigungscode fuer Werksreset-Aktionen und Aenderungen am AKTUELL VERBUNDENEN WLAN: "" = nichts
+    // angefordert, sonst der auf dem Display gezeigte 3-stellige Code - verhindert solche Aktionen aus der
+    // Ferne ohne Zugriff auf die Uhr. Andere WLAN-Netze bleiben ohne Code aenderbar.
 
-    // Confirmation code for destructive actions that should require physical
-    // access to the clock: the five factory-reset actions AND deleting/
-    // overwriting the CURRENTLY CONNECTED WiFi network (see
-    // checkFactoryResetCodePending() in system_utils.h and the
-    // /factoryReset/* routes, /deletewifi and /save in webserver_routes.h):
-    // "" = no action requested, otherwise the 3-digit code currently shown on
-    // the display. Prevents an action triggered remotely (e.g. reachable via
-    // a DMZ/port forward) without physical access to the clock. Other
-    // (non-active) WiFi networks remain changeable/deletable without a code.
+    // Confirmation code for factory reset actions and changes to the CURRENTLY CONNECTED WiFi: "" = nothing
+    // requested, otherwise the 3-digit code shown on the display - prevents such actions remotely without
+    // access to the clock. Other WiFi networks stay changeable without a code.
+
     String factoryResetCode = "";
     unsigned long factoryResetCodeStartMillis = 0;
     bool factoryResetCodeShown = false; // wurde der Code schon gezeichnet? (nur einmal, nicht jeden Frame)
@@ -196,21 +172,14 @@
                                            // "all"/"wifi"/"faces"/"hands"/"presets"/"wlanDeleteActive"/
                                            // "wlanOverwriteActive" (see /factoryReset/confirm)
 
-    // Nutzlast fuer die beiden WLAN-bezogenen Bestaetigungsaktionen oben -
-    // nur gueltig, waehrend factoryResetPendingAction entsprechend gesetzt
-    // ist. pendingWifiChangeIndex: der zu loeschende Slot (Aktion
-    // "wlanDeleteActive", siehe /deletewifi). pendingWifiSsid[]/
-    // pendingWifiPass[]: die komplette neue, noch nicht angewendete
-    // WLAN-Liste aus dem Formular (Aktion "wlanOverwriteActive", siehe /save
-    // und applyWlanList() in webserver_routes.h).
+    // Nutzlast der WLAN-Bestaetigungsaktionen, nur gueltig bei passender factoryResetPendingAction:
+    // pendingWifiChangeIndex = zu loeschender Slot ("wlanDeleteActive"), pendingWifiSsid[]/pendingWifiPass[]
+    // = neue WLAN-Liste aus dem Formular ("wlanOverwriteActive").
 
-    // Payload for the two WiFi-related confirmation actions above - only
-    // valid while factoryResetPendingAction is set accordingly.
-    // pendingWifiChangeIndex: the slot to delete (action
-    // "wlanDeleteActive", see /deletewifi). pendingWifiSsid[]/
-    // pendingWifiPass[]: the complete new, not-yet-applied WiFi list from the
-    // form (action "wlanOverwriteActive", see /save and applyWlanList() in
-    // webserver_routes.h).
+    // Payload of the WiFi confirmation actions, only valid with a matching factoryResetPendingAction:
+    // pendingWifiChangeIndex = slot to delete ("wlanDeleteActive"), pendingWifiSsid[]/pendingWifiPass[] = new
+    // WiFi list from the form ("wlanOverwriteActive").
+
     int pendingWifiChangeIndex = -1;
     String pendingWifiSsid[MAX_WLAN];
     String pendingWifiPass[MAX_WLAN];
@@ -229,23 +198,22 @@
 
     // NTP-Server-Port
     // NTP server port
+
     const int NTP_PORT = 123;
+
     // NTP-Paketgröße
+
     // NTP packet size
+
     const int NTP_PACKET_SIZE = 48;
     byte ntpPacket[NTP_PACKET_SIZE];
 
-#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
-    // Interrupt liegt auf CHANGE (siehe attachInterrupt() in uhr4.ino);
-    // processDcf77Bits() (time_sync.h) klassifiziert nur ueber die DAUER
-    // zwischen zwei Flanken - der Pegel wird nie gelesen, daher keine
-    // Flankenrichtung noetig.
+    // Interrupt auf CHANGE; processDcf77Bits() wertet nur die Dauer zwischen zwei Flanken aus - der Pegel
+    // wird nie gelesen.
 
-    // Interrupt is on CHANGE (see attachInterrupt() in uhr4.ino);
-    // processDcf77Bits() (time_sync.h) classifies purely by the DURATION
-    // between two edges - the level is never read, so no edge direction
-    // is needed.
+    // Interrupt on CHANGE; processDcf77Bits() only evaluates the duration between two edges - the level is
+    // never read.
 
     volatile uint16_t dcf77Count = 0; // Anzahl der empfangenen DCF77-Signale (wird in der ISR verändert)
                                       // Number of received DCF77 signals (modified in the ISR)
@@ -253,17 +221,13 @@
     volatile bool dcfTimeFound = false; // wird in loop()/updateDcf77Status() gesetzt, nicht mehr in der ISR gelesen
                                         // set in loop()/updateDcf77Status(), no longer read in the ISR
 
-    // Wird in processDcf77Bits() gesetzt, nicht in der ISR: setLedOn/Off()
-    // liegen im Flash (Panic-Reset-Risiko bei deaktiviertem Flash-Cache, z.B.
+    // Gesetzt in processDcf77Bits(), nicht in der ISR: setLedOn/Off() liegen im Flash (Panic-Risiko bei
+    // abgeschaltetem Flash-Cache), und nur processDcf77Bits() weiss ueber dcf77Confirmed, ob wirklich DCF77
+    // erkannt wurde.
 
-    // waehrend LittleFS-Schreibvorgaengen), und nur processDcf77Bits() weiss
-    // ueber dcf77Confirmed, ob wirklich DCF77 erkannt wurde. Siehe isr() in time_sync.h.
+    // Set in processDcf77Bits(), not the ISR: setLedOn/Off() live in flash (panic risk with the flash cache
+    // disabled), and only processDcf77Bits() knows via dcf77Confirmed whether DCF77 was actually recognized.
 
-    // Set in processDcf77Bits(), not the ISR: setLedOn/Off() live in flash
-    // (panic-reset risk while the flash cache is disabled, e.g. during
-
-    // LittleFS writes), and only processDcf77Bits() knows via dcf77Confirmed
-    // whether DCF77 was actually recognized. See isr() in time_sync.h.
     volatile bool dcfLedTogglePending = false;
 
     // Zeitpunkt (millis()), zu dem der aktuelle Einmal-Blitz der LED wieder
@@ -273,6 +237,7 @@
     // Time (millis()) at which the LED's current one-shot flash is to be
     // switched off again; 0 = no flash active (see DCF77_LED_BLINK_MS in
     // config.h and the handling in loop()).
+
     unsigned long dcfLedOffAtMillis = 0;
 
     bool dcfSyncLedEnabled = true; // per Checkbox abschaltbar (Default: an) - steuert nur, ob loop() das per
@@ -298,32 +263,22 @@
                                  // becomes true exactly once at DCF77_PRESENCE_MIN_STREAK (config.h) - decides
                                  // whether the DCF77 topbar entry is shown; never reset afterwards
 
-    // Eigener Bit-Fortschritt statt dcf.getUTCTime() der DCF77-Bibliothek -
-    // treibt Live-Anzeige (/dcf77) und Zeituebernahme (dcf77LastDecoded). ISR
+    // Eigener Bit-Fortschritt fuer /dcf77 und die Zeituebernahme: die ISR schreibt nur Zeitstempel in den
+    // Ringpuffer, dekodiert wird in loop(). 64 Plaetze (256 Byte) ueberbruecken auch laengere Blockaden durch
+    // NTP/Web/LittleFS.
 
-    // schreibt nur Zeitstempel in den Ringpuffer (RAM); Dekodierung passiert
-    // nur in processDcf77Bits()/decodeDcf77Telegram(), aufgerufen aus loop().
+    // Own bit progress for /dcf77 and the time takeover: the ISR only writes timestamps to the ring buffer,
+    // decoding happens in loop(). 64 slots (256 bytes) also bridge longer stalls from NTP/web/LittleFS.
 
-    // Own bit progress instead of the library's dcf.getUTCTime() - drives the
-    // live display (/dcf77) and time takeover (dcf77LastDecoded). ISR only
-
-    // writes a timestamp to the ring buffer (RAM); decoding happens only in
-    // processDcf77Bits()/decodeDcf77Telegram(), called from loop().
-
-    // Auf 64 vergroessert (256 Byte RAM): muss die laengste Pause zwischen
-    // zwei processDcf77Bits()-Aufrufen ueberbruecken (2 Flanken/s) - 16
-    // Plaetze (~8s) reichten nicht gegen blockierende NTP-/Web-/LittleFS-Vorgaenge.
-
-    // Enlarged to 64 (256 bytes RAM): must bridge the longest pause between
-    // two processDcf77Bits() calls (2 edges/s) - 16 slots (~8s) weren't
-    // enough against blocking NTP/web/LittleFS operations.
 #define DCF77_EDGE_BUFFER_SIZE 64
     volatile unsigned long dcf77EdgeMillis[DCF77_EDGE_BUFFER_SIZE];
+
     // dcf77EdgeLevel[] entfernt: Pegel wurde nie ausgewertet (Klassifizierung
     // laeuft ueber die Flankendauer), digitalRead() lag aber im Flash - Absturzrisiko in der ISR.
 
     // dcf77EdgeLevel[] removed: level was never evaluated (classification
     // works via edge duration), but digitalRead() lived in flash - crash risk in the ISR.
+
     volatile uint8_t dcf77EdgeHead = 0; // naechster freier Schreibindex - NUR von der ISR veraendert
                                         // next free write index - ONLY changed by the ISR
     volatile uint32_t dcf77EdgeDropped = 0; // Anzahl verworfener Flanken bei vollem Puffer - uint32_t, da uint8_t nach 256 ueberlaufen wuerde (Diagnose).
@@ -340,6 +295,7 @@
     // dcf77Bits is indexed by grid position (dcf77Phase, 0..59), not by
     // second - the mapping position->second is only fixed once the minute
     // marker is found, otherwise the /dcf77 page would stay empty until then.
+
 #define DCF77_GRID_SLOTS 60
     int8_t dcf77Bits[DCF77_GRID_SLOTS]; // 0/1 je Rasterposition der laufenden Minute, -1 = (noch) unbekannt - NUR Hauptthread
                                         // 0/1 per grid position of the running minute, -1 = unknown (yet) - main thread only
@@ -356,17 +312,12 @@
                                // grid; pulses are only then stored as bits. Falls back to false on a grid break or
                                // an impossible telegram (bit 0/20, see decodeDcf77Telegram()).
 
-    // dcf77Phase ist eine freilaufende Rasterposition 0..59 ohne Sekundenbezug.
-    // Die Minutenmarke wird ueber Statistik erkannt (einzige Position, an der
+    // dcf77Phase ist eine freilaufende Rasterposition 0..59. Die Minutenmarke wird statistisch erkannt (die
+    // einzige Position, an der IMMER ein Impuls fehlt) - robust auch bei Stoerungen mit haeufigen 2s-Luecken.
 
-    // IMMER ein Impuls fehlt), nicht ueber einen einzelnen Abstand - robust
-    // auch bei Stoerungen mit haeufigen 2s-Abstaenden.
+    // dcf77Phase is a free-running grid position 0..59. The minute marker is detected statistically (the only
+    // position where a pulse is ALWAYS missing) - robust even with interference causing frequent 2s gaps.
 
-    // dcf77Phase is a free-running grid position 0..59 with no relation to the
-    // real second. The minute marker is detected via statistics (the only
-
-    // position where a pulse is ALWAYS missing), not a single pulse distance -
-    // robust even with interference causing frequent 2s gaps.
     uint8_t dcf77Phase = 0;
 
     uint8_t dcf77MarkerMiss[60] = { 0 }; // wie oft an dieser Rasterposition ein Impuls fehlte
@@ -392,6 +343,7 @@
     // Diagnostic values for the /dcf77 page: make visible what the receiver
     // actually delivers - without an oscilloscope there's no other way to
     // tell whether the decoder computes wrongly or no usable pulses arrive.
+
     uint32_t dcf77PulsesSeen = 0;    // erkannte Impulse seit dem Start / pulses detected since start
     uint32_t dcf77PulsesMissed = 0;  // uebersprungene Rasterpositionen / grid positions skipped
     uint32_t dcf77PhaseBreaks = 0;   // wie oft das Sekundenraster verlorenging / how often the second grid was lost
@@ -409,6 +361,7 @@
     // Result of the last fully decoded minute - kept on a parity error
     // (valid=false instead of discarding it), so the live page can also
     // show faulty reception.
+
     struct Dcf77Decoded {
         bool valid = false;       // alle drei Paritaeten (Minute/Stunde/Datum) korrekt
                                   // all three parities (minute/hour/date) correct
@@ -426,20 +379,15 @@
     };
     Dcf77Decoded dcf77LastDecoded;
 
-    // Letzte bestaetigte Dekodierung als Referenz fuer die Kohaerenzpruefung
-    // rekonstruierter Telegramme (siehe decodeDcf77Telegram()): bei aus
-    // Paritaet ergaenzten Bits muss die Zeit exakt zur vorherigen plus
-    // verstrichenen Minuten passen - ein vollstaendiges Telegramm braucht das nicht.
+    // Letzte bestaetigte Dekodierung als Referenz: mit aus der Paritaet ergaenzten Bits muss die Zeit exakt
+    // zur vorherigen plus verstrichenen Minuten passen - ein vollstaendiges Telegramm braucht das nicht.
 
-    // Last confirmed decoding, used as the reference for the coherence check
-    // of reconstructed telegrams (see decodeDcf77Telegram()): with bits filled
-    // from parity, the time must exactly match the previous one plus elapsed
-    // minutes - a fully received telegram doesn't need this.
+    // Last confirmed decoding as a reference: with bits filled from parity, the time must exactly match the
+    // previous one plus elapsed minutes - a complete telegram does not need this.
 
     time_t dcf77PrevEpoch = 0;
     unsigned long dcf77PrevAtMillis = 0;
 
-#endif
 
     // Ist der eigene NTP-Server (siehe startNtpServer() in time_sync.h) an
     // Port 123 gebunden - fuer korrektes Logging/Statusanzeige, statt den
@@ -448,6 +396,7 @@
     // Is the own NTP server (see startNtpServer() in time_sync.h) bound to
     // port 123 - for correct logging/status display, instead of blindly
     // assuming udp.begin() succeeded.
+
     bool ntpServerRunning = false;
 
     // Diagnosezaehler fuer den eigenen NTP-Server (siehe /status): unterscheiden,
@@ -457,6 +406,7 @@
     // Diagnostic counters for the own NTP server (see /status): distinguish
     // whether requests arrive at all (network/firewall) or just go unanswered
     // (no valid system time).
+
     uint32_t ntpRequestsReceived = 0;
     uint32_t ntpRepliesSent = 0;
 
@@ -474,19 +424,14 @@
                                             // volatile seit der Async-Umstellung (startNtpSyncTask()): wird jetzt aus der
                                             // Sync-Task heraus geschrieben und von pollNtpSyncTask() auf dem Hauptthread gelesen.
 
-    // Timestamp (millis()) of the last successful NTP sync (0 = never) -
-    // distinguishes a real success from setupNTP()'s misleading true return
-    // value without WiFi; if unchanged, DCF77 steps in (time_sync.h)
+    // lastNtpSuccessMillis unterscheidet echten NTP-Erfolg vom irrefuehrenden true von setupNTP() ohne WLAN.
+    // Die NTP-Sync laeuft in einer eigenen kurzlebigen Task, damit ihre DNS-/UDP-Wartezeiten weder loop()
+    // noch den Webserver blockieren.
 
-    // Asynchrone NTP-Sync ueber eine eigene, kurzlebige FreeRTOS-Task - analog
-    // zur Rocrail-Connect-Task oben (rocrailConnectTask*), damit setupNTP()'s
-    // DNS-/UDP-Wartezeiten (bis zu NTP_SYNC_ATTEMPTS x WAIT_3s PRO konfiguriertem
-    // Server, siehe time_sync.h) weder loop() noch den Webserver blockieren.
+    // lastNtpSuccessMillis tells a real NTP success from setupNTP()'s misleading true without WiFi. The NTP
+    // sync runs in its own short-lived task, so its DNS/UDP wait times block neither loop() nor the web
+    // server.
 
-    // Asynchronous NTP sync via its own short-lived FreeRTOS task - analogous
-    // to the Rocrail connect task above (rocrailConnectTask*), so setupNTP()'s
-    // DNS/UDP wait times (up to NTP_SYNC_ATTEMPTS x WAIT_3s PER configured
-    // server, see time_sync.h) block neither loop() nor the web server.
     TaskHandle_t ntpSyncTaskHandle = NULL;
     volatile bool ntpSyncTaskRunning = false; // Task laeuft gerade
                                               // task currently running
@@ -512,6 +457,7 @@
     // Rocrail model time (see rocrail_client.h): an independent, possibly
     // accelerated time struct, fully separate from "timeinfo" above.
     // renderClockFrame() reads from whichever struct applies, depending on rocrailEnabled.
+
     struct tm rocrailTimeinfo;
     bool rocrailEnabled = false;    // per Tab-Schalter/Preferences aktiviert
                                     // enabled via the tab switch/preferences
@@ -523,19 +469,12 @@
                                     // taken over from the checked list entry when saving.
     uint16_t rocrailServerPort = ROCRAIL_DEFAULT_PORT;
 
-    // Snapshot von rocrailServerHost/-Port fuer die laufende Connect-Task
-    // (siehe startRocrailConnectTask() in rocrail_client.h): rocrailServerHost
-    // ist ein Arduino String, NICHT thread-sicher (interne Heap-Reallokation
-    // bei Zuweisung) - die Rocrail-Einstellungsseite kann ihn jederzeit vom
-    // Hauptthread aus neu zuweisen (webserver_routes.h), waehrend die Task
-    // gerade rocrailClient.connect(rocrailServerHost.c_str(), ...) ausfuehrt.
+    // Kopie von rocrailServerHost/-Port fuer die Connect-Task: ein Arduino String ist nicht thread-sicher,
+    // und die Einstellungsseite kann ihn jederzeit neu setzen, waehrend die Task gerade verbindet.
 
-    // Snapshot of rocrailServerHost/-port for the currently running connect
-    // task (see startRocrailConnectTask() in rocrail_client.h):
-    // rocrailServerHost is an Arduino String, NOT thread-safe (internal heap
-    // reallocation on assignment) - the Rocrail settings page can reassign it
-    // from the main thread at any time (webserver_routes.h) while the task is
-    // in the middle of rocrailClient.connect(rocrailServerHost.c_str(), ...).
+    // Copy of rocrailServerHost/-port for the connect task: an Arduino String is not thread-safe, and the
+    // settings page can reassign it at any time while the task is connecting.
+
     char rocrailServerHostSnapshot[64];
     uint16_t rocrailServerPortSnapshot = ROCRAIL_DEFAULT_PORT;
 
@@ -551,6 +490,7 @@
     // Layout name per list slot - purely manual, freely editable by the
     // user for their own reference (e.g. with several servers). RCP does
     // not report a layout name, so there is no automatic takeover.
+
     char rocrailServerNameList[MAX_WLAN][40];
 
     int rocrailActiveServerIndex = -1;           // 0-basierter Index des per Haekchen ausgewaehlten
@@ -631,34 +571,22 @@
 
     String timezone = TIMEZONE_DEFAULT;
 
-    // Snapshot von timezone fuer die laufende NTP-Sync-Task (siehe
-    // startNtpSyncTask() in time_sync.h): das globale String-Objekt `timezone`
-    // wird auch von Web-Handlern (Zeitzone speichern) und der Einstellungsseite
-    // gelesen/geschrieben - ein Arduino String ist dabei NICHT thread-sicher
-    // (interne Heap-Reallokation). Die Task liest daher nur diese, auf dem
-    // Hauptthread angelegte, waehrend ihrer Laufzeit unveraenderliche Kopie.
+    // Kopie von timezone fuer die NTP-Sync-Task: der String wird auch von Web-Handlern geschrieben und ist
+    // nicht thread-sicher - die Task liest nur diese auf dem Hauptthread angelegte Kopie.
 
-    // Snapshot of timezone for the currently running NTP sync task (see
-    // startNtpSyncTask() in time_sync.h): the global String object `timezone`
-    // is also read/written by web handlers (saving the timezone) and the
-    // settings page - an Arduino String is NOT thread-safe for that (internal
-    // heap reallocation). The task therefore only ever reads this copy,
-    // created on the main thread and immutable for the task's lifetime.
+    // Copy of timezone for the NTP sync task: the String is also written by web handlers and is not
+    // thread-safe - the task only reads this copy created on the main thread.
+
     char timezoneSnapshot[64];
 
     char ntpServers[MAX_WLAN][64];
 
-    // Snapshot von ntpServers[] fuer die laufende NTP-Sync-Task (siehe
-    // startNtpSyncTask() in time_sync.h): wird beim Start der Task auf dem
-    // Hauptthread angelegt, damit setupNTP() waehrend der Task NICHT das
-    // live-Array liest, in das die Weboberflaeche (updateNtpServersFromRequest())
-    // parallel aus einem Web-Request-Handler schreiben koennte.
+    // Kopie von ntpServers[] fuer die NTP-Sync-Task, auf dem Hauptthread angelegt - die Weboberflaeche
+    // koennte das Array sonst gleichzeitig beschreiben.
 
-    // Snapshot of ntpServers[] for the currently running NTP sync task (see
-    // startNtpSyncTask() in time_sync.h): created on the main thread when the
-    // task starts, so setupNTP() does NOT read the live array while the task
-    // runs - the web UI (updateNtpServersFromRequest()) could be writing to
-    // it concurrently from a web request handler.
+    // Copy of ntpServers[] for the NTP sync task, created on the main thread - the web UI could otherwise
+    // write to the array at the same time.
+
     char ntpServersSnapshot[MAX_WLAN][64];
 
 #define RTC_NOT_AVAILABLE 0
@@ -670,7 +598,9 @@
     String i2cAddr = "";
 
     // Zifferblatt / Display
+
     // Clock face / Display
+
     String tftType = "UNKNOWN";
 
     LGFX_Sprite backgroundSprite(&tft);
@@ -685,6 +615,7 @@
     // Sprites for status/boot text, only needed for the GC9D01 software
     // rotation workaround (there, HW rotation is skipped) - unused on other
     // boards. Created lazily on first use (avoids wasting (P)SRAM).
+
     LGFX_Sprite statusSprite1(&tft);
     LGFX_Sprite statusSprite2(&tft);
     bool statusSprite1Created = false;
@@ -706,7 +637,9 @@
     int secondHandWidth = HAND_WIDTH;
 
     // nabe
+
     // hub
+
     uint16_t hubColor = 0;
     uint8_t hubSize = 0;
 
@@ -721,6 +654,7 @@
     // Rotation 0-3 (0/90/180/270 degrees) or TFT_ROTATION_NA (display not connected,
     // see config.h) - for n.a. no face/hands are calculated, but status messages still
     // run. Query via isDisplayConnected()/effectiveRotation(), never compare the value directly.
+
     uint8_t tftRotation1 = TFT_ROTATION1_DEFAULT;
     uint8_t tftRotation2 = TFT_ROTATION2_DEFAULT; // Rotation von Display 2 (CS2) - eigener Wert, damit beide Displays
                                                   // unterschiedlich ausgerichtet montiert sein koennen (siehe uhr4.ino/webserver_routes.h)
@@ -738,24 +672,17 @@
     // Controls only the GC9D01 software rotation workaround (not "is PSRAM
     // available" in general - psramFound() is called directly for that).
     // Only possible for display types with swRotation (DISPLAY_GEOMETRY).
+
     static bool gc9d01SwRotation = false;
 
     uint16_t* clockFaceBuffer = nullptr;
 
-    // Fertiges "Zifferblatt + Stunden-/Minutenzeiger" pro Display - beide
-    // bewegen sich kaum, wurden aber bisher jeden Tick neu rotiert. Jetzt nur
-    // bei Aenderung (kantengeglaettet) neu aufgebaut, sonst kopiert - spart Zeit fuer den Sekundenzeiger.
+    // Fertiges "Zifferblatt + Stunden-/Minutenzeiger" je Display als Sprite: nur bei Aenderung neu aufgebaut
+    // (Zeiger per pushRotatedWithAA()), sonst per pushSprite() kopiert - spart Zeit fuer den Sekundenzeiger.
 
-    // Finished "clock face + hour/minute hand" per display - both barely
-    // move but were re-rotated every tick before. Now rebuilt (anti-aliased)
-    // only on change, otherwise just copied - frees time for the second hand.
+    // Finished "clock face + hour/minute hand" per display as a sprite: rebuilt only on change (hands via
+    // pushRotatedWithAA()), otherwise copied via pushSprite() - frees time for the second hand.
 
-    // Als LovyanGFX-Sprite (bei Bedarf angelegt), damit die Zeiger mit
-    // pushRotatedWithAA() hineingezeichnet und das Bild per pushSprite() ins
-    // backgroundSprite kopiert werden kann.
-    // As a LovyanGFX sprite (created on demand), so the hands can be drawn in
-    // with pushRotatedWithAA() and the image copied into backgroundSprite via
-    // pushSprite().
     struct HandComposite {
         LGFX_Sprite* sprite = nullptr;
         bool valid = false;
@@ -776,6 +703,7 @@
     // Last frame actually pushed per display - renderClockFrame() skips
     // drawing + SPI push as long as none of these values change (ticking
     // hand: the image only changes ~once per second).
+
     struct ClockFrameKey {
         bool valid = false;
         float hourAngle = 0.0f;
@@ -792,17 +720,13 @@
     };
     ClockFrameKey lastClockFrame[2]; // [0] = Display 1, [1] = Display 2
 
-    // Teil-Aktualisierung: aendert sich zwischen zwei Frames NUR der
-    // Sekundenzeiger, zeichnet und sendet renderClockFrame() nur das Rechteck
-    // um alten + neuen Zeiger und Nabe (statt 240x240 = 115 KB per SPI).
-    // Rechteck des zuletzt gerenderten Frames - der Spiegelbetrieb schickt
-    // Display 2 dann dasselbe Rechteck (siehe updateClock()).
+    // Teil-Aktualisierung: aendert sich nur der Sekundenzeiger, sendet renderClockFrame() nur das Rechteck um
+    // alten und neuen Zeiger samt Nabe. Rechteck des letzten Frames - der Spiegelbetrieb schickt Display 2
+    // dasselbe.
 
-    // Partial update: if ONLY the second hand changes between two frames,
-    // renderClockFrame() draws and sends just the rectangle around old + new
-    // hand and hub (instead of 240x240 = 115 KB via SPI). Rectangle of the
-    // last rendered frame - mirror mode then sends display 2 the same
-    // rectangle (see updateClock()).
+    // Partial update: if only the second hand changes, renderClockFrame() sends just the rectangle around old
+    // and new hand plus hub. Rectangle of the last frame - mirror mode sends display 2 the same one.
+
     bool lastRenderPartial = false;
     bool partialUpdateEnabled = true; // zur Diagnose abschaltbar: /api/partialUpdate?enabled=0 (nicht gespeichert)
                                       // switchable for diagnosis: /api/partialUpdate?enabled=0 (not stored)
@@ -816,6 +740,7 @@
 
     // Frame rate/render time for the status page (recordRenderFrame() in
     // display.h): only frames actually sent, evaluated every 5 s.
+
     struct RenderStats {
         uint32_t windowStartMillis = 0;
         uint32_t frames = 0, partialFrames = 0;
@@ -834,6 +759,7 @@
     // Something else (status/boot message, confirmation code) drew on the
     // display - the next clock frame must be sent in full, even if the hand
     // angles didn't change (see beginStatusDraw()).
+
     bool clockFrameDirty[2] = { true, true };
 
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
@@ -843,6 +769,7 @@
     // Incremented whenever the clock face, hand set or hand widths change -
     // invalidates every composite image without each individual change site
     // having to know about the composite itself.
+
     uint32_t clockAssetGeneration = 1;
 
     // Cache: clockFaceBuffer bereits mit currentBrightness vorberechnet (siehe
@@ -852,27 +779,23 @@
     // Cache: clockFaceBuffer is pre-adjusted for currentBrightness (see
     // loadClockFace()) - avoids the expensive per-pixel brightness adjustment
     // on every tick, even though brightness rarely changes in between.
+
     uint16_t* clockFaceBrightBuffer = nullptr;
 
-    // Index 0 = Display 1, 1 = Display 2: true, solange auf dem Display noch Inhalt steht
-    // (Uhr oder Status-/Startmeldung), der nicht mehr zur Anzeige passt. Ein "n.a."-Display
-    // wird daraufhin von updateClock() einmalig schwarz geloescht. Startwert true, da der
-    // Bildinhalt nach tft.init() undefiniert ist.
+    // Je Display true, solange noch nicht passender Inhalt (Uhr/Meldung) darauf steht - ein "n.a."-Display
+    // wird dann einmalig schwarz geloescht. Startwert true, da der Inhalt nach tft.init() undefiniert ist.
 
-    // Index 0 = display 1, 1 = display 2: true while the display still shows content
-    // (clock or status/boot message) that no longer fits. A "n.a." display is then
-    // cleared to black once by updateClock(). Initially true, since the screen content
-    // is undefined after tft.init().
+    // Per display true while content (clock/message) that no longer fits is still shown - an "n.a." display
+    // is then cleared to black once. Initially true, since the content is undefined after tft.init().
+
     bool displayNeedsBlank[2] = { true, true };
 
-    // Display 2 (baugleich, am CS2-Pin, siehe config.h) ist ueber seine
-    // Rotation "n.a." (tftRotation2) abschaltbar, kein eigener Preferences-/UI-Schalter.
+    // Display 2 (am CS2-Pin) wird ueber seine Rotation "n.a." abgeschaltet, kein eigener Schalter. Danach:
+    // Helligkeit / Fotowiderstand (ADC).
 
-    // Display 2 (identical, on the CS2 pin, see config.h) can be switched off
-    // via its rotation "n.a." (tftRotation2), no separate preferences/UI toggle.
+    // Display 2 (on the CS2 pin) is switched off via its rotation "n.a.", no separate toggle. Below:
+    // brightness / photoresistor (ADC).
 
-    // Helligkeit / Fotowiderstand (ADC)
-    // Brightness / photoresistor (ADC)
     bool adcInverted = false; // Standardmäßig nicht invertiert
                               // Not inverted by default
 
@@ -890,6 +813,7 @@
     // Own comparison value for the hand sprites (see updateBrightness()) -
     // must not share lastAppliedBrightness, or loadClockFace() would never
     // trigger the re-tinting.
+
     uint8_t lastHandBrightness = 255;
     uint8_t targetBrightness = 255;
     int lowThreshold = 40;
@@ -899,7 +823,9 @@
                                   // Upper limit
 
     // Zeitabhängige Helligkeit
+
     // Time-dependent brightness
+
     uint8_t brightStartHour = 8;       // inkl. (z.B. 8)
                                        // inclusive (e.g. 8)
     uint8_t brightEndHour = 22;        // exkl. (z.B. 20)
@@ -908,15 +834,12 @@
     float gammaBrightness = 2.2f;  // Gamma-Korrektur für Helligkeit (nur mit Backlight wirksam)
                                    // Gamma correction for brightness (only effective with a backlight)
 
-    // Hintergrundbeleuchtung per PWM auf TFT_Backlight (Pin 3) steuern statt
-    // die Pixel abzudunkeln - Einstellung PK_USE_BACKLIGHT, ersetzt das
-    // fruehere Build GC9A01_WITH_BACKLIGHT. Ab Werk: GC9D01 an, GC9A01 aus
-    // (BACKLIGHT_DEFAULT in config.h). Umschalten: setBacklightMode().
+    // Helligkeit per PWM auf TFT_Backlight (Pin 3) statt dunklerer Pixel - Einstellung PK_USE_BACKLIGHT. Ab
+    // Werk beim GC9D01 an, beim GC9A01 aus (BACKLIGHT_DEFAULT). Umschalten: setBacklightMode().
 
-    // Control the backlight via PWM on TFT_Backlight (pin 3) instead of
-    // dimming the pixels - setting PK_USE_BACKLIGHT, replaces the former
-    // GC9A01_WITH_BACKLIGHT build. Factory: on for GC9D01, off for GC9A01
-    // (BACKLIGHT_DEFAULT in config.h). Switch via setBacklightMode().
+    // Brightness via PWM on TFT_Backlight (pin 3) instead of darker pixels - setting PK_USE_BACKLIGHT.
+    // Factory: on for GC9D01, off for GC9A01 (BACKLIGHT_DEFAULT). Switch via setBacklightMode().
+
     bool useBacklight = false; // wird in setup() aus den Preferences geladen
                                // loaded from preferences in setup()
     bool backlightAttached = false; // PWM-Kanal an TFT_Backlight angehaengt (ledcAttach())
@@ -937,38 +860,26 @@
     // Minimum spacing between two ADC samples (see updateBrightness()) -
     // without it, the ADC_SMOOTHING window would span only a few
     // milliseconds on fast loop() iterations instead of one second.
+
 #define ADC_SAMPLE_INTERVAL_MS 50
     unsigned long lastAdcSampleMillis = 0;
 
-    // Wie lange eine Schwellwert-Ueberschreitung anhalten muss, bevor
-    // targetBrightness tatsaechlich springt (siehe updateBrightness()) - filtert
-    // kurze Stromspitzen-Einbrueche (z.B. WLAN-Sendeburst waehrend NTP-Sync),
-    // die sonst das Zifferblatt fuer einen Frame sichtbar umfaerben wuerden.
+    // So lange muss eine Schwellwert-Ueberschreitung anhalten, bevor targetBrightness springt - filtert kurze
+    // Einbrueche (z.B. WLAN-Sendeburst), die das Zifferblatt sonst fuer ein Bild umfaerben wuerden.
 
-    // How long a threshold crossing must persist before targetBrightness
-    // actually jumps (see updateBrightness()) - filters brief current-draw
-    // dips (e.g. a WiFi TX burst during NTP sync) that would otherwise
-    // visibly re-tint the clock face for a frame.
+    // How long a threshold crossing must persist before targetBrightness jumps - filters brief dips (e.g. a
+    // WiFi TX burst) that would otherwise re-tint the clock face for a frame.
+
 #define BRIGHTNESS_DEBOUNCE_MS 1500
     int pendingBrightnessState = 0; // -1 = Kandidat fuer minBrightness, 1 = fuer maxBrightness, 0 = im Hysterese-Band
                                     // -1 = candidate for minBrightness, 1 = for maxBrightness, 0 = inside the hysteresis band
     unsigned long brightnessThresholdSinceMillis = 0;
 
-    // Touch / Debounce
-    // Touch / debounce
-    unsigned long touchLastMillis = 0;
-    const unsigned long TOUCH_DEBOUNCE_MS = 300;
-    bool touchLastState = false;
-    // Touch-Freigabe erst nach Setup-Initialisierung
-    // Touch enabled only after setup initialization
-    bool touchEnabled = false;
-    unsigned long touchEnableAt = 0; // Timestamp wann Touch freigeschaltet wird (ms)
-                                     // Timestamp when touch is enabled (ms)
-    bool useTouch = false; // Touch verwenden
-                           // Use touch
 
     // Presets
+
     // Presets
+
 #define MAX_PRESETS 50
     struct Preset {
         String name;
@@ -977,13 +888,17 @@
     Preset presets[MAX_PRESETS];
 
     // Datei-Upload / Wartung
+
     // File upload / maintenance
+
     File uploadFile;
     String uploadFilePath = "";
     bool uploadSuccess = false;
 
     // Presets-Import (separat vom BMP-Upload, um Statuskonflikte zu vermeiden)
+
     // Presets import (separate from the BMP upload, to avoid status conflicts)
+
     File presetImportFile;
     bool presetImportSuccess = false;
     const char* PRESET_IMPORT_TMP_PATH = "/tmp_presets_import.txt";
@@ -993,6 +908,8 @@
     int currentWeek = -1;
 
     // Uebersetzungen fuer verschiedene Sprachen
+
     // Translations for various languages
+
 #include "translation.h"
 

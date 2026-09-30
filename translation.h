@@ -2,19 +2,19 @@
 #define TRANSLATION_H
 
 
-    // Uebersetzungen liegen als 'static const' Tabelle direkt im Flash statt in einer std::map -
-    // eine fruehere std::map<String,String>-Initialisierungsliste verursachte einen Stack-Overflow.
+    // Uebersetzungen liegen als Tabelle direkt im Flash statt in einer std::map (deren Initialisierung
+    // verursachte einen Stack-Overflow). availableLanguages dient nur der Pruefung in /setLanguage.
 
-    // Translations live as a 'static const' table directly in flash instead of a std::map -
-    // an earlier std::map<String,String> init list caused a stack overflow crash.
+    // Translations live as a table directly in flash instead of a std::map (its initialization caused a stack
+    // overflow). availableLanguages is only used for validation in /setLanguage.
 
-    // Bekannte Sprachen fuer die Validierung in /setLanguage - bewusst nur die Codes, nicht die Tabellen
-    // Known languages for validation in /setLanguage - deliberately just the codes, not the tables
     const std::set<String> availableLanguages = {"de"};
 
 
     // Uebersetzungstabelle (Erklaerung siehe Dateianfang)
+
     // Translation table (see top of file for explanation)
+
     struct TranslationEntry {
         const char* key;
         const char* de;
@@ -40,6 +40,7 @@
         { "No WiFi network configured yet, or the last known network is unavailable - the clock created its own WiFi network. Enter your home WiFi details below, save, and the clock will restart and try to connect", "Es ist noch kein WLAN eingerichtet, oder das zuletzt bekannte WLAN ist gerade nicht erreichbar - die Uhr hat ein eigenes WLAN erstellt. Trage unten dein Heim-WLAN ein, speichere, und die Uhr startet neu und versucht sich zu verbinden" },
         { "Syncing", "Synchronisiere" },
         { "Error", "Fehler" },
+
         // Bewusst OHNE Umlaut-Entity (&uuml;): wird vom Live-Status-Skript
         // per JS direkt in "title"/"aria-label" geschrieben (setStatusDot()
         // in generateTopBar()) - JS dekodiert Entities dabei nicht.
@@ -47,6 +48,7 @@
         // Deliberately WITHOUT the umlaut entity (&uuml;): written into
         // "title"/"aria-label" directly via JS by the live-status script
         // (setStatusDot() in generateTopBar()) - JS doesn't decode entities there.
+
         { "Not available", "Nicht verfuegbar" },
         { "Connection lost", "Verbindung unterbrochen" },
 
@@ -57,6 +59,7 @@
         // Short label for the live brightness value in the topbar -
         // deliberately kept short like the other topbar labels, unlike the
         // more verbose "Light (for Threshold)" further below.
+
         { "Light", "Licht" },
         { "Storage used", "Speicher belegt" },
         { "Presets used", "Presets belegt" },
@@ -77,6 +80,7 @@
         { "Rotates Display 2's (CS2) clock face independently of Display 1", "Dreht das Zifferblatt von Display 2 (CS2) unabh&auml;ngig von Display 1" },
         { "not connected (n.a.)", "nicht angeschlossen (n.a.)" },
         { "Set a display that is not physically connected to n.a. - it then stays black and the clock face is neither drawn nor calculated for it. Boot, access point and code messages still appear on both displays until the clock takes over", "Ein nicht tats&auml;chlich angeschlossenes Display auf n.a. stellen - es bleibt dann schwarz und das Zifferblatt wird daf&uuml;r weder gezeichnet noch berechnet. Start-, Access-Point- und Code-Meldungen erscheinen bis zum Uhrstart weiterhin auf beiden Displays" },
+
         // "2 Minuten" statt vormals "3 Minuten": muss zum tatsaechlichen WPS-
         // Timeout passen (2 * WAIT_1m in startAP()/loop(), siehe uhr4.ino/
         // wifi_manager.h) - der Text war seit dessen Aenderung veraltet.
@@ -84,6 +88,7 @@
         // "2 minutes" instead of the former "3 minutes": must match the actual
         // WPS timeout (2 * WAIT_1m in startAP()/loop(), see uhr4.ino/
         // wifi_manager.h) - the text was stale since that value was changed.
+
         { "Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 2 minutes while this happens", "F&uuml;gt ein neues Netzwerk per WPS hinzu - dr&uuml;cken Sie bei Aufforderung die WPS-Taste an Ihrem Router. Die Verbindung zur Uhr kann dabei f&uuml;r ca. 2 Minuten verloren gehen" },
         { "Scans for available WiFi networks again and refreshes the dropdown lists below", "Sucht erneut nach verf&uuml;gbaren WLAN-Netzwerken und aktualisiert die Auswahllisten darunter" },
         { "The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.", "Die Uhr ist statt &uuml;ber die IP-Adresse auch &uuml;ber http://&quot;hostname&quot;.local erreichbar, z.B." },
@@ -145,11 +150,13 @@
         { "Connect", "Verbinden" },
         { "Password is hidden. Leave empty to keep current", "Das Passwort ist ausgeblendet. Lassen Sie das Feld leer, um das aktuelle Passwort beizubehalten" },
         { "You can also enter an SSID manually", "Sie k&ouml;nnen auch eine SSID manuell eingeben" },
+
         // Platzhalter in den SSID-Auswahllisten, solange /api/scanwifi laeuft
         // bzw. wenn die Abfrage fehlschlaegt (siehe panel-wlan).
 
         // Placeholders in the SSID dropdowns while /api/scanwifi is running
         // resp. when the request fails (see panel-wlan).
+
         { "WLAN scan in progress", "WLAN-Scan l&auml;uft" },
         { "Scan failed", "Scan fehlgeschlagen" },
         { "Save WiFi settings", "WLAN Einstellungen speichern" },
@@ -306,8 +313,11 @@
         { "Download", "Herunterladen" },
         { "Failed to scale BMP", "Skalierung des BMP fehlgeschlagen" },
         { "Gamma Correction", "Gamma-Korrektur" },
+
         // Komplettsicherung (backup.h, /backup)
+
         // Full backup (backup.h, /backup)
+
         { "Backup", "Sicherung" },
         { "Create Backup", "Sicherung erstellen" },
         { "Saves all settings, presets, clock faces and hand sets in one file", "Speichert alle Einstellungen, Presets, Zifferbl&auml;tter und Zeigers&auml;tze in einer Datei" },
@@ -320,16 +330,22 @@
         { "Download Backup", "Sicherung herunterladen" },
         { "Restore Backup", "Sicherung wiederherstellen" },
         { "Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards", "Ersetzt alle Einstellungen, Presets, Zifferbl&auml;tter und Zeigers&auml;tze durch den Inhalt der Sicherung - die Uhr startet danach neu" },
+
         // Steht in einem JavaScript-confirm() mit einfachen Anfuehrungszeichen - daher ohne Apostroph
+
         // Used inside a JavaScript confirm() with single quotes - hence no apostrophe
+
         { "Replace all current settings, clock faces and hand sets with the backup?", "Alle aktuellen Einstellungen, Zifferbl&auml;tter und Zeigers&auml;tze durch die Sicherung ersetzen?" },
         { "The backup could not be restored", "Die Sicherung konnte nicht wiederhergestellt werden" },
         { "Backup restored", "Sicherung wiederhergestellt" },
         { "files", "Dateien" },
 
         { "Display type", "Display-Typ" },
+
         // Steht in einem JavaScript-confirm() mit einfachen Anfuehrungszeichen - daher ohne Apostroph
+
         // Used inside a JavaScript confirm() with single quotes - hence no apostrophe
+
         { "The clock restarts to apply the display type", "Die Uhr startet neu, um den Display-Typ zu &uuml;bernehmen" },
         { "Change the display type to", "Display-Typ &auml;ndern auf" },
         { "Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching between GC9A01 and GC9D01 restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for", "Typ des angeschlossenen Displays - gilt f&uuml;r beide Displays. BL = Hintergrundbeleuchtung: mit BL wird die Helligkeit per PWM an Pin 3 geregelt (wie der Haken Hintergrundbeleuchtung im Helligkeits-Tab), ohne BL durch Abdunkeln der Pixel. Beim Wechsel zwischen GC9A01 und GC9D01 startet die Uhr neu, Hintergrundbeleuchtung, Helligkeit und Nabengr&ouml;&szlig;e werden auf die Standardwerte des neuen Typs gesetzt; hochgeladene Zifferbl&auml;tter und Zeiger passen nur zu der Gr&ouml;&szlig;e, f&uuml;r die sie erstellt wurden" },
@@ -337,11 +353,13 @@
         { "GC9A01 (240x240) with backlight (BL) on pin 3", "GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3" },
         { "Backlight control (pin 3)", "Hintergrundbeleuchtung regeln (Pin 3)" },
         { "Dims the display via the backlight PWM on pin 3 instead of darkening the pixels - only if the backlight is wired to pin 3 (always on GC9D01). Switching resets min. brightness and thresholds to the matching defaults", "Dimmt das Display &uuml;ber die PWM der Hintergrundbeleuchtung an Pin 3 statt die Pixel abzudunkeln - nur wenn die Beleuchtung an Pin 3 angeschlossen ist (beim GC9D01 immer). Beim Umschalten werden min. Helligkeit und Schwellwerte auf die passenden Standardwerte gesetzt" },
+
         // Diagrammtitel der Gamma-Kurve - wird per decodeHtml() an Plotly
         // uebergeben, Entities sind hier also erlaubt (siehe plotGamma()).
 
         // Chart title of the gamma curve - passed to Plotly via decodeHtml(),
         // so entities are fine here (see plotGamma()).
+
         { "Gamma correction curve", "Gamma-Korrektur-Kurve" },
         { "Hostname saved - requires a reboot to take effect", "Hostname gespeichert - Neustart erforderlich, damit die &Auml;nderung wirksam wird" },
         { "No valid hostname could be derived from the input - falling back to the automatic name based on the MAC address", "Aus der Eingabe konnte kein g&uuml;ltiger Hostname gebildet werden - R&uuml;ckfall auf den automatischen, aus der MAC-Adresse gebildeten Namen" },
@@ -350,19 +368,13 @@
         { "Change Active WiFi", "Aktives WLAN &auml;ndern" },
         { "Add Network via WPS", "Netzwerk per WPS hinzuf&uuml;gen" },
 
-        // Erweitert um den Trennungshinweis (vorher nur im Tooltip des Buttons,
-        // also leicht zu uebersehen) - erscheint jetzt direkt als Flash-Meldung
-        // beim Start von WPS. Der englische Schluessel wird zusaetzlich als
-        // exakter String-Vergleich in webserver_routes.h genutzt (erkennt, ob
-        // gerade WPS gestartet wurde, um das Reconnect-Poll-Skript einzubetten)
-        // - bei einer Aenderung dieses Textes MUSS die Vergleichsstelle dort mitgeaendert werden.
+        // Mit Trennungshinweis direkt als Flash-Meldung beim WPS-Start. Der englische Schluessel wird in
+        // webserver_routes.h exakt verglichen (erkennt den WPS-Start) - bei einer Aenderung dieses Textes
+        // dort mitaendern.
 
-        // Extended with the disconnect notice (previously only in the button's
-        // tooltip, easy to miss) - now shown directly as a flash message when
-        // WPS starts. The English key is also used as an exact string
-        // comparison in webserver_routes.h (detects that WPS was just started,
-        // to embed the reconnect-poll script) - if this text changes, the
-        // comparison there MUST be updated too.
+        // With the disconnect notice shown directly as a flash message when WPS starts. The English key is
+        // compared exactly in webserver_routes.h (detects the WPS start) - if this text changes, update it
+        // there too.
 
         { "WPS active - press the WPS button on your router now. Connection to the clock may be lost for about 2 minutes while this happens", "WPS aktiv - jetzt die WPS-Taste am Router dr&uuml;cken. Die Verbindung zur Uhr kann dabei f&uuml;r ca. 2 Minuten unterbrochen werden" },
         { "Reset WLan...", "WLAN zur&uuml;cksetzen..." },
@@ -371,8 +383,11 @@
         { "View", "Anzeigen" },
         { "Warning: Not enough free space to upload new clock faces! Free up some space first", "Warnung: Nicht gen&uuml;gend Speicherplatz zum Hochladen neuer Zifferbl&auml;tter! Bitte zuerst Speicherplatz freigeben" },
         { "Use the host name", "Benutze den Hostnamen" },
+
         // Neu fuer die Statuszeile (Topbar, siehe generateTopBar() in webserver_routes.h)
+
         // New for the status bar (topbar, see generateTopBar() in webserver_routes.h)
+
         { "Time", "Zeit" },
 
         // Neu fuer die /dcf77-Live-Seite (Bit-Fortschritt + dekodiertes
@@ -380,6 +395,7 @@
 
         // New for the /dcf77 live page (bit progress + decoded telegram,
         // see webserver_routes.h)
+
         { "Bit progress", "Bit-Fortschritt" },
         { "Decoded telegram", "Dekodiertes Telegramm" },
         { "Waiting for first complete telegram", "Warte auf erstes vollst&auml;ndiges Telegramm" },
@@ -410,6 +426,7 @@
         // Bit tooltips in the /dcf77 bit grid (title attribute per box) - bit
         // numbers (BCD bit N, parities) are appended to the translated text
         // in code, not part of the key.
+
         { "Start of minute (always 0)", "Minutenanfang (immer 0)" },
         { "Weather broadcast / special function (unused)", "Wetterdurchsage / Sonderfunktion (ungenutzt)" },
         { "DST change announcement", "Ank&uuml;ndigung Zeitumstellung" },
@@ -427,15 +444,11 @@
         { "Year BCD bit", "Jahres-BCD-Bit" },
         { "Date parity (day+weekday+month+year)", "Datums-Parit&auml;t (Tag+Wochentag+Monat+Jahr)" },
 
-        // ASCII-only, OHNE HTML-Entities: werden per JS direkt als
-        // .textContent gesetzt (dcfSynced-Anzeige) statt als HTML geparst -
-        // Entities wuerden dort woertlich erscheinen (siehe Hinweis oben bei
-        // "Not available"/Umlaut-Problem). {pos} wird per JS ersetzt.
+        // Nur ASCII, OHNE HTML-Entities: per JS als .textContent gesetzt (dcfSynced-Anzeige), Entities
+        // erschienen dort woertlich. {pos} wird per JS ersetzt.
 
-        // ASCII-only, WITHOUT HTML entities: set via JS directly as
-        // .textContent (dcfSynced display) instead of parsed as HTML -
-        // entities would show up literally there (see note above at
-        // "Not available"/umlaut issue). {pos} is substituted in JS.
+        // ASCII only, WITHOUT HTML entities: set via JS as .textContent (dcfSynced display), entities would
+        // show up literally there. {pos} is substituted in JS.
 
         { "yes (marker at grid position {pos})", "ja (Marke bei Rasterposition {pos})" },
         { "no (collecting - the minute marker needs a few minutes)", "nein (sammle - die Minutenmarke braucht ein paar Minuten)" },
@@ -445,6 +458,7 @@
 
         // New for the Rocrail tab (see webserver_routes.h and
         // rocrail_client.h) - model time connection to a Rocrail server
+
         { "Rocrail model time can run much faster than real time (the divider) - the station-clock second-hand animation speeds up by the same factor instead of switching off, so it stays in sync with the model minutes", "Rocrails Modellzeit kann viel schneller laufen als die reale Zeit (der Divider) - die Bahnhofsuhr-Sekundenzeiger-Animation wird dabei um denselben Faktor beschleunigt statt abgeschaltet, damit sie mit den Modell-Minuten synchron bleibt" },
         { "Above a divider of", "Ab einem Divider von" },
         { "it is hidden entirely, since it would no longer be meaningfully readable", "wird er ganz ausgeblendet, da er ohnehin nicht mehr sinnvoll ablesbar w&auml;re" },
@@ -472,13 +486,17 @@
 
     void loadLanguage() {
         currentLanguage = preferences.getString(PK_LANGUAGE, "en");
+
         // Nicht (mehr) unterstuetzte gespeicherte Sprache -> Englisch
+
         // Stored language not (or no longer) supported -> English
+
         if (currentLanguage != "en" && !availableLanguages.count(currentLanguage)) currentLanguage = "en";
     }
 
 
     // Setzt die aktive Sprache und speichert sie dauerhaft in den Preferences
+
     // English: sets the active language and persists it in Preferences
 
     void saveLanguage(String lang) {

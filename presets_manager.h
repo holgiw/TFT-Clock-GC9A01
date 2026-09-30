@@ -1,14 +1,12 @@
 #pragma once
 
-    // Presets: Laden/Speichern/Wechseln der Anzeigekonfigurationen.
-    // Benoetigt globals.h, config.h, prefs_keys.h, declarations.h (vorher eingebunden).
-    // Entfernt einen alten "rotation="-Parameter aus einer Preset-URL
-    // (Altlast frueherer Versionen, siehe switchToNextPreset()).
+    // Presets: Laden/Speichern/Wechseln der Anzeigekonfigurationen (benoetigt globals.h, config.h,
+    // prefs_keys.h, declarations.h). Entfernt einen alten "rotation="-Parameter aus einer Preset-URL (Altlast
+    // frueherer Versionen).
 
-    // Presets: load/save/switch display configurations.
-    // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file).
-    // Removes a legacy "rotation=" parameter from a preset URL
-    // (leftover from older versions, see switchToNextPreset()).
+    // Presets: load/save/switch display configurations (requires globals.h, config.h, prefs_keys.h,
+    // declarations.h). Removes a legacy "rotation=" parameter from a preset URL (leftover from older
+    // versions).
 
     String stripRotationParam(const String& url) {
         int qIdx = url.indexOf('?');
@@ -32,6 +30,7 @@
 
 
     // Presets laden und dabei die gespeicherte IP-Adresse durch die aktuelle IP des ESP ersetzen
+
     // Load presets, replacing the stored IP address with the ESP's current IP
 
     void loadPresets() {
@@ -48,6 +47,7 @@
 
             // Remove legacy "rotation=" parameters and fix permanently (write
             // only on change, saves flash wear).
+
             if (presets[i].url.indexOf("rotation=") != -1) {
                 String cleaned = stripRotationParam(presets[i].url);
                 if (cleaned != presets[i].url) {
@@ -57,7 +57,9 @@
             }
 
             // Ersetze die gespeicherte IP durch die aktuelle IP des ESP
+
             // Replace the stored IP with the ESP's current IP
+
             if (presets[i].url.startsWith("http://")) {
                 int ipEnd = presets[i].url.indexOf('/', 7); // Suche Ende der IP-Adresse
                                                             // Find end of IP address
@@ -75,6 +77,7 @@
 
 
     // Presets speichern und dabei die aktuelle IP-Adresse des ESP in der URL verwenden
+
     // Save presets, using the ESP's current IP address in the URL
 
     void savePresets() {
@@ -84,7 +87,9 @@
             String urlKey = pkPresetUrl(i);
 
             // Ersetze eine vorhandene IP-Adresse durch die aktuelle IP des ESP
+
             // Replace an existing IP address with the ESP's current IP
+
             if (presets[i].url.startsWith("http://")) {
                 int ipEnd = presets[i].url.indexOf('/', 7);
                 if (ipEnd != -1) {
@@ -100,6 +105,7 @@
 
             // Only write on actual change - the form always submits all
             // MAX_PRESETS entries (saves flash wear).
+
             if (preferences.getString(nameKey.c_str(), "") != presets[i].name) {
                 preferences.putString(nameKey.c_str(), presets[i].name);
             }
@@ -110,17 +116,13 @@
     }
 
 
-    // Preset-Werte URL-kodieren/-dekodieren: die Weboberflaeche wendet Presets
-    // ueber /api/setMode an (webserver.arg() dekodiert %XX und '+'), die Taste
-    // ueber switchToNextPreset() mit rohem String - presetUrlDecode() macht
-    // dort dasselbe, damit z.B. eine Zeitzone wie "<+09>-9" auf beiden Wegen
-    // gleich ankommt. Kodiert wird alles ausser A-Z a-z 0-9 - _ . , / :
+    // Preset-Werte URL-kodieren/-dekodieren: /api/setMode dekodiert per webserver.arg(), die Taste per
+    // presetUrlDecode() - so kommt z.B. die Zeitzone "<+09>-9" auf beiden Wegen gleich an. Kodiert wird alles
+    // ausser A-Z a-z 0-9 - _ . , / :
 
-    // URL-encode/-decode preset values: the web UI applies presets via
-    // /api/setMode (webserver.arg() decodes %XX and '+'), the button via
-    // switchToNextPreset() with the raw string - presetUrlDecode() does the
-    // same there, so e.g. a time zone like "<+09>-9" arrives identically on
-    // both paths. Everything except A-Z a-z 0-9 - _ . , / : is encoded.
+    // URL-encode/-decode preset values: /api/setMode decodes via webserver.arg(), the button via
+    // presetUrlDecode() - so e.g. the time zone "<+09>-9" arrives identically on both paths. Everything
+    // except A-Z a-z 0-9 - _ . , / : is encoded.
 
     String presetUrlEncode(const String& value) {
         static const char hex[] = "0123456789ABCDEF";
@@ -162,11 +164,15 @@
 
 
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
+
     // Creates a new preset based on the current settings in the preferences
 
     bool createPresetFromPreferences(const String& customName) {
+
         // Suche das erste leere Preset
+
         // Find the first empty preset
+
         int presetIndex = -1;
         for (int i = 0; i < MAX_PRESETS; i++) {
             if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
@@ -176,30 +182,39 @@
         }
 
         // Wenn kein leeres Preset gefunden wurde, abbrechen
+
         // Abort if no empty preset was found
+
         if (presetIndex == -1) {
             DEBUG_PRINTLN("[Preset] No empty preset slot available");
             return false;
         }
 
         // Lese die aktuellen Einstellungen aus den Preferences
+
         // Read the current settings from the preferences
+
         String background = preferences.getString(PK_BACKGROUND, "/face_default.bmp");
         String handset = preferences.getString(PK_HANDSET, "default");
 
         bool stationMode = preferences.getBool(PK_STATION_MODE, true);
         bool showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
         bool smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
+
         // Fallback bewusst stationMode statt eines festen Literals - siehe
         // Kommentar bei der smoothSecond-Ladezeile in uhr4.ino.
+
         // Fallback deliberately stationMode instead of a fixed literal - see
         // the comment at the smoothSecond load line in uhr4.ino.
+
         bool smoothSecond = getSmoothSecondPref(stationMode);
         uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
         // URL bewusst OHNE "rotation": geraeteweite HW-Einstellung, bleibt beim Laden unveraendert.
+
         // Build URL deliberately WITHOUT "rotation": device-wide HW setting, stays unchanged when loading.
+
         String url = "http://" + ipAddress + "/api/setMode?";
         if (background.startsWith("/")) {
             background = background.substring(1); // Entferne führenden Slash
@@ -217,18 +232,18 @@
 
         // Zeitzone - z.B. fuer Weltzeit-Presets (eigenes Zifferblatt + eigene
         // Zone). Kodiert, da POSIX-Zonen '+', '<', '>' enthalten koennen.
+
         // Time zone - e.g. for world-time presets (own clock face + own zone).
         // Encoded, since POSIX zones may contain '+', '<', '>'.
+
         url += "&timeZone=" + presetUrlEncode(preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT));
 
-        // Helligkeit (siehe applyBrightnessPresetValue() in display.h) - bewusst
-        // OHNE useBacklight: das haengt an der Verdrahtung, nicht am Design.
-        // Aeltere Presets ohne diese Werte lassen die Helligkeit unveraendert.
+        // Helligkeit (siehe applyBrightnessPresetValue() in display.h) - bewusst OHNE useBacklight, das
+        // haengt an der Verdrahtung. Aeltere Presets ohne diese Werte lassen die Helligkeit unveraendert.
 
-        // Brightness (see applyBrightnessPresetValue() in display.h) -
-        // deliberately WITHOUT useBacklight: that depends on the wiring, not
-        // the design. Older presets without these values leave brightness
-        // unchanged.
+        // Brightness (see applyBrightnessPresetValue() in display.h) - deliberately WITHOUT useBacklight,
+        // that depends on the wiring. Older presets without these values leave brightness unchanged.
+
         url += "&minBrightness=" + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100));
         url += "&maxBrightness=" + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255));
         url += "&brightStart=" + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 7));
@@ -239,7 +254,9 @@
         url += "&autoBrightness=" + String(useAdc ? "true" : "false");
 
         // Speichere das Preset
+
         // Save the preset
+
         String presetName;
         if (!customName.isEmpty()) {
             presetName = customName;
@@ -257,6 +274,7 @@
         // Ensure uniqueness: switchToNextPreset() identifies the current
         // preset by NAME (not index). Colliding names would make presets
         // indistinguishable - append a numeric suffix.
+
         if (!customName.isEmpty()) {
             String baseName = presetName;
             int suffix = 2;
@@ -279,7 +297,9 @@
         presets[presetIndex].url = url;
 
         // Schreibe das Preset in die Preferences
+
         // Write the preset to the preferences
+
         String nameKey = pkPresetName(presetIndex);
         String urlKey = pkPresetUrl(presetIndex);
         preferences.putString(nameKey.c_str(), presetName);
@@ -299,8 +319,11 @@
 
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut,
         uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) {
+
         // Sinnvolle Standardwerte, falls ein Parameter im Preset fehlt
+
         // Sensible defaults in case a parameter is missing from the preset
+
         faceOut = "/face_default.bmp";
         handSetOut = "default";
         hubColorOut = 0xF800; // Rot in RGB565 (entspricht TFT_RED)
@@ -378,6 +401,7 @@
 
 
     // Loescht alle gespeicherten Presets (leert alle Slots).
+
     // Deletes all saved presets (clears all slots).
 
     void resetAllPresets() {
@@ -390,8 +414,11 @@
 
 
     void switchToNextPreset() {
+
         // Sammle alle gültigen Presets
+
         // Collect all valid presets
+
         std::vector<int> validPresets;
         for (int i = 0; i < MAX_PRESETS; i++) {
             if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
@@ -405,7 +432,9 @@
         }
 
         // Bestimme den aktuellen Preset-Index
+
         // Determine the current preset index
+
         String currentPresetName = preferences.getString(PK_CURRENT_PRESET, "");
         int currentIndex = -1;
         for (size_t i = 0; i < validPresets.size(); i++) {
@@ -416,16 +445,22 @@
         }
 
         // Wähle das nächste Preset
+
         // Select the next preset
+
         int nextIndex = (currentIndex + 1) % validPresets.size();
         int nextPresetIndex = validPresets[nextIndex];
 
         // Lade das nächste Preset
+
         // Load the next preset
+
         String nextPresetUrl = presets[nextPresetIndex].url;
 
         // Sicherstellen, dass die URL ab "/api" beginnt
+
         // Ensure the URL starts with "/api"
+
         if (!nextPresetUrl.startsWith("/api")) {
             DEBUG_PRINTLN("[PRESET] Invalid URL format, adjusting..");
             int apiIndex = nextPresetUrl.indexOf("/api");
@@ -440,16 +475,12 @@
 
         DEBUG_PRINTLN("[PRESET] Switching to preset: " + presets[nextPresetIndex].name + " -> " + nextPresetUrl);
 
-        // PK_CURRENT_PRESET wird bewusst erst am Ende gespeichert, nicht hier -
-        // sonst wuerde bei vorzeitigem Return (z.B. fehlende Query-Parameter)
-        // der Name auf ein Preset zeigen, dessen Einstellungen nie griffen.
+        // PK_CURRENT_PRESET erst am Ende speichern - sonst zeigte der Name nach vorzeitigem Return auf ein
+        // nie angewendetes Preset. Zuerst die Basis-URL entfernen, falls vorhanden.
 
-        // PK_CURRENT_PRESET is deliberately saved only at the end, not here -
-        // otherwise an early return (e.g. missing query parameters) would leave
-        // the name pointing at a preset whose settings were never applied.
+        // Save PK_CURRENT_PRESET only at the end - otherwise the name would point at a never applied preset
+        // after an early return. First remove the base URL, if present.
 
-        // Entferne die Basis-URL, falls vorhanden
-        // Remove the base URL, if present
         int queryStart = nextPresetUrl.indexOf('?');
         if (queryStart == -1) {
             DEBUG_PRINTLN("[PRESET] No query parameters found in URL");
@@ -458,7 +489,9 @@
         String query = nextPresetUrl.substring(queryStart + 1);
 
         // Parse die Parameter
+
         // Parse the parameters
+
         bool sawSmoothSecond = false;
         while (query.length() > 0) {
             int ampersandIndex = query.indexOf('&');
@@ -478,7 +511,9 @@
                                                                              // like webserver.arg() (see presetUrlDecode())
 
             // Wende die Einstellungen an
+
             // Apply the settings
+
             if (key == "face") {
                 //value.replace(".", "");
                 if (!value.startsWith("/")) value = "/" + value;
@@ -496,17 +531,12 @@
                                                                // otherwise every switch would trigger an NTP sync
                 preferences.putString(PK_TIMEZONE, value);
 
-                // Globale timezone-Variable aktualisieren + nur die Task
-                // anstossen (siehe time_sync.h) statt hier zu blockieren -
-                // switchToNextPreset() wird aus der Touch-Behandlung heraus
-                // aufgerufen (display.h), ein blockierendes setupNTP() wuerde
-                // die Touch-Reaktion und den Zeigerantrieb einfrieren.
+                // Globale timezone-Variable aktualisieren und nur die NTP-Task anstossen statt zu blockieren
+                // - ein blockierendes setupNTP() wuerde Taste und Zeigerantrieb einfrieren.
 
-                // Update the global timezone variable + only kick off the
-                // task (see time_sync.h) instead of blocking here -
-                // switchToNextPreset() is called from touch handling
-                // (display.h), a blocking setupNTP() would freeze touch
-                // response and the hand animation.
+                // Update the global timezone variable and only kick off the NTP task instead of blocking - a
+                // blocking setupNTP() would freeze the button and the hand animation.
+
                 timezone = value;
                 applyTimezoneToSystem(); // sofort wirksam, auch ohne erreichbaren NTP-Server
                                          // effective right away, even without a reachable NTP server
@@ -529,8 +559,11 @@
                 preferences.putBool(PK_STATION_MODE, stationMode);
             }
             else if (key == "rotation") {
+
                 // Bewusst ignoriert: Rotation ist eine geraeteweite HW-Einstellung.
+
                 // Deliberately ignored: rotation is a device-wide HW setting.
+
             }
             else if (key == "showSecondHand") {
                 showSecondHand = (value == "1" || value.equalsIgnoreCase("true"));
@@ -551,25 +584,14 @@
             }
         }
 
-        // Altes Preset (von vor der Trennung von stationMode/smoothSecond,
-        // siehe globals.h): enthaelt kein eigenes smoothSecond. Damals gab es
-        // schwingend nur zusammen mit stationMode=true - smoothSecond daher
-        // hier genau wie stationMode setzen, damit das Preset weiterhin exakt
-        // so aussieht wie zu der Zeit, als es erstellt wurde, statt ploetzlich
-        // eine (damals gar nicht waehlbare) neue Kombination zu zeigen. Die
-        // Preset-URL wird dabei gleich um den jetzt expliziten Parameter
-        // ergaenzt - einmalig "geheilt", ab jetzt ist das Preset vollstaendig
-        // und braucht diese Herleitung nicht mehr.
+        // Altes Preset (vor der Trennung stationMode/smoothSecond) ohne eigenes smoothSecond: damals gab es
+        // schwingend nur mit stationMode, daher smoothSecond = stationMode setzen, damit es aussieht wie beim
+        // Erstellen. Die Preset-URL bekommt den Parameter gleich dazu und ist ab dann vollstaendig.
 
-        // Old preset (from before stationMode/smoothSecond were split, see
-        // globals.h): has no smoothSecond of its own. Back then, smooth
-        // motion only existed together with stationMode=true - so set
-        // smoothSecond to match stationMode here, so the preset keeps looking
-        // exactly like it did when it was created, instead of suddenly
-        // showing a (back then not even selectable) new combination. The
-        // preset's URL gets the now-explicit parameter added at the same time
-        // - healed once, from now on the preset is complete and no longer
-        // needs this derivation.
+        // Old preset (before stationMode/smoothSecond were split) without its own smoothSecond: back then
+        // smooth motion only existed with stationMode, so set smoothSecond = stationMode to keep its original
+        // look. The preset URL gets the parameter added right away and is complete from then on.
+
         if (!sawSmoothSecond) {
             smoothSecond = stationMode;
             preferences.putBool(PK_SMOOTH_SECOND, smoothSecond);
@@ -588,7 +610,9 @@
         updateClock();
 
         // Speichere den aktuellen Preset-Namen
+
         // Save the current preset name
+
         preferences.putString(PK_CURRENT_PRESET, presets[nextPresetIndex].name);
 
         DEBUG_PRINTLN("[PRESET] Switched to preset: " + presets[nextPresetIndex].name);

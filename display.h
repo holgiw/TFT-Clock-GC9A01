@@ -1,20 +1,12 @@
 #pragma once
 
-    // Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch
-    // Benoetigt globals.h, config.h, prefs_keys.h, declarations.h (vor dieser Datei in uhr4.ino eingebunden)
-    // PSRAM bevorzugt fuer kurzlebige Puffer (BMP/PNG im Webinterface), um den
-    // knappen internen Heap nicht zu fragmentieren. Eigener psramFound()-Check
-    // statt gc9d01SwRotation, da dieses Flag nur die GC9D01-Rotation betrifft.
-    // Fuer "new (std::nothrow)" unten: garantiert nullptr statt
-    // implementierungsabhaengigem Verhalten bei fehlgeschlagener Allokation.
+    // Display: Zifferblatt, Zeiger, Sprites, Helligkeit (benoetigt globals.h, config.h, prefs_keys.h,
+    // declarations.h). Kurzlebige Puffer (BMP/PNG im Webinterface) bevorzugt im PSRAM, um den internen Heap
+    // nicht zu zerstueckeln; new (std::nothrow) liefert bei Fehlschlag sicher nullptr.
 
-    // Display: clock face, hands, sprites, brightness, touch
-    // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file in uhr4.ino)
-    // Prefers PSRAM for short-lived buffers (BMP/PNG in the web interface) to
-    // avoid fragmenting the scarce internal heap. Uses its own psramFound()
-    // check instead of gc9d01SwRotation, since that flag only concerns rotation.
-    // For "new (std::nothrow)" below: guarantees nullptr instead of
-    // implementation-defined behavior on failed allocation.
+    // Display: clock face, hands, sprites, brightness (requires globals.h, config.h, prefs_keys.h,
+    // declarations.h). Short-lived buffers (BMP/PNG in the web interface) preferably in PSRAM, so the
+    // internal heap does not fragment; new (std::nothrow) reliably returns nullptr on failure.
 
 #include <new>
 
@@ -28,6 +20,7 @@
 
 
     // Ein Display gilt als angeschlossen, solange seine Rotation nicht "n.a." ist
+
     // A display counts as connected as long as its rotation is not "n.a."
 
     bool isDisplayConnected(uint8_t displayNum) {
@@ -36,6 +29,7 @@
 
 
     // Rotation des ersten angeschlossenen Displays (Display 1 hat Vorrang), nie "n.a."
+
     // Rotation of the first connected display (display 1 takes priority), never "n.a."
 
     uint8_t primaryDisplayRotation() {
@@ -46,6 +40,7 @@
 
 
     // Rotation fuer Status-/Startmeldungen eines Displays: bei "n.a." 0 Grad, nie der Wert 4
+
     // Rotation for status/boot messages of a display: 0 degrees for "n.a.", never the value 4
 
     uint8_t effectiveRotation(uint8_t displayNum) {
@@ -55,6 +50,7 @@
 
     // Displayname wie bei den uhr3-Builds und in flashESP ("GC9A01",
     // "GC9A01_WITH_BACKLIGHT", "GC9D01") -> Displaytyp + Backlight-Regelung.
+
     // Display name as in the uhr3 builds and in flashESP ("GC9A01",
     // "GC9A01_WITH_BACKLIGHT", "GC9D01") -> display type + backlight control.
 
@@ -67,6 +63,7 @@
 
     // Umkehrung von parseDisplayName(): beim GC9D01 zaehlt die
     // Backlight-Einstellung nicht (immer an Pin 3 verdrahtet).
+
     // Inverse of parseDisplayName(): for the GC9D01 the backlight setting
     // does not matter (always wired to pin 3).
 
@@ -75,24 +72,13 @@
         return backlight ? "GC9A01_WITH_BACKLIGHT" : "GC9A01";
     }
 
-    // Update von uhr3: dessen Firmware vermerkt, fuer welches Display sie
-    // kompiliert wurde (PK_UHR3_BUILD_DISPLAY). Nur beim ersten Umstieg auf
-    // uhr4 - solange uhr4 noch keinen Displaytyp gespeichert hat - werden
-    // Displaytyp und Backlight-Regelung daraus uebernommen. Ist schon einer
-    // gespeichert, bleibt er: ein zwischendurch aufgespielter uhr3-Build (z.B.
-    // zum Testen, fuer ein anderes Display) stellte die Uhr sonst beim
-    // naechsten Start unbemerkt um. Der Vermerk wird in jedem Fall geloescht.
-    // Helligkeit, Schwellwerte und Nabengroesse bleiben: uhr3 hat sie bereits
-    // passend zu seinem Display gespeichert.
+    // Update von uhr3: dessen Firmware vermerkt ihren Displaytyp (PK_UHR3_BUILD_DISPLAY). Uebernommen nur,
+    // solange uhr4 noch keinen hat - sonst stellte ein zwischendurch geflashter uhr3-Build die Uhr um. Der
+    // Vermerk wird immer geloescht.
 
-    // Update from uhr3: its firmware records which display it was compiled
-    // for (PK_UHR3_BUILD_DISPLAY). Display type and backlight control are
-    // taken over from it only on the first switch to uhr4 - as long as uhr4
-    // has not stored a display type yet. If one is stored, it stays: a uhr3
-    // build flashed in between (e.g. for testing, for another display) would
-    // otherwise silently switch the clock at the next boot. The record is
-    // deleted in any case. Brightness, thresholds and hub size stay: uhr3
-    // already stored them to match its display.
+    // Update from uhr3: its firmware records its display type (PK_UHR3_BUILD_DISPLAY). Taken over only while
+    // uhr4 has none yet - otherwise a uhr3 build flashed in between would switch the clock. The record is
+    // always deleted.
 
     void adoptUhr3BuildDisplay() {
         if (!preferences.isKey(PK_UHR3_BUILD_DISPLAY)) return;
@@ -134,32 +120,23 @@
 
         // Standard-Zeigerbreiten des Typs - parseBackgroundFilename() passt sie
         // spaeter je Zifferblatt an.
+
         // Default hand widths of the type - parseBackgroundFilename() adjusts
         // them per clock face later.
+
         hourHandWidth = minuteHandWidth = secondHandWidth = HAND_WIDTH;
 
         DEBUG_PRINTLN(String("[Display] Type: ") + displayGeom->name + " (" + String(CLOCK_WIDTH) + "x" + String(CLOCK_HEIGHT) + ")");
     }
 
 
-    // Speichert einen neuen Displaytyp und setzt die typabhaengigen
-    // Werksvorgaben (Backlight, Helligkeit/Schwellwerte, Nabengroesse) -
-    // wirksam erst nach dem Neustart, den der Aufrufer ausloest.
+    // Neuen Displaytyp samt typabhaengigen Werksvorgaben speichern (wirkt nach dem Neustart). Hardware-Reset
+    // beider Displays mit den Zeiten von uhr3 (20 ms Puls, 150 ms Pause) - bei den 64 ms von LovyanGFX blieb
+    // das GC9D01 schwarz, daher pin_rst = -1.
 
-    // Stores a new display type and sets the type-dependent factory defaults
-    // (backlight, brightness/thresholds, hub size) - only effective after the
-    // restart the caller triggers.
-
-    // Hardware-Reset beider Displays (gemeinsame RST-Leitung) mit den Zeiten
-    // von uhr3: 20 ms Puls, danach 150 ms Wartezeit. LovyanGFX wartet nur
-    // 64 ms - das GC9D01 ignorierte dann die Startbefehle (u.a. Sleep Out) und
-    // blieb bei leuchtender Hintergrundbeleuchtung schwarz. Daher pin_rst = -1
-    // in lgfx_config.h.
-
-    // Hardware reset of both displays (shared RST line) with uhr3's timing:
-    // 20 ms pulse, then a 150 ms wait. LovyanGFX only waits 64 ms - the
-    // GC9D01 then ignored the init commands (among them Sleep Out) and stayed
-    // black with the backlight lit. Hence pin_rst = -1 in lgfx_config.h.
+    // Store a new display type with type-dependent factory defaults (effective after the restart). Hardware
+    // reset of both displays with uhr3's timing (20 ms pulse, 150 ms wait) - with LovyanGFX's 64 ms the
+    // GC9D01 stayed black, hence pin_rst = -1.
 
     void resetPanels() {
         pinMode(TFT_RST, OUTPUT);
@@ -175,6 +152,7 @@
     // Speichert Displaytyp + Backlight-Regelung (Auswahl wie
     // parseDisplayName()) samt den passenden Standardwerten - wirkt erst nach
     // dem Neustart (Aufrufer startet neu).
+
     // Stores display type + backlight control (choice as in
     // parseDisplayName()) together with the matching defaults - takes effect
     // only after the restart (the caller restarts).
@@ -193,6 +171,7 @@
     // Hex-Text -> Bytes als String (fuer WLAN-Name/-Passwort per USB, damit
     // Leerzeichen, Umlaute und Sonderzeichen sicher ankommen). false bei
     // ungueltigem Hex oder mehr als maxLen Bytes.
+
     // Hex text -> bytes as a string (for WiFi name/password via USB, so that
     // spaces, umlauts and special characters arrive safely). false on invalid
     // hex or more than maxLen bytes.
@@ -209,44 +188,14 @@
     }
 
 
-    // Einrichtung per USB - fuer die Erstinbetriebnahme: zeigt das Display
-    // wegen des falschen Typs nichts Lesbares, ist die Uhr sonst nur ueber den
-    // Access Point erreichbar. flashESP.bat/.sh fragen Displaytyp und WLAN ab
-    // und senden nach dem Flashen zeilenweise:
-    //   "UHR4 WIFI <Name-Hex> <Passwort-Hex>" -> speichert das WLAN wie nach
-    //       WPS (saveWpsCredentials()) und bevorzugt es beim naechsten Start;
-    //       Antwort "UHR4 OK WIFI" - das Passwort erscheint nirgends (weder
-    //       Antwort noch Log).
-    //   "UHR4 DISPLAY <Name>" (Name siehe parseDisplayName()) -> bei Aenderung
-    //       wie im Zifferblatt-Tab Werksvorgaben setzen und neu starten;
-    //       Antwort "UHR4 OK DISPLAY <Name> RESTART|UNCHANGED".
-    //   "UHR4 RESTART" -> Antwort "UHR4 OK RESTART", Neustart.
-    //   "UHR4 INFO" -> eingestellter Displaytyp, siehe handleSerialInfo().
-    //   "UHR4 TIME <Unix-Sekunden>" -> Uhrzeit vom PC, siehe handleSerialTime().
-    // Fehler: "UHR4 ERROR ...". Aufruf aus loop() und den langen
-    // Warteschleifen beim Start - kein zusaetzliches Warten beim Start.
+    // Einrichtung per USB (flashESP, setTime), zeilenweise: "UHR4 WIFI <Name-Hex> <Passwort-Hex>", "UHR4
+    // DISPLAY <Name>", "UHR4 RESTART", "UHR4 INFO", "UHR4 TIME <Unix-Sek.>" - Antwort "UHR4 OK/ERROR ...",
+    // Passwort nie im Log. serialReply() darf kurz warten, sonst sind USB-Ausgaben nicht blockierend.
 
-    // Setup via USB - for first-time setup: if the display shows nothing
-    // readable because of the wrong type, the clock is otherwise only
-    // reachable via the access point. flashESP.bat/.sh ask for display type
-    // and WiFi and send line by line after flashing:
-    //   "UHR4 WIFI <name hex> <password hex>" -> stores the WiFi like after
-    //       WPS (saveWpsCredentials()) and prefers it at the next boot; reply
-    //       "UHR4 OK WIFI" - the password appears nowhere (neither reply nor
-    //       log).
-    //   "UHR4 DISPLAY <name>" (name see parseDisplayName()) -> on a change, as
-    //       in the clock face tab, set factory defaults and restart; reply
-    //       "UHR4 OK DISPLAY <name> RESTART|UNCHANGED".
-    //   "UHR4 RESTART" -> reply "UHR4 OK RESTART", restart.
-    //   "UHR4 INFO" -> configured display type, see handleSerialInfo().
-    //   "UHR4 TIME <Unix seconds>" -> time from the PC, see handleSerialTime().
-    // Errors: "UHR4 ERROR ...". Called from loop() and the long wait loops at
-    // boot - no additional waiting at boot.
+    // Setup via USB (flashESP, setTime), line by line: "UHR4 WIFI <name hex> <password hex>", "UHR4 DISPLAY
+    // <name>", "UHR4 RESTART", "UHR4 INFO", "UHR4 TIME <Unix sec>" - reply "UHR4 OK/ERROR ...", password
+    // never logged. serialReply() may wait briefly, otherwise USB output is non-blocking.
 
-    // Antwort auf einen USB-Befehl: hier darf das Senden kurz warten (der PC
-    // liest gerade mit), sonst sind USB-Ausgaben nicht blockierend (setup()).
-    // Reply to a USB command: sending may wait briefly here (the PC is reading
-    // right now), otherwise USB output is non-blocking (setup()).
     void serialReply(const String& reply) {
 #if ARDUINO_USB_CDC_ON_BOOT
         Serial.setTxTimeoutMs(250);
@@ -261,9 +210,11 @@
     // Neustart erst nach 1 s: das Skript schliesst die Schnittstelle nach der
     // Antwort sofort - verschwindet die Uhr vorher vom USB, kann das Schliessen
     // unter Windows haengen und die Schnittstelle offen halten.
+
     // Restart only after 1 s: the script closes the port right after the reply
     // - if the clock vanishes from USB before that, closing can hang on
     // Windows and keep the port open.
+
     void serialRestart(const String& reply) {
         serialReply(reply);
         delay(1000);
@@ -289,14 +240,14 @@
         serialReply("UHR4 OK WIFI");
     }
 
-    // "UHR4 INFO" -> "UHR4 OK INFO <Name> <gesetzt>": eingestellter Displaytyp
-    // (Name wie parseDisplayName(), Backlight beim GC9A01 beruecksichtigt) und
-    // ob er je gespeichert wurde (1) oder nur der Standard gilt (0). flashESP
-    // fragt das VOR dem Flashen ab und waehlt den Typ vor. Liest nur.
-    // "UHR4 INFO" -> "UHR4 OK INFO <name> <set>": configured display type (name
-    // as in parseDisplayName(), backlight considered for the GC9A01) and
-    // whether it was ever stored (1) or only the default applies (0). flashESP
-    // queries this BEFORE flashing and preselects the type. Read-only.
+    // "UHR4 INFO" -> "UHR4 OK INFO <Name> <gesetzt>": eingestellter Displaytyp und ob er je gespeichert wurde
+    // (1) oder nur der Standard gilt (0). flashESP fragt das vor dem Flashen ab und waehlt den Typ vor. Liest
+    // nur.
+
+    // "UHR4 INFO" -> "UHR4 OK INFO <name> <set>": configured display type and whether it was ever stored (1)
+    // or only the default applies (0). flashESP queries this before flashing and preselects the type.
+    // Read-only.
+
     void handleSerialInfo() {
         bool backlight = preferences.getBool(PK_USE_BACKLIGHT, DISPLAY_GEOMETRY[displayType].backlightDefault);
         serialReply(String("UHR4 OK INFO ") + displayChoiceName(displayType, backlight) + " " + String(preferences.isKey(PK_DISPLAY_TYPE) ? 1 : 0));
@@ -309,10 +260,13 @@
             serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01)");
             return;
         }
+
         // Gespeicherten Wert vergleichen - der Befehl kann auch waehrend
         // setup() kommen, bevor useBacklight geladen ist.
+
         // Compare the stored value - the command may also arrive during
         // setup(), before useBacklight is loaded.
+
         bool storedBacklight = preferences.getBool(PK_USE_BACKLIGHT, DISPLAY_GEOMETRY[displayType].backlightDefault);
         if (type == displayType && backlight == storedBacklight) {
             serialReply("UHR4 OK DISPLAY " + name + " UNCHANGED");
@@ -385,19 +339,13 @@
     }
 
 
-    // Legt ein 16-Bit-Sprite an, standardmaessig im PSRAM - auch die Zeiger
-    // (je ~7,5 KB): der interne RAM ist auf dem ESP32-S2 knapp und wird von
-    // WLAN/Webserver gebraucht (Zeiger intern liessen den freien Heap auf
-    // 5 KB fallen, die Uhr antwortete dann nicht mehr). Klappt der
-    // bevorzugte Speicher nicht, zweiter Versuch im anderen.
-    // swapBytes: pushImage() bekommt RGB565 in RAM-Reihenfolge.
+    // Legt ein 16-Bit-Sprite an, standardmaessig im PSRAM - auch die Zeiger, da interner RAM knapp ist
+    // (intern fiel der freie Heap auf 5 KB). Klappt es dort nicht, zweiter Versuch im anderen Speicher.
+    // swapBytes fuer RGB565 aus dem RAM.
 
-    // Creates a 16-bit sprite, by default in PSRAM - the hands too (~7.5 KB
-    // each): internal RAM is scarce on the ESP32-S2 and needed by WiFi/the
-    // web server (hands in internal RAM dropped the free heap to 5 KB, the
-    // clock then stopped responding). If the preferred memory fails, a
-    // second attempt in the other one.
-    // swapBytes: pushImage() receives RGB565 in RAM byte order.
+    // Creates a 16-bit sprite, by default in PSRAM - the hands too, since internal RAM is scarce (internally
+    // the free heap dropped to 5 KB). If that fails, a second attempt in the other memory. swapBytes for
+    // RGB565 from RAM.
 
     bool createSprite16(LGFX_Sprite& sprite, int32_t w, int32_t h, bool preferPsram) {
         sprite.setColorDepth(16);
@@ -426,15 +374,11 @@
     }
 
 
-    // Wandelt Text fuers Display um: HTML-Entities aus translation.h
-    // (&uuml;, &eacute;, ...) und UTF-8 (z.B. SSIDs) werden zu CP437-Bytes der
-    // GLCD-Schrift. Unbekannte Zeichen werden zu '?', statt als Zeichensalat
-    // oder roher Entity-Text ("pr&uuml;fen") zu erscheinen.
+    // Text fuers Display umwandeln: HTML-Entities (&uuml; ...) und UTF-8 (z.B. SSIDs) werden zu CP437-Bytes
+    // der GLCD-Schrift, Unbekanntes zu '?'.
 
-    // Converts text for the display: HTML entities from translation.h
-    // (&uuml;, &eacute;, ...) and UTF-8 (e.g. SSIDs) become CP437 bytes of
-    // the GLCD font. Unknown characters become '?' instead of showing up as
-    // garbage or raw entity text ("pr&uuml;fen").
+    // Convert text for the display: HTML entities (&uuml; ...) and UTF-8 (e.g. SSIDs) become CP437 bytes of
+    // the GLCD font, anything unknown becomes '?'.
 
     String tftText(const String& text) {
         struct Cp437Map { uint16_t unicode; const char* entity; char cp437; };
@@ -478,7 +422,9 @@
             if (c < 0x80) { out += (char)c; i++; continue; }
 
             // UTF-8-Folge dekodieren (2 oder 3 Byte reichen fuer Latin-1)
+
             // Decode a UTF-8 sequence (2 or 3 bytes cover Latin-1)
+
             uint32_t cp = 0;
             size_t n = 0;
             if ((c & 0xE0) == 0xC0) { cp = c & 0x1F; n = 1; }
@@ -500,24 +446,14 @@
     }
 
 
-#if defined CS_2
 
 
-    // Waehlt Display 1 aus, deaktiviert Display 2. Steuert beide CS-Pins
-    // manuell, da LovyanGFX keinen CS-Pin fuehrt (pin_cs = -1, siehe
-    // lgfx_config.h) und CS_1 sonst nicht mitgeschaltet wuerde.
-    // Vor dem Umschalten muss die laufende Uebertragung fertig sein. Danach
-    // setRotation(): stellt MADCTL fuer DIESEN Chip ein und verwirft
-    // LovyanGFXs gemerktes Adressfenster - das gilt sonst noch fuer den
-    // anderen Chip, und der neue bekaeme falsche Bilddaten.
+    // Waehlt Display 1 und schaltet beide CS-Pins selbst (LovyanGFX fuehrt keinen, pin_cs = -1). Vorher die
+    // laufende Uebertragung abwarten; setRotation() stellt MADCTL fuer diesen Chip und verwirft das gemerkte
+    // Adressfenster.
 
-    // Selects Display 1, disables Display 2. Drives both CS pins manually,
-    // since LovyanGFX drives no CS pin (pin_cs = -1, see lgfx_config.h) and
-    // CS_1 would otherwise not be toggled along.
-    // The running transfer must be finished before switching. Afterwards
-    // setRotation(): sets MADCTL for THIS chip and discards LovyanGFX's
-    // cached address window - it still belongs to the other chip otherwise,
-    // and the new one would receive wrong frame data.
+    // Selects display 1 and drives both CS pins itself (LovyanGFX drives none, pin_cs = -1). Wait for the
+    // running transfer first; setRotation() sets MADCTL for this chip and discards the cached address window.
 
     void setCS1(bool state) {
         if (state == LOW) {
@@ -575,11 +511,13 @@
         bool& created = (displayNum == 1) ? statusSprite1Created : statusSprite2Created;
 
         if (gc9d01SwRotation && !created) {
+
             // Schlaegt die Allokation fehl, bleibt 'created' false und es wird
             // unten unrotiert direkt auf den Chip gezeichnet statt ins Nichts.
 
             // If allocation fails, 'created' stays false and drawing falls
             // through to the direct-to-chip path below, unrotated but readable.
+
             if (createSprite16(sprite, CLOCK_WIDTH, CLOCK_HEIGHT)) {
                 setupTextStyle(sprite);
                 sprite.fillSprite(TFT_BLACK);
@@ -594,6 +532,7 @@
             if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
             return tft;
         }
+
         // Bewusst KEIN sprite.setRotation() (siehe Kommentar oben) - das
         // Sprite bleibt immer in seiner unrotierten 0-Grad-Ausgangslage,
         // die Drehung erfolgt erst in endStatusDraw().
@@ -601,6 +540,7 @@
         // Deliberately NO sprite.setRotation() (see comment above) - the
         // sprite always stays in its unrotated 0-degree starting state,
         // rotation happens only in endStatusDraw().
+
         return sprite;
     }
 
@@ -614,6 +554,7 @@
     // otherwise row by row like loadClockFace(); shares its rowBuffer.
 
     void endStatusDraw(uint8_t displayNum) {
+
         // Auch das fehlgeschlagene Sprite-Anlegen abfangen (siehe
         // beginStatusDraw()): dann wurde bereits direkt auf den Chip gezeichnet
         // und es gibt nichts zu uebertragen.
@@ -621,6 +562,7 @@
         // Also catch a failed sprite allocation (see beginStatusDraw()): in that
         // case drawing already went straight to the chip and there is nothing to
         // transfer.
+
         bool created = (displayNum == 1) ? statusSprite1Created : statusSprite2Created;
         if (!gc9d01SwRotation || !created) return;
 
@@ -640,6 +582,7 @@
         // pushImage() sends bytes as they sit in RAM (little-endian), but the
         // display expects the other byte order - without setSwapBytes(true)
         // colors arrive swapped (e.g. green 0x07E0 becomes 0xE007).
+
         tft.setSwapBytes(true);
 
         const int N = CLOCK_WIDTH;
@@ -664,9 +607,9 @@
 
         // Reset the state - 'tft' is expected to have swapBytes=false
         // elsewhere (text via hardware rotation, updateClock(), etc.).
+
         tft.setSwapBytes(false);
     }
-#endif
 
 
     // Uebernimmt eine neue Rotation (0-3 oder TFT_ROTATION_NA) fuer Display 1 oder 2:
@@ -686,6 +629,7 @@
 
         // Only reset firstRun on an actual change, otherwise every save
         // restarts the station-mode wait phase.
+
         if (rotation != newRotation) {
             firstRunFlag = true;
             clockFrameDirty[displayNum - 1] = true; // auch im Spiegelbetrieb (Display 2 ohne eigenes Rendern) neu senden
@@ -697,11 +641,13 @@
         preferences.putUChar((displayNum == 1) ? PK_TFT_ROTATION1 : PK_TFT_ROTATION2, rotation);
 
         if (!gc9d01SwRotation) {
+
             // setCS1()/setCS2() setzen die neue Rotation am gewaehlten Chip
             // (hardwareRotation()) - einmal auswaehlen genuegt.
 
             // setCS1()/setCS2() set the new rotation on the selected chip
             // (hardwareRotation()) - selecting it once is enough.
+
             if (displayNum == 1) setCS1(LOW); else setCS2(LOW);
             setCSIdle(); // zurueck auf den Ausgangszustand, damit loop() im gewohnten Zustand weiterlaeuft
                          // back to the initial state, so loop() continues from its usual state
@@ -709,15 +655,11 @@
     }
 
 
-    // Werksvorgaben fuer min. Helligkeit und ADC-Schwellwerte je nach
-    // Helligkeitsverfahren: mit Backlight kann die PWM fast bis auf 0 dimmen
-    // und zwischen den Schwellen stufenlos regeln; ohne Backlight werden die
-    // Pixel abgedunkelt, unter ~100 wird das Zifferblatt unleserlich.
+    // Werksvorgaben fuer min. Helligkeit und Schwellwerte: mit Backlight dimmt die PWM fast bis 0 stufenlos;
+    // ohne werden die Pixel abgedunkelt, unter ~100 wird das Zifferblatt unleserlich.
 
-    // Factory defaults for min. brightness and ADC thresholds depending on
-    // the brightness method: with a backlight the PWM can dim almost to 0 and
-    // regulate steplessly between the thresholds; without one the pixels get
-    // darkened, below ~100 the clock face becomes unreadable.
+    // Factory defaults for min. brightness and thresholds: with a backlight the PWM dims steplessly almost to
+    // 0; without one the pixels are darkened, below ~100 the clock face becomes unreadable.
 
     void putBrightnessDefaults(bool backlight) {
         preferences.putUChar(PK_MIN_BRIGHTNESS, backlight ? 5 : 100);
@@ -729,18 +671,13 @@
     }
 
 
-    // Automatische Helligkeit (Fotowiderstand) ein-/ausschalten - inklusive
-    // der Versorgungspins des Spannungsteilers: setup() legt sie bei
-    // ausgeschalteter Automatik auf INPUT, ein spaeteres Einschalten (Formular,
-    // Preset) liess den Teiler sonst bis zum Neustart ohne Spannung.
+    // Automatische Helligkeit ein-/ausschalten, samt Versorgungspins des Spannungsteilers - sonst bliebe der
+    // Teiler nach spaeterem Einschalten (Formular, Preset) bis zum Neustart ohne Spannung.
 
-    // Switch automatic brightness (photoresistor) on/off - including the
-    // voltage divider's supply pins: setup() sets them to INPUT when the
-    // automatic is off, so enabling it later (form, preset) would otherwise
-    // leave the divider unpowered until the next restart.
+    // Switch automatic brightness on/off, including the voltage divider's supply pins - otherwise the divider
+    // would stay unpowered until the next restart after enabling it later (form, preset).
 
     void setAutoBrightness(bool enabled) {
-#ifdef ADC_3V
         enabled = enabled && photoresistorFound;
         if (enabled) {
             pinMode(ADC_GND, OUTPUT);
@@ -752,23 +689,17 @@
             pinMode(ADC_GND, INPUT);
             pinMode(ADC_3V, INPUT);
         }
-#else
-        enabled = false;
-#endif
         useAdc = enabled;
         preferences.putBool(PK_USE_ADC, useAdc);
     }
 
 
-    // Helligkeitswert aus einem Preset (URL-Parameter) uebernehmen und
-    // speichern - gemeinsam fuer /api/setMode und switchToNextPreset(), damit
-    // beide Wege gleich klemmen. false = kein Helligkeits-Schluessel.
-    // Wirkt beim naechsten updateBrightness() in loop().
+    // Helligkeitswert aus einem Preset uebernehmen und speichern - gemeinsam fuer /api/setMode und
+    // switchToNextPreset(), damit beide gleich begrenzen. false = kein Helligkeits-Schluessel; wirkt beim
+    // naechsten updateBrightness().
 
-    // Take over and store a brightness value from a preset (URL parameter) -
-    // shared by /api/setMode and switchToNextPreset(), so both paths clamp
-    // the same way. false = not a brightness key. Takes effect on the next
-    // updateBrightness() in loop().
+    // Take over and store a brightness value from a preset - shared by /api/setMode and switchToNextPreset(),
+    // so both clamp the same way. false = not a brightness key; takes effect on the next updateBrightness().
 
     bool applyBrightnessPresetValue(const String& key, const String& value) {
         if (key == "minBrightness") {
@@ -809,17 +740,11 @@
     }
 
 
-    // Setzt Pin 3 passend zu useBacklight: an = PWM anhaengen und aktuelle
-    // Helligkeit ausgeben; aus = PWM abhaengen und Pin fest HIGH (volle
-    // Beleuchtung). HIGH auch beim Start: ein verdrahteter, aber offener
-    // BL-Eingang (z.B. GC9D01 mit abgeschalteter Regelung) bliebe sonst je
-    // nach Modul dunkel - auf der GC9A01-Platine ist Pin 3 unbelegt.
+    // Pin 3 passend zu useBacklight: an = PWM mit aktueller Helligkeit, aus = fest HIGH (volle Beleuchtung).
+    // HIGH auch beim Start - ein offener BL-Eingang bliebe sonst je nach Modul dunkel.
 
-    // Sets pin 3 according to useBacklight: on = attach PWM and output the
-    // current brightness; off = detach PWM and drive the pin HIGH (full
-    // backlight). HIGH at boot too: a wired but floating BL input (e.g. a
-    // GC9D01 with the control switched off) would otherwise stay dark on some
-    // modules - on the GC9A01 board pin 3 is unconnected.
+    // Pin 3 according to useBacklight: on = PWM with the current brightness, off = HIGH (full backlight).
+    // HIGH at boot too - a floating BL input would otherwise stay dark on some modules.
 
     void applyBacklightPin() {
         if (useBacklight) {
@@ -859,20 +784,14 @@
 
         DEBUG_PRINTLN(String("[Display] Backlight ") + (enabled ? "on" : "off"));
 
-        // Erst Pin umstellen und die Helligkeit fuer das neue Verfahren
-        // berechnen, DANN neu einfaerben - sonst wuerde z.B. beim Abschalten
-        // der niedrige PWM-Wert (5) kurz als Pixel-Abdunklung sichtbar.
+        // Erst Pin umstellen und die Helligkeit neu berechnen, DANN neu einfaerben (sonst blitzte der
+        // niedrige PWM-Wert als Abdunklung auf). Mit max. Helligkeit neu beginnen, sonst bliebe der Zielwert
+        // des alten Verfahrens stehen.
 
-        // Switch the pin and compute brightness for the new method first,
-        // THEN re-tint - otherwise e.g. when switching off, the low PWM value
-        // (5) would briefly show up as pixel dimming.
-        // Mit max. Helligkeit neu anfangen: liegt das Umgebungslicht zwischen
-        // den Schwellen, aendert updateBrightness() targetBrightness nicht -
-        // ohne Reset bliebe sonst der Zielwert des alten Verfahrens stehen.
+        // Switch the pin and recompute brightness first, THEN re-tint (otherwise the low PWM value would
+        // flash as dimming). Restart from max. brightness, otherwise the old method's target value would
+        // stick.
 
-        // Restart from max. brightness: if ambient light lies between the
-        // thresholds, updateBrightness() leaves targetBrightness unchanged -
-        // without a reset the old method's target value would stick.
         targetBrightness = maxBrightness;
         currentBrightness = maxBrightness;
 
@@ -888,6 +807,7 @@
 
 
     // Passt die Helligkeit eines Pixels basierend auf der aktuellen Helligkeitseinstellung an.
+
     // Adjusts a pixel's brightness based on the current brightness setting.
 
     uint16_t setPixelBrightness(uint16_t pixel) {
@@ -897,32 +817,43 @@
 
         // With a backlight the PWM on TFT_Backlight controls brightness
         // (updateBrightness()) - pixels stay unchanged.
+
         if (useBacklight) return pixel;
 
         // Wenn die Helligkeit maximal ist oder der Pixel transparent/schwarz ist, direkt zurückgeben
+
         // If brightness is at maximum or the pixel is transparent/black, return immediately
+
         if (pixel == TRANSPARENT_COLOR || pixel == 0x0000 || currentBrightness == 255) {
             return pixel;
         }
 
         // Multiplikator einmal berechnen (statt 3x Division)
+
         // Compute the multiplier once (instead of 3x division)
+
         uint32_t brightnessFactor = (uint32_t)currentBrightness;
 
         // Farben extrahieren
+
         // Extract colors
+
         uint32_t r = (pixel & 0xF800);
         uint32_t g = (pixel & 0x07E0);
         uint32_t b = (pixel & 0x001F);
 
         // Multiplikation mit Brightness (optimiert, kein Shift nötig)
+
         // Multiply by brightness (optimized, no shift needed)
+
         r = ((r * brightnessFactor) >> 8) & 0xF800;
         g = ((g * brightnessFactor) >> 8) & 0x07E0;
         b = ((b * brightnessFactor) >> 8) & 0x001F;
 
         // Farbwerte zusammenfügen; gedimmtes Reingrün kann genau TRANSPARENT_COLOR ergeben und würde sonst verschwinden
+
         // Combine color values; dimmed pure green can hit exactly TRANSPARENT_COLOR and would otherwise vanish
+
         uint16_t result = r | g | b;
         return (result == TRANSPARENT_COLOR) ? 0x0100 : result;
     }
@@ -942,6 +873,7 @@
 
 
     // Obergrenze fuer die kodierte Groesse (fuer die Allokation des Zielpuffers).
+
     // Upper bound for the encoded size (for allocating the destination buffer).
 
     size_t rleMaxEncodedSize(size_t pixelCount) {
@@ -1077,14 +1009,12 @@
     }
 
 
-    // Eingebaute Standardgrafiken (RLE, siehe DISPLAY_GEOMETRY in config.h)
+    // Eingebaute Standardgrafiken (RLE, siehe DISPLAY_GEOMETRY): entpackt das Standard-Zifferblatt des
+    // aktiven Displaytyps nach 'dest' (CLOCK_WIDTH x CLOCK_HEIGHT).
 
-    // Built-in default graphics (RLE, see DISPLAY_GEOMETRY in config.h)
+    // Built-in default graphics (RLE, see DISPLAY_GEOMETRY): unpacks the active display type's default clock
+    // face into 'dest' (CLOCK_WIDTH x CLOCK_HEIGHT).
 
-    // Entpackt das Standard-Zifferblatt des aktiven Displaytyps nach 'dest'
-    // (CLOCK_WIDTH x CLOCK_HEIGHT Pixel).
-    // Unpacks the active display type's default clock face into 'dest'
-    // (CLOCK_WIDTH x CLOCK_HEIGHT pixels).
     void decodeDefaultFace(uint16_t* dest) {
         if (!dest) return;
         rleDecode565(displayGeom->face.data, displayGeom->face.size, dest, displayGeom->face.pixels);
@@ -1092,8 +1022,10 @@
 
     // Wie decodeDefaultFace(), legt den Puffer aber selbst an (PSRAM bevorzugt) -
     // der Aufrufer gibt ihn mit free() frei. nullptr bei Speichermangel.
+
     // Like decodeDefaultFace(), but allocates the buffer itself (PSRAM
     // preferred) - the caller frees it with free(). nullptr when out of memory.
+
     uint16_t* allocDefaultFace() {
         uint16_t* buf = (uint16_t*)preferPsramMalloc((size_t)displayGeom->face.pixels * sizeof(uint16_t));
         if (!buf) {
@@ -1167,6 +1099,7 @@
             for (int y = 0; y < height; y++) {
                 int row = flip ? height - 1 - y : y;
                 f.seek(offset + (uint32_t)rowSize * y);
+
                 // Rueckgabewert pruefen: bei unvollstaendiger Zeile false liefern,
                 // sonst enthaelt dest teils uninitialisierten Speicher, obwohl der
                 // Aufrufer es als vollstaendig geladen behandelt.
@@ -1174,6 +1107,7 @@
                 // Check the return value: return false on an incomplete row,
                 // otherwise dest partly holds uninitialized memory while the
                 // caller treats it as fully loaded.
+
                 if (f.read((uint8_t*)&dest[row * width], width * 2) != width * 2) {
                     f.close();
                     return false;
@@ -1191,6 +1125,7 @@
     // Put a hand image (w x h, old or new size each) horizontally centred and
     // flush at the bottom into 'dest' (HAND_WIDTH x HAND_HEIGHT), the rest
     // transparent - pivot and the part below it then sit like in the new format.
+
     void placeHand(const uint16_t* src, int w, int h, uint16_t* dest) {
         int ox = (HAND_WIDTH - w) / 2, oy = HAND_HEIGHT - h;
         for (int i = 0; i < HAND_WIDTH * HAND_HEIGHT; i++) dest[i] = TRANSPARENT_COLOR;
@@ -1198,7 +1133,9 @@
     }
 
     // Eingebaute Standardzeiger liegen im alten Format vor
+
     // Built-in default hands are in the old format
+
     void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) {
         placeHand(legacy, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT, dest);
     }
@@ -1208,6 +1145,7 @@
 
     // Loads a hand file (BMP/RLEB) in one of the four valid formats (width and
     // height old or new each) into 'dest'. False if none matches.
+
     bool loadHandPixels(const String& path, uint16_t* dest) {
         if (loadFaceBmpInto(path, dest, HAND_WIDTH, HAND_HEIGHT)) return true;
         const int formats[3][2] = {
@@ -1232,6 +1170,7 @@
 
     // Target size when storing a hand file: one of the four valid formats stays
     // unscaled, everything else is scaled to the old format as before.
+
     void handTargetSize(const char* path, int& outW, int& outH) {
         outW = HAND_LEGACY_WIDTH;
         outH = HAND_LEGACY_HEIGHT;
@@ -1243,7 +1182,9 @@
     }
 
     // Breite und Hoehe aus dem Kopf einer BMP- oder RLEB-Datei, ohne Pixel zu lesen
+
     // Width and height from the header of a BMP or RLEB file, without reading pixels
+
     bool readImageSize(const char* path, int32_t& w, int32_t& h) {
         w = 0;
         h = 0;
@@ -1269,7 +1210,9 @@
     }
 
     // Kurzbezeichnung des Zeigerformats fuer den Dateimanager
+
     // Short label of the hand format for the file manager
+
     String handFormatLabel(const String& path) {
         int32_t w, h;
         if (!readImageSize(path.c_str(), w, h)) return "";
@@ -1279,23 +1222,22 @@
         return (w == HAND_WIDTH) ? translate("new width") : translate("new length");
     }
 
-    // Laedt das gewaehlte Zifferblatt (BMP/RLEB, Fallback aufs Standardbild) in
-    // clockFaceBuffer, wendet die Helligkeit an und zeichnet in backgroundSprite.
-    // Haelt clockFaceBuffer (Rohbild) und clockFaceBrightBuffer (angepasst)
-    // aktuell. Aus loadClockFace() ausgelagert, damit buildHandComposite() die
-    // Vorbereitung mitnutzen kann. Rueckgabe: 2=beide Puffer ok, 1=nur Rohbild, 0=nichts.
+    // Laedt das gewaehlte Zifferblatt (BMP/RLEB, sonst Standard) in clockFaceBuffer, wendet die Helligkeit an
+    // (clockFaceBrightBuffer) und zeichnet in backgroundSprite. Rueckgabe: 2 = beide Puffer ok, 1 = nur
+    // Rohbild, 0 = nichts.
 
-    // Loads the selected clock face (BMP/RLEB, falls back to the default) into
-    // clockFaceBuffer, applies brightness and draws into backgroundSprite.
-    // Keeps clockFaceBuffer (raw) and clockFaceBrightBuffer (adjusted)
-    // up to date. Split out of loadClockFace() so buildHandComposite() can
-    // reuse this prep. Returns: 2=both buffers ok, 1=raw only, 0=neither.
+    // Loads the selected clock face (BMP/RLEB, else default) into clockFaceBuffer, applies brightness
+    // (clockFaceBrightBuffer) and draws into backgroundSprite. Returns: 2 = both buffers ok, 1 = raw only, 0
+    // = neither.
 
     int prepareClockFaceCache() {
         bool forceRecompute = false; // Neues Zifferblatt geladen -> Cache muss neu berechnet werden
                                      // New clock face loaded -> cache must be recalculated
+
         // Prüfen, ob Buffer schon existiert
+
         // Check whether the buffer already exists
+
         if (!clockFaceBuffer) {
             size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
             if (psramFound() and ESP.getFreePsram() > bufSize) {
@@ -1303,11 +1245,13 @@
                 clockFaceBuffer = (uint16_t*)ps_malloc(bufSize);
             }
             else {
+
                 // String(bufSize) explizit: "..." + bufSize waere Zeigerarithmetik
                 // auf dem String-Literal statt Verkettung und liest wild aus dem Speicher.
 
                 // String(bufSize) explicitly: "..." + bufSize would be pointer
                 // arithmetic on the literal instead of concatenation, reading wild memory.
+
                 DEBUG_PRINTLN("allocate ram: " + String(bufSize));
                 DEBUG_PRINTLN("[PSRAM] Allocate ram");
                 clockFaceBuffer = (uint16_t*)malloc(bufSize);
@@ -1319,13 +1263,17 @@
 
 
             if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
+
             // Bild aus Datei laden und dekodieren (Standard-BMP oder RLEB-komprimiert)
+
             // Load and decode the image from file (standard BMP or RLEB-compressed)
+
             bool loaded = false;
             if (LittleFS.exists(selectedBackground)) {
                 loaded = loadFaceBmpInto(selectedBackground, clockFaceBuffer, CLOCK_WIDTH, CLOCK_HEIGHT);
             }
             if (!loaded) {
+
                 // Fallback: Standard-Zifferblatt aus Array kopieren (auch bei
                 // Lesefehler oder falschen Dimensionen - vorher blieb der
                 // Puffer in diesem Fall unveraendert/undefiniert)
@@ -1333,13 +1281,16 @@
                 // Fallback: copy the built-in default clock face from the array (also on
                 // read errors or wrong dimensions - previously the buffer
                 // was left unchanged/undefined in this case)
+
                 decodeDefaultFace(clockFaceBuffer);
             }
             forceRecompute = true;
         }
 
         // Breiten aus Dateinamen extrahieren
+
         // Extract widths from the filename
+
         parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
         updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
 
@@ -1349,6 +1300,7 @@
 
         // Allocate the cache buffer for the already brightness-adjusted
         // version of the clock face, if not already present.
+
         if (!clockFaceBrightBuffer) {
             size_t bufSize = CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t);
             if (psramFound() and ESP.getFreePsram() > bufSize) {
@@ -1359,6 +1311,7 @@
             }
             if (!clockFaceBrightBuffer) {
                 DEBUG_PRINTLN("[PSRAM] Error: couldnt allocate clockFaceBrightBuffer RAM! Falling back to per-pixel path");
+
                 // Ohne Cache muss der Aufrufer Pixel fuer Pixel selbst rechnen
                 // (funktionsfaehig, nur ohne die Optimierung) - siehe
                 // loadClockFace() weiter unten.
@@ -1366,23 +1319,20 @@
                 // Without the cache the caller has to do the per-pixel work
                 // itself (works, just without the optimization) - see
                 // loadClockFace() further below.
+
                 return 1;
             }
             forceRecompute = true;
         }
 
-        // Die teure Pixel-fuer-Pixel Helligkeitsanpassung nur durchlaufen, wenn
-        // sich seit dem letzten Mal etwas geaendert hat (neues Zifferblatt oder
-        // Helligkeit) - im Regelfall (jeder Tick) entfaellt dieser Durchlauf.
+        // Die teure Helligkeitsanpassung Pixel fuer Pixel nur bei Aenderung (neues Zifferblatt, Helligkeit).
+        // Mit Backlight aendert die Helligkeit keine Pixel - dann nur bei neuem Zifferblatt bzw. Umschalten
+        // (forceRecompute).
 
-        // Only run the costly per-pixel brightness adjustment when
-        // something changed since last time (new clock face or
-        // brightness) - normally (every tick) this is skipped.
-        // Mit Backlight aendert die Helligkeit keine Pixel - dann nur bei neuem
-        // Zifferblatt bzw. Umschalten (freeClockFaceBuffer() -> forceRecompute).
+        // Run the costly per-pixel brightness adjustment only on a change (new clock face, brightness). With
+        // a backlight, brightness changes no pixels - then only on a new clock face or when switching
+        // (forceRecompute).
 
-        // With a backlight, brightness changes no pixels - then only on a new
-        // clock face or when switching (freeClockFaceBuffer() -> forceRecompute).
         if (forceRecompute || (!useBacklight && currentBrightness != lastAppliedBrightness)) {
             for (int i = 0; i < CLOCK_WIDTH * CLOCK_HEIGHT; i++) {
                 clockFaceBrightBuffer[i] = setPixelBrightness(clockFaceBuffer[i]);
@@ -1390,19 +1340,13 @@
             lastAppliedBrightness = currentBrightness;
         }
 
-        // GC9D01 mit PSRAM ueberspringt die Hardware-Rotation (tft.setRotation()
-        // wirkungslos); Zeiger werden per Software gedreht (rotatedAngle()), das
-        // Zifferblatt hier ebenso - sonst blieb nur der Hintergrund ungedreht.
-        // 'rotation' ist die Zielausrichtung fuer DIESES Display. Bei Hardware-
-        // Rotation uebernimmt das MADCTL-Register die Drehung, hier wird dann
-        // nur faceOrientation=0 verwendet.
+        // GC9D01 mit PSRAM hat keine Hardware-Rotation: Zeiger (rotatedAngle()) und hier auch das Zifferblatt
+        // werden per Software gedreht. 'rotation' ist die Zielausrichtung dieses Displays; bei
+        // Hardware-Rotation gilt faceOrientation=0.
 
-        // GC9D01 with PSRAM skips hardware rotation (tft.setRotation() has no
-        // effect); hands are rotated in software (rotatedAngle()), the clock
-        // face here too - otherwise only the background would stay unrotated.
-        // 'rotation' is the target orientation for THIS display. With hardware
-        // rotation the chip's MADCTL register does the rotating, so only
-        // faceOrientation=0 is used here.
+        // GC9D01 with PSRAM has no hardware rotation: hands (rotatedAngle()) and here the clock face too are
+        // rotated in software. 'rotation' is this display's target orientation; with hardware rotation
+        // faceOrientation=0 applies.
 
         return 2;
     }
@@ -1469,6 +1413,7 @@
         if (cacheState == 0) return;
 
         if (cacheState == 1) {
+
             // Kein Helligkeits-Cache verfuegbar: Pixel fuer Pixel rechnen,
             // Rotation wird dabei beruecksichtigt (sonst bliebe das Zifferblatt
             // bei Software-Rotation ungedreht, waehrend die Zeiger sich drehen).
@@ -1476,6 +1421,7 @@
             // No brightness cache available: compute pixel by pixel, taking
             // rotation into account (otherwise the face would stay unrotated
             // under software rotation while the hands rotate).
+
             const int N = CLOCK_WIDTH;
             int fallbackOrientation = faceOrientationFor(rotation);
 
@@ -1499,6 +1445,7 @@
         int faceOrientation = faceOrientationFor(rotation);
 
         if (faceOrientation == 0) {
+
             // Guenstiger Regelfall: den vorberechneten Puffer in einem Rutsch ins
             // Sprite kopieren - loescht dabei auch die alte Zeigerposition vom
             // letzten Tick, ohne die Helligkeit erneut pro Pixel berechnen zu muessen.
@@ -1506,9 +1453,11 @@
             // Cheap common case: copy the precomputed buffer into the
             // sprite in one go - this also clears the old hand position
             // from the last tick, without recalculating brightness per pixel.
+
             backgroundSprite.pushImage(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, clockFaceBrightBuffer);
         }
         else {
+
             // Zeilenweise mit gedrehten Quellkoordinaten (quadratisch, kein
             // Breiten-/Hoehentausch). Richtung passend zur Zeigerformel
             // (angle + orientation*90, im Uhrzeigersinn) gewaehlt.
@@ -1516,6 +1465,7 @@
             // Row by row with rotated source coordinates (square, no width/
             // height swap needed). Direction matches the hand formula
             // (angle + orientation*90, clockwise).
+
             const int N = CLOCK_WIDTH;
             for (int y = 0; y < N; y++) {
                 for (int x = 0; x < N; x++) {
@@ -1537,11 +1487,15 @@
 
 
     // Buffer freigeben, wenn ein neues Zifferblatt gewählt wird
+
     // Free the buffer when a new clock face is selected
 
     void freeClockFaceBuffer() {
+
         // Zwischenbilder ungueltig machen: sie enthalten das alte Zifferblatt.
+
         // Invalidate the composite images: they contain the old clock face.
+
         clockAssetGeneration++;
 
         if (clockFaceBuffer) {
@@ -1652,11 +1606,13 @@
 
 
     void loadHandSprites() {
+
         // Zwischenbilder ungueltig machen: sie enthalten die alten Zeigerbilder
         // (anderer Zeigersatz oder andere Helligkeit).
 
         // Invalidate the composite images: they contain the old hand images
         // (different hand set or different brightness).
+
         clockAssetGeneration++;
 
         String setId = preferences.getString(PK_HANDSET, "");
@@ -1667,6 +1623,7 @@
 
         // One buffer for all three hands: file (new or old format) or built-in
         // default, the old height padded transparent at the top in either case.
+
         uint16_t* pix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * sizeof(uint16_t));
         if (!pix) {
             DEBUG_PRINTLN("[HANDS] Error: couldnt allocate hand buffer");
@@ -1692,6 +1649,7 @@
 
             // Row by row, so the centre cropping for narrower sprites applies
             // (see pushHandRowCentered()); every row is written completely.
+
             for (int y = 0; y < HAND_HEIGHT; y++) {
                 for (int x = 0; x < HAND_WIDTH; x++) {
                     uint16_t px = pix[y * HAND_WIDTH + x];
@@ -1706,6 +1664,7 @@
 
 
     // Hilfsfunktion: Winkel an die aktuelle Display-Rotation anpassen
+
     // Helper function: adjust angle to the current display rotation
 
     float shortestAngleDiff(float from, float to) {
@@ -1716,39 +1675,13 @@
         return diff;
     }
 
-    // Zeigerbewegung bei grossen Spruengen: bekommt die Uhr zum ersten Mal
-    // eine Zeit (alle Zeiger stehen bis dahin auf 12), wird die Zeit
-    // korrigiert oder springt die Rocrail-Modellzeit, laufen die Zeiger in
-    // HAND_MOVE_MS auf dem kuerzesten Weg (auch rueckwaerts) ans Ziel, mit
-    // sanftem Anfahren und Abbremsen. Normale Bewegungen (Tick, Minutenschritt,
-    // schwingende Zeiger) liegen unter HAND_MOVE_THRESHOLD_DEG und bleiben
-    // unveraendert.
-    // Gerechnet wird mit dem Abstand zum Ziel (offset), der ueber die Zeit
-    // auf 0 schrumpft (Smoothstep). Bewegt sich das Ziel waehrend der
-    // Animation (weiterlaufender Sekundenzeiger oder die NTP-Korrektur kurz
-    // nach dem Start, z.B. +7 s), bleibt der Zeiger zunaechst stehen und der
-    // Unterschied wird in den Restweg eingerechnet - frueher sprang der
-    // Zeiger dabei um den entsprechenden Anteil (sichtbarer Ruckler ~1 s
-    // nach dem Start). Kommt ein grosser Sprung erst spaet in der Animation,
-    // beginnt sie neu, statt den Rest in wenigen Bildern nachzuholen. Die
-    // Richtung ergibt sich aus dem Vorzeichen des Abstands und kehrt sich
-    // daher auch bei ~180 Grad nicht um.
+    // Grosse Spruenge (erste Zeit, Korrektur, Rocrail): Zeiger laufen in HAND_MOVE_MS auf dem kuerzesten Weg,
+    // auch rueckwaerts, mit sanftem Anfahren/Bremsen. Der Abstand zum Ziel schrumpft per Smoothstep; bewegt
+    // sich das Ziel (z.B. NTP-Korrektur), fliesst das in den Restweg ein, statt dass der Zeiger springt.
 
-    // Hand movement on large jumps: when the clock gets a time for the first
-    // time (all hands stand at 12 until then), the time gets corrected or the
-    // Rocrail model time jumps, the hands move to their target in HAND_MOVE_MS
-    // along the shortest path (also backwards), easing in and out. Normal
-    // movements (tick, minute step, sweeping hands) stay below
-    // HAND_MOVE_THRESHOLD_DEG and are unchanged.
-    // The computation works on the distance to the target (offset), which
-    // shrinks to 0 over time (smoothstep). If the target moves during the
-    // animation (a still-running second hand, or the NTP correction shortly
-    // after boot, e.g. +7 s), the hand stays where it is at first and the
-    // difference is folded into the remaining way - before, the hand jumped
-    // by the corresponding share (a visible jerk ~1 s after boot). If a large
-    // jump only comes late in the animation, it restarts instead of catching
-    // up the rest in a few frames. The direction follows from the sign of the
-    // offset and therefore does not reverse near 180 degrees either.
+    // Large jumps (first time, correction, Rocrail): the hands move in HAND_MOVE_MS along the shortest path,
+    // also backwards, easing in and out. The distance to the target shrinks via smoothstep; if the target
+    // moves (e.g. an NTP correction), that is folded into the remaining way instead of making the hand jump.
 
     const float HAND_MOVE_THRESHOLD_DEG = 10.0f;
     const unsigned long HAND_MOVE_MS = 3000;
@@ -1779,7 +1712,9 @@
         }
 
         // Zielbewegung seit dem letzten Bild auffangen: der Zeiger bleibt, wo er ist
+
         // Absorb the target's movement since the last frame: the hand stays where it is
+
         float jump = shortestAngleDiff(m.lastTarget, target);
         m.lastTarget = target;
         m.offset -= jump;
@@ -1813,38 +1748,26 @@
     // Own smoothing state for Display 2 - only relevant when both displays
     // are rotated differently in software. With hardware rotation this ends
     // up holding the same values as lastHourAngle/lastMinuteAngle.
+
     static float lastHourAngle2 = 0.0f;
     static float lastMinuteAngle2 = 0.0f;
 
-    // Analoger Glaettungs-Zustand fuer den Sekundenzeiger im Normalmodus
-    // (kein "wartet auf 12") - siehe renderClockFrame() weiter unten: faengt
-    // einen sichtbaren Ruecksprung ab, falls die zugrundeliegende Zeit selbst
-    // rueckwaerts korrigiert wird (z.B. durch einen NTP-/RTC-/DCF77-Abgleich).
-    // Die Bahnhofsuhr-Schrittlogik (stationTick) braucht das nicht, da sie
-    // bereits eigenstaendig gegen Ruecksprünge abgesichert ist.
+    // Glaettung des Sekundenzeigers im Normalmodus: faengt einen sichtbaren Ruecksprung ab, wenn die Zeit
+    // selbst rueckwaerts korrigiert wird (NTP/RTC/DCF77). Die Bahnhofsuhr-Logik (stationTick) ist schon
+    // selbst abgesichert.
 
-    // Analogous smoothing state for the second hand in normal mode (not
-    // "waits at 12") - see renderClockFrame() further below: catches a
-    // visible jump-back if the underlying time itself is corrected backward
-    // (e.g. by an NTP/RTC/DCF77 resync). The station-clock step logic
-    // (stationTick) doesn't need this, since it is already independently
-    // guarded against jumping back.
+    // Second-hand smoothing in normal mode: catches a visible jump-back when the time itself is corrected
+    // backward (NTP/RTC/DCF77). The station-clock logic (stationTick) is already guarded on its own.
+
     static float lastSecondAngle = 0.0f;
     static float lastSecondAngle2 = 0.0f;
 
-    // Rendert EIN Frame (Zifferblatt+Zeiger+Nabe) fuers per Chip-Select
-    // gewaehlte Display. lastHourAngleRef/lastMinuteAngleRef sind Referenzen
-    // auf pro-Display-Variablen, damit jedes Display seine eigene Glaettung behaelt.
-    // Baut das Zwischenbild fuer ein Display neu auf: gedrehtes Zifferblatt,
-    // darauf Stunden- und Minutenzeiger kantengeglaettet (LovyanGFX
-    // pushRotatedWithAA(), wie der Sekundenzeiger - ein Verfahren fuer alle).
+    // Rendert EIN Frame (Zifferblatt, Zeiger, Nabe) fuer das gewaehlte Display, mit je eigener Glaettung. Das
+    // Zwischenbild: gedrehtes Zifferblatt mit Stunden- und Minutenzeiger per pushRotatedWithAA() (wie der
+    // Sekundenzeiger).
 
-    // Renders ONE frame (face+hands+hub) for the currently chip-select-selected
-    // display. lastHourAngleRef/lastMinuteAngleRef are references to
-    // per-display variables, so each display keeps its own smoothing.
-    // Rebuilds the composite image for one display: rotated clock face with the
-    // anti-aliased hour and minute hands on top (LovyanGFX pushRotatedWithAA(),
-    // like the second hand - one method for all).
+    // Renders ONE frame (clock face, hands, hub) for the selected display, each with its own smoothing. The
+    // composite: rotated clock face with hour and minute hand via pushRotatedWithAA() (like the second hand).
 
     bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) {
         if (comp.allocationFailed) return false;
@@ -1856,16 +1779,19 @@
         // First check whether the clock face can be delivered, THEN allocate
         // the buffer - otherwise, under memory pressure, this would grab
         // exactly the memory the missing brightness cache actually needs.
+
         if (prepareClockFaceCache() != 2) return false;
 
         if (!comp.sprite) {
             comp.sprite = new (std::nothrow) LGFX_Sprite(&tft);
             if (!comp.sprite || !createSprite16(*comp.sprite, CLOCK_WIDTH, CLOCK_HEIGHT)) {
+
                 // Einmal melden und danach dauerhaft den bisherigen Weg nutzen,
                 // statt bei jedem Tick erneut zu versuchen.
 
                 // Report once and then permanently use the previous path instead
                 // of retrying on every tick.
+
                 DEBUG_PRINTLN("[Display] couldnt allocate hand composite sprite - falling back to per-tick rendering");
                 delete comp.sprite;
                 comp.sprite = nullptr;
@@ -1879,7 +1805,9 @@
                                // renderClockFrame(): partial update not allowed then
 
         // Drehpunkt = Pivot des Zwischenbilds (Mitte, wie backgroundSprite)
+
         // pivot = the composite's pivot (centre, like backgroundSprite)
+
         hourHandSprite.pushRotatedWithAA(comp.sprite, hourAngle, TRANSPARENT_COLOR);
         minuteHandSprite.pushRotatedWithAA(comp.sprite, minuteAngle, TRANSPARENT_COLOR);
 
@@ -1890,6 +1818,7 @@
         // Only mark it valid if the hands are really in it - otherwise (hand
         // sprite allocation failed) better retry next tick than keep an image
         // without hands permanently.
+
         if (hourHandSprite.width() <= 0 || minuteHandSprite.width() <= 0) {
             return true;
         }
@@ -1920,6 +1849,7 @@
         bool needsRebuild = !comp.valid
             || comp.rotation != rotation
             || comp.assetGeneration != clockAssetGeneration
+
             // Nur ohne Backlight faerbt die Helligkeit Pixel ein (sonst No-Op) -
             // mit Backlight wuerde jeder Rampenschritt sonst einen wirkungslosen
             // Neuaufbau ausloesen.
@@ -1927,6 +1857,7 @@
             // Only without a backlight does brightness tint pixels (otherwise
             // a no-op) - with a backlight every ramp step would otherwise
             // trigger a pointless rebuild.
+
             || (!useBacklight && comp.brightness != currentBrightness)
             || fabsf(shortestAngleDiff(comp.hourAngle, hourAngle)) >= COMPOSITE_ANGLE_EPS
             || fabsf(shortestAngleDiff(comp.minuteAngle, minuteAngle)) >= COMPOSITE_ANGLE_EPS;
@@ -1943,17 +1874,11 @@
     }
 
 
-    // Erweitert das Rechteck (x0,y0)-(x1,y1) um die Flaeche, die ein per
-    // pushRotated*() auf backgroundSprite gezeichnetes Zeiger-Sprite belegt -
-    // gleiche Abbildung wie LovyanGFX (make_rotation_matrix(): Pixelmitte
-    // +0,5, (u,v) -> (u*cos - v*sin, u*sin + v*cos)), plus 2 px Rand fuer
-    // die geglaetteten Kanten.
+    // Erweitert das Rechteck um die Flaeche eines per pushRotated*() gezeichneten Zeigers - gleiche Abbildung
+    // wie LovyanGFX (Pixelmitte +0,5, Drehmatrix), plus 2 px Rand fuer die geglaetteten Kanten.
 
-    // Extends the rectangle (x0,y0)-(x1,y1) by the area a hand sprite drawn
-    // onto backgroundSprite via pushRotated*() covers - same mapping as
-    // LovyanGFX (make_rotation_matrix(): pixel centre +0.5,
-    // (u,v) -> (u*cos - v*sin, u*sin + v*cos)), plus 2 px margin for the
-    // anti-aliased edges.
+    // Extends the rectangle by the area of a hand drawn via pushRotated*() - same mapping as LovyanGFX (pixel
+    // centre +0.5, rotation matrix), plus 2 px margin for the anti-aliased edges.
 
     void addRotatedSpriteBounds(LGFX_Sprite& sprite, float angleDeg, int32_t& x0, int32_t& y0, int32_t& x1, int32_t& y1) {
         const float rad = fmodf(angleDeg, 360.0f) * (float)DEG_TO_RAD;
@@ -1977,15 +1902,11 @@
     }
 
 
-    // Sendet nur das Rechteck (x,y,w,h) aus backgroundSprite ans Display -
-    // zeilenweise. Setzt den SPI-Bus ohne DMA-Kanal voraus (lgfx_config.h):
-    // mit DMA-Kanal leitet LovyanGFX Zeilen von 65..1023 Byte intern auf DMA
-    // um, und DMA verwirft LovyanGFX 1.2.x auf dem ESP32-S2 still.
+    // Sendet nur das Rechteck (x,y,w,h) aus backgroundSprite, zeilenweise. Setzt SPI ohne DMA-Kanal voraus -
+    // sonst leitet LovyanGFX Zeilen von 65..1023 Byte auf DMA um, das es auf dem ESP32-S2 still verwirft.
 
-    // Sends only the rectangle (x,y,w,h) of backgroundSprite to the display -
-    // row by row. Requires the SPI bus without a DMA channel (lgfx_config.h):
-    // with a DMA channel LovyanGFX internally reroutes rows of 65..1023 bytes
-    // to DMA, and LovyanGFX 1.2.x silently drops DMA on the ESP32-S2.
+    // Sends only the rectangle (x,y,w,h) of backgroundSprite, row by row. Requires SPI without a DMA channel
+    // - otherwise LovyanGFX reroutes rows of 65..1023 bytes to DMA, which it silently drops on the ESP32-S2.
 
     void pushBackgroundRect(int32_t x, int32_t y, int32_t w, int32_t h) {
         const lgfx::swap565_t* buf = (const lgfx::swap565_t*)backgroundSprite.getBuffer();
@@ -2001,6 +1922,7 @@
 
 
     // Zaehlt einen gesendeten Frame fuer die Statusseite; wertet alle 5 s aus.
+
     // Counts a sent frame for the status page; evaluates every 5 s.
 
     void recordRenderFrame(uint32_t durationMicros, bool partial) {
@@ -2038,39 +1960,26 @@
         // Rocrail mode: hands follow model time instead of real time - only
         // while a <clock> signal has arrived, the connection is up, and the
         // last signal isn't older than ROCRAIL_STALE_TIMEOUT_MS, otherwise the clock falls back to real time.
+
         bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
                                  (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
         struct tm& t = rocrailTimeReady ? rocrailTimeinfo : timeinfo;
 
-        // Bahnhofsuhr-"Wartet auf 12"-Verhalten (stationMode): der Sekunden-
-        // zeiger eilt in einer komprimierten Zeit (~58,5s) einmal rum und
-        // wartet dann bis zum Minutenwechsel oben auf der 12 - unabhaengig
-        // davon, OB diese Bewegung schwingend oder tickend dargestellt wird
-        // (siehe smoothSecond weiter unten, an renderClockFrame() entkoppelt).
-        // Die Schrittanimation ist auf FAST_SECOND kalibriert - im Rocrail-
-        // Modus wird die Schrittdauer weiter unten (stationStepMs) durch
-        // rocrailDivider geteilt, damit der Umlauf genauso viel schneller
-        // laeuft wie die Modellzeit selbst.
+        // Bahnhofsuhr "wartet auf 12" (stationMode): der Sekundenzeiger laeuft in ~58,5 s um und wartet oben
+        // auf den Minutenwechsel - egal ob schwingend oder tickend (smoothSecond). Im Rocrail-Modus wird die
+        // Schrittdauer durch den Divider geteilt.
 
-        // Station-clock "wait at 12" behaviour (stationMode): the second hand
-        // races around once in a compressed time (~58.5s) and then waits at
-        // the top until the minute changes - independent of WHETHER that
-        // motion is rendered smoothly or in ticks (see smoothSecond further
-        // below, decoupled in renderClockFrame()). The stepping animation is
-        // calibrated to FAST_SECOND - in Rocrail mode the step duration
-        // further below (stationStepMs) is divided by rocrailDivider, so the
-        // lap runs exactly as much faster as the model time itself.
+        // Station clock "waits at 12" (stationMode): the second hand laps in ~58.5 s and waits at the top for
+        // the minute change - whether smooth or ticking (smoothSecond). In Rocrail mode the step duration is
+        // divided by the divider.
+
         bool waitAtTwelve = stationMode;
 
-        // Schrittdauer fuer die Sweep-Animation: im Rocrail-Modus durch den
-        // Divider geteilt (siehe Kommentar oben), sonst die reale FAST_SECOND.
-        // float statt der #define-Konstante direkt, da sie sich pro Frame
-        // aendern kann (Divider-Aenderungen kommen per <clock>-Update).
+        // Schrittdauer der Sweep-Animation: im Rocrail-Modus durch den Divider geteilt, sonst FAST_SECOND -
+        // als float, da sich der Divider pro <clock>-Update aendern kann.
 
-        // Step duration for the sweep animation: divided by the divider in
-        // Rocrail mode (see comment above), otherwise the real FAST_SECOND.
-        // A float instead of using the #define constant directly, since it
-        // can change per frame (divider changes arrive via <clock> updates).
+        // Step duration of the sweep animation: divided by the divider in Rocrail mode, otherwise FAST_SECOND
+        // - as a float, since the divider can change with each <clock> update.
 
         float stationStepMs = (rocrailTimeReady && rocrailDivider > 1)
                                ? (FAST_SECOND / (float)rocrailDivider)
@@ -2083,21 +1992,16 @@
         // From ROCRAIL_HIDE_DETAILS_DIVIDER (see config.h) onwards, hide the
         // second hand AND the hub entirely - at such high acceleration
         // their movement/visibility wouldn't be meaningfully useful anyway.
+
         bool hideDetailsForRocrail = rocrailTimeReady && rocrailDivider >= ROCRAIL_HIDE_DETAILS_DIVIDER;
 
-        // Zusaetzlich NUR den Sekundenzeiger (nicht die Nabe) ausblenden, wenn
-        // Rocrail ueberhaupt beschleunigt (divider > 1) UND tickend statt
-        // schwingend dargestellt wird: ein springender Zeiger wirkt bei jeder
-        // Beschleunigung unruhig/ruckelig (Sprungrate skaliert mit dem Divider,
-        // Anzeige-Framerate aber nicht), waehrend die schwingende Darstellung
-        // bei jeder Geschwindigkeit saubersieht - dafuer bleibt sie ja da.
+        // Den Sekundenzeiger (nicht die Nabe) ausblenden, wenn Rocrail beschleunigt (Divider > 1) UND tickend
+        // dargestellt wird - springend wirkt er dann unruhig, schwingend bleibt er bei jeder Geschwindigkeit
+        // sauber.
 
-        // Additionally hide ONLY the second hand (not the hub) when Rocrail is
-        // accelerated at all (divider > 1) AND rendered in ticking instead of
-        // smooth style: a jumping hand looks jittery/unsteady at any
-        // acceleration (the jump rate scales with the divider, but the
-        // display's frame rate doesn't), while the smooth style looks clean
-        // at any speed - that's exactly what it stays available for.
+        // Hide the second hand (not the hub) when Rocrail accelerates (divider > 1) AND it is rendered
+        // ticking - jumping it looks jittery then, while the smooth style stays clean at any speed.
+
         bool hideSecondHandTicking = rocrailTimeReady && rocrailDivider > 1 && !smoothSecond;
         bool hideSecondHand = hideDetailsForRocrail || hideSecondHandTicking;
 
@@ -2116,6 +2020,7 @@
         // Minute in which the wait phase (hand parked at 12) started - needed
         // to make waking up robust against a minute change instead of pinning
         // it to exactly "second 0" (see comment further below).
+
         static int stationWaitStartMinute = -1;
 
         unsigned long currentMillis = millis();
@@ -2129,11 +2034,15 @@
             // Put the second hand where it should be within the current minute:
             // since one sweep takes FAST_SECOND * 60 ms (less than a real
             // minute), the position follows from tm_sec / FAST_SECOND.
+
             float sweepPosition = ((float)t.tm_sec * 1000.0f) / FAST_SECOND;
 
             if (sweepPosition >= 60.0f) {
+
                 // Der Zeiger waere schon oben angekommen und wuerde warten.
+
                 // The hand would already have arrived at the top and be waiting.
+
                 stationTick = 60;
                 stationWaiting = true;
                 stationWaitStartMinute = t.tm_min;
@@ -2142,11 +2051,13 @@
             else {
                 stationTick = (uint8_t)sweepPosition;
                 stationWaiting = false;
+
                 // Anfang des angebrochenen Schritts so zurueckdatieren, dass
                 // auch der Bruchteil stimmt.
 
                 // Back-date the start of the current step so the fractional
                 // part is correct too.
+
                 stationLastMillis = millis() - (unsigned long)((sweepPosition - (float)stationTick) * stationStepMs);
             }
 
@@ -2157,57 +2068,36 @@
             lastSecondAngleRef = rotatedAngle(secAngle, orientation); // Basiswert fuer die Ruecksprung-Abfederung unten (Normalmodus)
                                                                      // baseline for the jump-back easing below (normal mode)
 
-            // Hier bewusst NICHT sofort zeichnen: das Bild entsteht weiter unten
-            // im selben Durchlauf (forceRender). Frueher wurden die Zeiger hier
-            // direkt an die Zielposition gemalt - ueber das alte Bild mit den
-            // Zeigern auf 12 - und dieses Bild gesendet; beim Zeitempfang
-            // blitzten sie so kurz doppelt auf, bevor animateHand() sie von 12
-            // aus loslaufen liess.
-            // Deliberately do NOT draw right here: the frame is produced further
-            // below in the same pass (forceRender). The hands used to be painted
-            // straight at their target here - over the old frame with the hands
-            // at 12 - and that frame sent; on receiving the time they briefly
-            // flashed doubled before animateHand() let them start from 12.
+            // Hier bewusst NICHT zeichnen - das Bild entsteht weiter unten im selben Durchlauf (forceRender).
+            // Frueher blitzten die Zeiger beim Zeitempfang kurz doppelt auf, bevor animateHand() sie von 12
+            // aus laufen liess.
+
+            // Deliberately do NOT draw here - the frame is produced further below in the same pass
+            // (forceRender). The hands used to flash doubled on receiving the time before animateHand() let
+            // them start from 12.
+
         }
 
-        // Bahnhofsuhr-"Wartet auf 12"-Modus: Sekundenzeiger schreitet in 60
-        // Schritten je stationStepMs (schwingend per easeInOutSine() oder
-        // tickend, je nach smoothSecond - s.u.), erreicht nach ~58,5s
-        // (bzw. ~58,5s/divider im Rocrail-Modus) die 12 und wartet dort,
-        // bis die (Modell-)Minute wechselt (Pause ~1,5s bzw. ~1,5s/divider).
+        // "Wartet auf 12": der Sekundenzeiger macht 60 Schritte zu je stationStepMs (schwingend per
+        // easeInOutSine() oder tickend), erreicht nach ~58,5 s (Rocrail: /Divider) die 12 und wartet dort bis
+        // zum (Modell-)Minutenwechsel.
 
-        // Station-clock "waits at 12" mode: second hand steps in 60 steps of
-        // stationStepMs each (smooth via easeInOutSine(), or ticking,
-        // depending on smoothSecond - see below), reaches the top after
-        // ~58.5s (or ~58.5s/divider in Rocrail mode) and waits there until
-        // the (model) minute changes (pause ~1.5s, or ~1.5s/divider).
+        // "Waits at 12": the second hand makes 60 steps of stationStepMs each (smooth via easeInOutSine() or
+        // ticking), reaches the top after ~58.5 s (Rocrail: /divider) and waits there until the (model)
+        // minute changes.
 
         if (waitAtTwelve) {
-            // Bei divider 1 (keine Beschleunigung) verwendet die Uhr die
-            // gewohnte schrittweise Bahnhofsuhr-Logik unten (Schritt +
-            // easeInOutSine() bzw. reines Ticken, je nach smoothSecond) - die
-            // reale Kalibrierung passt dort exakt, da die Modellzeit 1:1 mit
-            // der realen Zeit fortschreitet. Erst ab divider > 1 wird die
-            // Position direkt aus rocrailSecFrac abgeleitet (siehe Kommentar
-            // im if-Zweig) - smoothSecond entscheidet auch dort zwischen
-            // stufenloser und auf ganze Schritte gerundeter Darstellung.
 
-            // At divider 1 (no acceleration) the clock uses the usual
-            // stepwise station-clock logic below (step + easeInOutSine(), or
-            // plain ticking, depending on smoothSecond) - the real calibration
-            // matches exactly there, since the model time advances 1:1 with
-            // real time. Only from divider > 1 onwards is the position
-            // derived directly from rocrailSecFrac (see comment in the if
-            // branch) - smoothSecond decides there too between a continuous
-            // and a whole-step-rounded rendering.
-            // At divider 1 (no acceleration), the clock runs with the usual
-            // swinging station-clock second hand (else branch below) - the
-            // real calibration matches exactly there, since the model time
-            // advances 1:1 with real time. Only from divider > 1 onwards is
-            // it rendered smoothly instead of ticking (see comment in the
-            // if branch).
+            // Bei Divider 1 gilt die normale schrittweise Bahnhofsuhr-Logik unten (Modellzeit laeuft 1:1).
+            // Erst ab Divider > 1 wird die Position direkt aus rocrailSecFrac abgeleitet; smoothSecond waehlt
+            // stufenlos oder auf Schritte gerundet.
+
+            // At divider 1 the normal stepwise station-clock logic below applies (model time runs 1:1). Only
+            // from divider > 1 is the position derived directly from rocrailSecFrac; smoothSecond chooses
+            // continuous or rounded to steps.
 
             if (rocrailTimeReady && rocrailDivider > 1) {
+
                 // Rocrail: glatt statt tickend - kein easeInOutSine() pro
                 // Schritt noetig. rocrailSecFrac (advanceRocrailTime()) traegt
                 // die Nachkommastellen, dieselbe Positions-Formel wie oben deckelt bei 60.
@@ -2215,18 +2105,16 @@
                 // Rocrail: smooth instead of ticking - no per-step
                 // easeInOutSine() needed. rocrailSecFrac (advanceRocrailTime())
                 // carries the fractional part, the same position formula as above caps at 60.
+
                 float smoothPos = (rocrailSecFrac * 1000.0f) / FAST_SECOND;
                 if (smoothPos > 60.0f) smoothPos = 60.0f;
 
-                // smoothSecond entkoppelt "wartet auf 12" von der Darstellung:
-                // bei tickend wird auf den ganzzahligen Schritt abgerundet statt
-                // die (durch rocrailSecFrac ohnehin schon gleitende) Position
-                // stufenlos zu uebernehmen.
+                // smoothSecond trennt "wartet auf 12" von der Darstellung: tickend auf den ganzen Schritt
+                // abrunden statt die gleitende Position zu uebernehmen.
 
-                // smoothSecond decouples "waits at 12" from the rendering
-                // style: with ticking, round down to the whole step instead of
-                // taking over the (already continuously gliding via
-                // rocrailSecFrac) position as-is.
+                // smoothSecond separates "waits at 12" from the rendering: when ticking, round down to the
+                // whole step instead of taking over the gliding position.
+
                 if (!smoothSecond) smoothPos = floorf(smoothPos);
 
                 secAngle = rotatedAngle(smoothPos * 6.0f, orientation);
@@ -2241,6 +2129,7 @@
             // Compute as integer and signed: uint32 += float rounded from ~4.7 h uptime
             // (24-bit mantissa), the timestamp then lay 1 ms in the future and the second
             // hand jumped one step ahead for one frame and back again.
+
             const uint32_t stationStepWholeMs = (uint32_t)(stationStepMs + 0.5f);
             if (!stationWaiting && (int32_t)(currentMillis - stationLastMillis) >= (int32_t)stationStepWholeMs) {
                 stationTick++;
@@ -2254,16 +2143,13 @@
             }
             else if (stationWaiting) {
 
-                // Aufwachen ueber Minutenwechsel statt exakt "Sekunde 0": ein
-                // blockierender loadClockFace()-Aufruf kann Sekunde 0 verpassen,
-                // ein Minutenwechsel bleibt aber auch danach erkennbar.
+                // Aufwachen beim Minutenwechsel statt exakt bei "Sekunde 0" - ein blockierender
+                // loadClockFace() kann Sekunde 0 verpassen. Danach die Sollposition, die die Uhrzeit gerade
+                // verlangt.
 
-                // Wake up on a minute change instead of exactly "second 0": a
-                // blocking loadClockFace() call can cause updateClock() to miss
-                // exactly second 0, but a minute change stays detectable after.
+                // Wake up on a minute change instead of exactly "second 0" - a blocking loadClockFace() can
+                // miss second 0. Then the target position the current time is asking for.
 
-                // Sollposition, die die Uhrzeit gerade verlangt.
-                // Position the current time is asking for.
                 float expectedPosition = ((float)t.tm_sec * 1000.0f) / FAST_SECOND;
 
                 // Sicherheitsnetz gegen verpassten Minutenwechsel: wacht auch
@@ -2273,6 +2159,7 @@
                 // Safety net for a missed minute change: also wakes up if the
                 // time says the sweep should long be running again. Threshold
                 // 55 sits safely below the pause window (~59).
+
                 const float RESYNC_BELOW = 55.0f;
 
                 if (t.tm_min != stationWaitStartMinute || expectedPosition < RESYNC_BELOW) {
@@ -2284,12 +2171,15 @@
                     // JUMP to the requested position instead of always starting
                     // at 0 - on a missed change the hand is immediately correct
                     // instead of trailing a minute behind.
+
                     if (expectedPosition >= 60.0f) {
+
                         // Nur moeglich, wenn der Minutenwechsel mit noch alter
                         // Sekundenanzeige gemeldet wurde - dann von vorn beginnen.
 
                         // Only possible if the minute change was reported while the
                         // seconds still read the old value - then start from the top.
+
                         expectedPosition = 0.0f;
                     }
 
@@ -2298,7 +2188,9 @@
                     stationLastMillis = currentMillis - (unsigned long)((expectedPosition - (float)stationTick) * stationStepMs);
 
                     // Sekundenzeiger korrekt synchronisieren
+
                     // Synchronize the second hand correctly
+
                     secAngle = rotatedAngle(expectedPosition * 6.0f, orientation);
                 }
             }
@@ -2313,24 +2205,17 @@
             // Clamp to 1.0 instead of resetting to 0.0: on a late frame the
             // hand is at least at the end of the step, resetting to 0 would
             // make it visibly jump back.
+
             if (subTick > 1.0f) subTick = 1.0f;
             if (stationWaiting) subTick = 0.0f;
 
-            // Bewusst KEINE gleichfoermige Bewegung im schwingenden Stil:
-            // easeInOutSine() beschleunigt und bremst pro Schritt, wie bei
-            // aelteren Bahnhofsuhren - nicht durch lineare Interpolation ersetzen.
-            // smoothSecond entkoppelt "wartet auf 12" (waitAtTwelve, s.o.) von
-            // der Darstellung: schwingend interpoliert per easeInOutSine()
-            // innerhalb des Schritts, tickend haelt exakt auf der Ganzzahl-
-            // Position bis zum naechsten Schritt (kein Zwischenwert).
+            // Schwingend bewusst NICHT gleichfoermig: easeInOutSine() beschleunigt und bremst je Schritt wie
+            // alte Bahnhofsuhren. Tickend haelt der Zeiger exakt auf der ganzen Position bis zum naechsten
+            // Schritt.
 
-            // Deliberately NOT uniform movement in the smooth style:
-            // easeInOutSine() accelerates and brakes each step, like older
-            // station clocks - do not replace with linear interpolation.
-            // smoothSecond decouples "waits at 12" (waitAtTwelve, see above)
-            // from the rendering style: smooth interpolates via
-            // easeInOutSine() within the step, ticking holds exactly at the
-            // whole-number position until the next step (no intermediate value).
+            // Smooth style deliberately NOT uniform: easeInOutSine() accelerates and brakes each step like
+            // old station clocks. When ticking, the hand holds exactly at the whole position until the next
+            // step.
 
             float smoothSec;
             if (smoothSecond) {
@@ -2346,59 +2231,34 @@
               // end "else" (not Rocrail OR Rocrail with divider 1) - see condition above
         }
 
-        // Normaler Modus (kein "wartet auf 12"): Sekundenzeiger laeuft mit der
-        // echten (bzw. bei Rocrail: modellzeit-)Sekunde mit, ohne Pause oben.
-        // Auch hier entkoppelt smoothSecond Stil von Timing: schwingend
-        // interpoliert stufenlos innerhalb der laufenden Sekunde (per Millis.
-        // bzw. bei Rocrail per rocrailSecFrac, das den Divider bereits
-        // beruecksichtigt), tickend springt einmal pro Sekunde wie bisher.
-        // Minutenzeiger kann optional weiterhin sanft laufen (unveraendert).
+        // Normalmodus: der Sekundenzeiger laeuft mit der echten (Rocrail: Modell-)Sekunde, ohne Pause oben.
+        // Schwingend stufenlos innerhalb der Sekunde, tickend ein Sprung pro Sekunde; der Minutenzeiger kann
+        // optional sanft laufen.
 
-        // Normal mode (no "waits at 12"): the second hand keeps pace with the
-        // real (or, in Rocrail mode, model-time) second, without pausing at
-        // the top. smoothSecond decouples style from timing here too: smooth
-        // interpolates continuously within the running second (via millis(),
-        // or via rocrailSecFrac in Rocrail mode, which already accounts for
-        // the divider), ticking jumps once per second as before. The minute
-        // hand can still optionally run smoothly (unchanged).
+        // Normal mode: the second hand keeps pace with the real (Rocrail: model) second, without a pause at
+        // the top. Smooth glides within the second, ticking jumps once per second; the minute hand can
+        // optionally run smoothly.
+
         if (!waitAtTwelve) {
 
-            // Praeziser Sekundenbruchteil fuer sanfte Zeigerbewegung (Minute
-            // UND Sekunde): statt millis()%1000 (frueher - phasenversetzt zum
-            // echten Sekundenwechsel, da millis() seit dem Boot zaehlt und in
-            // keiner festen Beziehung zu t.tm_sec steht) wird der Zeitpunkt
-            // des zuletzt beobachteten Sekundenwechsels selbst gemerkt und die
-            // seitdem vergangene Zeit gebildet. Dadurch endet die Bewegung
-            // IMMER genau dann, wenn t.tm_sec tatsaechlich weiterspringt,
-            // statt mit einem zufaelligen, boot-abhaengigen Versatz zu enden
-            // oder anzufangen (kleiner Ruckler moeglich, je nach Bootzeitpunkt).
-            // Bei aktiver Rocrail-Modellzeit dagegen bereits exakt aus
-            // rocrailSecFrac abgeleitet (siehe dort) - kein Tracking noetig.
+            // Sekundenbruchteil fuer sanfte Bewegung aus dem zuletzt beobachteten Sekundenwechsel statt
+            // millis()%1000 - so endet die Bewegung genau beim Weiterspringen von t.tm_sec. Mit Rocrail kommt
+            // der Bruchteil schon aus rocrailSecFrac.
 
-            // Precise sub-second fraction for smooth hand motion (minute AND
-            // second): instead of millis()%1000 (previously - out of phase
-            // with the real second change, since millis() counts since boot
-            // and has no fixed relationship to t.tm_sec), the moment of the
-            // last observed second change is remembered and the time elapsed
-            // since then is used instead. This way the motion ALWAYS finishes
-            // exactly when t.tm_sec actually advances, instead of ending or
-            // starting with a random, boot-dependent offset (a small hitch
-            // was possible, depending on boot time). With active Rocrail
-            // model time, on the other hand, already derived exactly from
-            // rocrailSecFrac (see there) - no tracking needed.
+            // Sub-second fraction for smooth motion from the last observed second change instead of
+            // millis()%1000 - so the motion ends exactly when t.tm_sec advances. With Rocrail the fraction
+            // already comes from rocrailSecFrac.
+
             static long lastWholeSecondValue = -1;
             static unsigned long secondBoundaryMillis = 0;
             float realSubSecond = 0.0f;
 
-            // Nur pflegen, wenn tatsaechlich gebraucht (nicht waehrend
-            // aktiver Rocrail-Modellzeit, die ihren Bruchteil bereits exakt
-            // aus rocrailSecFrac bezieht) - sonst wuerde hier fuer nichts
-            // mitgezaehlt, waehrend Rocrail aktiv ist.
+            // Nur pflegen, wenn gebraucht - bei aktiver Rocrail-Modellzeit kommt der Bruchteil aus
+            // rocrailSecFrac.
 
-            // Only maintained when actually needed (not while Rocrail model
-            // time is active, which already gets its fraction exactly from
-            // rocrailSecFrac) - otherwise this would keep counting for
-            // nothing while Rocrail is active.
+            // Only maintained when needed - with active Rocrail model time the fraction comes from
+            // rocrailSecFrac.
+
             if (!rocrailTimeReady) {
                 long currentWholeSecond = (long)t.tm_hour * 3600 + (long)t.tm_min * 60 + t.tm_sec;
                 if (currentWholeSecond != lastWholeSecondValue) {
@@ -2407,28 +2267,22 @@
                 }
                 realSubSecond = (currentMillis - secondBoundaryMillis) / 1000.0f;
 
-                // Deckeln statt ueberlaufen zu lassen: bei einem verzoegerten
-                // Frame (z.B. durch einen blockierenden Aufruf anderswo) waere
-                // sonst kurzzeitig eine Bewegung ueber die naechste Sekunde
-                // hinaus sichtbar, bevor t.tm_sec nachzieht.
+                // Deckeln statt ueberlaufen: bei einem verzoegerten Frame waere sonst kurz eine Bewegung
+                // ueber die naechste Sekunde hinaus sichtbar, bevor t.tm_sec nachzieht.
 
-                // Clamp instead of letting it overshoot: on a delayed frame
-                // (e.g. due to a blocking call elsewhere) motion past the
-                // next second would otherwise be briefly visible before
-                // t.tm_sec catches up.
+                // Clamp instead of overshooting: on a delayed frame motion past the next second would
+                // otherwise be briefly visible before t.tm_sec catches up.
+
                 if (realSubSecond < 0.0f) realSubSecond = 0.0f;
                 else if (realSubSecond > 0.999f) realSubSecond = 0.999f;
             }
 
-            // rocrailSecFrac traegt Ganzzahl- und Bruchteil bereits zusammen
-            // (siehe advanceRocrailTime()) - t.tm_sec (derselbe Ganzzahlteil)
-            // abziehen liefert exakt den divider-skalierten Bruchteil, analog
-            // zu realSubSecond oben.
+            // rocrailSecFrac enthaelt Ganzzahl und Bruchteil - minus t.tm_sec ergibt genau den
+            // Divider-skalierten Bruchteil, analog zu realSubSecond.
 
-            // rocrailSecFrac already carries the whole and fractional part
-            // together (see advanceRocrailTime()) - subtracting t.tm_sec (the
-            // same whole part) yields exactly the divider-scaled fraction,
-            // analogous to realSubSecond above.
+            // rocrailSecFrac holds the whole and fractional part - minus t.tm_sec yields exactly the
+            // divider-scaled fraction, analogous to realSubSecond.
+
             float secondFraction = rocrailTimeReady ? (rocrailSecFrac - (float)t.tm_sec) : realSubSecond;
 
             float targetSecAngle;
@@ -2440,19 +2294,13 @@
                 targetSecAngle = rotatedAngle(secAngle, orientation);
             }
 
-            // Abfedern bei sichtbarem Sprung: rueckwaerts (Zeitkorrektur)
-            // oder ungewoehnlich weit vorwaerts (verzoegerter Frame, z.B.
-            // durch eine blockierende Web-Anfrage). Normale Ticks bleiben sofort.
-            // Diagnose-Logging (DEBUG_PRINTLN, wirkungslos wenn loggingEnabled
-            // aus): loggt je Episode Start (Betrag, Richtung) und Ende
-            // (Dauer), um eine Ursache im Log zuzuordnen statt zu raten.
+            // Sichtbaren Sprung abfedern: rueckwaerts (Zeitkorrektur) oder ungewoehnlich weit vorwaerts
+            // (verzoegerter Frame); normale Ticks gelten sofort. Das Log vermerkt Beginn und Ende jeder
+            // Episode zur Ursachensuche.
 
-            // Ease away a visible jump: backward (time correction) or
-            // unusually far forward (a delayed frame, e.g. a blocking web
-            // request). Normal ticks still apply immediately.
-            // Diagnostic logging (DEBUG_PRINTLN, a no-op while loggingEnabled
-            // is off): logs each episode's start (magnitude, direction) and
-            // end (duration), to match a cause in the log instead of guessing.
+            // Ease away a visible jump: backward (time correction) or unusually far forward (delayed frame);
+            // normal ticks apply immediately. The log records start and end of each episode to find the
+            // cause.
 
             static bool secondEasingActive[2] = { false, false };
             static unsigned long secondEasingStartMillis[2] = { 0, 0 };
@@ -2494,8 +2342,11 @@
 
             }
             else {
+
                 // Normale Minutenanzeige mit sanfter Korrektur bei Wechsel
+
                 // Normal minute display with smooth correction on change
+
                 float rawMinAngle = t.tm_min * 6.0f;
                 float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
                 float angleDiff = shortestAngleDiff(lastMinuteAngleRef, targetMinAngle);
@@ -2526,6 +2377,7 @@
 
             // Fold back into [0,360) like lastMinuteAngleRef - otherwise the
             // value grows unbounded over very long runtime, costing float precision.
+
             if (lastHourAngleRef < 0.0f) lastHourAngleRef += 360.0f;
             if (lastHourAngleRef >= 360.0f) lastHourAngleRef -= 360.0f;
         }
@@ -2537,9 +2389,11 @@
         // Grosse Spruenge langsam und auf dem kuerzesten Weg ausfuehren (siehe
         // animateHand()). Bei geaenderter Rotation sofort uebernehmen - dann
         // dreht sich ohnehin das ganze Zifferblatt.
+
         // Perform large jumps slowly and along the shortest path (see
         // animateHand()). On a changed rotation adopt immediately - the whole
         // clock face turns then anyway.
+
         {
             static HandMove moves[2][3];
             static float shown[2][3];
@@ -2569,6 +2423,7 @@
         // Nothing changed (angles, visibility, hub, brightness, rotation,
         // style, graphics) and nothing drawn over it: skip drawing + SPI push
         // - the angle state above still advances every tick.
+
         bool drawSecond = showSecondHand && !hideSecondHand;
         bool drawHub = hubSize > 0 && !hideDetailsForRocrail;
         ClockFrameKey& lastFrame = lastClockFrame[displayNum - 1];
@@ -2588,35 +2443,22 @@
         }
 
 
-        // Zifferblatt + Stunden-/Minutenzeiger kommen aus dem zwischen-
-        // gespeicherten Bild (drawCompositeInto()), neu gebaut nur bei
-        // Bewegung - pro Tick bleibt nur das Kopieren. Fallback bei Speichermangel: alter Zeichenweg.
+        // Zifferblatt und Stunden-/Minutenzeiger kommen aus dem Zwischenbild (drawCompositeInto()), sonst
+        // alter Zeichenweg. Bewegte sich nur der Sekundenzeiger, nur das Rechteck um alten und neuen Zeiger
+        // samt Nabe senden - spart beim schwingenden Zeiger den Grossteil der 115 KB je Frame.
 
-        // Clock face + hour/minute hands come from the cached composite image
-        // (drawCompositeInto()), rebuilt only on movement - per tick only the
-        // copy remains. Falls back to the old drawing path on low memory.
+        // Clock face and hour/minute hands come from the composite (drawCompositeInto()), otherwise the old
+        // drawing path. If only the second hand moved, send just the rectangle around old and new hand plus
+        // hub - saves most of the 115 KB per frame with the smooth hand.
 
-        // Teil-Aktualisierung: gegenueber dem letzten Frame hat sich NUR der
-        // Sekundenzeiger bewegt (alle anderen Werte gleich, siehe Abbruch-
-        // pruefung oben) - dann Kopieren, Zeichnen und SPI-Senden auf das
-        // Rechteck um alten + neuen Sekundenzeiger und Nabe beschraenken.
-        // Beim schwingenden Zeiger spart das den Grossteil der 115 KB je Frame.
-
-        // Partial update: compared to the last frame ONLY the second hand
-        // moved (all other values equal, see the early-out check above) - then
-        // limit copying, drawing and the SPI send to the rectangle around old
-        // + new second hand and hub. With the smooth hand this saves most of
-        // the 115 KB per frame.
         const uint32_t renderStartMicros = micros(); // fuer recordRenderFrame() / for recordRenderFrame()
 
-        // Stunden-/Minutenwinkel bewusst NICHT verglichen: beim schwingenden
-        // Minutenzeiger aendert sich der Winkel jedes Frame minimal, das Bild
-        // aber nur, wenn das Zwischenbild neu aufgebaut wird - das faengt die
-        // compositeBuildCount-Pruefung unten ab.
-        // Hour/minute angles deliberately NOT compared: with the smooth minute
-        // hand the angle changes minimally every frame, but the image only
-        // changes when the composite is rebuilt - the compositeBuildCount
-        // check below catches that.
+        // Stunden-/Minutenwinkel bewusst NICHT vergleichen - beim schwingenden Minutenzeiger aendert er sich
+        // jedes Frame minimal; ein neues Zwischenbild faengt die compositeBuildCount-Pruefung ab.
+
+        // Hour/minute angles deliberately NOT compared - with the smooth minute hand they change minimally
+        // every frame; a rebuilt composite is caught by the compositeBuildCount check.
+
         bool partial = partialUpdateEnabled
             && !forceRender && !clockFrameDirty[displayNum - 1] && lastFrame.valid
             && drawSecond && lastFrame.drawSecond
@@ -2649,14 +2491,12 @@
         uint32_t buildsBefore = compositeBuildCount;
         bool compositeOk = drawCompositeInto(displayNum, rotation, hourAngle, minAngle);
 
-        // Wurde das Zwischenbild neu aufgebaut (Stunden-/Minutenzeiger ueber
-        // die Schwelle) oder fehlt es (Speichermangel - dann werden die Zeiger
-        // unten direkt gezeichnet), hat sich das Bild auch ausserhalb des
-        // Rechtecks geaendert - dann dieses Frame voll zeichnen und senden.
-        // If the composite was rebuilt (hour/minute hand crossed the
-        // threshold) or is missing (low memory - then the hands are drawn
-        // directly below), the image also changed outside the rectangle - then
-        // draw and send this frame in full.
+        // Wurde das Zwischenbild neu aufgebaut oder fehlt es (Speichermangel), hat sich das Bild auch
+        // ausserhalb des Rechtecks geaendert - dann das Frame voll zeichnen und senden.
+
+        // If the composite was rebuilt or is missing (low memory), the image also changed outside the
+        // rectangle - then draw and send the frame in full.
+
         if (partial && (compositeBuildCount != buildsBefore || !compositeOk)) {
             partial = false;
             backgroundSprite.clearClipRect();
@@ -2669,6 +2509,7 @@
         }
 
         if (drawSecond) {
+
             // Tickend wie schwingend: LovyanGFX pushRotatedWithAA() - dasselbe
             // Verfahren wie bei Stunden-/Minutenzeiger (buildHandComposite()),
             // rechnet in Festkomma und ist damit schnell genug fuer jeden Frame.
@@ -2676,6 +2517,7 @@
             // Ticking and smooth alike: LovyanGFX pushRotatedWithAA() - the same
             // method as for the hour/minute hands (buildHandComposite()),
             // computes in fixed point and is therefore fast enough for every frame.
+
             secondHandSprite.pushRotatedWithAA(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
         }
 
@@ -2685,15 +2527,22 @@
 
         // hub - also hidden from ROCRAIL_HIDE_DETAILS_DIVIDER onwards (see
         // hideDetailsForRocrail above)
+
         if (drawHub) {
+
             // Kantengeglaettet wie die Zeiger (gleiche Flaeche wie fillCircle())
+
             // anti-aliased like the hands (same area as fillCircle())
+
             backgroundSprite.fillSmoothCircle(CLOCK_WIDTH / 2, CLOCK_HEIGHT / 2, hubSize, setPixelBrightness(hubColor));
         }
 
         if (partial) {
+
             // Nur das Rechteck senden (siehe pushBackgroundRect())
+
             // Send only the rectangle (see pushBackgroundRect())
+
             backgroundSprite.clearClipRect();
             pushBackgroundRect(px0, py0, px1 - px0 + 1, py1 - py0 + 1);
             lastRenderRect[0] = px0; lastRenderRect[1] = py0;
@@ -2732,51 +2581,24 @@
     // Display 2; with GC9D01, only if tftRotation2 differs from tftRotation1.
 
     void updateClock() {
-        // In eine lokale Kopie lesen statt direkt in die globale timeinfo:
-        // waehrend die NTP-Sync-Task laeuft, wird die Systemzeit dort bewusst
-        // kurzzeitig auf 1970 (ungueltig) gesetzt, um einen echten Sync-
-        // Erfolg zu erkennen (siehe settimeofday(&invalidTime, ...) in
-        // setupNTP(), time_sync.h) - das betrifft die Systemzeit insgesamt,
-        // nicht nur die Sync-Task selbst. Wuerde getLocalTime() direkt in die
-        // globale timeinfo schreiben, laende dieser Zwischenzustand bei einem
-        // Fehlschlag (Jahr <= 2016) fuer einen Frame sichtbar hier: falsch
-        // stehende Zeiger, und ueber updateBrightness() sogar ein kurzes
-        // Abdunkeln, da die Stunde dann faelschlich ausserhalb des
-        // Tagesfensters liegt.
 
-        // Read into a local copy instead of directly into the global
-        // timeinfo: while the NTP sync task is running, it deliberately sets
-        // the system time to 1970 (invalid) for a moment to detect a genuine
-        // sync success (see settimeofday(&invalidTime, ...) in setupNTP(),
-        // time_sync.h) - that affects the system time as a whole, not just
-        // the sync task itself. If getLocalTime() wrote directly into the
-        // global timeinfo, this intermediate state would become visible here
-        // for a frame on a failure (year <= 2016): hands pointing to the
-        // wrong time, and via updateBrightness() even a brief dimming, since
-        // the hour would then wrongly fall outside the daytime window.
-        // Letzte bekannte gueltige Zeit + Zeitpunkt (millis()), zu dem sie
-        // gelesen wurde - Grundlage fuer das Weiterrechnen unten, wenn
-        // getLocalTime() kurzzeitig fehlschlaegt.
-        // Last known valid time + the millis() moment it was read at - basis
-        // for extrapolating below when getLocalTime() briefly fails.
+        // In eine lokale Kopie lesen: die NTP-Sync-Task setzt die Systemzeit kurz auf 1970, um echten Erfolg
+        // zu erkennen - direkt in timeinfo stuenden sonst fuer ein Frame falsche Zeiger (und eine falsche
+        // Helligkeit). Die letzte gute Zeit samt millis() dient zum Weiterrechnen.
+
+        // Read into a local copy: the NTP sync task briefly sets the system time to 1970 to detect real
+        // success - directly in timeinfo the hands (and brightness) would be wrong for a frame. The last good
+        // time plus millis() is used to extrapolate.
 
         static time_t lastGoodEpoch = 0;
         static unsigned long lastGoodEpochMillis = 0;
 
-        // Timeout 0 statt eines Wartewerts: schlaegt der Lesevorgang fehl,
-        // rechnen wir unten ohnehin aus der letzten guten Zeit weiter - ein
-        // Warten von bis zu 1s PRO loop()-Tick waere nur verschenkte Zeit
-        // und wuerde ausgerechnet waehrend der NTP-Invalidierung (siehe
-        // unten) den kompletten Haupt-Loop (Webserver, Touch, ...) fuer die
-        // Dauer des Sync-Versuchs lahmlegen. Gleiches Prinzip wie beim
-        // Timeout 0 in logToFile() (system_utils.h).
+        // Timeout 0: schlaegt das Lesen fehl, wird aus der letzten guten Zeit weitergerechnet - Warten wuerde
+        // den Haupt-Loop waehrend der NTP-Invalidierung nur lahmlegen.
 
-        // Timeout 0 instead of a wait value: if the read fails, we
-        // extrapolate from the last good time below anyway - waiting up to
-        // 1s PER loop() tick would just waste time, and during the NTP
-        // invalidation (see below) would stall the entire main loop
-        // (web server, touch, ...) for the whole sync attempt. Same
-        // principle as the 0 timeout in logToFile() (system_utils.h).
+        // Timeout 0: if the read fails, extrapolation from the last good time follows - waiting would only
+        // stall the main loop during the NTP invalidation.
+
         struct tm freshTimeinfo;
         if (getLocalTime(&freshTimeinfo, 0)) {
             timeinfo = freshTimeinfo;
@@ -2787,36 +2609,25 @@
         }
         else if (lastGoodEpoch != 0) {
 
-            // Waehrend die Systemzeit kurz ungueltig ist (z.B. die NTP-Sync-
-            // Invalidierung, siehe settimeofday(&invalidTime, ...) in
-            // setupNTP()), aus der letzten bekannten guten Zeit plus
-            // verstrichener Zeit weiterrechnen, statt den Sekundenzeiger
-            // anzuhalten. Sobald die echte Systemzeit wieder gueltig ist,
-            // steigt der obige Zweig nahtlos wieder ein.
+            // Waehrend die Systemzeit kurz ungueltig ist (NTP-Invalidierung), aus der letzten guten Zeit plus
+            // verstrichener Zeit weiterrechnen, statt den Sekundenzeiger anzuhalten.
 
-            // While the system time is briefly invalid (e.g. the NTP sync
-            // invalidation, see settimeofday(&invalidTime, ...) in
-            // setupNTP()), keep advancing from the last known good time plus
-            // elapsed time, instead of pausing the second hand. Once the
-            // real system time is valid again, the branch above picks back
-            // up seamlessly.
+            // While the system time is briefly invalid (NTP invalidation), extrapolate from the last good
+            // time plus elapsed time instead of pausing the second hand.
+
             time_t estimatedNow = lastGoodEpoch + (time_t)((millis() - lastGoodEpochMillis) / 1000);
             localtime_r(&estimatedNow, &timeinfo);
         }
         else {
-            // Noch nie eine gueltige Zeit gesehen (z.B. ganz am Anfang nach
-            // dem Boot) - wie bisher auf die RTC zurueckfallen. Ohne RTC ab
-            // der Startzeit (START_TIME_* in config.h) weiterlaufen, gezaehlt
-            // ab dem ersten Aufruf. Jahr bleibt 0 (1900) = "noch keine Zeit",
-            // die Systemzeit wird nicht gesetzt - die erste echte Zeit (USB,
-            // NTP, DCF77, RTC) uebernimmt sofort (Zeigeranimation).
 
-            // Never seen a valid time yet (e.g. right after boot) - fall
-            // back to the RTC as before. Without an RTC keep running from the
-            // start time (START_TIME_* in config.h), counted from the first
-            // call. The year stays 0 (1900) = "no time yet", the system time
-            // is not set - the first real time (USB, NTP, DCF77, RTC) takes
-            // over right away (hand animation).
+            // Noch nie eine gueltige Zeit: auf die RTC zurueckfallen, ohne RTC ab der Startzeit
+            // (START_TIME_*) weiterlaufen. Jahr 0 = "noch keine Zeit", die Systemzeit bleibt ungesetzt - die
+            // erste echte Zeit uebernimmt sofort.
+
+            // Never a valid time yet: fall back to the RTC, without an RTC keep running from the start time
+            // (START_TIME_*). Year 0 = "no time yet", the system time stays unset - the first real time takes
+            // over right away.
+
             loadTimeFromRTC();
             if (rtcOk != RTC_AVAILABLE) {
                 static unsigned long fallbackStartMillis = millis();
@@ -2833,52 +2644,21 @@
         static unsigned long lastRtcReloadMillis = 0; // Zeitpunkt des letzten RTC-Lesevorgangs (eigenstaendig, NICHT dieselbe Variable wie das globale lastRTCUpdate in time_sync.h/applyDcf77DecodedTime)
                                                       // timestamp of the last RTC read (independent, NOT the same variable as the global lastRTCUpdate in time_sync.h/applyDcf77DecodedTime)
         if (rtcOk == RTC_AVAILABLE) {
+
             // Überprüfen, ob seit dem letzten Aufruf Zeit vergangen ist
+
             // Check whether time has passed since the last call
+
             if (millis() - lastRtcReloadMillis >= WAIT_1h) {
 
-                // NUR neu laden, wenn NTP nicht ohnehin erst vor kurzem (< der
-                // NTP-Sync-Periode, siehe WAIT_6h in uhr4.ino) erfolgreich
-                // synchronisiert hat (siehe lastNtpSuccessMillis in
-                // globals.h/setupNTP()). Dieser Reload ist ein Sicherheitsnetz
-                // fuer den Fall, dass WLAN/NTP laenger ausfaellt - laeuft NTP
-                // aber normal (der Regelfall - dieser Check hier laeuft
-                // bewusst weiterhin stuendlich, unabhaengig von der laengeren
-                // NTP-Periode, um zeitnah zu reagieren, falls NTP tatsaechlich
-                // ausfaellt), wuerde er eine bereits aktuelle, NTP-genaue
-                // Systemzeit unnoetig durch die RTC ueberschreiben. Die RTC
-                // zaehlt seit dem letzten Abgleich eigenstaendig weiter
-                // (eigene, weniger praezise Uhr als der NTP-korrigierte
-                // Systemtakt) und kann dabei um ein paar Sekunden abweichen -
-                // loadTimeFromRTC() setzt ohne jede Richtungspruefung direkt
-                // per settimeofday(), wodurch genau das den Sekundenzeiger
-                // sichtbar (und faelschlich) zurueckspringen liess. Die
-                // Schwelle MUSS mit der tatsaechlichen NTP-Sync-Periode
-                // uebereinstimmen (WAIT_6h, nicht mehr WAIT_1h) - sonst wuerde
-                // dieser Reload bei einer laengeren NTP-Periode wieder bei
-                // JEDEM Durchlauf greifen, weil NTP zwischen zwei Syncs
-                // immer "aelter als 1h" waere, obwohl es normal laeuft.
+                // Nur neu aus der RTC laden, wenn NTP nicht innerhalb der Sync-Periode (WAIT_6h) erfolgreich
+                // war - sonst ueberschriebe die ungenauere RTC die NTP-Zeit und der Sekundenzeiger spraenge
+                // zurueck. Die Schwelle muss zur NTP-Periode passen.
 
-                // ONLY reload when NTP hasn't already succeeded recently
-                // (< the NTP sync period, see WAIT_6h in uhr4.ino) (see
-                // lastNtpSuccessMillis in globals.h/setupNTP()). This reload
-                // is a safety net for when WiFi/NTP is down for a longer
-                // stretch - but if NTP is running normally (the usual case -
-                // this check here deliberately still runs hourly, independent
-                // of the longer NTP period, to react promptly if NTP
-                // actually does fail), it would needlessly overwrite an
-                // already-current, NTP-accurate system time with the RTC's.
-                // The RTC keeps counting on its own since the last
-                // adjustment (a separate, less precise clock than the
-                // NTP-corrected system clock) and can have drifted by a few
-                // seconds by then - loadTimeFromRTC() sets it directly via
-                // settimeofday() with no direction check at all, which is
-                // exactly what made the second hand visibly (and wrongly)
-                // jump backward. The threshold MUST match the actual NTP
-                // sync period (WAIT_6h, no longer WAIT_1h) - otherwise this
-                // reload would fire on EVERY pass again with a longer NTP
-                // period, since NTP would always be "older than 1h" between
-                // two syncs even while running normally.
+                // Only reload from the RTC if NTP has not succeeded within the sync period (WAIT_6h) -
+                // otherwise the less precise RTC would overwrite the NTP time and the second hand would jump
+                // back. The threshold must match the NTP period.
+
                 if (lastNtpSuccessMillis == 0 || millis() - lastNtpSuccessMillis >= WAIT_6h) {
                     loadTimeFromRTC();
                 }
@@ -2891,44 +2671,17 @@
 
         // Advance the model time independent of the real-time-based block
         // above - only does anything when rocrailEnabled (see there).
+
         advanceRocrailTime();
 
-        // Bug: die Bahnhofsuhr-Schrittlogik (stationTick, siehe
-        // renderClockFrame()) initialisiert sich nur beim ALLERERSTEN Aufruf
-        // (firstRun/firstRun2) anhand der dann verfuegbaren Zeit. War timeinfo
-        // zu dem Zeitpunkt noch nicht gueltig (kein RTC, NTP/DCF77 noch nicht
-        // synchronisiert - timeinfo steht dann auf seinem Nullwert, Jahr 1900),
-        // blieb stationTick auf dieser falschen Basis stehen und wurde erst
-        // beim naechsten Bahnhofsuhr-Minutenwechsel per Resync korrigiert -
-        // sichtbar als "Sekundenzeiger stimmt anfangs nicht, springt erst nach
-        // einer Weile auf den richtigen Wert". Sobald timeinfo zum ERSTEN Mal
-        // plausibel wird (Jahr >= 2000 - die weiterlaufende Startzeit ohne
-        // Zeitquelle zaehlt NICHT dazu, Jahr 0), daher einmalig
-        // firstRun/firstRun2 erneut auf true setzen, damit sich die Animation
-        // sauber auf die jetzt gueltige Zeit neu einstellt. Betrifft nur den
-        // Bahnhofsuhr-Modus - tickende/sanfte Darstellung im Normalmodus leiten
-        // ihre Position ohnehin jeden Frame frisch aus timeinfo ab und
-        // korrigieren sich dadurch schon von selbst (bei einem Ruecksprung
-        // sanft nachgefuehrt statt gesprungen - siehe die Sekundenzeiger-
-        // Behandlung in renderClockFrame()).
+        // Die Bahnhofsuhr-Logik (stationTick) richtet sich nur beim ersten Aufruf aus - daher firstRun
+        // einmalig neu setzen, sobald timeinfo erstmals plausibel wird (Jahr >= 2000; die laufende Startzeit
+        // ohne Zeitquelle zaehlt nicht). Der Normalmodus korrigiert sich jedes Frame selbst.
 
-        // Bug: the station-clock stepping logic (stationTick, see
-        // renderClockFrame()) initializes itself only on the VERY FIRST call
-        // (firstRun/firstRun2), based on whatever time is available then. If
-        // timeinfo wasn't valid yet at that point (no RTC, NTP/DCF77 not yet
-        // synced - timeinfo then sits at its zero value, year 1900),
-        // stationTick stayed on that wrong baseline and only got corrected via
-        // resync at the next station-clock minute change - visible as "the
-        // second hand doesn't match at first, only jumps to the right value
-        // after a while". So, once timeinfo becomes plausible for the FIRST
-        // time (year >= 2000 - the running start time without a time source
-        // does NOT count, year 0), force firstRun/firstRun2
-        // back to true once, so the animation cleanly re-baselines on the now
-        // valid time. Only affects station-clock mode - ticking/smooth
-        // rendering in normal mode derives its position fresh from timeinfo
-        // every single frame anyway and therefore already self-corrects on
-        // its own (eased rather than snapped for a backward step - see the
-        // second-hand handling in renderClockFrame()).
+        // The station-clock logic (stationTick) only aligns on its first call - so set firstRun again once
+        // timeinfo first becomes plausible (year >= 2000; the running start time without a time source does
+        // not count). Normal mode corrects itself every frame.
+
         static bool hadPlausibleTime = false;
         if (!hadPlausibleTime && timeinfo.tm_year >= 100) {
             hadPlausibleTime = true;
@@ -2936,15 +2689,13 @@
             firstRun2 = true;
         }
 
-        // Displays mit Rotation "n.a." werden bei der Uhranzeige weder selektiert
-        // noch berechnet. Ist nur Display 2 angeschlossen, rendert es sein Bild selbst.
-        // firstRun bleibt dabei auf true, damit das Display beim spaeteren
-        // Anschliessen (Einstellungsaenderung zur Laufzeit) sofort korrekt einrastet.
+        // Displays mit "n.a." werden weder angesteuert noch berechnet; ist nur Display 2 angeschlossen,
+        // rendert es selbst. firstRun bleibt true, damit ein spaeter angeschlossenes Display sofort richtig
+        // steht.
 
-        // Displays with rotation "n.a." are neither selected nor calculated for
-        // the clock display. If only display 2 is connected, it renders its own frame.
-        // firstRun stays true meanwhile, so the display snaps correctly as
-        // soon as it gets connected later (settings change at runtime).
+        // Displays set to "n.a." are neither driven nor calculated; if only display 2 is connected, it
+        // renders itself. firstRun stays true, so a display connected later is right immediately.
+
         const bool display1Connected = isDisplayConnected(1);
         const bool display2Connected = isDisplayConnected(2);
 
@@ -2953,6 +2704,7 @@
 
         // A "n.a." display shows only black: clear its last content (clock or
         // status/boot message) once, after that it is not touched anymore.
+
         for (uint8_t d = 1; d <= 2; d++) {
             if (!isDisplayConnected(d) && displayNeedsBlank[d - 1]) {
                 if (d == 1) setCS1(LOW); else setCS2(LOW);
@@ -2980,6 +2732,7 @@
             renderClockFrame(2, tftRotation2, lastHourAngle2, lastMinuteAngle2, lastSecondAngle2, firstRun2);
         }
         else {
+
             // Spiegelbetrieb: nur senden, wenn Display 1 ein neues Bild hat
             // oder Display 2 selbst ueberzeichnet wurde - backgroundSprite
             // enthaelt dann weiterhin das zuletzt gerenderte Uhrbild.
@@ -2987,14 +2740,18 @@
             // Mirror mode: only send when display 1 has a new image or display
             // 2 itself got drawn over - backgroundSprite then still holds the
             // last rendered clock image.
+
             if (display1Pushed || clockFrameDirty[1]) {
                 setCS2(LOW);
+
                 // Hat Display 1 nur ein Rechteck gesendet (Teil-Aktualisierung),
                 // reicht fuer Display 2 dasselbe - ausser es wurde selbst
                 // ueberzeichnet (clockFrameDirty[1]), dann voll senden.
+
                 // If display 1 only sent a rectangle (partial update), the same
                 // is enough for display 2 - unless it got drawn over itself
                 // (clockFrameDirty[1]), then send in full.
+
                 if (lastRenderPartial && !clockFrameDirty[1]) {
                     pushBackgroundRect(lastRenderRect[0], lastRenderRect[1], lastRenderRect[2], lastRenderRect[3]);
                 }
@@ -3004,19 +2761,11 @@
                 clockFrameDirty[1] = false;
             }
 
-            // firstRun2 bewusst auf true halten: rastet tftRotation2 spaeter
-            // (per Einstellungsaenderung zur Laufzeit) wieder von tftRotation1
-            // ab, soll der naechste eigenstaendige Frame fuer Display 2 sofort
-            // an der korrekten Winkelposition einrasten, statt sich aus einem
-            // waehrend dieser Zeit nie aktualisierten (also veralteten)
-            // lastHourAngle2/lastMinuteAngle2 heranzutasten.
+            // firstRun2 auf true halten: weicht tftRotation2 spaeter wieder ab, soll Display 2 sofort richtig
+            // stehen statt sich aus veralteten Winkeln heranzutasten.
 
-            // Deliberately keep firstRun2 at true: if tftRotation2 later
-            // diverges again from tftRotation1 (via a runtime settings
-            // change), the next standalone frame for Display 2 should snap
-            // straight to the correct angle instead of easing in from a
-            // lastHourAngle2/lastMinuteAngle2 that was never updated (and so
-            // went stale) during this time.
+            // Keep firstRun2 at true: if tftRotation2 diverges again later, display 2 should be right
+            // immediately instead of easing in from stale angles.
 
             firstRun2 = true;
         }
@@ -3035,17 +2784,13 @@
     // the brightness reported by the Rocrail server (see rocrailBrightnessActive below).
 
     void updateBrightness() {
-        // Eigene Vergleichsvariable fuer die Zeiger: lastAppliedBrightness wird
-        // von loadClockFace() selbst gepflegt, das Zifferblatt braucht hier keinen Aufruf.
-        // Nicht bei JEDEM Rampenschritt neu einfaerben (kostet Preferences-/
-        // LittleFS-Zugriffe), sondern nur bei spuerbarer Differenz plus einmal
-        // am Rampenende fuer den exakten Endwert.
 
-        // Its own comparison variable for the hands: lastAppliedBrightness is
-        // maintained by loadClockFace() itself, the clock face needs no call here.
-        // Don't re-tint on EVERY ramp step (costly preferences/LittleFS access),
-        // only on a noticeable difference plus once at the end of the ramp for
-        // the exact final value.
+        // Eigene Vergleichsvariable fuer die Zeiger (das Zifferblatt pflegt lastAppliedBrightness selbst).
+        // Nicht bei jedem Rampenschritt neu einfaerben, nur bei spuerbarer Differenz und einmal am
+        // Rampenende.
+
+        // Own comparison variable for the hands (the clock face maintains lastAppliedBrightness itself). Do
+        // not re-tint on every ramp step, only on a noticeable difference and once at the end of the ramp.
 
         const uint8_t HAND_RETINT_STEP = 8;
 
@@ -3057,53 +2802,52 @@
 
         // With a backlight the pixels stay unchanged (setPixelBrightness()) -
         // re-tinting would only cost file access and a discarded composite.
+
         if (!useBacklight && (handBrightnessDelta >= HAND_RETINT_STEP ||
             (handBrightnessDelta > 0 && currentBrightness == targetBrightness))) {
             loadHandSprites();
             lastHandBrightness = currentBrightness;
         }
 
-        // Prüfen, ob wir aktuell im konfigurierten Voll-Helligkeits-Zeitfenster sind
-        // Check whether we're currently within the configured full-brightness time window
-        // Letzten bekannten Stand beibehalten statt bei einem getLocalTime()-
-        // Fehlschlag faelschlich auf "false" (Nacht) zu wechseln - genau das
-        // wuerde waehrend der kurzen NTP-Sync-bedingten Systemzeit-
-        // Invalidierung (siehe updateClock()/setupNTP()) sonst die
-        // Helligkeit grundlos auf minBrightness fallen lassen.
+        // Liegt die Uhrzeit im Zeitfenster fuer volle Helligkeit? Bei einem getLocalTime()-Fehlschlag den
+        // letzten Stand behalten, sonst fiele die Helligkeit waehrend der NTP-Invalidierung grundlos auf
+        // minBrightness.
 
-        // Keep the last known state instead of wrongly falling back to
-        // "false" (night) on a getLocalTime() failure - that's exactly what
-        // would otherwise drop the brightness to minBrightness for no
-        // reason during the brief NTP-sync-induced system time invalidation
-        // (see updateClock()/setupNTP()).
+        // Is the time within the full-brightness window? On a getLocalTime() failure keep the last state,
+        // otherwise the brightness would drop to minBrightness during the NTP invalidation for no reason.
 
         static bool withinDayWindow = false;
         static bool timeEverValid = false; // seit dem Start je eine gueltige Uhrzeit / valid time ever since boot
 
         // struct tm timeinfo;
-        struct tm freshTimeinfo;
-        // Timeout 0 - siehe Begruendung bei updateClock() (display.h):
-        // schlaegt der Lesevorgang fehl, bleibt withinDayWindow ohnehin auf
-        // dem letzten bekannten Stand (siehe oben), ein Warten wuerde nur
-        // den Haupt-Loop waehrend der NTP-Invalidierung unnoetig blockieren.
 
-        // Timeout 0 - see the reasoning at updateClock() (display.h): if the
-        // read fails, withinDayWindow stays at its last known state anyway
-        // (see above), waiting would just needlessly block the main loop
-        // during the NTP invalidation.
+        struct tm freshTimeinfo;
+
+        // Timeout 0 wie in updateClock(): bei Fehlschlag bleibt withinDayWindow auf dem letzten Stand, Warten
+        // wuerde nur den Haupt-Loop blockieren.
+
+        // Timeout 0 as in updateClock(): on failure withinDayWindow keeps its last state, waiting would only
+        // block the main loop.
+
         if (getLocalTime(&freshTimeinfo, 0)) {
             timeinfo = freshTimeinfo; // nur bei Erfolg uebernehmen, siehe updateClock()
                                       // only adopt on success, see updateClock()
             timeEverValid = true;
             int h = freshTimeinfo.tm_hour;
             if (brightStartHour <= brightEndHour) {
+
                 // normaler Bereich z.B. 8..20
+
                 // normal range e.g. 8..20
+
                 withinDayWindow = (h >= brightStartHour && h < brightEndHour);
             }
             else {
+
                 // über Mitternacht z.B. 20..6
+
                 // spanning midnight e.g. 20..6
+
                 withinDayWindow = (h >= brightStartHour || h < brightEndHour);
             }
         }
@@ -3115,20 +2859,15 @@
         // Always update the raw photoresistor reading, independent of the
         // daytime window - also serves as a live display (topbar); the
         // brightness DECISION still depends on the time window.
-#ifdef ADC_PIN
+
         if (useAdc) {
 
-            // Nur alle ADC_SAMPLE_INTERVAL_MS neu abtasten statt bei jedem
-            // loop()-Tick: sonst deckt das ADC_SMOOTHING-Mittel nur wenige
-            // Millisekunden ab, und ein kurzer Stromspitzen-Einbruch (z.B.
-            // WLAN-Sendeburst waehrend NTP-Sync) faerbt fast jedes Sample im
-            // Fenster gleich ein, statt herausgemittelt zu werden.
+            // Nur alle ADC_SAMPLE_INTERVAL_MS abtasten statt jeden Tick - sonst deckt das Mittel nur
+            // Millisekunden ab und ein kurzer Einbruch (WLAN-Sendeburst) wird nicht herausgemittelt.
 
-            // Only re-sample every ADC_SAMPLE_INTERVAL_MS instead of on every
-            // loop() tick: otherwise the ADC_SMOOTHING average spans only a
-            // few milliseconds, and a brief current-draw dip (e.g. a WiFi TX
-            // burst during NTP sync) taints nearly every sample in the
-            // window instead of being averaged out.
+            // Only sample every ADC_SAMPLE_INTERVAL_MS instead of every tick - otherwise the average spans
+            // only milliseconds and a brief dip (WiFi TX burst) is not averaged out.
+
             if (initial || millis() - lastAdcSampleMillis >= ADC_SAMPLE_INTERVAL_MS) {
                 lastAdcSampleMillis = millis();
 
@@ -3153,7 +2892,6 @@
                 currentLightPercent = map(avg, 0, 4095, 5, 100);
             }
         }
-#endif
 
         // Rocrail-Helligkeit hat Vorrang vor Zeitfenster UND Fotowiderstand,
         // sobald verbunden und ein bri-Wert bekannt ist - dieselbe Stale-
@@ -3162,20 +2900,18 @@
         // Rocrail brightness takes priority over both the time window and
         // the photoresistor, once connected and a bri value is known - the
         // same staleness check as rocrailTimeReady falls back to local control after ROCRAIL_STALE_TIMEOUT_MS otherwise.
+
         bool rocrailBrightnessActive = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
                                         (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
 
-        // Einrichtung: noch nie eine gueltige Uhrzeit (Tag/Nacht unbekannt,
-        // die Uhr zeigt ohnehin noch keine Zeit), WPS-Suche oder Access Point
-        // -> volle Helligkeit, damit Meldungen und AP-Passwort lesbar sind.
-        // Sonst blieb eine neue Uhr ohne WLAN und ohne hellen Lichtsensor auf
-        // minBrightness - mit Backlight (5 von 255) praktisch dunkel (GC9D01).
+        // Einrichtung (noch nie gueltige Zeit, WPS oder Access Point): volle Helligkeit, damit Meldungen und
+        // AP-Passwort lesbar sind - sonst blieb eine neue Uhr ohne hellen Lichtsensor praktisch dunkel
+        // (GC9D01).
 
-        // Setup: never a valid time yet (day/night unknown, the clock shows no
-        // time anyway), WPS search or access point -> full brightness so that
-        // messages and the AP password are readable. Otherwise a new clock
-        // without WiFi and without a bright light sensor stayed at
-        // minBrightness - with a backlight (5 of 255) practically dark (GC9D01).
+        // Setup (never a valid time, WPS or access point): full brightness so messages and the AP password
+        // are readable - otherwise a new clock without a bright light sensor stayed practically dark
+        // (GC9D01).
+
         bool setupBrightness = !timeEverValid || softAPIP || wpsPending;
 
         if (setupBrightness) {
@@ -3185,11 +2921,13 @@
         else if (rocrailBrightnessActive) {
             targetBrightness = rocrailBrightness;
             if (useBacklight) {
+
                 // sanfte Anpassung wie beim Zeitfenster/ADC unten, statt eines
                 // harten Sprungs bei jeder Server-Aenderung.
 
                 // smooth adjustment like the time window/ADC below, instead of a
                 // hard jump on every server-side change.
+
                 if (currentBrightness < targetBrightness) currentBrightness++;
                 else if (currentBrightness > targetBrightness) currentBrightness--;
             }
@@ -3198,12 +2936,18 @@
             }
         }
         else if (withinDayWindow) {
+
             // Zeitfenster aktiv und wir sind innerhalb davon: volle Helligkeit erzwingen
+
             // Time window active and we're inside it: force full brightness
+
             targetBrightness = maxBrightness;
             if (useBacklight) {
+
                 // sanfte Erhöhung, falls gewünscht (ähnlich wie ADC-Rampen)
+
                 // smooth increase if desired (similar to ADC ramps)
+
                 if (currentBrightness < targetBrightness) currentBrightness++;
                 else if (currentBrightness > targetBrightness) currentBrightness--;
             }
@@ -3212,27 +2956,20 @@
             }
         }
         else {
-#ifdef ADC_PIN
-            // Normale Auto-Brightness oder statische Helligkeit
-            // Normal auto-brightness or static brightness
-            if (useAdc) {
-                // currentAdcAvg/currentLightPercent wurden oben bereits fuer
-                // diesen Durchlauf aktualisiert - hier nur noch die
-                // Helligkeits-ENTSCHEIDUNG anhand der frischen Werte.
-                // Schwellwert-Ueberschreitung erst nach BRIGHTNESS_DEBOUNCE_MS
-                // Bestand uebernehmen: ein kurzer Ausreisser (z.B. WLAN-
-                // Sendeburst waehrend NTP-Sync) soll targetBrightness nicht
-                // sofort umschalten, sonst faerbt setPixelBrightness() das
-                // komplette Zifferblatt fuer einen Frame sichtbar um.
 
-                // currentAdcAvg/currentLightPercent were already updated
-                // above for this pass - only the brightness DECISION based
-                // on those fresh values happens here.
-                // Only act on a threshold crossing once it has persisted for
-                // BRIGHTNESS_DEBOUNCE_MS: a brief outlier (e.g. a WiFi TX
-                // burst during NTP sync) must not flip targetBrightness
-                // immediately, or setPixelBrightness() visibly re-tints the
-                // whole clock face for a frame.
+            // Normale Auto-Brightness oder statische Helligkeit
+
+            // Normal auto-brightness or static brightness
+
+            if (useAdc) {
+
+                // Helligkeits-Entscheidung anhand der oben aktualisierten Werte; eine
+                // Schwellwert-Ueberschreitung erst nach BRIGHTNESS_DEBOUNCE_MS uebernehmen - ein kurzer
+                // Ausreisser faerbte sonst das Zifferblatt fuer ein Frame um.
+
+                // Brightness decision based on the values updated above; act on a threshold crossing only
+                // after BRIGHTNESS_DEBOUNCE_MS - a brief outlier would otherwise re-tint the clock face for a
+                // frame.
 
                 int desiredBrightnessState = 0; // -1 = Kandidat fuer minBrightness, 1 = fuer maxBrightness
                                                 // -1 = candidate for minBrightness, 1 = for maxBrightness
@@ -3241,10 +2978,13 @@
 
                 if (desiredBrightnessState != pendingBrightnessState) {
                     pendingBrightnessState = desiredBrightnessState;
+
                     // initial: Debounce ueberspringen, sonst startete die Uhr
                     // erst nach BRIGHTNESS_DEBOUNCE_MS mit korrekter Helligkeit.
+
                     // initial: skip the debounce, otherwise the clock would
                     // only reach the correct brightness after BRIGHTNESS_DEBOUNCE_MS.
+
                     brightnessThresholdSinceMillis = initial ? (millis() - BRIGHTNESS_DEBOUNCE_MS) : millis();
                 }
 
@@ -3253,11 +2993,13 @@
                     targetBrightness = (pendingBrightnessState < 0) ? minBrightness : maxBrightness;
                 }
                 else if (useBacklight && pendingBrightnessState == 0) {
+
                     // Zwischen den Schwellen stufenlos (nur mit Backlight -
                     // ohne muesste jeder Zwischenwert das Zifferblatt neu einfaerben).
 
                     // Stepless between the thresholds (backlight only - without
                     // one, every intermediate value would re-tint the clock face).
+
                     float norm = constrain((float)currentAdcAvg / 4095.0f, 0.0f, 1.0f);
                     float gamma = gammaBrightness;
                     float gammaNorm = powf(norm, gamma);
@@ -3276,12 +3018,14 @@
 
             }
             else {
+
                 // kein ADC: Standardeinstellung
+
                 // No ADC: default setting
+
                 currentBrightness = minBrightness;
                 targetBrightness = currentBrightness;
             }
-#endif
         }
 
         if (useBacklight && backlightAttached) {
@@ -3293,6 +3037,7 @@
 
 
     // Passt den ADC-Wert an, wenn die Invertierung aktiviert ist
+
     // Adjusts the ADC value when inversion is enabled
 
     uint16_t getAdjustedAdcValue(int rawValue) {
@@ -3306,25 +3051,24 @@
 
 
     /// Easing-Funktion für sanfte Animationen
+
     // Easing function for smooth animations
 
     float easeInOutSine(float t) {
-        // Bildet die Sekundenzeiger-Bewegung im Bahnhofsuhr-Modus (siehe
-        // renderClockFrame()); als JavaScript in der Web-Vorschau gespiegelt
-        // (webserver_routes.h) - Aenderungen hier dort nachziehen.
 
-        // Shapes the second hand's movement in station clock mode (see
-        // renderClockFrame()); mirrored as JavaScript in the web preview
-        // (webserver_routes.h) - keep changes here in sync there.
+        // Bewegung des Sekundenzeigers im Bahnhofsuhr-Modus, in der Web-Vorschau als JavaScript gespiegelt -
+        // Aenderungen dort nachziehen. Intensitaet: 1.0 = Standard, >1.0 steiler, <1.0 flacher.
 
-        // Intensität steuert die Kurve: 1.0 = Standard, >1.0 = steiler, <1.0 = flacher
-        // Intensity controls the curve: 1.0 = default, >1.0 = steeper, <1.0 = flatter
+        // Second-hand motion in station-clock mode, mirrored as JavaScript in the web preview - keep changes
+        // in sync there. Intensity: 1.0 = default, >1.0 steeper, <1.0 flatter.
+
         float intensity = 0.5f;
         return -(cos(PI * pow(t, intensity)) - 1.0f) / 2.0f;
     }
 
 
     // CRC32 (Standard-Polynom 0xEDB88320) - fuer PNG-Chunk-Pruefsummen
+
     // CRC32 (standard polynomial 0xEDB88320) - for PNG chunk checksums
 
     uint32_t crc32Update(uint32_t crc, const uint8_t* buf, size_t len) {
@@ -3340,6 +3084,7 @@
 
 
     // Adler32 - fuer den zlib-Trailer im PNG-IDAT-Chunk
+
     // Adler32 - for the zlib trailer in the PNG IDAT chunk
 
     uint32_t adler32(const uint8_t* data, size_t len) {
@@ -3354,6 +3099,7 @@
 
 
     // Haengt einen PNG-Chunk (Typ + Daten + CRC32) an einen dynamischen Puffer an.
+
     // Appends a PNG chunk (type + data + CRC32) to a dynamic buffer.
 
     void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) {
@@ -3377,8 +3123,11 @@
     // encodeBmpToBase64() (BMP without alpha, transparency shown as white only).
 
     String encodePngToBase64(const uint16_t* data, int width, int height) {
+
         // Rohe Bilddaten: pro Zeile 1 Filter-Byte (0 = "None") + width*4 Byte RGBA
+
         // Raw image data: 1 filter byte per row (0 = "None") + width*4 bytes RGBA
+
         size_t rawRowSize = 1 + (size_t)width * 4;
         size_t rawSize = rawRowSize * height;
         uint8_t* raw = (uint8_t*)preferPsramMalloc(rawSize);
@@ -3404,6 +3153,7 @@
 
         // zlib stream with uncompressed ("stored") deflate blocks - avoids
         // a full deflate implementation while staying valid PNG.
+
         std::vector<uint8_t> zlibStream;
         zlibStream.push_back(0x78); zlibStream.push_back(0x01); // zlib-Header (keine Kompression)
                                                                 // zlib header (no compression)
@@ -3429,7 +3179,9 @@
         free(raw);
 
         // PNG zusammenbauen: Signatur + IHDR + IDAT + IEND
+
         // Assemble the PNG: signature + IHDR + IDAT + IEND
+
         std::vector<uint8_t> png;
         const uint8_t pngSig[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
         png.insert(png.end(), pngSig, pngSig + 8);
@@ -3477,13 +3229,18 @@
         memset(bmpData, 0, fileSize);
 
         // BITMAPFILEHEADER (14 Byte)
+
         // BITMAPFILEHEADER (14 bytes)
+
         bmpData[0] = 'B'; bmpData[1] = 'M';
         *(uint32_t*)&bmpData[2] = fileSize;
         *(uint32_t*)&bmpData[10] = headerSize; // Offset zu den Pixeldaten
                                                // offset to the pixel data
+
         // BITMAPINFOHEADER (40 Byte)
+
         // BITMAPINFOHEADER (40 bytes)
+
         *(uint32_t*)&bmpData[14] = infoHeaderSize;
         *(int32_t*)&bmpData[18] = width;
         *(int32_t*)&bmpData[22] = -height; // Top-down-BMP
@@ -3495,7 +3252,9 @@
         *(uint32_t*)&bmpData[34] = dataSize;
 
         // Explizite RGB565-Bitmasken (direkt nach der BITMAPINFOHEADER)
+
         // Explicit RGB565 bit masks (right after the BITMAPINFOHEADER)
+
         *(uint32_t*)&bmpData[54] = 0xF800; // Rot:   5 Bit
                                            // Red:   5 bits
         *(uint32_t*)&bmpData[58] = 0x07E0; // Gruen: 6 Bit
@@ -3534,6 +3293,7 @@
 
 
     // TFT-Display loeschen
+
     // clear TFT display
 
     void clearTFT() {
@@ -3560,6 +3320,7 @@
 
 
     // überprüft, ob die BMP-Datei das erwartete Format hat
+
     // Checks whether the BMP file has the expected format
 
     bool checkBmpFormat(const String& filename, int expectedWidth, int expectedHeight) {
@@ -3625,11 +3386,15 @@
 
 
     // Liest die BMP-/RLEB-Header-Informationen und gibt sie als String zurück
+
     // Reads the BMP/RLEB header info and returns it as a string
 
     String getBmpInfo(const String& filename) {
+
         // Normalisiere Pfad (einfach und eindeutig)
+
         // Normalize path (simple and unambiguous)
+
         String file = filename;
         if (!file.startsWith("/")) file = "/" + file;
 
@@ -3673,6 +3438,7 @@
 
 
     // Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
+
     // Scales a BMP file to the desired size and saves it
 
     bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
@@ -3691,7 +3457,9 @@
         }
 
         // Quelle einlesen: RLEB komplett dekodiert, Standard-BMP zeilenweise (speicherschonend)
+
         // Read source: RLEB fully decoded, standard BMP row by row (memory-friendly)
+
         int32_t inW = 0, inH = 0;
         uint16_t bpp = 16;
         bool flip = false;
@@ -3802,6 +3570,7 @@
             }
             else {
                 bmp.seek(offset + inRowSize * srcY);
+
                 // Rueckgabewert pruefen: sonst enthielte rowBuf bei einer
                 // beschaedigten Datei unbemerkt die vorherige Zeile und wuerde
                 // trotzdem als vermeintlich gueltig gespeichert.
@@ -3809,6 +3578,7 @@
                 // Check the return value: otherwise rowBuf would silently keep
                 // the previous row on a corrupted file and still get saved
                 // as an apparently valid result.
+
                 if (bmp.read(rowBuf, inRowSize) != inRowSize) {
                     bmp.close();
                     free(rowBuf);
@@ -3824,19 +3594,28 @@
                 uint16_t pixel = 0;
 
                 if (row16 != nullptr) {
+
                     // Aus bereits dekodiertem RLEB-Quellbild (immer 16 bpp RGB565)
+
                     // From an already decoded RLEB source image (always 16 bpp RGB565)
+
                     pixel = row16[srcX];
                 }
                 else if (bpp == 16) {
+
                     // 16 bpp (RGB565) → direkt übernehmen
+
                     // 16 bpp (RGB565) -> use directly
+
                     uint16_t* r16 = (uint16_t*)rowSource;
                     pixel = r16[srcX];
                 }
                 else if (bpp == 24) {
+
                     // 24 bpp (RGB888) → 16 bpp (RGB565)
+
                     // 24 bpp (RGB888) -> 16 bpp (RGB565)
+
                     uint8_t* row24 = rowSource + (srcX * 3);
                     uint8_t r = row24[2];
                     uint8_t g = row24[1];
@@ -3844,8 +3623,11 @@
                     pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
                 }
                 else if (bpp == 32) {
+
                     // 32 bpp (ARGB8888) → 16 bpp (RGB565)
+
                     // 32 bpp (ARGB8888) -> 16 bpp (RGB565)
+
                     uint8_t* row32 = rowSource + (srcX * 4);
                     uint8_t r = row32[2];
                     uint8_t g = row32[1];
@@ -3867,6 +3649,7 @@
         // Decide the target format: face_*.bmp AND hand_set*.bmp are RLE-
         // compressed (saves flash space, even more so for hands due to large
         // solid-color areas) - everything else stays standard BMP as before.
+
         String targetPathStr = String(targetPath);
         if (!targetPathStr.startsWith("/")) targetPathStr = "/" + targetPathStr;
         bool isFaceTarget = targetPathStr.startsWith("/face_");
@@ -3880,6 +3663,7 @@
         // Image buffer is square, but round displays (GC9A01/GC9D01) only show
         // a circle - everything outside is set white. ILI9341 (rectangular)
         // keeps the corners, masking only applies to clock faces.
+
 #ifdef ROUND_DISPLAY
         if (isFaceTarget) {
             float cx = outW / 2.0f;
@@ -3956,7 +3740,9 @@
             *(uint32_t*)&bmpHeader[34] = dataSize;
 
             // RGB565-Farbmasken hinzufuegen
+
             // Add RGB565 color masks
+
             *(uint32_t*)&bmpHeader[54] = 0xF800; // Rot-Maske
                                                  // Red mask
             *(uint32_t*)&bmpHeader[58] = 0x07E0; // Gruen-Maske
@@ -4281,6 +4067,7 @@
 
         // Add RGB565 color masks (without these, browsers interpret 16-bpp BMPs
         // by default as RGB555 instead of RGB565 -> visible false colors)
+
         *(uint32_t*)&outBmp[54] = 0xF800; // Rot-Maske
                                           // red mask
         *(uint32_t*)&outBmp[58] = 0x07E0; // Gruen-Maske
@@ -4289,6 +4076,7 @@
                                           // blue mask
 
         if (isRle) {
+
             // RLEB: sequentiell dekodieren, nur die fuer das Downsampling
             // benoetigten Zeilen behalten - kein voller ~115-KB-Puffer noetig
             // (RLE erlaubt kein direktes Anspringen einzelner Zeilen).
@@ -4296,6 +4084,7 @@
             // RLEB: decode sequentially, keep only the rows needed for
             // downsampling - no full ~115 KB buffer needed
             // (RLE doesn't allow jumping directly to individual rows).
+
             const size_t IN_CHUNK = 512;
             uint8_t inBuf[IN_CHUNK];
             size_t inPos = 0, inLen = 0, consumedTotal = 0;
@@ -4316,6 +4105,7 @@
 
             uint16_t* srcRow = new (std::nothrow) uint16_t[inW];
             if (!srcRow) {
+
                 // Null-Check ergaenzt: die Nachbarallokation (outBmp weiter oben)
                 // wird geprueft, diese nicht - bei knappem Heap wurde direkt
                 // danach hineingeschrieben.
@@ -4323,6 +4113,7 @@
                 // Null check added: the neighbouring allocation (outBmp further
                 // above) is checked, this one was not - with a tight heap it was
                 // written to right afterwards.
+
                 DEBUG_PRINTLN("[Preview] Error: couldnt allocate srcRow buffer");
                 delete[] outBmp;
                 f.close();
@@ -4392,6 +4183,7 @@
             delete[] srcRow;
         }
         else {
+
             // Standard-BMP: direktes Anspringen der benoetigten Zeilen per
             // Datei-Seek, wie zuvor - hier war die Speichereffizienz schon
             // immer gegeben (kein Vollpuffer noetig).
@@ -4399,6 +4191,7 @@
             // Standard BMP: jump directly to the needed rows via
             // file seek, as before - memory efficiency was already
             // a given here (no full buffer needed).
+
             uint8_t* rowBuf = (uint8_t*)preferPsramMalloc(inRowSizeStd);
             if (rowBuf) {
                 for (int y = 0; y < outH; y++) {
@@ -4483,6 +4276,7 @@
         // Fully decode small images (e.g. hands) and send them in ONE go -
         // for small files the network overhead of many individual
         // sendContent() calls would otherwise dominate. Large clock faces stay streamed row by row.
+
         const uint32_t SMALL_IMAGE_THRESHOLD = 20000;
         if (uncompressedSize <= SMALL_IMAGE_THRESHOLD) {
             uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
@@ -4512,6 +4306,7 @@
 
         // Small read buffer for the compressed input data (refilled
         // from the file instead of reading it all in advance).
+
         const size_t IN_CHUNK = 512;
         uint8_t inBuf[IN_CHUNK];
         size_t inPos = 0, inLen = 0, consumedTotal = 0;
@@ -4535,6 +4330,7 @@
 
         // The response is already streaming chunked, so a 500 is no longer
         // possible - instead terminate the transfer cleanly and return false.
+
         uint8_t* rowBuf = new (std::nothrow) uint8_t[rowSize];
         if (!rowBuf) {
             DEBUG_PRINTLN("[BMP] Error: couldnt allocate row buffer for RLE streaming");
@@ -4598,6 +4394,7 @@
         // If the last row wasn't fully filled (shouldn't happen
         // with valid files), send it anyway,
         // so the total length matches the announced content length.
+
         if (col > 0 && row < h) {
             webserver.sendContent_P((const char*)rowBuf, rowSize);
             row++;
@@ -4619,6 +4416,7 @@
     // Generates a preview image for preset management: composed of clock face,
     // hands (demo time 10:10:30), and center hub in the given color/size.
     // Returns a standard BMP in RAM (caller must free outBytes).
+
     bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName,
         uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond,
         uint8_t** outBytes, size_t& outSize) {
@@ -4632,18 +4430,17 @@
         // Preview as a LovyanGFX sprite: hands are rotated and anti-aliased
         // with pushRotateZoomWithAA() like on the clock - same pivot (sprite
         // centre resp. HAND_WIDTH/2, HAND_PIVOT_Y), just scaled down.
+
         const int PREVIEW_SIZE = 100;
         LGFX_Sprite canvas(&tft);
         if (!createSprite16(canvas, PREVIEW_SIZE, PREVIEW_SIZE)) return false;
 
-        // 1) Zifferblatt laden und auf die Vorschaugroesse herunterskalieren
-        // (Datei, sonst bzw. bei Lesefehler das entpackte eingebaute Standard-
-        // Zifferblatt - gleiches Prinzip wie bei /preview_defaultface bzw.
-        // sendScaledBmpPreview()).
+        // 1) Zifferblatt laden und auf Vorschaugroesse verkleinern (Datei, sonst das eingebaute
+        // Standard-Zifferblatt - wie /preview_defaultface).
 
-        // 1) Load the clock face and downscale it to preview size (file,
-        // otherwise resp. on a read error the unpacked built-in default face -
-        // same approach as /preview_defaultface resp. sendScaledBmpPreview()).
+        // 1) Load the clock face and scale it down to preview size (file, otherwise the built-in default face
+        // - like /preview_defaultface).
+
         float faceScaleX = (float)CLOCK_WIDTH / PREVIEW_SIZE;
         float faceScaleY = (float)CLOCK_HEIGHT / PREVIEW_SIZE;
         bool isDefaultFace = (faceFile == "/face_default.bmp") || !LittleFS.exists(faceFile);
@@ -4664,7 +4461,9 @@
         free(faceBuf);
 
         // 2) Zeiger laden (aus Datei, falls Set vorhanden, sonst eingebauter Standard)
+
         // 2) Load hands (from file if a set exists, otherwise built-in default)
+
         bool useCustomSet = (handSetName != "default" && handSetName != "");
         auto loadPreviewHand = [&](const char* label, const uint16_t* fallback) -> uint16_t* {
             uint16_t* buf = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
@@ -4679,7 +4478,9 @@
         uint16_t* secondPix = showSecond ? loadPreviewHand("second", handSecond) : nullptr;
 
         // 3) Demo-Zeit 10:10:30 - klassischer Uhrenwerbung-Winkel
+
         // 3) Demo time 10:10:30 - the classic clock-advertisement angle
+
         const float hourAngle = (10 % 12) * 30.0f + (10 / 2.0f) + (30 / 120.0f);
         const float minuteAngle = 10 * 6.0f + (30 / 10.0f);
         const float secondAngle = 30 * 6.0f;
@@ -4689,8 +4490,10 @@
 
         // Ein Zeiger-Sprite fuer alle drei nacheinander. Weiss gilt wie in
         // loadHandSprites() als transparent (alte Zeigerdateien).
+
         // One hand sprite for all three in turn. White counts as transparent,
         // as in loadHandSprites() (old hand files).
+
         LGFX_Sprite handSprite(&tft);
         bool handSpriteOk = createSprite16(handSprite, HAND_WIDTH, HAND_HEIGHT);
         if (handSpriteOk) handSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
@@ -4712,14 +4515,18 @@
 
         // 4) Mittelpunkt (Hub) in der angegebenen Farbe/Groesse - wie auf der
         // Uhr kantengeglaettet um die Sprite-Mitte (fillSmoothCircle())
+
         // 4) Center hub in the given color/size - anti-aliased around the
         // sprite centre as on the clock (fillSmoothCircle())
+
         int hubRadius = (int)roundf(hubSize * handScale);
         if (hubRadius < 1) hubRadius = 1;
         canvas.fillSmoothCircle(PREVIEW_SIZE / 2, PREVIEW_SIZE / 2, hubRadius, hubColorRgb565);
 
         // 5) Als Standard-BMP (mit BI_BITFIELDS-Header) verpacken
+
         // 5) Package as standard BMP (with BI_BITFIELDS header)
+
         const int rowSize = ((PREVIEW_SIZE * 2 + 3) / 4) * 4;
         const int dataSize = rowSize * PREVIEW_SIZE;
         const int fileSize = 66 + dataSize;
@@ -4746,8 +4553,10 @@
 
         // readPixel() liefert RGB565 in RAM-Reihenfolge - das Sprite selbst
         // speichert in Display-Reihenfolge, daher nicht direkt kopieren.
+
         // readPixel() returns RGB565 in RAM byte order - the sprite itself
         // stores display byte order, so don't copy it directly.
+
         for (int y = 0; y < PREVIEW_SIZE; y++) {
             uint16_t* row = (uint16_t*)(bmpData + 66 + y * rowSize);
             for (int x = 0; x < PREVIEW_SIZE; x++) row[x] = canvas.readPixel(x, y);
@@ -4760,32 +4569,30 @@
 
 
     // Schaltet die LED ein (wenn definiert)
+
     // Turns the LED on (if defined)
 
     void setLedOff() {
-#ifdef LED_BOARD
         pinMode(LED_BOARD, OUTPUT);
         digitalWrite(LED_BOARD, LOW);
-#endif
     }
 
 
     // Schaltet die LED aus (wenn definiert)
+
     // Turns the LED off (if defined)
 
     void setLedOn() {
-#ifdef LED_BOARD
         pinMode(LED_BOARD, OUTPUT);
         digitalWrite(LED_BOARD, HIGH);
-#endif
     }
 
 
     // LED toggeln
+
     // Toggles the LED
 
     void toggleLED() {
-#ifdef LED_BOARD
         static bool toggle = true;
         if (toggle) {
             setLedOn();        
@@ -4794,43 +4601,19 @@
             setLedOff();
         }       
         toggle = !toggle;
-#endif
-    }
-
-
-    // Touch pruefen (nicht-blockierend, mit Entprellung)
-    // Check touch (non-blocking, with debouncing)
-
-    void checkTouchInput() {
-#ifdef TOUCH_PIN
-
-        uint16_t var = touchRead(TOUCH_PIN);
-
-        bool state = false;
-
-        if (var > 15000 && var < 65535) state = true;
-
-        // DEBUG_PRINTLN("Touch read: " + String(var));
-        //DEBUG_PRINTLN("Touch state: " + String(state));
-
-        // Flanke LOW->HIGH (kurzer Tip) mit Debounce
-        // LOW->HIGH edge (short tap) with debounce
-        if (state && !touchLastState && (millis() - touchLastMillis) > TOUCH_DEBOUNCE_MS) {
-            touchLastMillis = millis();
-            DEBUG_PRINTLN("switch");
-            switchToNextPreset();
-        }
-        touchLastState = state;
-#endif
     }
 
 
     // Validiert den geladenen Preferences-Eintrag für background und repariert falls nötig
+
     // Validates the loaded preferences entry for background and repairs it if needed
 
     static void validateSelectedBackground() {
+
         // Normalisieren
+
         // Normalize
+
         selectedBackground.trim();
         if (selectedBackground.length() == 0) selectedBackground = "/face_default.bmp";
         if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
@@ -4838,11 +4621,16 @@
         DEBUG_PRINTLN("[BG] Pref load: '" + selectedBackground + "'");
 
         // LittleFS muss gemountet sein
+
         // LittleFS must be mounted
+
         if (!LittleFS.exists(selectedBackground)) {
             DEBUG_PRINTLN("[BG] File not found: " + selectedBackground);
+
             // Versuche tolerant auch ohne führenden Slash (falls gespeichert ohne '/')
+
             // Also try tolerantly without a leading slash (if saved without '/')
+
             String withoutSlash = selectedBackground;
             if (withoutSlash.startsWith("/")) withoutSlash = withoutSlash.substring(1);
             if (LittleFS.exists("/" + withoutSlash)) {
@@ -4850,8 +4638,11 @@
                 DEBUG_PRINTLN("[BG] Found (alt) file: " + selectedBackground);
             }
             else {
+
                 // Fallback auf Default
+
                 // Fallback to default
+
                 selectedBackground = "/face_default.bmp";
                 preferences.putString(PK_BACKGROUND, selectedBackground);
                 DEBUG_PRINTLN("[BG] Falling back to default and saved: " + selectedBackground);
@@ -4860,7 +4651,9 @@
         }
 
         // Prüfe BMP-Format (Größe / bpp)
+
         // Check BMP format (size / bpp)
+
         if (!checkBmpFormat(selectedBackground)) {
             DEBUG_PRINTLN("[BG] BMP format invalid: " + selectedBackground);
             selectedBackground = "/face_default.bmp";
@@ -4874,22 +4667,17 @@
 
 
     // Aktualisiert die Zeigerbreiten und lädt die Zeiger-Sprites neu
+
     // Updates the hand widths and reloads the hand sprites
 
     void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) {
-        // loadClockFace() ruft dies bei JEDEM Tick auf. Ohne diese Abkuerzung
-        // wuerden alle drei Zeiger-Sprites pro Frame neu allokiert (Heap-
-        // Fragmentierung, NVS+3x LittleFS) - jetzt nur bei echter Breitenaenderung.
-        // Vergleich gegen die TATSAECHLICHE Sprite-Breite, nicht gegen die
-        // globalen hourHandWidth/...: die werden vom Aufrufer per Referenz VORHER
-        // gesetzt und waeren daher immer gleich - ein Breitenwechsel bliebe unerkannt.
 
-        // loadClockFace() calls this on EVERY tick. Without this shortcut all
-        // three hand sprites would be reallocated per frame (heap fragmentation,
-        // NVS+3x LittleFS) - now only on an actual width change.
-        // Comparison against the sprites' ACTUAL width, not the global
-        // hourHandWidth/...: the caller sets those by reference just before, so
-        // they'd always match - a width change would go undetected.
+        // loadClockFace() ruft dies jeden Tick - Zeiger-Sprites nur bei echter Breitenaenderung neu anlegen.
+        // Verglichen wird die TATSAECHLICHE Sprite-Breite, die globalen Breiten setzt der Aufrufer vorher
+        // selbst.
+
+        // loadClockFace() calls this every tick - recreate the hand sprites only on an actual width change.
+        // The ACTUAL sprite width is compared, the caller sets the global widths itself beforehand.
 
         static bool handSpritesCreated = false;
 
@@ -4901,13 +4689,17 @@
         }
 
         // Aktualisiere die globalen Breiten
+
         // Update the global widths
+
         hourHandWidth = newHourWidth;
         minuteHandWidth = newMinuteWidth;
         secondHandWidth = newSecondWidth;
 
         // Alte Sprites löschen
+
         // Delete old sprites
+
         hourHandSprite.deleteSprite();
         minuteHandSprite.deleteSprite();
         secondHandSprite.deleteSprite();
@@ -4919,6 +4711,7 @@
         // Check return values: on a failed allocation, sprites would otherwise
         // silently stay invalid (the hand disappears without a crash); on
         // failure handSpritesCreated stays false to retry on the next call.
+
         bool allCreated = true;
 
         allCreated &= createSprite16(hourHandSprite, hourHandWidth, HAND_HEIGHT);
@@ -4936,42 +4729,60 @@
         }
 
         // Zeiger neu laden
+
         // Reload hands
+
         loadHandSprites();
     }
 
 
     // Parst die Zeigerbreiten aus dem Dateinamen des Hintergrundbildes (test)
+
     // Parses the hand widths from the background image filename (test)
 
     void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) {
+
         // Standardwerte setzen
+
         // Set default values
+
         hourWidth = HAND_WIDTH;
         minuteWidth = HAND_WIDTH;
         secondWidth = HAND_WIDTH;
 
         // Suche nach dem ersten `!`
+
         // Search for the first `!`
+
         int firstHash = filename.indexOf('!');
         if (firstHash == -1) {
+
             // Kein `!` gefunden, Standardwerte verwenden
+
             // No `!` found, use default values
+
             return;
         }
 
         // Schneide den relevanten Teil nach dem ersten `#` ab
+
         // Cut off the relevant part after the first `#`
+
         String params = filename.substring(firstHash + 1);
 
         // Teile die Parameter anhand von `!`
+
         // Split the parameters by `!`
+
         int secondHash = params.indexOf('!');
         int thirdHash = params.indexOf('!', secondHash + 1);
 
         if (secondHash != -1 && thirdHash != -1) {
+
             // Extrahiere die Werte
+
             // Extract the values
+
             hourWidth = params.substring(0, secondHash).toInt();
             minuteWidth = params.substring(secondHash + 1, thirdHash).toInt();
             secondWidth = params.substring(thirdHash + 1).toInt();
@@ -4979,6 +4790,7 @@
 
         if (hourWidth <= 0) hourWidth = HAND_WIDTH;
         if (minuteWidth <= 0) minuteWidth = HAND_WIDTH;
+
         // "<= 0" statt "< 0": bei einem Dateinamen mit "!0" als Sekundenbreite
         // blieb der Wert 0 stehen, createSprite(0, HAND_HEIGHT) schlaegt fehl und
         // der Sekundenzeiger verschwand bis zum naechsten Zifferblattwechsel.
@@ -4986,6 +4798,7 @@
         // "<= 0" instead of "< 0": with a filename specifying "!0" as the second
         // hand width the value stayed 0, createSprite(0, HAND_HEIGHT) fails and the
         // second hand disappeared until the next clock face change.
+
         if (secondWidth <= 0) secondWidth = HAND_WIDTH;
 
         if (hourWidth > HAND_WIDTH) hourWidth = HAND_WIDTH;
@@ -4995,33 +4808,6 @@
     }
 
 
-    // Touch-Funktionalität aktivieren/deaktivieren
-    // Enable/disable touch functionality
-
-    void enableTouch() {
-#ifdef TOUCH_PIN
-        touchEnabled = true;
-        pinMode(TOUCH_PIN, INPUT_PULLDOWN);
-
-        // Touch erst nach kurzer Verzögerung aktivieren (verhindert frühe Reads während Init)
-        // Enable touch only after a short delay (prevents early reads during init)
-        touchEnableAt = millis() + 1000; // 1000 ms Verzögerung
-                                         // 1000 ms delay
-        DEBUG_PRINTLN("[TOUCH] Touch aktiviert");
-#endif
-    }
-
-
-    // Touch-Funktionalität deaktivieren
-    // Disable touch functionality
-
-    void disableTouch() {
-#ifdef TOUCH_PIN
-        touchEnabled = false;
-        pinMode(TOUCH_PIN, INPUT);
-        DEBUG_PRINTLN("[TOUCH] Touch deaktiviert");
-#endif
-    }
 
 
 

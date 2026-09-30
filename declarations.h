@@ -7,6 +7,7 @@
 
 
     // wifi_manager.h: WLAN: Verbindungsaufbau, Access-Point, Scan, Reconnect
+
     // wifi_manager.h: WiFi: connection setup, access point, scan, reconnect
 
     void startWPS() ;
@@ -42,10 +43,12 @@
 
     // Defined in uhr4.ino (not in wifi_manager.h), since it encapsulates the
     // whole boot-time WiFi setup flow - see the comment there.
+
     void connectWiFiAtBoot() ;
 
 
     // time_sync.h: Zeit: RTC, DCF77, NTP-Client & -Server, Zeitzone
+
     // time_sync.h: Time: RTC, DCF77, NTP client & server, timezone
 
     void IRAM_ATTR isr() ;
@@ -89,8 +92,9 @@
     void createNtpResponse(byte* packet, const struct timeval& receivedAt) ;
 
 
-    // display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit, Touch
-    // display.h: Display: clock face, hands, sprites, brightness, touch
+    // display.h: Display: Zifferblatt, Zeiger, Sprites, Helligkeit
+
+    // display.h: Display: clock face, hands, sprites, brightness
 
     void* preferPsramMalloc(size_t size) ;
     bool isDisplayConnected(uint8_t displayNum) ;
@@ -188,12 +192,9 @@
     void setLedOff() ;
     void setLedOn() ;
     void toggleLED() ;
-    void checkTouchInput() ;
     static void validateSelectedBackground() ;
     void updateHandWidths(int newHourWidth, int newMinuteWidth, int newSecondWidth) ;
     void parseBackgroundFilename(const String& filename, int& hourWidth, int& minuteWidth, int& secondWidth) ;
-    void enableTouch() ;
-    void disableTouch() ;
 
 
     // rocrail_client.h: Rocrail-Modellzeit: TCP-Verbindung (Serveradresse
@@ -221,18 +222,23 @@
 
     // R2RNet-Multicast-Diagnose (siehe rocrail_client.h) - keine echte
     // Discovery, nur Logging eingehender Pakete zur Formatanalyse.
+
     // R2RNet multicast diagnostics (see rocrail_client.h) - not real
     // discovery, just logging incoming packets for format analysis.
+
     bool startR2rnetDebugListener() ;
     void pollR2rnetDebugListener() ;
 
 
     // presets_manager.h: Presets: Laden/Speichern/Wechseln vordefinierter Anzeigekonfigurationen
+
     // presets_manager.h: Presets: load/save/switch predefined display configurations
 
     String stripRotationParam(const String& url) ;
     void loadPresets() ;
+
     // backup.h: Komplettsicherung / full backup
+
     void streamBackup(bool includeWifi) ;
     void backupWipe(String& s) ;
     void handleBackupRestoreUpload() ;
@@ -247,21 +253,18 @@
     void switchToNextPreset() ;
 
 
-    // prefs_keys.h / wifi_manager.h: verifiziertes Preferences-Schreiben
-    // prefs_keys.h / wifi_manager.h: verified Preferences writing
+    // prefs_keys.h / wifi_manager.h: verifiziertes Schreiben - schreibt einen String in die Preferences und
+    // liest ihn sofort zurueck, um einen fehlgeschlagenen Schreibvorgang (z.B. voller NVS-Namespace) gleich
+    // zu erkennen.
 
-    // Schreibt einen String in die Preferences und liest ihn sofort wieder aus,
-    // um einen fehlgeschlagenen Schreibvorgang (z.B. durch vollen NVS-Namespace) zu erkennen,
-    // statt ihn erst nach einem Neustart als "Eintrag verschwunden" zu bemerken.
-
-    // Writes a string to Preferences and immediately reads it back,
-    // to detect a failed write (e.g. due to a full NVS namespace)
-    // instead of only noticing it as a "missing entry" after a restart.
+    // prefs_keys.h / wifi_manager.h: verified writing - writes a string to Preferences and reads it back
+    // right away, to detect a failed write (e.g. full NVS namespace) immediately instead of after a restart.
 
     bool putStringVerified(const char* key, const String& value) ;
 
 
     // webserver_routes.h: Webinterface: alle HTTP-Routen & HTML-Generierung
+
     // webserver_routes.h: Web interface: all HTTP routes & HTML generation
 
     void applyWlanList(String newSsid[MAX_WLAN], String newPass[MAX_WLAN]) ; // schreibt eine komplette WLAN-Liste in Preferences + RAM (siehe webserver_routes.h)
@@ -308,6 +311,7 @@
 
 
     // system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
+
     // system_utils.h: System functions: buttons, logging, reset, restart, helper functions
 
     void checkButton() ;

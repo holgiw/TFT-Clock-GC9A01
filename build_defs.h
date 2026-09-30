@@ -4,6 +4,7 @@
 
 
 // Beispiel-Format: __DATE__ = "Jul 27 2012", __TIME__ = "21:06:19"
+
 // Example format: __DATE__ = "Jul 27 2012", __TIME__ = "21:06:19"
 
 #define COMPUTE_BUILD_YEAR \

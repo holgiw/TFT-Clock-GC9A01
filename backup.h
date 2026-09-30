@@ -39,21 +39,12 @@
                                             // upper limit decrypted WiFi data
 
 
-    // Schluessel, die NIE gesichert/zurueckgeschrieben werden: geraete- bzw.
-    // firmwarespezifische Kennungen. Eine alte "version" wuerde z.B. beim
-    // naechsten Start einen Versionswechsel vortaeuschen (Logs geloescht).
+    // Nie gesicherte/zurueckgeschriebene Schluessel: geraete-/firmwarespezifische Kennungen (eine alte
+    // "version" taeuschte einen Versionswechsel vor) und veraltete Schluessel (isObsoletePrefKey()) -
+    // "ssid"/"pass" enthielten das WLAN im Klartext.
 
-    // Keys that are NEVER backed up/restored: device or firmware specific
-    // markers. An old "version" would e.g. fake a version change on the next
-    // boot (logs deleted).
-
-    // Ausserdem veraltete Schluessel frueherer Firmware (isObsoletePrefKey(),
-    // werden beim Start ohnehin geloescht) - "ssid"/"pass" enthielten das WLAN
-    // im Klartext und landeten sonst auch ohne WLAN-Haken in der Sicherung.
-
-    // Also obsolete keys of earlier firmware (isObsoletePrefKey(), deleted at
-    // boot anyway) - "ssid"/"pass" held the WiFi in plain text and would
-    // otherwise end up in the backup even without the WiFi box.
+    // Keys never backed up/restored: device/firmware specific markers (an old "version" would fake a version
+    // change) and obsolete keys (isObsoletePrefKey()) - "ssid"/"pass" held the WiFi in plain text.
 
     bool isBackupExcludedKey(const String& key) {
         return key == PK_VERSION || key == PK_FIRST_START || key == PK_MIGRATIONS_DONE ||
@@ -61,19 +52,13 @@
     }
 
 
-    // WLAN-Gruppe: nur mit Haken "WLAN-Zugangsdaten einschliessen". Neben SSIDs
-    // und Passwoertern auch Hostname, zuletzt genutztes Netz und WLAN an/aus -
-    // sonst bekaeme eine zweite Uhr beim Wiederherstellen denselben Hostnamen.
-    // SSIDs/Passwoerter am Namensanfang erkannt ("ssid..."/"pass..."), nicht
-    // nur ssid1..ssidN - so rutscht auch ein kuenftig anders nummerierter oder
-    // alter Schluessel nie im Klartext in die Sicherung.
+    // WLAN-Gruppe (nur mit Haken "WLAN-Zugangsdaten einschliessen"): SSIDs, Passwoerter, Hostname, letztes
+    // Netz, WLAN an/aus - sonst bekaeme eine zweite Uhr denselben Hostnamen. Erkannt am Namensanfang
+    // "ssid..."/"pass...", so rutschen auch alte oder kuenftige Schluessel nie im Klartext in die Sicherung.
 
-    // WiFi group: only with the "include WiFi credentials" box ticked. Besides
-    // SSIDs and passwords also hostname, last used network and WiFi on/off -
-    // otherwise a second clock would get the same hostname on restore.
-    // SSIDs/passwords are recognized by the name prefix ("ssid..."/"pass..."),
-    // not just ssid1..ssidN - so a differently numbered future key or an old
-    // one never slips into the backup in plain text.
+    // WiFi group (only with "include WiFi credentials" ticked): SSIDs, passwords, hostname, last network,
+    // WiFi on/off - otherwise a second clock would get the same hostname. Recognized by the name prefix
+    // "ssid..."/"pass...", so old or future keys never slip into the backup in plain text.
 
     bool isBackupWifiKey(const String& key) {
         if (key == PK_HOSTNAME || key == PK_LAST_WLAN || key == PK_WIFI_ACTIVE) return true;
@@ -81,20 +66,16 @@
     }
 
 
-    // Hardware-Gruppe: haengt an Display und Verdrahtung der jeweiligen Uhr.
-    // Wird gesichert (der Displaytyp dient zur Pruefung beim Wiederherstellen),
-    // aber nie zurueckgeschrieben - eine andere Uhr behaelt Displaytyp,
-    // Rotation, Backlight, Lichtsensor-Richtung und Touch.
+    // Hardware-Gruppe (Display und Verdrahtung der jeweiligen Uhr): wird gesichert (Displaytyp zur Pruefung
+    // beim Wiederherstellen), aber nie zurueckgeschrieben - eine andere Uhr behaelt Displaytyp, Rotation,
+    // Backlight, Lichtsensor.
 
-    // Hardware group: depends on the display and wiring of the individual
-    // clock. Backed up (the display type is used for the check on restore),
-    // but never written back - another clock keeps its display type,
-    // rotation, backlight, light sensor direction and touch.
+    // Hardware group (display and wiring of the individual clock): backed up (display type for the check on
+    // restore), but never written back - another clock keeps display type, rotation, backlight, light sensor.
 
     bool isBackupHardwareKey(const String& key) {
         return key == PK_DISPLAY_TYPE || key == PK_TFT_ROTATION1 || key == PK_TFT_ROTATION2 ||
-               key == PK_TFT_ROTATION_LEGACY || key == PK_USE_BACKLIGHT || key == PK_ADC_INVERTED ||
-               key == PK_USE_TOUCH;
+               key == PK_TFT_ROTATION_LEGACY || key == PK_USE_BACKLIGHT || key == PK_ADC_INVERTED;
     }
 
 
@@ -112,6 +93,7 @@
 
 
     // Text-Escaping fuer settings.txt (Tab-getrennt, eine Zeile pro Schluessel)
+
     // Text escaping for settings.txt (tab-separated, one line per key)
 
     String backupEscape(const String& s) {
@@ -150,6 +132,7 @@
 
     // Hex-Kodierung fuer Blobs und die verschluesselten WLAN-Daten.
     // backupUnhex() liefert die Byte-Anzahl oder -1 bei Fehler/zu lang.
+
     // Hex encoding for blobs and the encrypted WiFi data. backupUnhex()
     // returns the byte count or -1 on error/too long.
 
@@ -186,6 +169,7 @@
 
 
     // Ueberschreibt einen String mit Nullen (Passwoerter, Klartext-WLAN-Daten)
+
     // Overwrites a string with zeros (passwords, plain-text WiFi data)
 
     void backupWipe(String& s) {
@@ -197,6 +181,7 @@
     // Ruft fn fuer jede nichtleere Zeile von text auf (ohne Zeilenliste im
     // RAM - settings.txt kann mit vielen Presets einige 10 KB gross sein).
     // Ein '\r' am Zeilenende faellt weg (am PC mit CRLF gespeicherte Datei).
+
     // Calls fn for every non-empty line of text (without a line list in RAM -
     // settings.txt can be a few 10 KB with many presets). A '\r' at the line
     // end is dropped (file saved with CRLF on a PC).
@@ -216,15 +201,13 @@
     }
 
 
-    // Verschluesselung der WLAN-Daten mit dem internen Schluessel. Format der
-    // Zeile "wifienc": "k1:<IV 12 B>:<Tag 16 B>:<Daten>" (alles Hex), IV je
-    // Sicherung zufaellig. Der GCM-Tag erkennt eine veraenderte Datei ebenso
-    // wie eine Firmware mit anderem BACKUP_WIFI_KEY.
+    // WLAN-Daten mit dem internen Schluessel verschluesseln. Zeile "wifienc": "k1:<IV 12 B>:<Tag 16
+    // B>:<Daten>" (Hex), IV je Sicherung zufaellig. Der GCM-Tag erkennt eine veraenderte Datei und eine
+    // Firmware mit anderem BACKUP_WIFI_KEY.
 
-    // Encryption of the WiFi data with the internal key. Format of the
-    // "wifienc" line: "k1:<IV 12 B>:<tag 16 B>:<data>" (all hex), IV random
-    // per backup. The GCM tag detects a modified file as well as a firmware
-    // with a different BACKUP_WIFI_KEY.
+    // Encrypt the WiFi data with the internal key. Line "wifienc": "k1:<IV 12 B>:<tag 16 B>:<data>" (hex),
+    // random IV per backup. The GCM tag detects a modified file and a firmware with a different
+    // BACKUP_WIFI_KEY.
 
     static_assert(sizeof(BACKUP_WIFI_KEY) == 65, "BACKUP_WIFI_KEY (config.h) muss 64 Hex-Zeichen haben / must have 64 hex characters");
 
@@ -314,19 +297,13 @@
     }
 
 
-    // Baut settings.txt: Kopfzeilen, dann "typ<TAB>schluessel<TAB>wert" je
-    // NVS-Eintrag. Typ bestimmt beim Wiederherstellen die put-Funktion; bool
-    // liegt im NVS als u8, float (putFloat) als blob (hex).
+    // Baut settings.txt: Kopfzeilen, dann "typ<TAB>schluessel<TAB>wert" je NVS-Eintrag (bool als u8, float
+    // als Hex-Blob). WLAN-Gruppe (nur mit includeWifi) verschluesselt als eine Zeile "wifienc"; leer =
+    // Verschluesselung fehlgeschlagen.
 
-    // Builds settings.txt: header lines, then "type<TAB>key<TAB>value" per NVS
-    // entry. The type determines the put function on restore; bool is stored
-    // in NVS as u8, float (putFloat) as a blob (hex).
-    // WLAN-Gruppe (nur mit includeWifi): dieselben Zeilen, aber gesammelt
-    // mit dem internen Schluessel verschluesselt als eine Zeile "wifienc". Leerer
-    // Rueckgabewert = Verschluesselung fehlgeschlagen.
-    // WiFi group (only with includeWifi): the same lines, but collected and
-    // encrypted with the internal key as one "wifienc" line. Empty return value =
-    // encryption failed.
+    // Builds settings.txt: header lines, then "type<TAB>key<TAB>value" per NVS entry (bool as u8, float as
+    // hex blob). WiFi group (only with includeWifi) encrypted as one "wifienc" line; empty = encryption
+    // failed.
 
     String buildBackupSettings(bool includeWifi) {
         String out = String(BACKUP_SETTINGS_MAGIC) + "\n";
@@ -400,6 +377,7 @@
 
     // Liste der zu sichernden Dateien: nur Zifferblaetter und Zeigersaetze
     // (keine Logs, keine Temp-Dateien). Namen ohne fuehrenden '/'.
+
     // List of files to back up: only clock faces and hand sets (no logs, no
     // temp files). Names without a leading '/'.
 
@@ -427,6 +405,7 @@
 
     // TAR (ustar): 512-Byte-Kopf je Datei, Daten auf 512 aufgefuellt, am Ende
     // zwei Nullbloecke.
+
     // TAR (ustar): 512-byte header per file, data padded to 512, two zero
     // blocks at the end.
 
@@ -467,6 +446,7 @@
 
     // Sicherung als TAR direkt in die HTTP-Antwort streamen - Dateien werden in
     // 1-KB-Stuecken gelesen, es liegt nie das ganze Archiv im RAM.
+
     // Stream the backup as TAR straight into the HTTP response - files are read
     // in 1 KB pieces, the whole archive is never held in RAM.
 
@@ -510,10 +490,13 @@
             while (sent < size) {
                 size_t n = f ? f.read(buf, min(sizeof(buf), size - sent)) : 0;
                 if (n == 0) {
+
                     // Lesefehler: mit Nullen auffuellen, damit die angekuendigte
                     // Laenge stimmt und das Archiv lesbar bleibt.
+
                     // Read error: pad with zeros so the announced length is right
                     // and the archive stays readable.
+
                     memset(buf, 0, sizeof(buf));
                     n = min(sizeof(buf), size - sent);
                 }
@@ -531,19 +514,13 @@
     }
 
 
-    // Prueft settings.txt, BEVOR an der Uhr etwas geaendert wird: Kennung,
-    // Format, Displaytyp (muss zu dieser Uhr passen, sonst passen Zifferblaetter
-    // und Zeiger nicht), Backlight-Modus (weicht er ab: keepBrightness) und -
-    // falls gewuenscht - die WLAN-Daten (Format 2: Entschluesselung mit dem
-    // internen Schluessel, Format 1: Klartext). Liefert in applyWifi/
-    // keepBrightness/wifiPlain, was applyBackupSettings() spaeter schreibt.
+    // Prueft settings.txt, BEVOR etwas geaendert wird: Kennung, Format, Displaytyp (muss zur Uhr passen),
+    // Backlight-Modus (abweichend: keepBrightness) und ggf. WLAN-Daten (Format 2 verschluesselt, Format 1
+    // Klartext). Liefert, was applyBackupSettings() spaeter schreibt.
 
-    // Checks settings.txt BEFORE anything is changed on the clock: marker,
-    // format, display type (must match this clock, otherwise clock faces and
-    // hands don't fit), backlight mode (if it differs: keepBrightness) and -
-    // if requested - the WiFi data (format 2: decryption with the internal
-    // key, format 1: plain text). Returns in applyWifi/keepBrightness/
-    // wifiPlain what applyBackupSettings() writes later.
+    // Checks settings.txt BEFORE anything is changed: marker, format, display type (must match the clock),
+    // backlight mode (differing: keepBrightness) and optionally the WiFi data (format 2 encrypted, format 1
+    // plain text). Returns what applyBackupSettings() writes later.
 
     bool checkBackupSettings(const String& settings, bool restoreWifi, bool& applyWifi, bool& keepBrightness, String& wifiPlain, String& error) {
         applyWifi = false;
@@ -555,7 +532,9 @@
         }
 
         // Fehlt ein Schluessel in der Sicherung, galt dort der Standardwert
+
         // If a key is missing in the backup, the default applied there
+
         const String typePrefix = "u8\t" + String(PK_DISPLAY_TYPE) + "\t";
         const String backlightPrefix = "u8\t" + String(PK_USE_BACKLIGHT) + "\t";
         int format = 0;
@@ -618,6 +597,7 @@
 
     // Typen der Schluessel, wie sie VOR dem Wiederherstellen auf dieser Uhr
     // liegen - die aktuelle Firmware liest sie mit genau diesem Typ.
+
     // Types of the keys as they are on this clock BEFORE the restore - the
     // current firmware reads them with exactly this type.
 
@@ -648,17 +628,12 @@
     }
 
 
-    // Aeltere Sicherung: hat eine neuere Firmware den Zahlentyp eines
-    // Schluessels geaendert (z.B. u8 -> i32), liest sie den alten Typ nicht
-    // (Preferences liefert dann still den Standardwert). Deshalb wird eine
-    // Ganzzahl in den Typ umgewandelt, den der Schluessel auf dieser Uhr hat -
-    // auf den Wertebereich begrenzt. Unbekannte Schluessel behalten ihren Typ.
+    // Aeltere Sicherung: aendert eine neuere Firmware den Zahlentyp eines Schluessels (z.B. u8 -> i32), liest
+    // sie den alten nicht. Daher in den Typ auf dieser Uhr umwandeln, begrenzt auf dessen Wertebereich;
+    // Unbekannte bleiben.
 
-    // Older backup: if a newer firmware changed the integer type of a key
-    // (e.g. u8 -> i32), it does not read the old type (Preferences then
-    // silently returns the default). So an integer is converted into the type
-    // the key has on this clock - clamped to its value range. Unknown keys
-    // keep their type.
+    // Older backup: if a newer firmware changed a key's integer type (e.g. u8 -> i32), it cannot read the old
+    // one. So convert to the type on this clock, clamped to its range; unknown keys keep their type.
 
     String backupTargetType(const String& key, const String& type, const std::vector<BackupKeyType>& targetTypes) {
         if (!isBackupIntType(type)) return type;
@@ -710,8 +685,10 @@
 
         // Gleiche Breite (auch signed <-> unsigned, z.B. Farbe i32 -> u32):
         // Bitmuster uebernehmen. Andere Breite: auf den Wertebereich begrenzen.
+
         // Same width (also signed <-> unsigned, e.g. color i32 -> u32): keep
         // the bit pattern. Different width: clamp to the value range.
+
         bool sameWidth = backupIntBits(type) == backupIntBits(backupType);
         auto fit = [&](long long lo, long long hi) { return sameWidth ? v : backupClamp(v, lo, hi); };
 
@@ -740,26 +717,24 @@
     }
 
 
-    // settings.txt anwenden (nach checkBackupSettings()): zuerst alle
-    // Schluessel entfernen, die die Sicherung ersetzt (so verschwinden auch
-    // z.B. ueberzaehlige Presets), dann die gesicherten Werte mit ihrem Typ
-    // zurueckschreiben. Was isBackupKeptKey() nennt, bleibt unberuehrt - u.a.
-    // Hardware und (ohne applyWifi) WLAN und Hostname.
+    // settings.txt anwenden (nach checkBackupSettings()): erst alle ersetzten Schluessel entfernen (so
+    // verschwinden auch ueberzaehlige Presets), dann die Werte mit ihrem Typ schreiben. isBackupKeptKey()
+    // (Hardware, ohne applyWifi auch WLAN/Hostname) bleibt unberuehrt.
 
-    // Apply settings.txt (after checkBackupSettings()): first remove all keys
-    // the backup replaces (so e.g. surplus presets disappear too), then write
-    // the backed-up values back with their type. What isBackupKeptKey() names
-    // stays untouched - among others hardware and (without applyWifi) WiFi
-    // and hostname.
+    // Apply settings.txt (after checkBackupSettings()): first remove all replaced keys (so surplus presets
+    // disappear too), then write the values with their type. isBackupKeptKey() (hardware, without applyWifi
+    // also WiFi/hostname) stays untouched.
 
     void applyBackupSettings(const String& settings, bool applyWifi, bool keepBrightness, const String& wifiPlain) {
 
         // 1) Zu ersetzende Schluessel entfernen (Liste erst sammeln - waehrend
         // der Aufzaehlung zu loeschen wuerde den Iterator ungueltig machen)
         // 1) Remove the keys to be replaced (collect the list first - deleting
+
         // while enumerating would invalidate the iterator)
         // Dabei die aktuellen Typen merken (siehe backupTargetType()).
         // Remember the current types along the way (see backupTargetType()).
+
         std::vector<BackupKeyType> targetTypes;
         nvs_iterator_t it = nullptr;
         esp_err_t res = nvs_entry_find("nvs", "clock", NVS_TYPE_ANY, &it);
@@ -780,8 +755,10 @@
 
         // 2) Gesicherte Werte zurueckschreiben - WLAN im Klartext nur aus
         // alten Sicherungen (Format 1), sonst aus dem entschluesselten Block
+
         // 2) Write the backed-up values back - WiFi in plain text only from
         // old backups (format 1), otherwise from the decrypted block
+
         int restored = 0;
         forEachBackupLine(settings, [&](const String& line) {
             if (writeBackupLine(line, applyWifi, keepBrightness, false, targetTypes)) restored++;
@@ -792,14 +769,12 @@
             });
         }
 
-        // 3) Datei-Migration beim naechsten Start erneut laufen lassen (setup()):
-        // eine aeltere Sicherung kann Zifferblaetter/Zeiger im alten Format
-        // (unkomprimiert, ohne Eckenmaskierung) enthalten. Die Schritte
-        // erkennen bereits umgestellte Dateien selbst und ueberspringen sie.
-        // 3) Run the file migration again on the next boot (setup()): an older
-        // backup may contain faces/hands in the old format (uncompressed,
-        // without corner masking). The steps detect already converted files
-        // themselves and skip them.
+        // 3) Datei-Migration beim naechsten Start erneut laufen lassen: eine aeltere Sicherung kann
+        // Zifferblaetter/Zeiger im alten Format enthalten. Bereits umgestellte Dateien werden uebersprungen.
+
+        // 3) Run the file migration again on the next boot: an older backup may contain faces/hands in the
+        // old format. Already converted files are skipped.
+
         preferences.remove(PK_MIGRATIONS_DONE);
 
         DEBUG_PRINTLN("[Backup] Restored " + String(restored) + " settings" + (applyWifi ? " (incl. WiFi)" : " (WiFi kept)") +
@@ -827,8 +802,10 @@
 
         // Formularfelder (stehen im Formular VOR der Datei, damit sie beim
         // Upload-Start schon vorliegen), Ergebnis der Pruefung von settings.txt
+
         // Form fields (placed BEFORE the file in the form so they are already
         // available at upload start), result of checking settings.txt
+
         bool restoreWifi = false;
         bool settingsChecked = false; // ab hier wurde an der Uhr etwas geaendert
                                       // from here on something was changed on the clock
@@ -853,9 +830,11 @@
     // Loescht alle Zifferblaetter und Zeigersaetze - erst NACHDEM settings.txt
     // vollstaendig geprueft ist (siehe backupRestoreSettingsDone()), damit eine
     // falsch gewaehlte Datei oder nicht entschluesselbare WLAN-Daten nichts zerstoert.
+
     // Deletes all clock faces and hand sets - only AFTER settings.txt has been
     // fully checked (see backupRestoreSettingsDone()), so a wrongly chosen file
     // or undecryptable WiFi data doesn't destroy anything.
+
     void deleteAllFacesAndHands() {
         std::vector<String> toDelete;
         std::vector<size_t> unused;
@@ -866,8 +845,10 @@
 
     // settings.txt ist vollstaendig: pruefen (inkl. WLAN-Entschluesselung), erst dann
     // die vorhandenen Zifferblaetter/Zeiger loeschen - ab hier wird geaendert.
+
     // settings.txt is complete: check it (incl. WiFi decryption), only then
     // delete the existing faces/hands - from here on things get changed.
+
     bool backupRestoreSettingsDone() {
         BackupRestoreState& s = *backupRestore;
         s.toSettings = false;
@@ -919,10 +900,13 @@
                 backupRestoreFail("not an uhr4 backup (settings.txt missing)");
                 return;
             }
+
             // settings.txt sammeln - geprueft und vorhandene Dateien geloescht
             // wird erst, wenn sie vollstaendig ist (backupRestoreSettingsDone())
+
             // Collect settings.txt - checking and deleting existing files only
             // happens once it is complete (backupRestoreSettingsDone())
+
             s.toSettings = true;
             s.settings.reserve(size);
         }
@@ -934,7 +918,9 @@
             }
             s.restoredFiles.push_back(name);
         }
+
         // Alles andere (Verzeichnisse, fremde Dateien) wird uebersprungen
+
         // Everything else (directories, foreign files) is skipped
 
         s.phase = (s.remaining > 0) ? BackupRestoreState::DATA
@@ -982,15 +968,13 @@
     }
 
 
-    // Upload-Rueckruf fuer /backup/restore - verarbeitet das Archiv beim
-    // Eintreffen, schreibt Dateien direkt und wendet am Ende settings.txt an.
-    // Nur aus einem privaten Netz (Pruefung schon beim Start des Uploads,
-    // der Handler danach kaeme zu spaet - geschrieben wird waehrenddessen).
+    // Upload-Rueckruf fuer /backup/restore: verarbeitet das Archiv beim Eintreffen, schreibt Dateien direkt
+    // und wendet am Ende settings.txt an. Pruefung auf privates Netz schon beim Upload-Start - geschrieben
+    // wird waehrenddessen.
 
-    // Upload callback for /backup/restore - processes the archive as it
-    // arrives, writes files directly and applies settings.txt at the end.
-    // Only from a private network (checked right at upload start, the handler
-    // afterwards would come too late - writing happens during the upload).
+    // Upload callback for /backup/restore: processes the archive as it arrives, writes files directly and
+    // applies settings.txt at the end. Private network check right at upload start - writing happens during
+    // the upload.
 
     void handleBackupRestoreUpload() {
         HTTPUpload& upload = webserver.upload();
@@ -1003,8 +987,11 @@
                 backupRestoreFail("only allowed from a private network");
                 return;
             }
+
             // Formularfelder vor der Datei - liegen beim Upload-Start schon vor
+
             // Form fields before the file - already available at upload start
+
             backupRestore->restoreWifi = webserver.arg("restoreWifi") == "1";
             DEBUG_PRINTLN("[Backup] Restore started: " + upload.filename + (backupRestore->restoreWifi ? " (incl. WiFi)" : "") + " (from " + webserver.client().remoteIP().toString() + ")");
         }

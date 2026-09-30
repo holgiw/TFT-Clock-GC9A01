@@ -80,17 +80,13 @@ protected:
 };
 
 
-    // GC9D01 (160x160): eigener Chip mit eigener Startsequenz - dieselbe,
-    // mit der uhr3 auf dem GC9D01 lief. Mit der GC9A01-Sequenz blieb das
-    // GC9D01 schwarz (Beleuchtung an, kein Bild). Endzustand: MADCTL 0x00
-    // (RGB, keine Hardware-Rotation - uhr4 dreht beim GC9D01 per Software),
+    // GC9D01 (160x160): eigener Chip mit eigener Startsequenz (dieselbe wie in uhr3) - mit der GC9A01-Sequenz
+    // blieb es schwarz. Endzustand: MADCTL 0x00 (RGB, keine Hardware-Rotation - uhr4 dreht per Software),
     // keine Invertierung, Farbtiefe 0x05.
 
-    // GC9D01 (160x160): a chip of its own with its own init sequence - the
-    // same one uhr3 ran with on the GC9D01. With the GC9A01 sequence the
-    // GC9D01 stayed black (backlight on, no image). Final state: MADCTL 0x00
-    // (RGB, no hardware rotation - uhr4 rotates in software on the GC9D01),
-    // no inversion, color depth 0x05.
+    // GC9D01 (160x160): a chip of its own with its own init sequence (the same as in uhr3) - with the GC9A01
+    // sequence it stayed black. Final state: MADCTL 0x00 (RGB, no hardware rotation - uhr4 rotates in
+    // software), no inversion, color depth 0x05.
 
 class Panel_UhrGC9D01 : public lgfx::Panel_GC9A01 {
 public:
@@ -160,11 +156,15 @@ protected:
     }
 
     // Keine Hardware-Rotation (MADCTL immer 0, mit rgb_order = RGB 0x00)
+
     // No hardware rotation (MADCTL always 0, with rgb_order = RGB 0x00)
+
     uint8_t getMadCtl(uint8_t) const override { return 0; }
 
     // Farbtiefe 0x05 (wie uhr3) statt LovyanGFX-Standard 0x55
+
     // Color depth 0x05 (as in uhr3) instead of the LovyanGFX default 0x55
+
     uint8_t getColMod(uint8_t bpp) const override { return (bpp > 16) ? RGB888_3BYTE : 0x05; }
 };
 
@@ -187,12 +187,15 @@ class UhrLGFX : public lgfx::LGFX_Device {
         auto cfg = panel.config();
         cfg.pin_cs = -1;              // manuell, siehe CS_1/CS_2 in config.h
                                       // manual, see CS_1/CS_2 in config.h
+
         // Kein Reset durch LovyanGFX (nur 8 ms Puls, 64 ms Wartezeit). Den
         // Reset macht setup() selbst mit laengeren Zeiten (resetPanels() in
         // display.h).
+
         // No reset by LovyanGFX (only an 8 ms pulse, 64 ms wait). setup()
         // does the reset itself with longer timing (resetPanels() in
         // display.h).
+
         cfg.pin_rst = -1;
         cfg.pin_busy = -1;
         cfg.panel_width = size;
@@ -221,19 +224,15 @@ public:
             cfg.freq_read = 16000000;
             cfg.spi_3wire = false;
             cfg.use_lock = true;
-            // DMA AUS: LovyanGFX 1.2.x hat in Bus_SPI::writeBytes()/execDMAQueue()
-            // keinen DMA-Zweig fuer den ESP32-S2 (nur GDMA-Chips und ESP32) -
-            // DMA-Uebertragungen werden dort still verworfen. Betroffen sind
-            // auch Nicht-DMA-Uebertragungen von 65..1023 Byte, die intern ueber
-            // einen Puffer auf DMA umgeleitet werden, z. B. jede Zeile eines
-            // Teilbilds. Ohne DMA-Kanal sendet LovyanGFX immer per CPU.
 
-            // DMA OFF: LovyanGFX 1.2.x has no DMA branch for the ESP32-S2 in
-            // Bus_SPI::writeBytes()/execDMAQueue() (only GDMA chips and ESP32) -
-            // DMA transfers are silently dropped there. Also affected are
-            // non-DMA transfers of 65..1023 bytes, which are internally rerouted
-            // to DMA via a buffer, e.g. every row of a partial frame. Without a
-            // DMA channel LovyanGFX always sends via the CPU.
+            // DMA AUS: LovyanGFX 1.2.x hat keinen DMA-Zweig fuer den ESP32-S2 und verwirft DMA-Uebertragungen
+            // still - auch normale Uebertragungen von 65..1023 Byte (z.B. jede Zeile eines Teilbilds), die
+            // intern auf DMA umgeleitet werden. Ohne DMA-Kanal sendet LovyanGFX immer per CPU.
+
+            // DMA OFF: LovyanGFX 1.2.x has no DMA branch for the ESP32-S2 and silently drops DMA transfers -
+            // also normal transfers of 65..1023 bytes (e.g. every row of a partial frame), which are rerouted
+            // to DMA internally. Without a DMA channel LovyanGFX always sends via the CPU.
+
             cfg.dma_channel = 0;
             cfg.pin_sclk = TFT_SCLK;
             cfg.pin_mosi = TFT_MOSI;
@@ -241,17 +240,25 @@ public:
             cfg.pin_dc = TFT_DC;
             _bus_instance.config(cfg);
         }
+
         // GC9A01: INVON und BGR wie in der bisherigen Init-Sequenz
+
         // GC9A01: INVON and BGR as in the previous init sequence
+
         configPanel(_panel_gc9a01, 240, true, false);
+
         // GC9D01: keine Invertierung, RGB (Endzustand der Startsequenz)
+
         // GC9D01: no inversion, RGB (final state of the init sequence)
+
         configPanel(_panel_gc9d01, 160, false, true);
         setPanel(&_panel_gc9a01);
     }
 
     // Panel-Treiber zum Displaytyp waehlen - nur VOR tft.init()
+
     // Choose the panel driver for the display type - only BEFORE tft.init()
+
     void selectPanel(bool gc9d01) {
         if (gc9d01) setPanel(&_panel_gc9d01);
         else setPanel(&_panel_gc9a01);

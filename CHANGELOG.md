@@ -17,6 +17,19 @@ Neueste Einträge oben.
   Restweg eingerechnet (max. ~1,3° pro Bild), ein großer Sprung spät in der Animation startet sie neu.
 
 ### Geändert
+- Neuer Build in `build_uhr4` (Aufraeumen `#if`/Touch, Kommentare); Release `v4`: `uhr4_flash.zip` erneuert.
+- **Kommentare vereinheitlicht:** alle eigenstaendigen Kommentare auf hoechstens 3 Zeilen je Sprache gekuerzt,
+  mehrfach gemischte deutsch/englische Abschnitte zu einem deutschen und einem englischen Teil zusammengefasst;
+  je eine Leerzeile vor dem Kommentar, zwischen Deutsch und Englisch und danach. Zeilenend-Kommentare hinter Code
+  und Kommentare direkt nach einer Direktive bleiben unveraendert. Nur Kommentare und Leerzeilen geaendert, der
+  Code ist identisch (gut 1.270 Bloecke, 266 davon umformuliert).
+- **Überflüssige `#if`-Abfragen entfernt:** Die Abfragen auf fest definierte Pins (`SDA_PIN`/`SCL_PIN`,
+  `DCF77_DATAPIN`/`DCF77_INTERRUPT`, `ADC_PIN`, `ADC_3V`, `LED_BOARD`, `BUTTON1`, `CS_2`, `ESP32_S2`) stammten aus
+  uhr3 mit mehreren Board-Varianten; ob RTC, DCF77-Empfänger, Fotowiderstand und Display 2 vorhanden sind,
+  erkennt die Firmware ohnehin zur Laufzeit. 58 Blöcke entfernt, nie kompilierte Ersatzzweige gestrichen.
+  Die tote Touch-Steuerung (`TOUCH_PIN` war auskommentiert) ist komplett entfernt; der alte NVS-Schlüssel
+  `useTouch` wird beim Start gelöscht. `ROUND_DISPLAY` und die USB-Modus-Abfragen bleiben. Keine
+  Funktionsänderung.
 - Neuer Build in `build_uhr4` (Startzeit 10:10:30, Uhr im Access-Point-Modus); Release `v4`: `uhr4_flash.zip` erneuert.
 - **Uhr läuft auch im Access-Point-Modus:** Ohne WLAN (nach dem 2-minütigen WPS-Versuch) zeigte das Display
   bisher dauerhaft nur die Access-Point-Daten – `updateClock()` lief nur mit WLAN, RTC oder DCF77. Jetzt
@@ -94,6 +107,18 @@ Newest entries on top.
   into the remaining way (max. ~1.3° per frame), a large jump late in the animation restarts it.
 
 ### Changed
+- New build in `build_uhr4` (`#if`/touch cleanup, comments); release `v4`: `uhr4_flash.zip` renewed.
+- **Comments unified:** all standalone comments shortened to at most 3 lines per language, repeatedly mixed
+  German/English sections merged into one German and one English part; one blank line before the comment,
+  between German and English and after it. Trailing comments behind code and comments right after a directive
+  stay unchanged. Only comments and blank lines changed, the code is identical (about 1,270 blocks, 266 of them
+  reworded).
+- **Redundant `#if` checks removed:** The checks for always-defined pins (`SDA_PIN`/`SCL_PIN`,
+  `DCF77_DATAPIN`/`DCF77_INTERRUPT`, `ADC_PIN`, `ADC_3V`, `LED_BOARD`, `BUTTON1`, `CS_2`, `ESP32_S2`) came from
+  uhr3 with several board variants; whether RTC, DCF77 receiver, photoresistor and display 2 are present is
+  detected at runtime anyway. 58 blocks removed, never-compiled fallback branches dropped. The dead touch
+  control (`TOUCH_PIN` was commented out) is removed completely; the old NVS key `useTouch` is deleted at
+  boot. `ROUND_DISPLAY` and the USB mode checks stay. No functional change.
 - New build in `build_uhr4` (start time 10:10:30, clock in access point mode); release `v4`: `uhr4_flash.zip` renewed.
 - **Clock also runs in access point mode:** Without WiFi (after the 2-minute WPS attempt) the display used to
   show only the access point details permanently - `updateClock()` only ran with WiFi, RTC or DCF77. Now the AP

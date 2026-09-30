@@ -15,11 +15,14 @@
 #define ESP_WPS_MODE WPS_TYPE_PBC
 
     // WPS-Initialisierung
+
     // WPS initialization
+
     esp_wps_config_t wps_config = WPS_CONFIG_INIT_DEFAULT(ESP_WPS_MODE);
 
 
     // Aktiviert WPS (Push-Button-Methode) am ESP32 und startet den Verbindungsversuch
+
     // Activates WPS (push-button method) on the ESP32 and starts the connection attempt
 
     void startWPS() {
@@ -85,8 +88,11 @@
                 slot = foundNetworkCount++;
             }
             else {
+
                 // schwaechsten Eintrag finden, nur ersetzen wenn staerker
+
                 // find weakest entry, replace only if new one is stronger
+
                 int weakest = 0;
                 for (int k = 1; k < MAX_WLAN; k++) {
                     if (availableNetworks[k].rssi < availableNetworks[weakest].rssi) weakest = k;
@@ -102,7 +108,9 @@
         }
 
         // Einfuegesortierung reicht fuer maximal MAX_WLAN Eintraege
+
         // insertion sort is sufficient for at most MAX_WLAN entries
+
         for (int i = 1; i < foundNetworkCount; i++) {
             WifiNetwork key = availableNetworks[i];
             int j = i - 1;
@@ -125,6 +133,7 @@
 
 
     // überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
+
     // Checks the WiFi connection and tries to restore it every x minutes if disconnected.
 
     bool checkWiFiReconnect() {
@@ -139,6 +148,7 @@
         // Without firstAttempt the condition is always "connection OK" during
         // the first hour after boot, without ever connecting - a router
         // restart right after a power cut left the clock offline for 60 min.
+
         unsigned long now = millis();
         if (!firstAttempt && (now - lastAttempt < WAIT_1h)) return true;
         firstAttempt = false;
@@ -166,6 +176,7 @@
     // access or reconnects.
 
     void onWpsEvent(WiFiEvent_t event) {
+
         // WiFi.SSID()/psk() liefern hier unzuverlaessig die neuen Zugangsdaten
         // (ESP-IDF-Bug #10339) - daher nur Flag setzen, Zugangsdaten werden
         // nach erfolgreicher Verbindung in loop() ausgelesen.
@@ -173,6 +184,7 @@
         // WiFi.SSID()/psk() unreliably return the new credentials here
         // (ESP-IDF bug #10339) - so just set a flag, credentials are read
         // in loop() after a successful connection.
+
         if (event == ARDUINO_EVENT_WPS_ER_SUCCESS) {
             wpsSuccessEvent = true;
         }
@@ -203,33 +215,13 @@
     }
 
 
-    // Der WiFi-Treiber speichert standardmaessig (WiFi.persistent) WLAN-Name
-    // und -Passwort zusaetzlich im Klartext im NVS-Namespace "nvs.net80211".
-    // Die Firmware braucht das nicht - sie uebergibt die Daten bei jedem
-    // WiFi.begin() aus den eigenen Einstellungen. setup() schaltet es ab
-    // (WiFi.persistent(false)) und loescht hier eine vorhandene Kopie, damit
-    // ein Auslesen des Flashs das Passwort nicht auch noch dort findet.
-    // Geschrieben wird nur, wenn der Namespace Eintraege hat.
+    // WLAN-Passwoerter liegen im NVS verschluesselt ("e1:" + Hex, AES-256-GCM, WIFI_STORE_KEY), Klartext wird
+    // beim Start umgestellt; Zugriff nur ueber loadWifiPass()/storeWifiPass(). Die Klartext-Kopie des
+    // WiFi-Treibers ("nvs.net80211") ist abgeschaltet (WiFi.persistent(false)) und wird hier geloescht.
 
-    // By default the WiFi driver (WiFi.persistent) additionally stores the
-    // WiFi name and password in plain text in the NVS namespace
-    // "nvs.net80211". The firmware does not need that - it passes the data on
-    // every WiFi.begin() from its own settings. setup() switches it off
-    // (WiFi.persistent(false)) and an existing copy is deleted here, so a
-    // flash dump does not find the password there as well. Writes only happen
-    // if the namespace has entries.
-
-    // WLAN-Passwoerter liegen im NVS verschluesselt: "e1:" + Hex(IV 12 B,
-    // Tag 16 B, Daten), AES-256-GCM mit WIFI_STORE_KEY (config.h), IV je
-    // Speichern zufaellig. Aeltere Werte im Klartext werden weiter gelesen und
-    // beim Start umgestellt (migrateWifiPasswords()). Alle Zugriffe auf
-    // pkPass() nur ueber loadWifiPass()/storeWifiPass().
-
-    // WiFi passwords are stored encrypted in NVS: "e1:" + hex(IV 12 B, tag
-    // 16 B, data), AES-256-GCM with WIFI_STORE_KEY (config.h), random IV per
-    // store. Older plain-text values are still read and converted at boot
-    // (migrateWifiPasswords()). All accesses to pkPass() only via
-    // loadWifiPass()/storeWifiPass().
+    // WiFi passwords are stored encrypted in NVS ("e1:" + hex, AES-256-GCM, WIFI_STORE_KEY), plain text is
+    // converted at boot; access only via loadWifiPass()/storeWifiPass(). The WiFi driver's plain-text copy
+    // ("nvs.net80211") is switched off (WiFi.persistent(false)) and deleted here.
 
     static_assert(sizeof(WIFI_STORE_KEY) == 65, "WIFI_STORE_KEY (config.h) muss 64 Hex-Zeichen haben / must have 64 hex characters");
 
@@ -285,7 +277,9 @@
     }
 
     // Schreibt und prueft durch Zuruecklesen (wie putStringVerified())
+
     // Writes and verifies by reading back (like putStringVerified())
+
     bool storeWifiPassVerified(int i, const String& pass) {
         storeWifiPass(i, pass);
         if (loadWifiPass(i) != pass) {
@@ -296,7 +290,9 @@
     }
 
     // Beim Start: Klartext-Passwoerter (aeltere Firmware, alte Sicherung) verschluesseln
+
     // At boot: encrypt plain-text passwords (older firmware, old backup)
+
     void migrateWifiPasswords() {
         for (int i = 0; i < MAX_WLAN; i++) {
             String raw = preferences.getString(pkPass(i).c_str(), "");
@@ -325,6 +321,7 @@
 
 
     int saveWpsCredentials(const String& ssid, const String& pass) {
+
         // Bewusst frisch aus Preferences lesen statt wifiSsid[]: das Array wird
         // nur beim Booten befuellt und koennte bei spaetem WPS-Erfolg nicht mehr
         // aktuell sein - ein belegter Slot koennte faelschlich ueberschrieben werden.
@@ -332,6 +329,7 @@
         // Deliberately read fresh from preferences instead of wifiSsid[]: it's
         // only filled at boot and may be stale by the time WPS succeeds - an
         // occupied slot could be wrongly overwritten.
+
         for (int i = 0; i < MAX_WLAN; i++) {
             String storedSsid = preferences.getString(pkSsid(i).c_str(), "");
             if (storedSsid == ssid) {
@@ -346,18 +344,22 @@
                 }
                 wifiSsid[i] = ssid; // In-Memory-Array synchron halten
                                     // keep in-memory array in sync
+
                 // PK_LAST_WLAN bewusst NICHT setzen: nur speichern/aktualisieren,
                 // nicht automatisch als naechstes beim Boot bevorzugen.
 
                 // Deliberately NOT setting PK_LAST_WLAN: only save/update,
                 // don't make it preferred at next boot.
+
                 DEBUG_PRINTLN("[WPS] SSID " + ssid + " already known, using slot " + String(i + 1));
                 return i;
             }
         }
 
         // neue SSID: ersten wirklich freien Slot suchen, sonst letzten ueberschreiben
+
         // new SSID: find first really free slot, otherwise overwrite the last one
+
         int freeIdx = -1;
         for (int i = 0; i < MAX_WLAN; i++) {
             if (preferences.getString(pkSsid(i).c_str(), "") == "") { freeIdx = i; break; }
@@ -366,8 +368,11 @@
 
         preferences.putString(pkSsid(freeIdx).c_str(), ssid);
         storeWifiPass(freeIdx, pass);
+
         // PK_LAST_WLAN bewusst NICHT setzen (siehe Kommentar oben).
+
         // PK_LAST_WLAN deliberately NOT set (see comment above).
+
         wifiSsid[freeIdx] = ssid;
         wifiPass[freeIdx] = pass;
         DEBUG_PRINTLN("[WPS] Saved new network " + ssid + " in slot " + String(freeIdx + 1));
@@ -378,6 +383,7 @@
     // Zugangsdaten des Access Points auf dem Display: nach dem Start fuer
     // AP_INFO_SHOW_MS (danach laeuft die Uhr, siehe loop() in uhr4.ino) und
     // erneut bei kurzem Tasterdruck (showWlanCredentials()).
+
     // Access point credentials on the display: after starting for
     // AP_INFO_SHOW_MS (the clock runs afterwards, see loop() in uhr4.ino) and
     // again on a short button press (showWlanCredentials()).
@@ -409,6 +415,7 @@
 
         // Start station mode, but do NOT connect - a concurrent WiFi.begin()
         // would interfere with WPS negotiation (shared radio).
+
         WiFi.mode(WIFI_MODE_STA);
         WiFi.disconnect();
 
@@ -438,6 +445,7 @@
 
         // Draw the static label once; only the number is updated afterwards
         // each second (prevents flicker from a full redraw).
+
         int countdownY = CLOCK_HEIGHT / 2;
         int lastSecondsShown = -1;
 
@@ -457,6 +465,7 @@
         // 30s was often too short in practice for a full WPS negotiation -
         // extended to 2 minutes, matching the web-button WPS path (see
         // loop() in uhr4.ino).
+
         unsigned long wpsTimeoutMs = 2 * WAIT_1m;
         long wpsWaitMillis = millis();
 
@@ -467,6 +476,7 @@
         // IMPORTANT: WiFi.status() does NOT auto-switch to WL_CONNECTED on WPS
         // success in current arduino-esp32 versions (regression, see
         // arduino-esp32#11705) - so react to the flag set by onWpsEvent().
+
         while (!wpsSuccessEvent && !wpsFailedEvent && (millis() - wpsWaitMillis) <= wpsTimeoutMs) {
             int secondsLeft = (wpsTimeoutMs - (millis() - wpsWaitMillis)) / 1000;
             if (secondsLeft != lastSecondsShown) {
@@ -493,6 +503,7 @@
 
             // WiFi.SSID()/psk() are unreliable here (ESP-IDF#10339, see
             // onWpsEvent()) - read via esp_wifi_get_config() with retries instead.
+
             String newSsid = "";
             String newPass = "";
             for (int wpsReadAttempt = 0; wpsReadAttempt < 20 && newSsid == ""; wpsReadAttempt++) {
@@ -543,34 +554,33 @@
         // Disable WPS and give the WiFi firmware a brief moment to settle
         // after the aborted handshake before issuing the next WiFi command
         // (scan) - otherwise the scan can hang.
+
         esp_wifi_wps_disable();
         delay(WAIT_1s);
 
-        // Access Point zuerst starten, damit die Uhr in jedem Fall (auch
-        // falls der anschliessende Scan haengt/fehlschlaegt) per WPS-Retry
-        // oder Weboberflaeche erreichbar wird.
-        // MAC hier selbst holen: startAP() kann erreicht werden, ohne dass
-        // connectWiFi() je lief (kein gespeichertes Netz) - nur dort wurde
-        // mac[] sonst befuellt.
+        // Access Point zuerst starten, damit die Uhr auch bei haengendem Scan per WPS-Retry oder
+        // Weboberflaeche erreichbar ist. MAC hier selbst holen - ohne gespeichertes Netz lief connectWiFi()
+        // nie, das sonst mac[] fuellt.
 
-        // Start the access point first, so the clock becomes reachable via
-        // WPS retry or the web interface in any case (even if the scan
-        // below hangs/fails).
-        // Fetch the MAC here: startAP() can be reached without connectWiFi()
-        // ever running (no stored network) - otherwise that is the only place
-        // filling mac[].
+        // Start the access point first, so the clock is reachable via WPS retry or the web interface even if
+        // the scan hangs. Fetch the MAC here - without a stored network connectWiFi(), which otherwise fills
+        // mac[], never ran.
 
         WiFi.macAddress(mac);
 
         // Festes Passwort aus der Firmware (AP_PASSWORD in config.h)
+
         // Fixed password from the firmware (AP_PASSWORD in config.h)
+
         strlcpy(apPassword, AP_PASSWORD, sizeof(apPassword));
 
         WiFi.softAP(AP_SSID, apPassword);
         DEBUG_PRINTLN("[WiFi] Started Access Point: " + String(AP_SSID)); // Passwort bewusst nicht im Log / password deliberately not logged
 
         // Captive portal: leite alle DNS-Anfragen auf die AP-IP um
+
         // Captive portal: redirect all DNS requests to the AP IP
+
         dnsServer.start(53, "*", WiFi.softAPIP());
 
         // WLAN-Scan durchführen (asynchron, mit Zeitlimit statt blockierend -
@@ -580,6 +590,7 @@
         // Perform the WiFi scan (asynchronous, with a time limit instead of
         // blocking - a stuck scan must not hold up the clock permanently,
         // the AP is already running).
+
         DRAW_ON_BOTH_DISPLAYS(
             tft.fillScreen(TFT_BLACK);
             tft.setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -602,6 +613,7 @@
 
         // Fill availableNetworks - strongest first, see
         // collectStrongestNetworks() further above.
+
         collectStrongestNetworks(networkCount);
 
         // Vom Treiber fuer die Scan-Ergebnisse belegten Speicher freigeben -
@@ -611,6 +623,7 @@
         // Free the memory the driver allocated for the scan results - this
         // was missing here even though checkWiFiScan()/scanAndCacheNetworks()
         // consistently do it right after the same collectStrongestNetworks() call.
+
         WiFi.scanDelete();
 
         clearTFT();
@@ -641,6 +654,7 @@
         // Range check: 'number' indexes wifiSsid[]/wifiPass[] directly, and at
         // least one caller passes it through unchecked from NVS - a corrupted
         // value would otherwise reach past the end of the array.
+
         if (number < 0 || number >= MAX_WLAN) {
             DEBUG_PRINTLN("[WiFi] connectWiFi: index out of range (" + String(number) + ")");
             return NOT_CONNECTED;
@@ -661,13 +675,16 @@
 
         // Wenn verboseMode aktiviert ist, zeige die Verbindungsinformationen auf dem Display an
         // If verboseMode is enabled, show connection info on the display
+
         if (verboseMode) {
             clearTFT();
+
             // Preprocessor-Bedingung vorab in eine Variable aufloesen - #if/#else
             // duerfen nicht innerhalb der Argumentliste von DRAW_ON_BOTH_DISPLAYS() stehen.
 
             // Resolve the preprocessor condition into a variable beforehand - #if/#else
             // are not allowed inside DRAW_ON_BOTH_DISPLAYS()'s argument list.
+
             int versionCursorX = (CLOCK_WIDTH < 240) ? 20 : 60; // kleines Display (GC9D01): weiter links
                                                                 // small display (GC9D01): further left
             DRAW_ON_BOTH_DISPLAYS(
@@ -688,6 +705,7 @@
 
                 // Convert first, then shorten: one character = one byte, so
                 // shortening doesn't split a UTF-8 sequence (umlaut in the SSID).
+
                 String ssidText = tftText(wifiSsid[number]);
                 if (ssidText.length() > 15) {
                     tft.print(ssidText.substring(0,15));
@@ -702,8 +720,11 @@
         WiFi.mode(WIFI_MODE_NULL);
 
         WiFi.mode(WIFI_STA);
+
         // MAC-Adresse holen
+
         // Get MAC address
+
         WiFi.macAddress(mac);
 
         String customHostname = preferences.getString(PK_HOSTNAME, "");
@@ -765,6 +786,7 @@
             // MDNS.end() first: connectWiFi() runs again on every reconnect, a
             // second MDNS.begin() without a prior end() fails resp. registers
             // the HTTP service twice. end() on a never-started instance is fine.
+
             MDNS.end();
 
             // Ergebnis von MDNS.begin() merken statt pingHostname fest auf true:
@@ -774,6 +796,7 @@
             // Remember MDNS.begin()'s result instead of hard-coding pingHostname
             // true: it controls whether the "hostname.local" link is shown at
             // all (topbar, status page, display) - otherwise it could lead nowhere.
+
             pingHostname = MDNS.begin(hostname);
             if (pingHostname) {
                 MDNS.addService("http", "tcp", 80); // HTTP-Dienst auf Port 80 bekanntgeben
@@ -791,19 +814,15 @@
             // Rebind the NTP server to port 123: WiFi.mode(WIFI_MODE_NULL) above
             // shut down the WiFi stack, the socket bound in setup() lost its
             // interface - otherwise the NTP server stays silent after a reconnect.
+
             startNtpServer();
 
-            // R2RNet-Multicast-Diagnose ebenfalls neu beitreten - derselbe
-            // Grund wie bei startNtpServer() direkt darueber: der Socket
-            // ueberlebt den WiFi-Neuaufbau nicht (siehe rocrail_client.h).
-            // Nur, wenn Rocrail ueberhaupt aktiviert ist (siehe Begruendung
-            // beim analogen Aufruf in uhr4.ino).
+            // R2RNet-Multicast ebenfalls neu beitreten - wie beim NTP-Server ueberlebt der Socket den
+            // WLAN-Neuaufbau nicht (siehe rocrail_client.h). Nur, wenn Rocrail aktiviert ist.
 
-            // Rejoin the R2RNet multicast diagnostic listener too - same
-            // reason as startNtpServer() right above: the socket doesn't
-            // survive the WiFi restart (see rocrail_client.h). Only when
-            // Rocrail is actually enabled (see the reasoning at the
-            // analogous call in uhr4.ino).
+            // Rejoin the R2RNet multicast too - like the NTP server, the socket does not survive the WiFi
+            // restart (see rocrail_client.h). Only when Rocrail is enabled.
+
             if (rocrailEnabled) {
                 startR2rnetDebugListener();
             }
@@ -863,11 +882,15 @@
 
 
     // Anzeige WLAN Parameter auf dem TFT
+
     // Display WiFi parameters on the TFT
 
     void showWlanCredentials(String wlan) {
+
         // Im Access-Point-Modus dessen Zugangsdaten zeigen (Taster, siehe checkButton())
+
         // In access point mode show its credentials (button, see checkButton())
+
         if (softAPIP && WiFi.status() != WL_CONNECTED) {
             showApInfo();
             return;
@@ -911,11 +934,15 @@
 
 
     // Loescht gespeicherte WLAN-Zugangsdaten
+
     // Deletes saved WiFi credentials
 
     void eraseWiFiConfig() {
+
         // WLAN trennen und komplett deaktivieren
+
         // Disconnect WiFi and turn it off completely
+
         WiFi.disconnect(true, true);  // true,true => auch gespeicherte Daten löschen
                                       // true,true => also erase saved data
         delay(100);
@@ -923,8 +950,11 @@
         delay(WAIT_1s);
 
         for (int i = 0; i < MAX_WLAN; i++) {
+
             // Dynamisch berechnete Schlüssel
+
             // Dynamically computed keys
+
             String ssidKey = pkSsid(i);
             String passKey = pkPass(i);
 
@@ -939,10 +969,12 @@
         // No extra nvs_erase_all("wifi") needed: that namespace is unused
         // (everything runs under "clock") - cleaning it up there would wrongly
         // wipe the entire "clock" namespace.
+
     }
 
 
     // Startet asynchronen WiFi-Scan
+
     // Starts an asynchronous WiFi scan
 
     void startWiFiScan() {
@@ -962,18 +994,24 @@
 
 
     // Prüft Scan-Status und verarbeitet Ergebnisse
+
     // Checks scan status and processes results
 
     void checkWiFiScan() {
         if (isScanning) {
             int scanStatus = WiFi.scanComplete();
             if (scanStatus == WIFI_SCAN_RUNNING) {
+
                 // Scan läuft noch
                 // Scan still running
+
                 // DEBUG_PRINTLN("[WiFi] Scan in progress..");
+
             }
             else if (scanStatus >= 0) {
+
                 // Scan abgeschlossen
+
                 // Scan complete
 
                 DEBUG_PRINTLN("[WiFi] found " + String(scanStatus) + " WiFi networks");
@@ -988,8 +1026,11 @@
                 DEBUG_PRINTLN("[WiFi] done");
             }
             else {
+
                 // Fehler beim Scan
+
                 // Error during scan
+
                 DEBUG_PRINTLN("[WiFi] Scan failed with error: " + String(scanStatus));
                 isScanning = false;
                 //scanAndCacheNetworks();
@@ -1015,6 +1056,7 @@
 
 
     // Scannt WLANs und cached Ergebnisse
+
     // Scans WiFi networks and caches results
 
     void scanAndCacheNetworks() {
@@ -1028,9 +1070,7 @@
         );
 
         DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks..");
-#ifdef LED_BOARD
 
-#endif
         int networkCount = WiFi.scanNetworks();
         DEBUG_PRINTLN("[WiFi] found " + String(networkCount) + " WiFi networks:");
         if (networkCount > MAX_WLAN) {

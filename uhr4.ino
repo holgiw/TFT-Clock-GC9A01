@@ -1,10 +1,8 @@
-    // howl-clock@gmx.de - Stationsuhr
-    // ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01, LovyanGFX 1.2.30
-    // DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // howl-clock@gmx.de - Stationsuhr. ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01, LovyanGFX
+    // 1.2.30. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
-    // howl-clock@gmx.de - station clock
-    // ESP32-S2 Mini (built as Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01, LovyanGFX 1.2.30
-    // DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // howl-clock@gmx.de - station clock. ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01,
+    // LovyanGFX 1.2.30. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
     
 #include <WiFi.h>
@@ -33,6 +31,7 @@
 
 // ESP_ARDUINO_VERSION_STR: arduino-esp32 core version this was compiled
 // with (shown in Status, see webserver_routes.h).
+
 #include <esp_arduino_version.h>
 
 // Fuer esp_reset_reason() - Grund des letzten Neustarts (Power-On, Watchdog,
@@ -40,6 +39,7 @@
 
 // For esp_reset_reason() - reason for the last restart (power-on, watchdog,
 // panic, brownout, ...), shown in Status (see webserver_routes.h).
+
 #include <esp_system.h>
 #include <Wire.h>
 #include <RTClib.h>
@@ -50,6 +50,7 @@
 
 // For sntp_set_sync_mode()/sntp_set_sync_interval() - see setup() and the
 // comment there about the second-hand jump-back fix.
+
 #include <esp_sntp.h>
 
 
@@ -63,8 +64,8 @@
 #include "time_sync.h"         // RTC, DCF77, NTP
 #include "rocrail_client.h"    // Rocrail-Modellzeit (Discovery, TCP-Client, Clock-Parsing)
                                // Rocrail model time (discovery, TCP client, clock parsing)
-#include "display.h"           // Zifferblatt, Zeiger, Helligkeit, Touch
-                               // dial, hands, brightness, touch
+#include "display.h"           // Zifferblatt, Zeiger, Helligkeit
+                               // dial, hands, brightness
 #include "presets_manager.h"   // Presets laden/speichern/wechseln
                                // load/save/switch presets
 #include "hand_designer_html.h" // Zeiger-Designer-Seite (HTML/JS im Flash)
@@ -88,11 +89,17 @@
     // "return" exits would otherwise end ALL of setup() early.
 
 void connectWiFiAtBoot() {
+
         // WLAN-Zugangsdaten laden
+
         // Load WiFi credentials
+
         for (int i = 0; i < MAX_WLAN; i++) {
+
             // Dynamisch berechnete Schlüssel
+
             // Dynamically computed keys
+
             String ssidKey = pkSsid(i);
             wifiSsid[i] = preferences.getString(ssidKey.c_str(), "");
             wifiPass[i] = loadWifiPass(i);
@@ -100,7 +107,9 @@ void connectWiFiAtBoot() {
 
 
         // AP starten, wenn keine SSID gespeichert ist
+
         // Start AP if no SSID is stored
+
         for (int i = 0; i < MAX_WLAN; i++) {
             if (wifiSsid[i].length() > 0) {
                 DEBUG_PRINTLN("[WiFi] Found stored SSID: " + wifiSsid[i]);
@@ -115,6 +124,7 @@ void connectWiFiAtBoot() {
 
 
         // WLAN-Netzwerke scannen und cachen
+
         // Scan and cache WiFi networks
         //scanAndCacheNetworks();
 
@@ -135,6 +145,7 @@ void connectWiFiAtBoot() {
         // Range check: the value comes from NVS and is used directly as an
         // array index. A corrupted value outside 0..MAX_WLAN-1 would otherwise
         // cause undefined behavior instead of a clean error.
+
         int storedWlanNumber = preferences.getInt(PK_LAST_WLAN, 0);
         if (storedWlanNumber < 0 || storedWlanNumber >= MAX_WLAN) {
             DEBUG_PRINTLN("[WiFi] Stored WLAN number out of range (" + String(storedWlanNumber) + "), falling back to 0");
@@ -146,7 +157,9 @@ void connectWiFiAtBoot() {
 
 
         // ist die letzte SSID im Scan vorhanden?
+
         // Is the last SSID present in the scan?
+
         bool foundLastSSID = false;
         for (int i = 0; i < MAX_WLAN; i++) {
             if (wifiSsid[number] == availableNetworks[i].ssid) {
@@ -172,6 +185,7 @@ void connectWiFiAtBoot() {
 
             // Re-evaluate after the second scan - otherwise foundLastSSID stayed
             // false regardless, making the second scan pointless.
+
             for (int i = 0; i < MAX_WLAN; i++) {
                 if (wifiSsid[number] == availableNetworks[i].ssid) {
                     DEBUG_PRINTLN("[WiFi] Last connected SSID found in second scan: " + availableNetworks[i].ssid);
@@ -188,6 +202,7 @@ void connectWiFiAtBoot() {
         // Always try the last used network directly, even without a scan hit -
         // WiFi.begin() needs no scan match, covering hidden SSIDs and routers
         // not yet ready at boot.
+
         bool lastSsidTried = false;
         int lastSsidResult = NOT_CONNECTED;
 
@@ -204,17 +219,22 @@ void connectWiFiAtBoot() {
             // Multiple attempts (see WIFI_CONNECT_ATTEMPTS in config.h) - a
             // single failure (e.g. the router being briefly busy) shouldn't
             // discard this network right away.
+
             lastSsidResult = connectWiFiWithRetries(number, wifiSsid[number]);
         }
 
         if (lastSsidResult == NOT_CONNECTED) {
 
             // Wenn Verbindung fehlschlägt, scannen und vergleichen
+
             // If connection fails, scan and compare
+
             DEBUG_PRINTLN("[WiFi] Connection failed. Looking for available networks..");
 
             // Durchsuche gefundene Netzwerke nach gespeicherten SSIDs
+
             // Search found networks for stored SSIDs
+
             for (int i = 0; i < MAX_WLAN; i++) {
                 String availableSSID = availableNetworks[i].ssid;
                 if (availableSSID == "") continue;
@@ -222,7 +242,9 @@ void connectWiFiAtBoot() {
                 for (int j = 0; j < MAX_WLAN; j++) {
 
                     // Nur ueberspringen, wenn oben tatsaechlich versucht wurde.
+
                     // Only skip if it was actually attempted above.
+
                     if (lastSsidTried && j == (int)number) continue;
                     if (trim(wifiSsid[j]) == "") continue; // überspringe leere SSID
                                                            // skip empty SSID
@@ -239,6 +261,7 @@ void connectWiFiAtBoot() {
                         // Multiple attempts (see WIFI_CONNECT_ATTEMPTS in
                         // config.h) - same reason as for the last connected
                         // network above.
+
                         bool connectedNow = (connectWiFiWithRetries(j, availableSSID) != NOT_CONNECTED);
 
                         if (connectedNow) {
@@ -286,6 +309,7 @@ void connectWiFiAtBoot() {
                     // Before loop() starts, processDcf77Bits()/updateDcf77Status()
                     // must be called manually, or the ISR's ring buffer
                     // (globals.h) fills up quickly.
+
                     processDcf77Bits();
                     updateDcf77Status();
                     handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
@@ -308,7 +332,9 @@ void connectWiFiAtBoot() {
 
 
             // Alle Verbindungsversuche fehlgeschlagen: AP nur ohne gueltige RTC starten
+
             // All connection attempts failed: only start AP without a valid RTC
+
             if (rtcOk != RTC_AVAILABLE) {
                 DEBUG_PRINTLN("[WiFi] Starting Access Point due to failed connections and no valid RTC");
                 startAP();
@@ -318,6 +344,7 @@ void connectWiFiAtBoot() {
 
 
     // Setup-Funktion
+
     // Setup function
 
 void setup() {
@@ -364,6 +391,7 @@ void setup() {
         // Must exist before any possible first DEBUG_PRINTLN() call (see
         // logToFile()/logLineBuffer in globals.h) - loggingEnabled is still
         // false at this point, but better safe than sorry.
+
         logBufferMutex = xSemaphoreCreateMutex();
 
         // CS_1 (Display-1-Chip-Select) manuell auf Output/LOW setzen - LovyanGFX
@@ -373,18 +401,17 @@ void setup() {
         // Manually set CS_1 (display 1's chip select) to output/LOW - LovyanGFX
         // drives no CS pin (pin_cs = -1, see lgfx_config.h).
         // Must happen BEFORE tft.init() further below.
+
         pinMode(CS_1, OUTPUT);
         digitalWrite(CS_1, LOW);
 
-        // CS2-Pin-Initialisierung folgt weiter unten, NACH preferences.begin()
-        // (ob Display 2 bedient wird, haengt von seiner Rotation ab, "n.a." = nein).
-        // Asynchronen WLAN-Scan starten, damit Netzwerke schon erkannt sind, wenn
-        // der Nutzer die WLAN-Einstellungen zum ersten Mal öffnet
+        // CS2-Pin folgt erst nach preferences.begin() (Display 2 haengt an seiner Rotation, "n.a." = aus).
+        // Asynchronen WLAN-Scan starten, damit die Netze beim ersten Oeffnen der WLAN-Einstellungen schon
+        // bekannt sind.
 
-        // CS2 pin initialization follows further below, AFTER preferences.begin()
-        // (whether display 2 is served depends on its rotation, "n.a." = no).
-        // Start async WiFi scan so networks are already found when the user
-        // first opens the WiFi settings
+        // The CS2 pin follows only after preferences.begin() (display 2 depends on its rotation, "n.a." =
+        // off). Start an async WiFi scan so the networks are already known when the WiFi settings are first
+        // opened.
 
         startWiFiScan();
 
@@ -395,12 +422,15 @@ void setup() {
         // Register event handler for WPS requests started via the web button
         // (see /api/startWPS in webserver_routes.h) - event-based instead of
         // status polling, as recommended in Espressif's WPS example.
+
         WiFi.onEvent(onWpsEvent);
 
         // Jahr 0 (1900) = "noch keine Uhrzeit", die Zeiger stehen bis dahin
         // auf der Startzeit (siehe START_TIME_* in config.h)
+
         // Year 0 (1900) = "no time yet", until then the hands show the start
         // time (see START_TIME_* in config.h)
+
         memset(&timeinfo, 0, sizeof(timeinfo));
         timeinfo.tm_hour = START_TIME_HOUR;
         timeinfo.tm_min = START_TIME_MIN;
@@ -422,28 +452,36 @@ void setup() {
 
         // Altlasten frueherer Firmware entfernen (u.a. ein WLAN-Passwort im
         // Klartext unter "pass") - siehe OBSOLETE_PREF_KEYS in prefs_keys.h
+
         // Remove leftovers of earlier firmware (among others a plain-text WiFi
         // password under "pass") - see OBSOLETE_PREF_KEYS in prefs_keys.h
+
         for (const char* key : OBSOLETE_PREF_KEYS) {
             if (preferences.isKey(key)) preferences.remove(key);
         }
 
         // Keine zweite Klartext-Kopie der WLAN-Zugangsdaten im WiFi-Treiber
         // (siehe wipeWifiDriverStorage() in wifi_manager.h)
+
         // No second plain-text copy of the WiFi credentials in the WiFi driver
         // (see wipeWifiDriverStorage() in wifi_manager.h)
+
         WiFi.persistent(false);
         wipeWifiDriverStorage();
 
         // WLAN-Passwoerter im Klartext (aeltere Firmware/Sicherung) verschluesseln
+
         // Encrypt plain-text WiFi passwords (older firmware/backup)
+
         migrateWifiPasswords();
 
         // Displaytyp sofort nach preferences.begin() - alles Folgende
         // (Migrationen, Sprites, Puffer, Werksvorgaben) haengt an den Massen.
+
         // Display type right after preferences.begin() - everything that
         // follows (migrations, sprites, buffers, factory defaults) depends on
         // the dimensions.
+
         loadDisplayType();
 
         snprintf(version, sizeof(version), "%d-%02d-%02d %02d:%02d:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
@@ -458,12 +496,15 @@ void setup() {
         // These three migration steps only need to run ONCE (newly uploaded files
         // are already RLE-compressed/masked on upload) - without this flag the
         // whole filesystem would be scanned on every boot.
+
         if (!preferences.getBool(PK_MIGRATIONS_DONE, false)) {
+
             // Bestehende Zifferblaetter im alten Standard-BMP-Format einmalig auf
             // das neue, platzsparende RLE-Format umstellen (siehe display.h).
 
             // One-time conversion of existing dials from the old standard BMP format
             // to the new, space-saving RLE format (see display.h).
+
             migrateFaceBmpsToRLE();
 
             // Bestehende Zeigersaetze im alten Standard-BMP-Format ebenfalls
@@ -471,6 +512,7 @@ void setup() {
 
             // Also do a one-time conversion of existing hand sets from standard BMP
             // to RLE (see display.h).
+
             migrateHandBmpsToRLE();
 
             // Bereits vorhandene, schon RLE-komprimierte Zifferblaetter nachtraeglich
@@ -480,22 +522,18 @@ void setup() {
             // Retroactively add the circular mask for round displays to dials that
             // were already RLE-compressed but migrated/uploaded before this feature
             // existed (see display.h).
+
             remaskExistingFaceCorners();
 
             preferences.putBool(PK_MIGRATIONS_DONE, true);
         }
 
-        // Merken, ob deleteAllLogFiles() gerade eben (wegen Versionswechsel)
-        // die Lognummer schon frisch auf 1 zurueckgesetzt hat - dann direkt
-        // darunter NICHT zusaetzlich hochzaehlen, sonst wuerde log_1.log nie
-        // angelegt und die erste Datei nach jedem Neu-Flash mit geaenderter
-        // Version faelschlich bei 2 statt bei 1 beginnen.
+        // Merken, ob deleteAllLogFiles() die Lognummer gerade (Versionswechsel) auf 1 gesetzt hat - dann
+        // nicht zusaetzlich hochzaehlen, sonst begaenne die erste Datei nach dem Flashen bei 2.
 
-        // Remember whether deleteAllLogFiles() just now (due to a version
-        // change) already reset the log number fresh to 1 - if so, do NOT
-        // additionally increment it right below, otherwise log_1.log would
-        // never get created and the first file after every reflash with a
-        // changed version would wrongly start at 2 instead of 1.
+        // Remember whether deleteAllLogFiles() just reset the log number to 1 (version change) - then do not
+        // increment it again, otherwise the first file after flashing would start at 2.
+
         bool logNumberJustReset = false;
 
         if (preferences.getString(PK_VERSION, "") != String(version)) {
@@ -508,7 +546,9 @@ void setup() {
         }
 
         // Logging aktivieren, wenn in den Preferences aktiviert
+
         // Enable logging if enabled in preferences
+
         loggingEnabled = preferences.getBool(PK_LOGGING_ENABLED, false);
         if (loggingEnabled && !logNumberJustReset) {
             uint16_t logfileNumber = preferences.getInt(PK_LOG_FILE_NUMBER, 0);
@@ -516,11 +556,11 @@ void setup() {
             preferences.putInt(PK_LOG_FILE_NUMBER, logfileNumber);
         }
 
-        // LED-Blitz waehrend DCF77-Sync, abschaltbar per Checkbox
-        // (dcfSyncLedEnabled in globals.h) - Default an.
+        // LED-Blitz waehrend der DCF77-Synchronisation, abschaltbar per Haken (dcfSyncLedEnabled) - ab Werk
+        // an.
 
-        // LED flash during DCF77 sync, toggleable via checkbox
-        // (dcfSyncLedEnabled in globals.h) - default on.
+        // LED flash during DCF77 sync, switchable via checkbox (dcfSyncLedEnabled) - on by default.
+
         dcfSyncLedEnabled = preferences.getBool(PK_DCF_SYNC_LED, true);
 
         DEBUG_PRINTLN("[SETUP] Initializing..");
@@ -532,13 +572,15 @@ void setup() {
         // Apply the timezone BEFORE the first RTC/DCF77 read - otherwise the
         // local time stored there gets interpreted as UTC (see
         // applyTimezoneToSystem() in time_sync.h).
+
         timezone = preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT);
         applyTimezoneToSystem();
         DEBUG_PRINTLN("[NTP] Timezone set to: " + timezone);
 
         // I2C-Scanner starten, um RTC zu erkennen
+
         // Start I2C scanner to detect the RTC
-#if defined SDA_PIN && defined SCL_PIN
+
         Wire.begin(SDA_PIN, SCL_PIN);
         if (i2cScan() == 1) {
 
@@ -550,6 +592,7 @@ void setup() {
                 DEBUG_PRINTLN("[RTC] found RTC");
 
                 // Überprüfen, ob die RTC eine gültige Zeit zurückgibt
+
                 // Check whether the RTC returns a valid time
                 // DateTime now = rtc.now();
 
@@ -577,21 +620,14 @@ void setup() {
             Wire.end();
             rtcOk = RTC_NOT_AVAILABLE;
         }
-#else
-        rtcOk = RTC_NOT_AVAILABLE;
-#endif
 
 
-        // tftType setzt loadDisplayType() (display.h) weiter oben.
-        // tftType is set by loadDisplayType() (display.h) further above.
+        // PSRAM-Check: der GC9D01-Treiber hat keine Hardware-Rotation (MADCTL immer 0), mit PSRAM wird per
+        // Software gedreht (gc9d01SwRotation). Den Displaytyp hat loadDisplayType() schon gesetzt.
 
-        // PSRAM-Check: der GC9D01-Treiber (lgfx_config.h) hat keine Hardware-
-        // Rotation (MADCTL immer 0). Mit PSRAM wird
-        // die Rotation per Software angewendet (gc9d01SwRotation).
+        // PSRAM check: the GC9D01 driver has no hardware rotation (MADCTL always 0), with PSRAM rotation is
+        // done in software (gc9d01SwRotation). loadDisplayType() has already set the display type.
 
-        // PSRAM check: the GC9D01 driver (lgfx_config.h) has no hardware
-        // rotation (MADCTL always 0). With PSRAM,
-        // rotation is applied in software (gc9d01SwRotation).
         if (psramFound() and ESP.getFreePsram() > 2 * (CLOCK_WIDTH * CLOCK_HEIGHT * sizeof(uint16_t))) {
             gc9d01SwRotation = true;
             DEBUG_PRINTLN("[INFO] found PSRAM");
@@ -607,6 +643,7 @@ void setup() {
             // A saved rotation must not be overwritten at startup - hardware
             // rotation being ineffective without PSRAM is a driver quirk,
             // shown in Status as "rotation mode".
+
         }
         if (!displayGeom->swRotation) { // wird nur beim GC9D01 benoetigt (DISPLAY_GEOMETRY)
                                         // only needed for the GC9D01 (DISPLAY_GEOMETRY)
@@ -662,6 +699,7 @@ void setup() {
 
             // Backlight and the brightness defaults depending on it (min.
             // brightness, thresholds) - see putBrightnessDefaults() in display.h.
+
             preferences.putBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT);
             putBrightnessDefaults(BACKLIGHT_DEFAULT);
             preferences.putUChar(PK_MAX_BRIGHTNESS, 255);
@@ -676,6 +714,7 @@ void setup() {
             // putLong instead of putUInt: this key is handled with
             // putLong()/getLong() everywhere else - a mismatched NVS type
             // would cause ESP_ERR_NVS_TYPE_MISMATCH and a silent default.
+
             preferences.putLong(PK_CENTER_COLOR, 0xEC0016);
 
             preferences.putUInt(PK_CENTER_SIZE, displayGeom->centerSize); // Nabengroesse je Displaytyp (DISPLAY_GEOMETRY)
@@ -683,7 +722,6 @@ void setup() {
 
             preferences.putUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
             preferences.putBool(PK_ADC_INVERTED, false);
-            preferences.putBool(PK_USE_TOUCH, false);
 
             preferences.putBool(PK_LOGGING_ENABLED, true);
 
@@ -691,19 +729,11 @@ void setup() {
             preferences.begin("clock", false);
         }
 
-        // tftRotation1/2 werden bewusst schon HIER geladen: DRAW_ON_BOTH_DISPLAYS()
-        // braucht die echten Werte schon fuer den ersten fillScreen() nach
-        // tft.init(), nicht die Default-Initialisierung (0) aus globals.h.
-        // Migration: alten Key "tftRotation" (vor Display-2-Support) auf
-        // "tftRotation1" uebertragen, falls dort noch kein Wert existiert -
-        // sonst ginge eine gespeicherte Rotation verloren.
+        // tftRotation1/2 schon HIER laden - DRAW_ON_BOTH_DISPLAYS() braucht sie fuer den ersten fillScreen().
+        // Migration: alten Key "tftRotation" nach "tftRotation1" uebernehmen, falls dort noch nichts steht.
 
-        // tftRotation1/2 are deliberately loaded HERE already: DRAW_ON_BOTH_DISPLAYS()
-        // needs the real values already for the first fillScreen() after
-        // tft.init(), not the default initialization (0) from globals.h.
-        // Migration: transfer the old key "tftRotation" (pre display-2 support)
-        // to "tftRotation1" if it has no value yet - otherwise a saved
-        // rotation would be lost.
+        // Load tftRotation1/2 HERE already - DRAW_ON_BOTH_DISPLAYS() needs them for the first fillScreen().
+        // Migration: copy the old key "tftRotation" to "tftRotation1" if nothing is stored there yet.
 
         if (!preferences.isKey(PK_TFT_ROTATION1) && preferences.isKey(PK_TFT_ROTATION_LEGACY)) {
             preferences.putUChar(PK_TFT_ROTATION1, preferences.getUChar(PK_TFT_ROTATION_LEGACY, 0));
@@ -714,6 +744,7 @@ void setup() {
 
         // Values 0-3 and TFT_ROTATION_NA are valid; anything above is a legacy
         // value in degrees (90/180/270) and gets converted to 0-3.
+
         tftRotation1 = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
         if (tftRotation1 > TFT_ROTATION_NA) {
             if (tftRotation1 == 90) tftRotation1 = 1;
@@ -728,6 +759,7 @@ void setup() {
 
         // rotation of Display 2 (CS2) - independent of tftRotation1, so
         // both displays can be mounted with a different orientation.
+
         tftRotation2 = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
         if (tftRotation2 > TFT_ROTATION_NA) {
             if (tftRotation2 == 90) tftRotation2 = 1;
@@ -745,25 +777,21 @@ void setup() {
 
 
         // NTP-Server initialisieren
+
         // Initialize NTP servers
+
         initializeNtpServers();
 
         stationMode = preferences.getBool(PK_STATION_MODE, true);
         smoothMinute = preferences.getBool(PK_SMOOTH_MINUTE, false);
 
-        // Fallback bewusst stationMode statt eines festen Literals: vor der
-        // Aufteilung in "wartet auf 12" (stationMode) und Darstellungsstil
-        // (smoothSecond, dieses Update) war schwingende Bewegung nur ueber
-        // stationMode=true zu haben - Geraete, die noch nie einen expliziten
-        // smoothSecond-Wert gespeichert haben, behalten so ihr bisheriges
-        // Aussehen bei, statt sich beim ersten Update dieser Firmware ungefragt zu aendern.
+        // Fallback bewusst stationMode: vor der Trennung von stationMode und smoothSecond gab es schwingend
+        // nur mit stationMode - Uhren ohne gespeichertes smoothSecond behalten so ihr bisheriges Aussehen.
 
-        // Fallback deliberately stationMode instead of a fixed literal:
-        // before the split into "waits at 12" (stationMode) and rendering
-        // style (smoothSecond, this update), smooth motion was only ever
-        // available via stationMode=true - devices that have never saved an
-        // explicit smoothSecond value keep their previous look this way,
-        // instead of silently changing on the first update to this firmware.
+        // Fallback deliberately stationMode: before stationMode and smoothSecond were split, smooth motion
+        // only existed with stationMode - clocks without a stored smoothSecond keep their previous look this
+        // way.
+
         smoothSecond = getSmoothSecondPref(stationMode);
         showSecondHand = preferences.getBool(PK_SHOW_SECOND_HAND, true);
 
@@ -774,6 +802,7 @@ void setup() {
         // The CS2 pin is always configured as output: status/boot messages
         // serve both displays, and display 2 can be enabled at runtime
         // (rotation from "n.a." to an angle) without a reboot.
+
         pinMode(CS_2, OUTPUT);
 
         // Startzustand: erstes angeschlossenes Display ausgewaehlt, das andere
@@ -781,10 +810,13 @@ void setup() {
 
         // Starting state: first connected display selected, the other one
         // deselected (see setCSIdle() in display.h).
+
         setCSIdle();
 
         // Nabe
+
         // Hub
+
         uint32_t hubColorRgb = preferences.getLong(PK_CENTER_COLOR, 0xEC0016); //DB-Rot
                                                                                // DB red
         hubColor = tft.color565((hubColorRgb >> 16) & 0xFF, (hubColorRgb >> 8) & 0xFF, hubColorRgb & 0xFF);
@@ -792,22 +824,23 @@ void setup() {
 
         // Auf 0-100 begrenzen: fruehere Backlight-Builds speicherten 255, das
         // Formularfeld (max 100) liesse sich damit gar nicht mehr absenden.
+
         // Clamp to 0-100: former backlight builds stored 255, which would make
         // the form field (max 100) impossible to submit.
+
         lowThreshold = constrain(preferences.getInt(PK_LOW_THRESHOLD, 40), 0, 100);
         highThreshold = constrain(preferences.getInt(PK_HIGH_THRESHOLD, 60), 0, 100);
         minBrightness = preferences.getUChar(PK_MIN_BRIGHTNESS, 100);
         maxBrightness = preferences.getUChar(PK_MAX_BRIGHTNESS, 255);
 
         // Zeitabhängige Helligkeit aus Preferences
+
         // Time-dependent brightness from preferences
 
         brightStartHour = preferences.getUChar(PK_BRIGHT_START_HOUR, 7);
         brightEndHour = preferences.getUChar(PK_BRIGHT_END_HOUR, 21);
 
         adcInverted = preferences.getBool(PK_ADC_INVERTED, false);
-
-        useTouch = preferences.getBool(PK_USE_TOUCH, false);
 
         rocrailEnabled = preferences.getBool(PK_ROCRAIL_ENABLED, false);
         rocrailServerHost = preferences.getString(PK_ROCRAIL_SERVER, "");
@@ -823,15 +856,14 @@ void setup() {
 
         // Backlight yes/no - before updateBrightness() further below, since
         // setPixelBrightness()/updateBrightness() depend on it.
+
         useBacklight = preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT);
 
-#ifdef BUTTON1
         pinMode(BUTTON1, INPUT_PULLDOWN);
-#endif
 
         // auf Fotowiderstand prüfen
+
         // Check for photoresistor
-#ifdef ADC_3V
 
         uint16_t adcMin = 0;
         uint16_t adcMax = 0;
@@ -840,7 +872,9 @@ void setup() {
         analogReadResolution(12);
 
         // ADC +3,3V / GND über GPIO
+
         // ADC +3.3V / GND via GPIO
+
         pinMode(ADC_GND, OUTPUT);
         pinMode(ADC_3V, OUTPUT);
 
@@ -866,8 +900,11 @@ void setup() {
             DEBUG_PRINTLN("[ADC] Found photoresistor");
             useAdc = true;
             photoresistorFound = true;
+
             // evtl. überschreiben
+
             // possibly override
+
             useAdc = preferences.getBool(PK_USE_ADC, true);
         }
         if (!useAdc) {
@@ -876,9 +913,6 @@ void setup() {
             useAdc = false;
         }
 
-#else
-        useAdc = false;
-#endif
 
         minBrightness = preferences.getUChar(PK_MIN_BRIGHTNESS, 100);
         maxBrightness = preferences.getUChar(PK_MAX_BRIGHTNESS, 255);
@@ -894,6 +928,7 @@ void setup() {
         // Select both chips at once for tft.init() - a display marked "n.a."
         // is initialized as well (boot messages run on both) and can be
         // enabled later without a reboot.
+
         digitalWrite(CS_1, LOW);
         digitalWrite(CS_2, LOW);
 
@@ -911,6 +946,7 @@ void setup() {
         // GLCD font as before, but as a real CP437 charset without UTF-8
         // decoding - tftText() (display.h) delivers umlauts/accents as
         // matching CP437 bytes.
+
         setupTextStyle(tft);
 
         delay(75);
@@ -929,44 +965,25 @@ void setup() {
 
         validateSelectedBackground();
 
-        // gc9d01SwRotation aktiv: tft.setRotation() ueberspringen, Rotation
-        // laeuft dann per Software (siehe PSRAM-Check oben). Sonst normale
-        // Hardware-Rotation.
-        // CS2 bekommt seine EIGENE Rotation (tftRotation2) - jedes Display
-        // behaelt sein MADCTL-Register dauerhaft, kein erneutes Setzen pro
-        // Tick noetig (loop() schaltet nur noch das Chip-Select um).
-        // setCS1()/setCS2() setzen die Rotation des gewaehlten Displays selbst
-        // (hardwareRotation() in display.h, bei gc9d01SwRotation immer 0).
+        // Rotation setzen: mit gc9d01SwRotation per Software, sonst in Hardware - jedes Display behaelt sein
+        // eigenes MADCTL (tftRotation1/2), setCS1()/setCS2() waehlen es aus. Bei "n.a." 0 Grad statt 4 (waere
+        // beim GC9A01 gespiegelt), damit Startmeldungen auf beiden Displays richtig stehen.
 
-        // If gc9d01SwRotation is active: skip tft.setRotation(), rotation
-        // runs in software instead (see PSRAM check above). Otherwise normal
-        // hardware rotation.
-        // CS2 gets its OWN rotation (tftRotation2) - each display keeps its
-        // MADCTL register permanently, no need to re-set it every tick
-        // (loop() only toggles the chip select).
-        // Beide Displays bekommen ihre Rotation, damit Startmeldungen auf beiden
-        // korrekt stehen. Bei "n.a." liefert effectiveRotation() 0 Grad statt
-        // des Werts 4 (waere beim GC9A01 eine gespiegelte Ausrichtung).
-        // Both displays get their rotation, so boot messages look right on both.
-        // For "n.a." effectiveRotation() returns 0 degrees instead of the value 4
-        // (which would be a mirrored orientation on the GC9A01).
-        // setCS1()/setCS2() set the selected display's rotation themselves
-        // (hardwareRotation() in display.h, always 0 with gc9d01SwRotation).
+        // Set the rotation: in software with gc9d01SwRotation, otherwise in hardware - each display keeps its
+        // own MADCTL (tftRotation1/2), setCS1()/setCS2() select it. For "n.a." 0 degrees instead of 4
+        // (mirrored on the GC9A01), so boot messages look right on both displays.
 
         setCS2(LOW);
         setCS1(LOW);
         setCSIdle();
 
 
-        // PWM fuer die Hintergrundbeleuchtung anhaengen, falls eingeschaltet -
-        // mit currentBrightness statt fest 255: updateBrightness() hat die
-        // Helligkeit schon ermittelt, konnte sie aber vor dem Anhaengen noch
-        // nicht ausgeben. Ohne Backlight-Regelung liegt Pin 3 fest auf HIGH.
+        // Backlight-PWM anhaengen, falls eingeschaltet - mit currentBrightness, die updateBrightness() schon
+        // ermittelt hat. Ohne Backlight-Regelung liegt Pin 3 fest auf HIGH.
 
-        // Attach the backlight PWM if enabled - with currentBrightness instead
-        // of a fixed 255: updateBrightness() already determined the brightness
-        // but couldn't output it before attaching. Without backlight control
-        // pin 3 is driven HIGH.
+        // Attach the backlight PWM if enabled - with currentBrightness, already determined by
+        // updateBrightness(). Without backlight control pin 3 is driven HIGH.
+
         applyBacklightPin();
 
 
@@ -977,6 +994,7 @@ void setup() {
         // Check the return value: if allocation fails, later pushImage()/
         // pushSprite() calls silently become no-ops - both displays stay
         // black, with no crash or log hint.
+
         if (!createSprite16(backgroundSprite, CLOCK_WIDTH, CLOCK_HEIGHT)) {
             DEBUG_PRINTLN("[Display] FATAL: couldnt allocate backgroundSprite - clock face cannot be drawn");
         }
@@ -998,6 +1016,7 @@ void setup() {
 
         // If the RTC is valid, show the time immediately - even before the WiFi
         // connection attempts below (each up to 15-30s).
+
         if (rtcOk == RTC_AVAILABLE) {
             updateClock();
         }
@@ -1010,20 +1029,22 @@ void setup() {
 
         // Set up the DCF77 interrupt - dcf.Start() is gone, the library
         // is no longer used (see isr() in time_sync.h).
+
         pinMode(DCF77_DATAPIN, INPUT_PULLUP);
         attachInterrupt(DCF77_DATAPIN, isr, CHANGE);
 
-#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
         // Bit-Puffer fuer /dcf77 auf "unbekannt" (-1) initialisieren -
         // int8_t-Arrays lassen sich nicht per Deklaration vorbelegen.
 
         // Initialize the /dcf77 bit buffer to "unknown" (-1) -
         // int8_t arrays can't be pre-filled via declaration.
+
         for (uint8_t i = 0; i < DCF77_GRID_SLOTS; i++) dcf77Bits[i] = -1;
-#endif
 
         // Wenn Button1 oder BOOT_BUTTON gedrückt ist, alle Zugangsdaten löschen
+
         // If Button1 or BOOT_BUTTON is pressed, clear all credentials
+
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
             DRAW_ON_BOTH_DISPLAYS(
@@ -1034,6 +1055,7 @@ void setup() {
                 tft.println(tftText(translate("Reset WLan...")));
             );
             delay(1000);
+
             // preferences.end()/begin() nicht pro Eintrag noetig: putString()
             // committet ohnehin einzeln - vgl. eraseWiFiConfig() in
             // wifi_manager.h.
@@ -1041,6 +1063,7 @@ void setup() {
             // No need for preferences.end()/begin() per entry: putString()
             // already commits individually - compare eraseWiFiConfig() in
             // wifi_manager.h.
+
             for (int i = 0; i < MAX_WLAN; i++) {
                 wifiSsid[i] = "";
                 wifiPass[i] = "";
@@ -1060,78 +1083,43 @@ void setup() {
         // With a configured Rocrail server, kick off a connection attempt
         // right after a restart, instead of waiting for the first regular
         // window - a no-op if Rocrail is off, no server is configured, or in AP/setup mode.
+
         if (WiFi.getMode() == WIFI_STA) {
             triggerRocrailConnectNow();
         }
 
-        // NTP hat Vorrang, DCF77 (applyDcf77DecodedTime()) ist der Fallback.
-        // Erfolg wird ueber lastNtpSuccessMillis geprueft, nicht ueber den
-        // Rueckgabewert von setupNTP() (der bei fehlendem WLAN faelschlich true liefert).
-        // Laeuft jetzt asynchron (startNtpSyncTask(), siehe time_sync.h): der
-        // Bootvorgang wartet nicht mehr auf DNS/UDP, die Uhr zeigt zunaechst
-        // die bereits geladene RTC-Zeit (loadTimeFromRTC() weiter oben) und
-        // pollNtpSyncTask() in loop() wertet das Ergebnis aus, sobald es vorliegt.
-        // lwIP-SNTP synct nach configTzTime() eigenstaendig weiter (Default
-        // ~1x/Std., am 6h-Timer vorbei) - SMOOTH schleicht Korrekturen per
-        // adjtime() ein statt zu springen (Sekundenzeiger-Ruecksprung-Fix).
+        // NTP hat Vorrang, DCF77 ist der Fallback; Erfolg zaehlt ueber lastNtpSuccessMillis. Die Sync laeuft
+        // asynchron - der Start wartet nicht auf DNS/UDP, pollNtpSyncTask() wertet aus. SNTP synct danach
+        // selbst weiter, SMOOTH gleicht Korrekturen per adjtime() an statt zu springen.
 
-        // NTP has priority, DCF77 (applyDcf77DecodedTime()) is the fallback.
-        // Success is checked via lastNtpSuccessMillis, not setupNTP()'s return
-        // value (which is misleadingly true when WiFi is down).
-        // Now runs asynchronously (startNtpSyncTask(), see time_sync.h): boot
-        // no longer waits on DNS/UDP, the clock initially shows the already-
-        // loaded RTC time (loadTimeFromRTC() further above), and
-        // pollNtpSyncTask() in loop() evaluates the result once it's ready.
-        // lwIP SNTP keeps syncing on its own after configTzTime() (default
-        // ~1x/hour, bypassing our 6h timer) - SMOOTH eases corrections in
-        // via adjtime() instead of stepping (second-hand jump-back fix).
+        // NTP has priority, DCF77 is the fallback; success counts via lastNtpSuccessMillis. The sync runs
+        // asynchronously - boot does not wait on DNS/UDP, pollNtpSyncTask() evaluates. SNTP keeps syncing on
+        // its own, SMOOTH eases corrections in via adjtime() instead of stepping.
 
         sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
         sntp_set_sync_interval(WAIT_6h);
 
         startNtpSyncTask("Initial sync");
 
-        if (useTouch) {
-            // Touch-Eingang initialisieren
-            // Initialize touch input
-            enableTouch();
-        }
-
         loadPresets();
 
-        // Bewusst UNABHAENGIG von rtcOk gestartet: loop() prueft den Zeit-
-        // Status ohnehin live vor jeder NTP-Antwort - waere der Start an rtcOk
-        // gebunden, bliebe der Server auf Geraeten ohne RTC dauerhaft unbenutzt.
-        // startNtpServer() statt udp.begin(): prueft den Rueckgabewert, haelt
-        // ntpServerRunning aktuell und wird nach jedem Reconnect (connectWiFi()
-        // in wifi_manager.h) erneut aufgerufen - der Socket ueberlebt sonst nicht.
+        // NTP-Server unabhaengig von rtcOk starten - loop() prueft vor jeder Antwort ohnehin, ob eine
+        // gueltige Zeit da ist. startNtpServer() statt udp.begin(): prueft das Ergebnis und wird nach jedem
+        // Reconnect neu aufgerufen.
 
-        // Deliberately started INDEPENDENT of rtcOk: loop() live-checks the
-        // time status before every NTP reply anyway - tying the start to
-        // rtcOk would leave the server permanently unused on RTC-less devices.
-        // startNtpServer() instead of udp.begin(): checks the return value,
-        // keeps ntpServerRunning current, and is called again after every
-        // reconnect (connectWiFi() in wifi_manager.h) - the socket wouldn't survive otherwise.
+        // Start the NTP server independent of rtcOk - loop() checks for a valid time before every reply
+        // anyway. startNtpServer() instead of udp.begin(): checks the result and is called again after every
+        // reconnect.
 
         startNtpServer();
 
-        // R2RNet-Multicast-Diagnose (siehe rocrail_client.h): nur zur Analyse,
-        // ob/in welchem Format Pakete auf 224.0.0.1:4321 ankommen - keine
-        // echte Discovery. Gleiche Ueberlegung wie bei startNtpServer()
-        // direkt darueber (Aufruf nach jedem Reconnect, siehe wifi_manager.h).
-        // Nur, wenn Rocrail ueberhaupt aktiviert ist - sonst voellig
-        // ungenutzter Multicast-Socket im Dauerbetrieb (siehe auch den
-        // Rocrail-Hauptschalter in webserver_routes.h, der ihn beim Ein-/
-        // Ausschalten zusaetzlich live startet/stoppt).
+        // R2RNet-Multicast-Diagnose (nur Analyse, keine Discovery), nach jedem Reconnect neu starten wie
+        // startNtpServer(). Nur mit aktiviertem Rocrail - der Rocrail-Schalter startet/stoppt sie auch zur
+        // Laufzeit.
 
-        // R2RNet multicast diagnostics (see rocrail_client.h): purely to
-        // analyze whether/in what format packets arrive on 224.0.0.1:4321 -
-        // not real discovery. Same reasoning as startNtpServer() right above
-        // (called again after every reconnect, see wifi_manager.h). Only
-        // when Rocrail is actually enabled - otherwise a completely unused
-        // multicast socket running permanently (see also the Rocrail master
-        // switch in webserver_routes.h, which additionally starts/stops it
-        // live when toggled on/off).
+        // R2RNet multicast diagnostics (analysis only, no discovery), restart after every reconnect like
+        // startNtpServer(). Only with Rocrail enabled - the Rocrail switch also starts/stops it at runtime.
+
         if (rocrailEnabled) {
             startR2rnetDebugListener();
         }
@@ -1144,25 +1132,18 @@ void setup() {
 
 
     // Main-Loop
+
     // Main loop
 
     void loop() {
-        // updateClock() steuert beide Displays vollstaendig pro Tick, inkl.
-        // eigener Rotation (renderClockFrame() in display.h) - kein manuelles
-        // CS1/CS2-Umschalten mehr noetig.
-        // Asynchrone Pruefung einer per Web-Button gestarteten WPS-Anfrage (siehe
-        // /api/startWPS) - blockiert loop() nicht, reagiert auf die im WiFi-Event-
-        // Callback gesetzten Flags statt WiFi.status() zu pollen (zuverlaessiger).
-        // Verzoegerter, NICHT-blockierender Start von WPS: der Handler von
-        // /api/startWPS setzt nur die Flags und kehrt sofort zurueck, damit
-        // die per Redirect aufgerufene Zielseite sofort ausgeliefert wird - startWPS() selbst laeuft erst hier, mit etwas Verzoegerung.
 
-        // updateClock() drives both displays fully each tick, each with its
-        // own rotation (renderClockFrame() in display.h) - no manual
-        // CS1/CS2 toggling needed anymore.
-        // Deferred, NON-blocking start of WPS: the /api/startWPS handler
-        // only sets the flags and returns immediately, so the redirect's
-        // target page is served right away - startWPS() itself only runs here, after a short delay.
+        // updateClock() bedient beide Displays je Tick samt eigener Rotation. WPS per Web-Button startet
+        // verzoegert hier, nicht im Handler von /api/startWPS - so wird die Zielseite des Redirects sofort
+        // ausgeliefert.
+
+        // updateClock() serves both displays each tick with their own rotation. WPS via the web button starts
+        // here with a delay, not in the /api/startWPS handler - so the redirect's target page is served right
+        // away.
 
         if (wpsStartRequested && millis() - wpsStartRequestedAtMillis >= (2 * WAIT_1s)) {
             wpsStartRequested = false;
@@ -1171,25 +1152,23 @@ void setup() {
             wpsStartMillis = millis();
         }
 
-        // Async check of a WPS request started via the web button (see
-        // /api/startWPS) - doesn't block loop(), reacts to the flags set in the
-        // WiFi event callback instead of polling WiFi.status() (more reliable).
+        // WPS per Web-Button asynchron pruefen - blockiert loop() nicht und reagiert auf die Flags aus dem
+        // WiFi-Event statt WiFi.status() abzufragen.
+
+        // Check a WPS request from the web button asynchronously - does not block loop() and reacts to the
+        // flags from the WiFi event instead of polling WiFi.status().
+
         if (wpsPending) {
             if (wpsSuccessEvent) {
                 wpsSuccessEvent = false;
                 wpsPending = false;
 
-                // WPS erfolgreich: Zugangsdaten sichern und neu starten statt
-                // die Verbindung in dieser Session wiederherzustellen.
-                // esp_wifi_get_config() liefert direkt nach dem Event manchmal
-                // leere Daten (bekannter Bug #10339/#11705) - daher mehrfach
-                // mit Pause versuchen.
+                // WPS erfolgreich: Zugangsdaten sichern und neu starten. esp_wifi_get_config() liefert direkt
+                // nach dem Event manchmal leere Daten (Bug #10339/#11705) - daher mehrfach mit Pause
+                // versuchen.
 
-                // WPS succeeded: save credentials and reboot instead of
-                // trying to restore the connection in this session.
-                // esp_wifi_get_config() sometimes returns empty data right
-                // after the event (known bug #10339/#11705) - so retry with
-                // a short delay.
+                // WPS succeeded: save the credentials and reboot. esp_wifi_get_config() sometimes returns
+                // empty data right after the event (bug #10339/#11705) - so retry with a short delay.
 
                 String newSsid = "";
                 String newPass = "";
@@ -1238,6 +1217,7 @@ void setup() {
                 // Restore the original connection if it was dropped by the
                 // WPS attempt, if applicable (see restorePreviousWpsConnection()
                 // in wifi_manager.h - shared logic for this and the timeout branch below).
+
                 restorePreviousWpsConnection();
             }
             else if (millis() - wpsStartMillis > (2 * WAIT_1m)) {
@@ -1249,19 +1229,12 @@ void setup() {
                 restorePreviousWpsConnection();
             }
             else {
-                // Wartephase (noch kein Event, noch kein Timeout): Status-LED
-                // blinkt periodisch als sichtbares Lebenszeichen, solange auf
-                // den Tastendruck am Router gewartet wird - unabhaengig vom
-                // DCF77-Blinken (siehe processDcf77Bits() in time_sync.h, dort
-                // per "&& !wpsPending" bewusst zurueckgestellt, damit sich
-                // beide Signalisierungen nicht optisch ueberlagern).
 
-                // Waiting phase (no event yet, no timeout yet): the status LED
-                // blinks periodically as a visible sign of life while waiting
-                // for the button press on the router - independent of the
-                // DCF77 blink (see processDcf77Bits() in time_sync.h, held
-                // back there via "&& !wpsPending" so the two signals don't
-                // visually overlap).
+                // Warten auf den Router: die Status-LED blinkt als Lebenszeichen - das DCF77-Blinken ist
+                // dabei zurueckgestellt, damit sich beide nicht ueberlagern.
+
+                // Waiting for the router: the status LED blinks as a sign of life - the DCF77 blink is held
+                // back meanwhile, so the two do not overlap.
 
                 static unsigned long lastWpsBlinkMillis = 0;
                 static bool wpsLedOn = false;
@@ -1287,6 +1260,7 @@ void setup() {
         // Keep the DCF77 reception status up to date (lastDcfSyncTime/
         // dcfTimeFound) - the actual time takeover happens separately,
         // periodically with NTP priority (see the sync logic further below).
+
         updateDcf77Status();
 
         // Empfangsausfall bzw. RTC-Ausfall waehrend des Betriebs erkennen -
@@ -1296,6 +1270,7 @@ void setup() {
         // Check for a reception failure resp. RTC failure during operation -
         // independent of WiFi state, so the topbar live status
         // (/api/topbarStatus in webserver_routes.h) stays current either way.
+
         checkDcf77Health();
         checkRtcHealth();
 
@@ -1306,19 +1281,14 @@ void setup() {
         // Own DCF77 bit progress for /dcf77 - handled independent of WiFi
         // status, so the ISR's ring buffer (isr() in time_sync.h) is
         // drained promptly even without WiFi.
+
         processDcf77Bits();
 
-        // Periodische Zeitsynchronisation: NTP hat Vorrang, DCF77 (siehe
-        // applyDcf77DecodedTime()) ist der Fallback - gleicher Ablauf wie
-        // der initiale Sync in setup() (Begruendung dort). Intervall WAIT_6h
-        // statt stuendlich - Zeitzone/Sommer-Winterzeit-Umstellung ist davon
-        // unberuehrt (siehe Kommentar bei WAIT_6h unten).
+        // Periodische Zeitsynchronisation wie beim Start: NTP hat Vorrang, DCF77 ist der Fallback. Intervall
+        // WAIT_6h - die Sommer-/Winterzeit-Umstellung haengt nicht davon ab.
 
-        // Periodic time sync: NTP has priority, DCF77 (see
-        // applyDcf77DecodedTime()) is the fallback - same flow as the
-        // initial sync in setup() (reasoning there). Interval WAIT_6h
-        // instead of hourly - the timezone/DST transition is unaffected by
-        // this (see the comment at WAIT_6h below).
+        // Periodic time sync like at boot: NTP has priority, DCF77 is the fallback. Interval WAIT_6h - the
+        // DST transition does not depend on it.
 
         if (millis() - lastNTPUpdate > WAIT_6h) {
             if (timeinfo.tm_sec < 10 || timeinfo.tm_sec > 55) {
@@ -1330,9 +1300,11 @@ void setup() {
                 // Postpone by 15s without setting the timestamp into the
                 // future: "millis() + 15000" caused underflow and an
                 // immediate re-trigger. This form is overflow-safe.
+
                 lastNTPUpdate = millis() - WAIT_6h + 15 * 1000;
             }
             else {
+
                 // Startet nur die Task (siehe time_sync.h) - das Ergebnis
                 // wertet pollNtpSyncTask() weiter unten in loop() aus, sobald
                 // sie fertig ist, statt hier auf DNS/UDP zu warten.
@@ -1340,6 +1312,7 @@ void setup() {
                 // Only starts the task (see time_sync.h) - the result is
                 // evaluated by pollNtpSyncTask() further below in loop() once
                 // it finishes, instead of waiting on DNS/UDP here.
+
                 startNtpSyncTask("Periodic sync");
                 lastNTPUpdate = millis();
             }
@@ -1353,6 +1326,7 @@ void setup() {
         // Evaluates any running NTP sync task (boot, periodic, or manual
         // sync via /syncnow) - no-op as long as no task has finished. See
         // startNtpSyncTask()/pollNtpSyncTask() in time_sync.h.
+
         pollNtpSyncTask();
 
         // Sicherheits-Abschaltung der LED einmal pro Minute, falls ein Blitz
@@ -1362,6 +1336,7 @@ void setup() {
         // Safety switch-off of the LED once per minute, in case a flash gets
         // stuck. Uses millis() instead of timeinfo.tm_sec so it works even
         // without a valid time (during DCF77 acquisition).
+
         static unsigned long lastLedSafetyOffMillis = 0;
         if (millis() - lastLedSafetyOffMillis >= WAIT_1m) {
             lastLedSafetyOffMillis = millis();
@@ -1370,7 +1345,9 @@ void setup() {
         }
 
         // Wenn im AP-Modus: DNS-Requests abarbeiten (captive portal)
+
         // In AP mode: process DNS requests (captive portal)
+
         if (softAPIP) {
             dnsServer.processNextRequest();
         }
@@ -1379,24 +1356,18 @@ void setup() {
         webserver.handleClient();
 
         // Displaytyp per USB von flashESP.bat/.sh (siehe display.h)
+
         // Display type via USB from flashESP.bat/.sh (see display.h)
+
         handleSerialCommands();
 
-#if defined DCF77_DATAPIN && defined DCF77_INTERRUPT
 
-        // LED-Blinken fuer DCF77-Impulse HIER statt in der ISR: pinMode()/
-        // digitalWrite() liegen im Flash und wuerden aus der ISR bei
-        // deaktiviertem Flash-Cache einen Panic-Reset ausloesen.
-        // Einmal-Blitz statt Umschalten: ein Toggle konnte bei ungerader
-        // Impulszahl die LED dauerhaft an lassen. Jetzt schaltet jeder Impuls
-        // sie fuer DCF77_LED_BLINK_MS ein, der Block darunter immer wieder aus.
+        // DCF77-LED HIER statt in der ISR schalten (pinMode()/digitalWrite() liegen im Flash). Fester Blitz
+        // je Impuls (DCF77_LED_BLINK_MS) statt Umschalten - sonst blieb die LED bei ungerader Impulszahl an.
 
-        // DCF77 pulse LED blink HERE, not in the ISR: pinMode()/digitalWrite()
-        // live in flash and would trigger a panic reset if called from the
-        // ISR while the flash cache is disabled.
-        // One-shot flash instead of toggling: a toggle could leave the LED on
-        // permanently on an odd pulse count. Now every pulse turns it on for
-        // DCF77_LED_BLINK_MS, and the block below always turns it off again.
+        // Switch the DCF77 LED HERE instead of in the ISR (pinMode()/digitalWrite() live in flash). A fixed
+        // flash per pulse (DCF77_LED_BLINK_MS) instead of toggling - otherwise the LED stayed on with an odd
+        // pulse count.
 
         if (dcfLedTogglePending) {
             dcfLedTogglePending = false;
@@ -1413,25 +1384,19 @@ void setup() {
 
         // Signed comparison: keeps the switch-off correct across the millis()
         // overflow (after about 49 days) as well.
+
         if (dcfLedOffAtMillis != 0 && (long)(millis() - dcfLedOffAtMillis) >= 0) {
             dcfLedOffAtMillis = 0;
             setLedOff();
         }
-#endif
 
-        // Im Access-Point-Modus (kein WLAN) nach AP_INFO_SHOW_MS ebenfalls die
-        // Uhr zeigen - ohne Zeitquelle laeuft sie ab der Startzeit (siehe
-        // updateClock()). Beim Wechsel einmal komplett neu zeichnen, damit die
-        // AP-Anzeige verschwindet.
-        // In access point mode (no WiFi) also show the clock after
-        // AP_INFO_SHOW_MS - without a time source it runs from the start time
-        // (see updateClock()). Redraw completely once on the switch so the AP
-        // screen disappears.
-        // Eigener Zeitstempel statt softAPIPstart: den setzt die Weboberflaeche
-        // bei jedem Zugriff zurueck (15-Minuten-Neustart), die Uhr soll dabei
-        // aber weiterlaufen.
-        // Own timestamp instead of softAPIPstart: the web interface resets that
-        // on every access (15-minute restart), but the clock should keep running.
+        // Im Access-Point-Modus nach AP_INFO_SHOW_MS ebenfalls die Uhr zeigen und beim Wechsel einmal
+        // komplett neu zeichnen. Eigener Zeitstempel statt softAPIPstart - den setzt die Weboberflaeche bei
+        // jedem Zugriff zurueck.
+
+        // In access point mode also show the clock after AP_INFO_SHOW_MS and redraw completely once on the
+        // switch. Own timestamp instead of softAPIPstart - the web interface resets that on every access.
+
         static unsigned long apSinceMillis = 0;
         static bool apSeen = false;
         if (softAPIP && !apSeen) {
@@ -1450,34 +1415,23 @@ void setup() {
 
         if (WiFi.getMode() == WIFI_STA || rtcOk == RTC_AVAILABLE || dcfTimeFound || apClockDue) {
 
-        // checkFactoryResetCodePending() zeichnet bei Bedarf den Bestaetigungs-
-        // code (siehe system_utils.h) und haelt das Zifferblatt dabei bewusst
-        // anugehalten - der Code soll ablesbar bleiben, nicht vom naechsten
-        // Tick sofort ueberschrieben werden.
+        // checkFactoryResetCodePending() zeichnet bei Bedarf den Bestaetigungscode und haelt das Zifferblatt
+        // so lange an, damit der Code lesbar bleibt.
 
-        // checkFactoryResetCodePending() draws the confirmation code when
-        // needed (see system_utils.h) and deliberately keeps the clock face
-        // paused while it does - the code should stay readable, not get
-        // overwritten by the next tick right away.
+        // checkFactoryResetCodePending() draws the confirmation code when needed and pauses the clock face
+        // meanwhile, so the code stays readable.
+
         if (!checkFactoryResetCodePending()) {
             updateClock();
         }
 
         checkWeeklyRestart();
 
-        // wpsPending ausschliessen: waehrend einer laufenden WPS-Verhandlung
-        // (bis zu 2 Minuten, siehe oben) trennt sich das WLAN typischerweise
-        // kurzzeitig - ohne diese Bedingung griff hier vor allem beim ALLERERSTEN
-        // Verbindungsverlust seit Boot (firstAttempt in checkWiFiReconnect())
-        // sofort ein eigener Reconnect-Versuch ein und kollidierte mit der noch
-        // laufenden WPS-Verhandlung um denselben Funkchip.
+        // Nicht waehrend WPS (wpsPending): das WLAN trennt sich dabei kurz, ein eigener Reconnect-Versuch
+        // kollidierte sonst mit der laufenden WPS-Verhandlung um denselben Funkchip.
 
-        // Exclude wpsPending: while a WPS negotiation is in progress (up to 2
-        // minutes, see above), WiFi typically drops briefly - without this
-        // condition, especially on the VERY FIRST disconnect since boot
-        // (firstAttempt in checkWiFiReconnect()), a reconnect attempt fired
-        // immediately and collided with the still-running WPS negotiation over
-        // the same radio.
+        // Not during WPS (wpsPending): WiFi drops briefly then, and a reconnect attempt would collide with
+        // the running WPS negotiation over the same radio.
 
         if (wifiActive && !WiFi.isConnected() && !wpsPending) {
             checkWiFiReconnect();
@@ -1490,6 +1444,7 @@ void setup() {
         // Only meaningful in normal STA operation - no Rocrail server on the
         // home network is reachable in AP/setup mode. pollRocrailClient()
         // itself is a no-op as long as rocrailEnabled is off.
+
         if (WiFi.getMode() == WIFI_STA) {
             pollRocrailClient();
 
@@ -1500,6 +1455,7 @@ void setup() {
             // R2RNet multicast diagnostics (see rocrail_client.h) - non-
             // blocking, no-op as long as no packet is waiting or the group
             // couldn't be joined (r2rnetDebugListening).
+
             pollR2rnetDebugListener();
         }
 
@@ -1522,9 +1478,11 @@ void setup() {
           // Answer NTP server requests (test: w32tm /stripchart /computer:<ip>) -
           // the condition checks the SYSTEM TIME, not the time source, so
           // any valid source (NTP/DCF77/RTC) triggers a reply. Threshold as in setupNTP(): year > 2016.
+
         if (ntpServerRunning) {
             int packetSize = udp.parsePacket();
             if (packetSize) {
+
                 // Empfangszeitpunkt SOFORT festhalten, vor allem Weiteren -
                 // er geht als Receive-Timestamp in die Antwort ein und ist die
                 // Grundlage, aus der der Client Laufzeit und Offset berechnet.
@@ -1532,6 +1490,7 @@ void setup() {
                 // Capture the receive instant IMMEDIATELY, before anything else
                 // - it goes into the reply as the receive timestamp and is what
                 // the client uses to compute delay and offset.
+
                 struct timeval receivedAt;
                 gettimeofday(&receivedAt, nullptr);
 
@@ -1546,26 +1505,21 @@ void setup() {
                 // Clear the buffer first: udp.read() only fills the bytes that
                 // actually arrived - otherwise leftovers of the PREVIOUS
                 // request would remain in bytes 40-47 (mirrored by createNtpResponse()).
+
                 memset(ntpPacket, 0, NTP_PACKET_SIZE);
                 udp.read(ntpPacket, NTP_PACKET_SIZE);
 
-                // Nur aus einem privaten Netz beantworten (siehe
-                // isPrivateNetworkIp() in webserver_routes.h) - ein offener
-                // NTP-Server, der jede Anfrage aus dem Internet beantwortet,
-                // ist ein klassischer Reflection-/Amplification-Vektor fuer
-                // DDoS-Angriffe (Anfrage mit gefaelschter Absender-IP, die
-                // Antwort geht dann an das eigentliche Opfer statt an den
-                // Angreifer).
+                // Nur Anfragen aus einem privaten Netz beantworten (isPrivateNetworkIp(), derzeit
+                // abgeschaltet) - ein offener NTP-Server ist ein klassischer Verstaerker fuer DDoS-Angriffe
+                // mit gefaelschter Absender-IP.
 
-                // Only answer from a private network (see
-                // isPrivateNetworkIp() in webserver_routes.h) - an open NTP
-                // server that answers every request from the internet is a
-                // classic reflection/amplification vector for DDoS attacks
-                // (request with a spoofed source IP, the reply then goes to
-                // the actual victim instead of the attacker).
+                // Only answer requests from a private network (isPrivateNetworkIp(), currently disabled) - an
+                // open NTP server is a classic amplifier for DDoS attacks with a spoofed source IP.
+
                 if (!isPrivateNetworkIp(clientIP)) {
                     DEBUG_PRINTLN("[NTPD] Request from " + clientIP.toString() + " ignored - not a private network");
                 }
+
                 // Ohne gueltige Systemzeit waere jede Antwort schlimmer als
                 // keine (Client stellt sich auf 1970) - Anfrage dann verwerfen,
                 // Client faellt auf seinen Timeout/naechste Quelle zurueck.
@@ -1573,6 +1527,7 @@ void setup() {
                 // Without a valid system time, any answer is worse than none
                 // (client would set itself to 1970) - discard the request,
                 // the client falls back to its timeout/next source.
+
                 else if (receivedAt.tv_sec <= 1483228800L) { // 2017-01-01
                     DEBUG_PRINTLN("[NTPD] Request from " + clientIP.toString() +
                                   " ignored - no valid system time yet");
@@ -1594,40 +1549,14 @@ void setup() {
         updateBrightness();
         checkLogFlush();
 
-        if (useTouch) {
-            // Touch erst aktivieren, wenn die Startverzögerung vorbei ist
-            // Enable touch only once the startup delay has passed
-            if (!touchEnabled && touchEnableAt != 0 && millis() >= touchEnableAt) {
-                touchEnabled = true;
-                DEBUG_PRINTLN("[TOUCH] Enabled");
-            }
+        // Nach 15 Minuten im AP-Modus neu starten, damit die Uhr wieder einen WLAN-Versuch macht (z.B. Router
+        // wieder da). Nur mit gespeicherten Netzen - ohne gibt es nichts zu versuchen, der Neustart
+        // unterbraeche nur die laufende Uhr.
 
-            if (touchEnabled) {
-                // Touch-Input prüfen und ggf. Hintergrund wechseln
-                // Check touch input and switch background if needed
-                checkTouchInput();
-            }
-        }
+        // Restart after 15 minutes in AP mode, so the clock tries WiFi again (e.g. router back). Only with
+        // stored networks - without, there is nothing to retry and the restart would only interrupt the
+        // running clock.
 
-        // Neustart im AP-Modus nach 15 Minuten, damit die Uhr von selbst
-        // wieder einen WLAN-Verbindungsversuch startet (connectWiFiAtBoot()
-        // laeuft ja bei jedem Boot erneut) - z.B. falls der Router zwischen-
-        // zeitlich wieder erreichbar wurde, ohne dass jemand das Captive
-        // Portal von Hand ausgefuellt hat. War hier zuvor auskommentiert
-        // (totes Feature) und wirkte daher nie.
-
-        // Restart in AP mode after 15 minutes, so the clock automatically
-        // starts a fresh WiFi connection attempt again (connectWiFiAtBoot()
-        // runs again on every boot) - e.g. if the router became reachable
-        // again in the meantime, without anyone filling in the captive
-        // portal by hand. Was commented out before (dead feature) and
-        // therefore never actually did anything.
-        // Nur mit gespeicherten WLAN-Netzen - ohne gibt es nichts neu zu
-        // versuchen, der Neustart wuerde die laufende Uhr nur alle 15 Minuten
-        // fuer den WPS-Versuch unterbrechen.
-        // Only with stored WiFi networks - without, there is nothing to retry,
-        // the restart would just interrupt the running clock every 15 minutes
-        // for the WPS attempt.
         bool anyWifiStored = false;
         for (int i = 0; i < MAX_WLAN; i++) {
             if (wifiSsid[i].length() > 0) { anyWifiStored = true; break; }
@@ -1646,6 +1575,7 @@ void setup() {
         // No more unconditional setLedOff() at the end of loop() (it cleared
         // the DCF77 flash immediately) - switch-off now happens via
         // DCF77_LED_BLINK_MS and the safety switch-off above.
+
     }
 
 

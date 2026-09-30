@@ -7,11 +7,11 @@
 
 
     // Button prüfen und ggf. Anzeige oder Factory Reset auslösen
+
     // Check button and trigger display or factory reset if needed
 
     void checkButton() {
         bool resetStarted = false;
-#ifdef BUTTON1
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
 
             uint8_t secs = 5;
@@ -20,11 +20,15 @@
             clearTFT();
 
             // Einmalig Anzeige zeichnen
+
             // Draw display once
+
             showWlanCredentials(WiFi.SSID());
 
             // Blockierender Loop während Button gedrückt
+
             // Blocking loop while button is pressed
+
             while (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
                 if (millis() - pressStart > WAIT_10s && millis() - pressStart < WAIT_15s) {
                     resetStarted = true;
@@ -43,8 +47,11 @@
                 }
 
                 if (millis() - pressStart > WAIT_15s) {
+
                     // 15 Sekunden überschritten → Factory Reset
+
                     // 15 seconds exceeded → factory reset
+
                     DRAW_ON_BOTH_DISPLAYS(
                         tft.fillScreen(TFT_RED);
                         tft.setTextColor(TFT_WHITE, TFT_RED);
@@ -58,8 +65,11 @@
                 }
                 delay(10);
             }
+
             // Button wurde vor 10secs losgelassen → WLAN-Credentials für 3 Sekunden anzeigen
+
             // Button released before 10 secs → show WLAN credentials for 3 seconds
+
             if (!resetStarted) {
                 delay(WAIT_3s);
             }
@@ -71,9 +81,9 @@
             // Draws directly to TFT instead of the sprite backbuffer; firstRun=true
             // makes the hands snap to the current time instead of easing in
             // (see smoothing in renderClockFrame()).
+
             firstRun = true;
         }
-#endif
     }
 
 
@@ -92,6 +102,7 @@
         // Own local time struct instead of the global 'timeinfo' (used by the
         // clock face/DCF77/NTP). Timeout 0 instead of 5000ms, otherwise
         // getLocalTime() blocked for 5s per pass without a valid time.
+
         struct tm restartTime;
         if (!getLocalTime(&restartTime, 0)) return;
 
@@ -123,6 +134,7 @@
 
                 // espReboot() instead of a direct preferences.end()+ESP.restart(): handles
                 // the log entry, "Rebooting.." screen and preferences.end() centrally.
+
                 espReboot();
             }
         }
@@ -142,15 +154,11 @@
     }
 
 
-    // Kurze, englische Beschriftung fuer eine per Code zu bestaetigende
-    // Aktion - gemeinsam genutzt vom Display (checkFactoryResetCodePending()
-    // direkt darunter) und von der Web-Eingabeseite (/factoryReset/enterCode
-    // in webserver_routes.h), damit beide immer denselben Text zeigen.
+    // Kurze englische Beschriftung einer per Code zu bestaetigenden Aktion - gemeinsam fuer Display und
+    // Web-Eingabeseite (/factoryReset/enterCode), damit beide denselben Text zeigen.
 
-    // Short, English label for an action that requires code confirmation -
-    // shared by the display (checkFactoryResetCodePending() right below) and
-    // the web entry page (/factoryReset/enterCode in webserver_routes.h), so
-    // both always show the same text.
+    // Short English label for an action confirmed by code - shared by the display and the web entry page
+    // (/factoryReset/enterCode), so both show the same text.
 
     String factoryResetActionLabel(const String& action) {
         if (action == "all") return "Factory Reset";
@@ -165,46 +173,22 @@
     }
 
 
-    // Erzeugt einen neuen 3-stelligen Bestaetigungscode fuer `action`, merkt
-    // sich die angeforderte Aktion (factoryResetPendingAction, siehe
-    // globals.h) und setzt den Anzeige-/Fehlversuchszustand zurueck - der
-    // Code selbst wird von checkFactoryResetCodePending() im naechsten
-    // loop()-Durchlauf auf dem Display gezeichnet. Gemeinsame Logik von
-    // /factoryReset/requestCode sowie /deletewifi und /save (aktives
-    // WLAN-Netzwerk betroffen) in webserver_routes.h - der Aufrufer muss
-    // vorher die zur jeweiligen Aktion gehoerende Nutzlast setzen
-    // (pendingWifiChangeIndex bzw. pendingWifiSsid[]/pendingWifiPass[], siehe
-    // globals.h).
+    // Erzeugt einen 3-stelligen Bestaetigungscode fuer `action`, merkt sich die Aktion und setzt Anzeige und
+    // Fehlversuche zurueck (gezeichnet von checkFactoryResetCodePending()). Der Aufrufer setzt vorher die
+    // Nutzlast (pendingWifiChangeIndex bzw. pendingWifiSsid[]/pendingWifiPass[]).
 
-    // Generates a new 3-digit confirmation code for `action`, remembers the
-    // requested action (factoryResetPendingAction, see globals.h), and
-    // resets the display/attempt state - the code itself is drawn on the
-    // display by checkFactoryResetCodePending() on the next loop() pass.
-    // Shared logic between /factoryReset/requestCode as well as /deletewifi
-    // and /save (active WiFi network affected) in webserver_routes.h - the
-    // caller must set that action's payload beforehand
-    // (pendingWifiChangeIndex or pendingWifiSsid[]/pendingWifiPass[], see
-    // globals.h).
+    // Generates a 3-digit confirmation code for `action`, remembers the action and resets display and
+    // attempts (drawn by checkFactoryResetCodePending()). The caller sets the payload beforehand
+    // (pendingWifiChangeIndex or pendingWifiSsid[]/pendingWifiPass[]).
 
     void requestConfirmationCode(const String& action) {
 
-        // Bereits ein noch gueltiger Code anhaengig? Dann nicht
-        // ueberschreiben/das Zeitfenster nicht verlaengern - sonst koennte
-        // eine Anfrage kurz vor Ablauf des aktuellen Fensters dieses immer
-        // wieder von Neuem starten und die Anzeige so dauerhaft blockieren.
-        // Relevant, seit /factoryReset/requestCode, /deletewifi, /save und
-        // /api/connectWifi dies bei Zugriff aus einem NICHT-privaten Netz
-        // ungeprueft aufrufen (aus einem privaten Netz wird die Aktion
-        // stattdessen direkt ausgefuehrt, kein Code noetig - siehe dort).
+        // Noch gueltiger Code anhaengig? Dann nicht ueberschreiben und das Zeitfenster nicht verlaengern -
+        // sonst koennten wiederholte Anfragen von aussen die Anzeige dauerhaft blockieren.
 
-        // Already a still-valid code pending? Then don't overwrite it/
-        // extend its window - otherwise a request sent shortly before the
-        // current window expires could keep restarting it indefinitely,
-        // permanently blocking the display. Relevant since
-        // /factoryReset/requestCode, /deletewifi, /save and
-        // /api/connectWifi call this unconditionally on access from a
-        // NON-private network (from a private network the action is
-        // executed directly instead, no code needed - see there).
+        // A still-valid code pending? Then do not overwrite it or extend its window - otherwise repeated
+        // requests from outside could block the display permanently.
+
         if (!factoryResetCode.isEmpty() && millis() - factoryResetCodeStartMillis < FACTORY_RESET_CODE_TIMEOUT_MS) {
             return;
         }
@@ -221,28 +205,13 @@
     }
 
 
-    // Zeigt eine Hinweisseite und liefert true, wenn bereits ein anderer,
-    // noch gueltiger Bestaetigungscode aussteht. MUSS von /deletewifi, /save
-    // und /api/connectWifi aufgerufen werden, BEVOR sie pendingWifiChangeIndex
-    // bzw. pendingWifiSsid[]/pendingWifiPass[] setzen: requestConfirmationCode()
-    // ignoriert eine Anfrage still, waehrend ein Code noch aussteht (siehe
-    // dort) - ohne diese Pruefung VORHER wuerden die Aufrufer die Payload
-    // einer laengst noch ausstehenden, anderen Anfrage ueberschreiben, sodass
-    // bei Eingabe von deren (weiterhin gueltigem) Code die FALSCHE Aktion
-    // ausgefuehrt wuerde (z.B. das falsche WLAN-Netzwerk betroffen waere).
-    // Der Aufrufer muss bei true sofort zurueckkehren, ohne die
-    // Payload-Variablen vorher zu setzen.
+    // Liefert true (mit Hinweisseite), wenn schon ein anderer gueltiger Code aussteht. MUSS vor dem Setzen
+    // der Nutzlast aufgerufen werden, sonst wuerde die Nutzlast der wartenden Anfrage ueberschrieben und mit
+    // deren Code die FALSCHE Aktion ausgefuehrt. Bei true sofort zurueckkehren.
 
-    // Shows a hint page and returns true if a different, still-valid
-    // confirmation code is already pending. MUST be called by /deletewifi,
-    // /save and /api/connectWifi BEFORE they set pendingWifiChangeIndex or
-    // pendingWifiSsid[]/pendingWifiPass[]: requestConfirmationCode() silently
-    // ignores a request while a code is still pending (see there) - without
-    // this check FIRST, the callers would overwrite the payload of a still-
-    // pending, different request, so entering that request's (still valid)
-    // code would end up executing the WRONG action (e.g. affecting the
-    // wrong WiFi network). The caller must return immediately on true,
-    // without setting the payload variables first.
+    // Returns true (with a hint page) if a different valid code is already pending. MUST be called before
+    // setting the payload, otherwise the pending request's payload would be overwritten and its code would
+    // run the WRONG action. Return immediately on true.
 
     bool rejectIfConfirmationPending() {
         if (!factoryResetCode.isEmpty() && millis() - factoryResetCodeStartMillis < FACTORY_RESET_CODE_TIMEOUT_MS) {
@@ -254,31 +223,13 @@
     }
 
 
-    // Zeigt einen zufaelligen 3-stelligen Bestaetigungscode auf dem Display,
-    // solange eine Aktion angefordert wurde, die physischen Zugriff auf die
-    // Uhr voraussetzen soll (factoryResetCode != "", siehe globals.h) - das
-    // betrifft die fuenf Factory-Reset-Aktionen UND das Loeschen/
-    // Ueberschreiben des aktuell verbundenen WLAN-Netzwerks. Die Aktion
-    // selbst (/factoryReset/confirm) verlangt diesen Code als Beweis
-    // physischen Zugriffs, da er nur auf dem tatsaechlichen Geraet ablesbar
-    // ist (schuetzt z.B. vor einer Aktion aus der Ferne ueber eine DMZ/Port-
-    // Weiterleitung). Nicht-blockierend: wird in jedem loop()-Durchlauf
-    // aufgerufen, zeichnet den Code nur einmal (factoryResetCodeShown) und
-    // verwirft ihn nach Ablauf von FACTORY_RESET_CODE_TIMEOUT_MS -
-    // updateClock() zeichnet das Display dann im naechsten Durchlauf von
-    // selbst wieder normal.
+    // Zeigt den 3-stelligen Bestaetigungscode fuer Werksreset-Aktionen und Aenderungen am aktiven WLAN -
+    // Beweis physischen Zugriffs, da nur am Geraet ablesbar. Nicht blockierend: zeichnet einmal und verwirft
+    // den Code nach FACTORY_RESET_CODE_TIMEOUT_MS, danach zeichnet updateClock() wieder normal.
 
-    // Shows a random 3-digit confirmation code on the display for as long as
-    // an action requiring physical access to the clock has been requested
-    // (factoryResetCode != "", see globals.h) - this covers the five
-    // factory-reset actions AND deleting/overwriting the currently connected
-    // WiFi network. The action itself (/factoryReset/confirm) requires this
-    // code as proof of physical access, since it can only be read on the
-    // actual device (protects against, e.g., an action triggered remotely
-    // via a DMZ/port forward). Non-blocking: called on every loop() pass,
-    // draws the code only once (factoryResetCodeShown) and discards it once
-    // FACTORY_RESET_CODE_TIMEOUT_MS has elapsed - updateClock() then resumes
-    // drawing the display normally on the next pass by itself.
+    // Shows the 3-digit confirmation code for factory reset actions and changes to the active WiFi - proof of
+    // physical access, since it can only be read on the device. Non-blocking: draws once and discards the
+    // code after FACTORY_RESET_CODE_TIMEOUT_MS, then updateClock() draws normally again.
 
     bool checkFactoryResetCodePending() {
         if (factoryResetCode.isEmpty()) return false;
@@ -291,15 +242,12 @@
             factoryResetCodeAttempts = 0;
             pendingWifiChangeIndex = -1;
 
-            // pendingWifiSsid[]/pendingWifiPass[] ebenfalls verwerfen, damit
-            // ein evtl. eingetragenes Klartext-Passwort aus einem
-            // unbestaetigt verfallenen "wlanOverwriteActive"-Antrag nicht
-            // unnoetig lange im RAM stehen bleibt.
+            // Auch pendingWifiSsid[]/pendingWifiPass[] verwerfen, damit ein Klartext-Passwort eines
+            // verfallenen Antrags nicht unnoetig im RAM bleibt.
 
-            // Also discard pendingWifiSsid[]/pendingWifiPass[], so a
-            // plaintext password from an unconfirmed, expired
-            // "wlanOverwriteActive" request doesn't linger in RAM longer
-            // than necessary.
+            // Also discard pendingWifiSsid[]/pendingWifiPass[], so a plain-text password of an expired
+            // request does not linger in RAM.
+
             for (int i = 0; i < MAX_WLAN; i++) {
                 pendingWifiSsid[i] = "";
                 pendingWifiPass[i] = "";
@@ -310,41 +258,21 @@
         if (!factoryResetCodeShown) {
             factoryResetCodeShown = true;
 
-            // Nur noch der nackte Code, gross und mittig - keine
-            // Aktionsbeschriftung und kein Hinweistext mehr auf dem Display.
-            // factoryResetActionLabel() bleibt fuer die Web-Eingabeseite
-            // erhalten (/factoryReset/enterCode in webserver_routes.h), die
-            // dort weiterhin anzeigt, WELCHE Aktion gerade bestaetigt wird.
-            // Vor und nach dem Code je ein "_" - rein optisch auf dem
-            // Display, NICHT Teil von factoryResetCode selbst (der Vergleich
-            // in /factoryReset/confirm bleibt bei den nackten 3 Ziffern).
+            // Nur der nackte Code, gross und mittig; welche Aktion bestaetigt wird, zeigt die
+            // Web-Eingabeseite. Die "_" davor und danach sind rein optisch - verglichen werden nur die 3
+            // Ziffern.
 
-            // Only the bare code now, large and centered - no more action
-            // label and no more hint text on the display.
-            // factoryResetActionLabel() is kept for the web entry page
-            // (/factoryReset/enterCode in webserver_routes.h), which still
-            // shows WHICH action is currently being confirmed there.
-            // An "_" before and after the code - purely visual on the
-            // display, NOT part of factoryResetCode itself (the comparison
-            // in /factoryReset/confirm still checks the bare 3 digits).
+            // Only the bare code, large and centered; the web entry page shows which action is being
+            // confirmed. The "_" before and after are purely visual - only the 3 digits are compared.
 
             String displayCode = "_" + factoryResetCode + "_";
 
-            // Textgroesse: groesstmoegliche ganzzahlige Vervielfachung der
-            // eingebauten 6x8-Basisschrift, die den Anzeigetext (displayCode,
-            // 5 Zeichen inkl. der beiden "_") noch mit Marge (75% von
-            // CLOCK_WIDTH) auf dem jeweiligen Display unterbringt - skaliert
-            // dadurch automatisch mit auf dem kleineren, quadratischen
-            // 160x160-Display (siehe config.h), statt einen fixen Wert zu
-            // riskieren, der dort ueberliefe.
+            // Textgroesse: groesstes ganzzahliges Vielfaches der 6x8-Schrift, bei dem der Code (5 Zeichen) in
+            // 75 % von CLOCK_WIDTH passt - skaliert so auch auf dem 160x160-Display passend.
 
-            // Text size: the largest integer multiple of the built-in 6x8
-            // base font that still fits the display text (displayCode, 5
-            // characters including the two "_") with margin (75% of
-            // CLOCK_WIDTH) on whichever display - this scales down
-            // automatically on the smaller, square 160x160 display (see
-            // config.h) instead of risking a fixed value that would overflow
-            // there.
+            // Text size: the largest integer multiple of the 6x8 font at which the code (5 characters) fits
+            // into 75 % of CLOCK_WIDTH - so it also scales correctly on the 160x160 display.
+
             int codeTextSize = (int)((CLOCK_WIDTH * 0.75f) / (displayCode.length() * 6));
             if (codeTextSize < 1) codeTextSize = 1;
 
@@ -372,6 +300,7 @@
         // First, here: an NTP sync task still running (see time_sync.h) would
         // otherwise keep accessing exactly these subsystems during
         // LittleFS.format()/eraseAllNVS()/the preferences.end()/begin() below.
+
         stopNtpSyncTaskIfRunning();
 
         DRAW_ON_BOTH_DISPLAYS(
@@ -395,18 +324,13 @@
 
     void espReboot() {
 
-        // Zuerst hier: eine evtl. laufende NTP-Sync-Task (siehe time_sync.h)
-        // wuerde sonst waehrend/nach dem folgenden preferences.end() ueber
-        // logToFile() weiter auf Preferences zugreifen (geschlossener/neu
-        // geoeffneter Handle aus einem zweiten Thread). Deckt auch den
-        // woechentlichen Neustart (checkWeeklyRestart()) und alle Restart-
-        // Buttons der Weboberflaeche ab, die alle hier durchlaufen.
+        // Zuerst eine laufende NTP-Sync-Task beenden - sie wuerde sonst nach preferences.end() ueber
+        // logToFile() weiter auf Preferences zugreifen. Gilt fuer alle Neustarts (woechentlich, Web-Buttons),
+        // die alle hier durchlaufen.
 
-        // First, here: an NTP sync task still running (see time_sync.h) would
-        // otherwise keep accessing Preferences via logToFile() during/after
-        // the preferences.end() below (a closed/reopened handle from a second
-        // thread). Also covers the weekly restart (checkWeeklyRestart()) and
-        // every restart button in the web UI, since they all go through here.
+        // First stop a running NTP sync task - it would otherwise keep accessing Preferences via logToFile()
+        // after preferences.end(). Applies to all restarts (weekly, web buttons), which all go through here.
+
         stopNtpSyncTaskIfRunning();
 
         // Generischer Log-Eintrag fuer jeden Software-Reboot, zentral hier statt
@@ -416,16 +340,15 @@
         // Generic log entry for every software-triggered reboot, centralized here
         // instead of at each call site. Logged BEFORE the display actions, so it
         // reliably ends up in the log file before the ESP restarts.
+
         DEBUG_PRINTLN("[SYSTEM] Software-triggered reboot - restarting now..");
 
-        // Gepufferte Log-Zeilen (siehe logToFile()/globals.h) JETZT erzwingen,
-        // nicht erst beim naechsten checkLogFlush() aus loop() - sonst gingen
-        // dieser und alle seit dem letzten Flush gesammelten Eintraege beim
-        // Neustart verloren.
+        // Gepufferte Log-Zeilen JETZT schreiben, nicht erst beim naechsten checkLogFlush() - sonst gingen sie
+        // beim Neustart verloren.
 
-        // Force any buffered log lines (see logToFile()/globals.h) to flash
-        // NOW, not at the next checkLogFlush() from loop() - otherwise this
-        // and every entry collected since the last flush would be lost on restart.
+        // Write buffered log lines NOW, not at the next checkLogFlush() - otherwise they would be lost on
+        // restart.
+
         flushLogBuffer();
 
         // Erst HIER geschlossen (nach dem Log-Eintrag): logToFile() liest
@@ -435,10 +358,13 @@
         // Closed only HERE (after the log entry): logToFile() itself reads
         // PK_LOG_FILE_NUMBER from preferences - if the handle were already
         // closed, the entry would land in the wrong file.
+
         preferences.end();
 
         // Kurze Verzoegerung, gibt dem Flash-Subsystem Luft nach dem Log-Schreiben.
+
         // Short delay, gives the flash subsystem breathing room after the log write.
+
         delay(100);
 
         DRAW_ON_BOTH_DISPLAYS(
@@ -457,16 +383,11 @@
     }
 
 
-    // Log-Funktionen
-    // Log functions
+    // Log-Funktionen. Aktuelle Logdatei wie in logToFile() bestimmen, aber ohne Seiteneffekte - fuer Log-Tab
+    // und /api/currentLog, damit beide dieselbe Datei sehen.
 
-    // Gleiche Logik wie in logToFile() (siehe dort), aber ohne Seiteneffekte.
-    // Genutzt vom Log-Tab und /api/currentLog, damit beide dieselbe
-    // aktuelle Datei sehen.
-
-    // Same logic as in logToFile() (see there), but without side effects.
-    // Used by the Log tab and /api/currentLog so both see the same
-    // current file.
+    // Log functions. Determine the current log file like logToFile(), but without side effects - for the Log
+    // tab and /api/currentLog, so both see the same file.
 
     String getCurrentLogFileName() {
         uint16_t logfileNumber = preferences.getInt(PK_LOG_FILE_NUMBER, 1);
@@ -490,11 +411,13 @@
             }
             file = root.openNextFile();
         }
+
         // Reset auf 1 statt 0: alle anderen Stellen (getCurrentLogFileName(),
         // logToFile()) nutzen 1 als Fallback/Rollover-Wert; 0 waere inkonsistent.
 
         // Reset to 1 instead of 0: every other spot (getCurrentLogFileName(),
         // logToFile()) uses 1 as the fallback/rollover value; 0 would be inconsistent.
+
         preferences.putInt(PK_LOG_FILE_NUMBER, 1);
     }
 
@@ -518,6 +441,7 @@
 
     // Schreibt eine Lognachricht in den RAM-Puffer, wenn Logging aktiviert ist -
     // der tatsaechliche Flash-Zugriff passiert erst in flushLogBuffer(), siehe dort.
+
     // Writes a log message into the RAM buffer if logging is enabled - the
     // actual flash access happens only in flushLogBuffer(), see there.
 
@@ -542,6 +466,7 @@
         // Do NOT set the timezone again here: configTzTime() would restart the
         // SNTP client on EVERY log entry (every DEBUG_PRINTLN, see config.h),
         // constantly disrupting time sync.
+
         unsigned long currentMillis = millis();
         unsigned long millisInSecond = currentMillis % 1000;
 
@@ -552,6 +477,7 @@
         // Own local time struct, same reason as in checkWeeklyRestart() (see
         // there). Timeout 0 instead of 500ms, no WiFi condition anymore - time
         // is valid without WiFi too when it comes from RTC or DCF77.
+
         struct tm logTime;
         if (getLocalTime(&logTime, 0)) {
             strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S", &logTime);
@@ -568,6 +494,7 @@
         // logLineBuffer is written from both the main loop and the NTP/
         // Rocrail sync task (see globals.h) - without the mutex this would
         // be a data race on the String's internal storage.
+
         if (logBufferMutex != nullptr && xSemaphoreTake(logBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             logLineBuffer += String(timestamp) + trimmedMessage + "\n";
             xSemaphoreGive(logBufferMutex);
@@ -575,20 +502,12 @@
     }
 
 
-    // Schreibt den gesammelten Log-Puffer auf einen Rutsch auf Flash (statt
-    // einer Datei-oeffnen/schreiben/schliessen-Runde PRO Zeile, siehe
-    // logToFile()) - buendelt so mehrere Flash-Zugriffe (und die damit
-    // verbundenen kurzen Aussetzer, siehe Kommentar bei logLineBuffer in
-    // globals.h) zu einem einzigen. Wird ueber checkLogFlush() regelmaessig
-    // aus loop() aufgerufen, sowie gezielt vor espReboot()/factoryReset(),
-    // damit kein Log-Eintrag beim Neustart verloren geht.
+    // Schreibt den gesammelten Log-Puffer auf einen Rutsch (statt einer Datei-Runde je Zeile) - weniger
+    // Flash-Zugriffe und Aussetzer. Aufruf regelmaessig per checkLogFlush() sowie vor
+    // espReboot()/factoryReset().
 
-    // Writes the collected log buffer to flash in one go (instead of an
-    // open/write/close round PER LINE, see logToFile()) - this coalesces
-    // several flash accesses (and the brief stalls that come with them, see
-    // the comment at logLineBuffer in globals.h) into a single one. Called
-    // regularly from loop() via checkLogFlush(), and explicitly before
-    // espReboot()/factoryReset(), so no log entry is lost on restart.
+    // Writes the collected log buffer in one go (instead of a file round per line) - fewer flash accesses and
+    // stalls. Called regularly via checkLogFlush() and before espReboot()/factoryReset().
 
     void flushLogBuffer() {
         if (logBufferMutex == nullptr) return;
@@ -668,15 +587,10 @@
     void checkLogFlush() {
         if (logBufferMutex == nullptr) return;
 
-        // Laenge nur unter dem Mutex lesen - logLineBuffer wird auch von der
-        // NTP-/Rocrail-Sync-Task beschrieben (siehe logToFile()), ein
-        // ungeschuetzter Zugriff hier waere derselbe Data Race, den der
-        // Mutex eigentlich verhindern soll.
+        // Laenge nur unter dem Mutex lesen - logLineBuffer wird auch von der NTP-/Rocrail-Task beschrieben.
 
-        // Only read the length under the mutex - logLineBuffer is also
-        // written from the NTP/Rocrail sync task (see logToFile()), an
-        // unprotected access here would be exactly the data race the mutex
-        // is meant to prevent.
+        // Only read the length under the mutex - logLineBuffer is also written by the NTP/Rocrail task.
+
         size_t bufferedBytes = 0;
         if (xSemaphoreTake(logBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             bufferedBytes = logLineBuffer.length();
@@ -692,6 +606,7 @@
 
 
     // eigenes trim function
+
     // Custom trim function
 
     String trim(const String& str) {
