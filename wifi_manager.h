@@ -313,6 +313,32 @@
     }
 
 
+    // Zugangsdaten nach erfolgreichem WPS lesen: WiFi.SSID()/psk() sind dann unzuverlaessig und esp_wifi_get_config()
+    // liefert direkt nach dem Event manchmal leere Daten (ESP-IDF#10339/#11705) - bis zu 20 Versuche.
+
+    // Read the credentials after a successful WPS: WiFi.SSID()/psk() are unreliable then and esp_wifi_get_config()
+    // sometimes returns empty data right after the event (ESP-IDF#10339/#11705) - up to 20 attempts.
+
+    bool readWpsCredentials(String& ssid, String& pass) {
+        ssid = "";
+        pass = "";
+        for (int attempt = 0; attempt < 20 && ssid == ""; attempt++) {
+            wifi_config_t config;
+            if (esp_wifi_get_config(WIFI_IF_STA, &config) == ESP_OK) {
+                char ssidBuf[33] = { 0 };
+                char passBuf[65] = { 0 };
+                memcpy(ssidBuf, config.sta.ssid, sizeof(config.sta.ssid));
+                memcpy(passBuf, config.sta.password, sizeof(config.sta.password));
+                ssid = String(ssidBuf);
+                pass = String(passBuf);
+            }
+            if (ssid == "") delay(100); // kurz warten, dann erneut versuchen
+                                        // wait briefly, then retry
+        }
+        return ssid != "";
+    }
+
+
     int saveWpsCredentials(const String& ssid, const String& pass) {
 
         // Bewusst frisch aus Preferences lesen statt wifiSsid[]: das Array wird
@@ -490,20 +516,8 @@
             // WiFi.SSID()/psk() are unreliable here (ESP-IDF#10339, see
             // onWpsEvent()) - read via esp_wifi_get_config() with retries instead.
 
-            String newSsid = "";
-            String newPass = "";
-            for (int wpsReadAttempt = 0; wpsReadAttempt < 20 && newSsid == ""; wpsReadAttempt++) {
-                wifi_config_t wpsResultConfig;
-                if (esp_wifi_get_config(WIFI_IF_STA, &wpsResultConfig) == ESP_OK) {
-                    char ssidBuf[33] = { 0 };
-                    char passBuf[65] = { 0 };
-                    memcpy(ssidBuf, wpsResultConfig.sta.ssid, sizeof(wpsResultConfig.sta.ssid));
-                    memcpy(passBuf, wpsResultConfig.sta.password, sizeof(wpsResultConfig.sta.password));
-                    newSsid = String(ssidBuf);
-                    newPass = String(passBuf);
-                }
-                if (newSsid == "") delay(100);
-            }
+            String newSsid, newPass;
+            readWpsCredentials(newSsid, newPass);
 
             if (newSsid != "") {
                 DEBUG_PRINTLN("[WPS] Connected to the network!");

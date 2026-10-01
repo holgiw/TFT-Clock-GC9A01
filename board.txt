@@ -8,9 +8,9 @@
 # translation unit - without the switch, function and literal eventually lie more than 256 KB apart and the
 # linker reports "dangerous relocation: l32r: literal target out of range".
 #
-# Arduino IDE / arduino-cli lesen diese Datei nicht: dort platform.local.txt neben der platform.txt des
-# ESP32-Cores mit derselben Zeile anlegen bzw. --build-property "compiler.cpp.extra_flags=-mtext-section-literals".
-# Arduino IDE / arduino-cli don't read this file: there, create platform.local.txt next to the ESP32 core's
-# platform.txt with the same line, or use --build-property "compiler.cpp.extra_flags=-mtext-section-literals".
+# Arduino IDE / arduino-cli lesen diese Datei nicht: dort die platform.local.txt aus dem Projektordner neben
+# die platform.txt des ESP32-Cores kopieren (Pfade siehe dort) oder --build-property verwenden.
+# Arduino IDE / arduino-cli don't read this file: there, copy platform.local.txt from the project folder
+# next to the ESP32 core's platform.txt (paths see there), or use --build-property.
 
 compiler.cpp.extra_flags=-mtext-section-literals

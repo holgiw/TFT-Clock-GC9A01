@@ -5,7 +5,7 @@
 
   var TX = {
     de: { base: 'Basis:', builtin: 'Standard (eingebaut)', set: 'Satz', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
-      activate: 'neues Design aktivieren', saveBtn: 'Als neues Design speichern', part: 'Zeiger', hour: 'Stunde', minute: 'Minute', second: 'Sekunde', tools: 'Werkzeug',
+      saveBtn: 'Als neues Design speichern', part: 'Zeiger', hour: 'Stunde', minute: 'Minute', second: 'Sekunde', tools: 'Werkzeug',
       pen: 'Stift', erase: 'Radierer', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse',
       ellf: 'Ellipse gef\u00fcllt', circ: 'Kreis', circf: 'Kreis gef\u00fcllt', radius: 'Radius', poly: 'Polygon', fill: 'F\u00fcllen', blur: 'Weichzeichnen', pick: 'Pipette', sym: 'Spiegeln an der Mittelachse',
       color: 'Farbe', edit: 'Bearbeiten', undo: 'R\u00fcckg\u00e4ngig', redo: 'Wiederholen', clear: 'Leeren', shift: 'Verschieben:',
@@ -39,7 +39,7 @@
       pos: 'Pixel', pivot: 'Drehpunkt',
       widthHint: 'Das aktuelle Zifferblatt zeigt diesen Zeiger nur {0} px breit - ausgegraute Spalten werden auf der Uhr abgeschnitten.' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', set: 'Set', active: 'active', reset: 'Discard changes',
-      activate: 'activate new design', saveBtn: 'Save as new design', part: 'Hand', hour: 'Hour', minute: 'Minute', second: 'Second', tools: 'Tool',
+      saveBtn: 'Save as new design', part: 'Hand', hour: 'Hour', minute: 'Minute', second: 'Second', tools: 'Tool',
       pen: 'Pen', erase: 'Eraser', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse',
       ellf: 'Filled ellipse', circ: 'Circle', circf: 'Filled circle', radius: 'Radius', poly: 'Polygon', fill: 'Fill', blur: 'Blur', pick: 'Picker', sym: 'Mirror at the centre axis',
       color: 'Colour', edit: 'Edit', undo: 'Undo', redo: 'Redo', clear: 'Clear', shift: 'Move:',
@@ -75,7 +75,6 @@
   };
   var L = TX[HD.lang] ? HD.lang : 'en';
   function t(k, a) { var s = TX[L][k] || TX.en[k] || k; return a === undefined ? s : s.replace('{0}', a); }
-  function $(id) { return document.getElementById(id); }
 
   // Zustand
   // State
@@ -84,13 +83,16 @@
   PARTS.forEach(function (p) { pix[p] = new Int32Array(N).fill(TRANSPARENT); undoSt[p] = []; redoSt[p] = []; });
   var part = 'hour', tool = 'pen', color = 0x0000, dirty = false;
   function setDirty(v) {
-    dirty = v; $('saveBtn').disabled = !v;
+    dirty = v; $('saveBtn').disabled = false;
 
-    // Das eingebaute Standard-Design liegt im Flash und laesst sich nicht ueberschreiben
-    // The built-in default design lives in flash and cannot be overwritten
+    // Beide Knoepfe immer bedienbar (auch ohne Aenderung) - nur das eingebaute Standard-Design liegt im Flash
+    // und laesst sich nicht ueberschreiben.
+
+    // Both buttons always usable (even without a change) - only the built-in default design lives in flash and
+    // cannot be overwritten.
 
     var builtin = activeBase() === 'default';
-    $('saveCurBtn').disabled = !v || builtin;
+    $('saveCurBtn').disabled = builtin;
     $('saveCurBtn').title = builtin ? t('builtinRO') : '';
   }
 
@@ -116,9 +118,6 @@
   // 0xFFFF (white) and 0x0120 (TRANSPARENT_COLOR) count as transparent on the device
 
   function fix565(v) { if (v === 0xFFFF) return 0xFFDF; if (v === 0x0120) return 0x0100; return v; }
-  function rgbOf(v) { return [((v >> 11) & 31) * 255 / 31 | 0, ((v >> 5) & 63) * 255 / 63 | 0, (v & 31) * 255 / 31 | 0]; }
-  function hexOf(v) { var c = rgbOf(v); return '#' + c.map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }
-  function cssOf(v) { var c = rgbOf(v); return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
 
   // Editor-Canvas
   // Editor canvas
@@ -145,21 +144,6 @@
   }
   applyZoom();
 
-  // Seitliche Karten bleiben beim Scrollen unter der Topbar stehen - nur solange
-  // alle drei Karten nebeneinander passen, sonst wuerden sie den Editor verdecken.
-
-  // Side cards stay put below the topbar while scrolling - only while all three
-  // cards fit side by side, otherwise they would cover the editor.
-
-  function updateSticky() {
-    var root = $('hdRoot'), cards = root.querySelectorAll('.row > .card');
-    var tb = document.querySelector('.topbar');
-    root.style.setProperty('--hdTop', ((tb ? tb.offsetHeight : 0) + 8) + 'px');
-    root.classList.remove('stickon');
-    var top = cards[0].offsetTop, oneLine = true;
-    for (var i = 1; i < cards.length; i++) if (cards[i].offsetTop !== top) oneLine = false;
-    root.classList.toggle('stickon', oneLine);
-  }
   window.addEventListener('resize', updateSticky);
   updateSticky();
   $('zoomOut').onclick = function () { setZoom(Z - 1); };
@@ -448,11 +432,6 @@
   // Werkzeugleiste
   // Toolbar
 
-  function button(parent, label, onClick, cls) {
-    var b = document.createElement('button');
-    b.type = 'button'; b.className = cls || 'tb'; b.textContent = label; b.onclick = onClick;
-    parent.appendChild(b); return b;
-  }
   var partBtn = {}, toolBtn = {};
   PARTS.forEach(function (p) { partBtn[p] = button($('partBtns'), t(p), function () { selectPart(p); }); });
   ['pen', 'erase', 'line', 'rect', 'rectf', 'ell', 'ellf', 'circ', 'circf', 'poly', 'fill', 'blur', 'pick'].forEach(function (k) {
@@ -591,19 +570,6 @@
   // BMP lesen/schreiben (Format wie encodeBmpToBytes() im Geraet)
   // BMP read/write (format like encodeBmpToBytes() on the device)
 
-  function parseBmp(ab) {
-    var dv = new DataView(ab);
-    if (dv.getUint8(0) !== 66 || dv.getUint8(1) !== 77) throw new Error('no BMP');
-    var off = dv.getUint32(10, true), w = dv.getInt32(18, true), h = dv.getInt32(22, true), bpp = dv.getUint16(28, true);
-    if ([16, 24, 32].indexOf(bpp) < 0) throw new Error(bpp + ' bpp');
-    var topDown = h < 0, ah = Math.abs(h), rs = Math.floor((w * bpp / 8 + 3) / 4) * 4;
-    return { w: w, h: ah, px: function (x, y) {
-      var p = off + (topDown ? y : ah - 1 - y) * rs + x * (bpp / 8);
-      if (bpp === 16) return dv.getUint16(p, true);
-      return ((dv.getUint8(p + 2) >> 3) << 11) | ((dv.getUint8(p + 1) >> 2) << 5) | (dv.getUint8(p) >> 3);
-    } };
-  }
-
   // Gueltige Formate (Breite HD.lw/W, Hoehe HD.lh/H) waagerecht mittig und unten
   // buendig einsetzen wie placeHand() im Geraet, andere Groessen auf W x H skalieren.
 
@@ -651,8 +617,6 @@
   // Laden und Speichern
   // Load and save
 
-  function showMsg(text, ok) { $('msg').className = ok === undefined ? '' : (ok ? 'msg ok' : 'msg err'); $('msg').textContent = text; }
-
   // Basis ist immer das aktive Design - fehlt dort ein Zeiger, nimmt die Uhr
   // den eingebauten Standard, daher hier genauso.
 
@@ -698,12 +662,12 @@
   };
 
   // Alle drei Zeiger als Satz id hochladen (vorhandene Dateien werden ueberschrieben),
-  // optional aktivieren - /sethandset laedt die Zeiger auf der Uhr neu.
+  // danach aktivieren - /sethandset laedt die Zeiger auf der Uhr neu.
 
   // Upload all three hands as set id (existing files are overwritten),
-  // optionally activate - /sethandset reloads the hands on the clock.
+  // then activate - /sethandset reloads the hands on the clock.
 
-  function saveSet(id, activate, isNew) {
+  function saveSet(id, isNew) {
     $('saveBtn').disabled = true; $('saveCurBtn').disabled = true;
     showMsg(t('saving'));
 
@@ -724,23 +688,22 @@
       });
     });
     chain.then(function () {
-      if (!activate) return;
       return fetch('/sethandset?set=' + encodeURIComponent(id), { redirect: 'manual' }).then(function () { HD.active = id; });
     }).then(function () {
       if (isNew) HD.sets.push(id);
       setDirty(false);
       showBase();
-      showMsg(isNew ? t('saved', id) + (activate ? t('activated') : '') : t('savedCur', id), true);
+      showMsg(isNew ? t('saved', id) + t('activated') : t('savedCur', id), true);
     }).catch(function (e) {
       showMsg(t('failed') + e.message, false);
       setDirty(true);
     });
   }
-  $('saveBtn').onclick = function () { saveSet(nextId(), $('activate').checked, true); };
+  $('saveBtn').onclick = function () { saveSet(nextId(), true); };
   $('saveCurBtn').onclick = function () {
     var id = activeBase();
     if (id === 'default') return;
-    saveSet(id, true, false);
+    saveSet(id, false);
   };
   window.addEventListener('beforeunload', function (ev) { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
@@ -864,22 +827,6 @@
     }
   }
 
-  // Zeigerwinkel wie renderClockFrame() im Geraet: Bahnhofsuhr (Sekunde eilt
-  // und wartet auf der 12), schleichende oder springende Minute und Sekunde.
-
-  // Hand angles like renderClockFrame() on the device: station clock (second
-  // races and waits at 12), smooth or jumping minute and second.
-
-  function handAngles(d, M) {
-    var h = d.getHours() % 12, m = d.getMinutes(), s = d.getSeconds(), ms = d.getMilliseconds(), sec;
-    M = M || {};
-    if (M.station) {
-      var el = s * 1000 + ms, fast = M.fastMs || 975, tick = Math.floor(el / fast), sub = (el % fast) / fast;
-      sec = Math.min(M.smoothSec ? tick + (1 - Math.cos(Math.PI * Math.sqrt(sub))) / 2 : tick, 60);
-    }
-    else sec = M.smoothSec ? s + ms / 1000 : s;
-    return { hour: (h + m / 60 + s / 3600) * 30, minute: (M.smoothMin && !M.station) ? (m + s / 60) * 6 : m * 6, second: sec * 6 };
-  }
   function modeText(M) {
     M = M || {};
     return t('modeAs') + ' ' + [M.station ? t('mStation') : '', M.smoothSec ? t('mSecSmooth') : t('mSecTick'),
@@ -928,7 +875,7 @@
   // Beschriftungen
   // Labels
 
-  var labels = { tActivate: 'activate', tPart: 'part', tTools: 'tools', tSym: 'sym',
+  var labels = { tPart: 'part', tTools: 'tools', tSym: 'sym',
     tColor: 'color', tStd: 'std', tPal: 'pal', tEdit: 'edit', tShift: 'shift', tCopy: 'copy', tGen: 'gen', tLen: 'len', tTipW: 'tipW',
     tBaseW: 'baseW', tTail: 'tail', tTailW: 'tailW', tDisc: 'disc', tDiscPos: 'discPos', tPreview: 'preview', tLive: 'live' };
   Object.keys(labels).forEach(function (id) { $(id).textContent = t(labels[id]); });

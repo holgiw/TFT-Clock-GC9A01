@@ -4,7 +4,8 @@
     // plus alle hochgeladenen Zifferblaetter/Zeigersaetze als TAR-Archiv.
     // TAR, weil es sich ohne Kompression Datei fuer Datei streamen laesst und
     // am PC mit jedem Packprogramm (z.B. 7-Zip) einsehbar ist.
-    // Inhalt: settings.txt (immer zuerst) + face_*.bmp + hand_set*.bmp + strip_*.bmp + font_* + stripfont_*.vlw.
+    // Inhalt: settings.txt (immer zuerst) + face_*.bmp + hand_set*.bmp + strip_*.bmp + font_* + stripfont_*.vlw,
+    // zur Fehlersuche am Ende status.txt und alle log_*.log - die werden nie wiederhergestellt.
     // Benoetigt globals.h, prefs_keys.h, declarations.h (vorher eingebunden).
 
     // Full backup: all settings (NVS namespace "clock", fully enumerated via
@@ -12,7 +13,8 @@
     // clock faces/hand sets as a TAR archive. TAR because it can be streamed
     // file by file without compression and can be inspected on a PC with any
     // archiver (e.g. 7-Zip).
-    // Contents: settings.txt (always first) + face_*.bmp + hand_set*.bmp + strip_*.bmp + font_* + stripfont_*.vlw.
+    // Contents: settings.txt (always first) + face_*.bmp + hand_set*.bmp + strip_*.bmp + font_* + stripfont_*.vlw,
+    // for troubleshooting status.txt and all log_*.log at the end - those are never restored.
     // Requires globals.h, prefs_keys.h, declarations.h (included before).
 
     // WLAN-Zugangsdaten (optional) stehen nur verschluesselt in settings.txt:
@@ -390,6 +392,98 @@
         return name.startsWith("face_") || name.startsWith("hand_set") || name.startsWith("strip_");
     }
 
+    // Logdateien fuer die Sicherung (nur zur Fehlersuche, isBackupFileName() laesst sie beim Wiederherstellen aus)
+    // Log files for the backup (troubleshooting only, isBackupFileName() skips them on restore)
+
+    void collectLogFiles(std::vector<String>& names, std::vector<size_t>& sizes) {
+        File root = LittleFS.open("/");
+        File file = root.openNextFile();
+        while (file) {
+            String name = file.name();
+            if (name.startsWith("/")) name = name.substring(1);
+            if (!file.isDirectory() && name.endsWith(".log") && name.indexOf('/') < 0 && name.length() <= 60) {
+                names.push_back(name);
+                sizes.push_back(file.size());
+            }
+            file = root.openNextFile();
+        }
+    }
+
+
+    // HTML der Statusseite als lesbarer Text: <li> wird "- ", <h3> eine Zwischenzeile, Zeilenende bei </li>, <br>
+    // und </ul>, Entities (&auml;, &deg;, &#9888; ...) werden zu UTF-8 (appendUtf8()).
+
+    // Status page HTML as readable text: <li> becomes "- ", <h3> a heading line, line end at </li>, <br> and </ul>,
+    // entities (&auml;, &deg;, &#9888; ...) become UTF-8 (appendUtf8()).
+
+    void appendUtf8(String& out, uint32_t cp) {
+        if (cp < 0x80) out += (char)cp;
+        else if (cp < 0x800) { out += (char)(0xC0 | (cp >> 6)); out += (char)(0x80 | (cp & 0x3F)); }
+        else if (cp < 0x10000) { out += (char)(0xE0 | (cp >> 12)); out += (char)(0x80 | ((cp >> 6) & 0x3F)); out += (char)(0x80 | (cp & 0x3F)); }
+        else { out += (char)(0xF0 | (cp >> 18)); out += (char)(0x80 | ((cp >> 12) & 0x3F)); out += (char)(0x80 | ((cp >> 6) & 0x3F)); out += (char)(0x80 | (cp & 0x3F)); }
+    }
+
+    String htmlToText(const String& html) {
+        static const struct { const char* name; uint16_t cp; } entities[] = {
+            { "amp", '&' }, { "lt", '<' }, { "gt", '>' }, { "quot", '"' }, { "apos", '\'' }, { "nbsp", ' ' },
+            { "deg", 0xB0 }, { "auml", 0xE4 }, { "ouml", 0xF6 }, { "uuml", 0xFC }, { "Auml", 0xC4 }, { "Ouml", 0xD6 },
+            { "Uuml", 0xDC }, { "szlig", 0xDF }, { "times", 0xD7 }, { "hellip", 0x2026 }, { "ndash", 0x2013 },
+        };
+        String out;
+        out.reserve(html.length());
+        for (int i = 0; i < (int)html.length(); i++) {
+            char c = html[i];
+            if (c == '<') {
+                int end = html.indexOf('>', i);
+                if (end < 0) break;
+                String tag = html.substring(i + 1, end);
+                tag.toLowerCase();
+                if (tag == "li" || tag.startsWith("li ")) out += "- ";
+                else if (tag == "h3") {
+                    if (out.endsWith("- ")) out.remove(out.length() - 2);
+                    out += "\n";
+                }
+                else if ((tag == "/li" || tag.startsWith("br") || tag == "/br" || tag == "/ul" || tag == "/h3") && !out.endsWith("\n")) out += "\n";
+                i = end;
+                continue;
+            }
+            if (c == '&') {
+                int end = html.indexOf(';', i);
+                if (end > i + 1 && end - i <= 9) {
+                    String ent = html.substring(i + 1, end);
+                    long cp = -1;
+                    if (ent.startsWith("#x") || ent.startsWith("#X")) cp = strtol(ent.c_str() + 2, nullptr, 16);
+                    else if (ent.startsWith("#")) cp = ent.substring(1).toInt();
+                    else {
+                        for (const auto& e : entities) {
+                            if (ent == e.name) { cp = e.cp; break; }
+                        }
+                    }
+                    if (cp > 0) {
+                        appendUtf8(out, (uint32_t)cp);
+                        i = end;
+                        continue;
+                    }
+                }
+            }
+            out += c;
+        }
+        return out;
+    }
+
+
+    // status.txt: Kopfzeile mit Uhr, Displaytyp und Zeitpunkt, dann die Statusseite als Text
+    // status.txt: header line with clock, display type and time, then the status page as text
+
+    String buildStatusText() {
+        char now[24] = "";
+        if (timeinfo.tm_year >= 100) strftime(now, sizeof(now), "%Y-%m-%d %H:%M:%S", &timeinfo);
+        String text = "uhr4 status - " + String(hostname) + " - " + displayChoiceName(displayType, useBacklight) + " - " + now + "\n\n";
+        String chunk;
+        generateStatusItems(chunk, [&text](String& part) { text += htmlToText(part); part = ""; });
+        return text;
+    }
+
     void collectBackupFiles(std::vector<String>& names, std::vector<size_t>& sizes) {
         File root = LittleFS.open("/");
         File file = root.openNextFile();
@@ -462,8 +556,19 @@
         std::vector<size_t> sizes;
         collectBackupFiles(names, sizes);
 
+        // Zur Fehlersuche: gepufferte Logzeilen zuerst schreiben, dann Statusseite und Logs ans Ende
+        // For troubleshooting: write buffered log lines first, then status page and logs at the end
+
+        flushLogBuffer();
+        String status = buildStatusText();
+        std::vector<String> logNames;
+        std::vector<size_t> logSizes;
+        collectLogFiles(logNames, logSizes);
+
         size_t total = 512 + settings.length() + tarPadding(settings.length()) + 1024;
         for (size_t i = 0; i < names.size(); i++) total += 512 + sizes[i] + tarPadding(sizes[i]);
+        total += 512 + status.length() + tarPadding(status.length());
+        for (size_t i = 0; i < logNames.size(); i++) total += 512 + logSizes[i] + tarPadding(logSizes[i]);
 
         // Dateiname mit Hostname, Displaytyp (wie in flashESP, z.B. GC9A01_WITH_BACKLIGHT) und Datum
         // File name with host name, display type (as in flashESP, e.g. GC9A01_WITH_BACKLIGHT) and date
@@ -486,10 +591,9 @@
         webserver.sendContent((const char*)zeros, tarPadding(settings.length()));
 
         uint8_t buf[1024];
-        for (size_t i = 0; i < names.size(); i++) {
-            File f = LittleFS.open("/" + names[i], "r");
-            size_t size = sizes[i];
-            buildTarHeader(header, names[i], size);
+        auto sendFile = [&](const String& name, size_t size) {
+            File f = LittleFS.open("/" + name, "r");
+            buildTarHeader(header, name, size);
             webserver.sendContent((const char*)header, 512);
             size_t sent = 0;
             while (sent < size) {
@@ -511,11 +615,19 @@
             }
             if (f) f.close();
             if (tarPadding(size)) webserver.sendContent((const char*)zeros, tarPadding(size));
-        }
+        };
+        for (size_t i = 0; i < names.size(); i++) sendFile(names[i], sizes[i]);
+
+        buildTarHeader(header, "status.txt", status.length());
+        webserver.sendContent((const char*)header, 512);
+        webserver.sendContent(status.c_str(), status.length());
+        if (tarPadding(status.length())) webserver.sendContent((const char*)zeros, tarPadding(status.length()));
+        for (size_t i = 0; i < logNames.size(); i++) sendFile(logNames[i], logSizes[i]);
+
         webserver.sendContent((const char*)zeros, 512);
         webserver.sendContent((const char*)zeros, 512);
 
-        DEBUG_PRINTLN("[Backup] Download: " + String(names.size()) + " files, " + String(total) + " bytes (from " + webserver.client().remoteIP().toString() + ")");
+        DEBUG_PRINTLN("[Backup] Download: " + String(names.size()) + " files + status + " + String(logNames.size()) + " logs, " + String(total) + " bytes (from " + webserver.client().remoteIP().toString() + ")");
     }
 
 
@@ -928,8 +1040,8 @@
             s.restoredFiles.push_back(name);
         }
 
-        // Alles andere (Verzeichnisse, fremde Dateien) wird uebersprungen
-        // Everything else (directories, foreign files) is skipped
+        // Alles andere (Verzeichnisse, status.txt, Logdateien, fremde Dateien) wird uebersprungen
+        // Everything else (directories, status.txt, log files, foreign files) is skipped
 
         s.phase = (s.remaining > 0) ? BackupRestoreState::DATA
                 : (s.padding > 0) ? BackupRestoreState::PAD

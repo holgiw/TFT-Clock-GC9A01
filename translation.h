@@ -332,6 +332,7 @@
         { "Backup", "Sicherung" },
         { "Create Backup", "Sicherung erstellen" },
         { "Saves all settings, presets, clock faces and hand sets in one file", "Speichert alle Einstellungen, Presets, Zifferbl&auml;tter und Zeigers&auml;tze in einer Datei" },
+        { "For troubleshooting, the backup also contains the status page and all log files - they are not restored", "Zur Fehlersuche enth&auml;lt die Sicherung au&szlig;erdem die Statusseite und alle Logdateien - sie werden nicht wiederhergestellt" },
         { "Include WiFi credentials (network names, passwords, hostname)", "WLAN-Zugangsdaten einschlie&szlig;en (Netzwerknamen, Passw&ouml;rter, Hostname)" },
         { "Saving the WiFi credentials is not secure: they are encrypted in the file, but with a key that is the same in every uhr4 firmware - anyone with the firmware or its source code can decrypt them. Keep the file safe and do not pass it on", "Das Sichern der WLAN-Zugangsdaten ist nicht sicher: Sie stehen zwar verschl&uuml;sselt in der Datei, aber mit einem Schl&uuml;ssel, der in jeder uhr4-Firmware gleich ist - wer Firmware oder Quelltext hat, kann sie entschl&uuml;sseln. Datei sicher aufbewahren und nicht weitergeben" },
         { "Restore WiFi credentials (network names, passwords, hostname)", "WLAN-Zugangsdaten wiederherstellen (Netzwerknamen, Passw&ouml;rter, Hostname)" },

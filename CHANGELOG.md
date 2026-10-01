@@ -61,6 +61,27 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- `CONTRIBUTING.md` zweisprachig wie die übrigen Anleitungen: erst Deutsch, dann Englisch, oben der Hinweis auf
+  die englische Fassung.
+- Zifferblatt- und Zeiger-Designer: „neues Zifferblatt/Design aktivieren“ entfällt – Neues wird beim Speichern immer
+  aktiviert. Im Zifferblatt-Designer stehen Name und „Als neues Zifferblatt speichern“ zusammen in einer Zeile. Beide
+  Speichern-Knöpfe sind sofort bedienbar, auch ohne Änderung (nur das eingebaute Zifferblatt bzw. Design lässt sich
+  nicht überschreiben).
+- `build_defs.h` entfernt: die Build-Version (Statusseite, Kopfzeile) liest jetzt `DateTime` aus RTClib direkt aus
+  `__DATE__`/`__TIME__`, wie schon beim Stellen der RTC – gleiches Format, 77 Zeilen Makros weniger.
+- `uhr4.ino` nennt oben die nötigen Bibliotheken (LovyanGFX 1.2.31, RTClib 2.1.4 mit Adafruit BusIO 1.17.4), die
+  Board-Einstellungen und den Linker-Schalter `-mtext-section-literals` samt Hinweis für die Arduino IDE
+  (`platform.local.txt`, da sie `board.txt` nicht liest). Die fertige `platform.local.txt` liegt im Projektordner,
+  mit den Zielpfaden für Windows, Linux und macOS.
+- Doppelten Code zusammengelegt (weniger Flash, eine Stelle zum Pflegen): die nicht mehr verlinkte Seite
+  `/brightness` entfernt (leitet auf den Tab Helligkeit weiter), Checkbox-Zeilen und ⓘ-Hinweise über gemeinsame
+  Hilfsfunktionen, ein RLE-Leser für Vorschau und Download, ein Upload-Handler für Preset-Import und
+  -Zusammenführen, gemeinsame Designer-Funktionen in `web/designer_common.js` (`/designer.js`), WPS-Zugangsdaten
+  und Zeitzonen-Prüfung ohne doppelte Schleifen.
+- Sicherung: enthält zur Fehlersuche zusätzlich die Statusseite als Text (`status.txt`) und alle Logdateien
+  (`log_*.log`, vorher wird der Log-Puffer geschrieben). Beim Wiederherstellen werden sie übersprungen. Die
+  Statusseite und der Tab Status verwenden dafür jetzt denselben Code (vorher doppelt, rund 260 Zeilen); der Tab
+  zeigt dadurch auch die Zeile zum eigenen NTP-Server.
 - Zifferblatt- und Zeiger-Designer werden komprimiert ausgeliefert: CSS und Skript liegen gzip-komprimiert in der
   Firmware (der Browser entpackt, die Uhr rechnet nichts), das spart rund 90 KB Flash – frei sind jetzt etwa
   140 KB statt 49 KB. Die Designer laden schneller und bleiben im Browser zwischengespeichert. Quellen in `web/`,
@@ -261,6 +282,25 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- `CONTRIBUTING.md` bilingual like the other guides: German first, then English, with the note about the English
+  version at the top.
+- Clock face and hand designer: "activate new clock face/design" is gone – new ones are always activated when saved. In
+  the clock face designer, name and "Save as new clock face" stand together in one line. Both save buttons are usable
+  right away, even without a change (only the built-in clock face or design cannot be overwritten).
+- Removed `build_defs.h`: the build version (status page, top bar) is now read by RTClib's `DateTime` directly from
+  `__DATE__`/`__TIME__`, as already done when setting the RTC – same format, 77 lines of macros less.
+- `uhr4.ino` lists the required libraries at the top (LovyanGFX 1.2.31, RTClib 2.1.4 with Adafruit BusIO 1.17.4),
+  the board settings and the linker flag `-mtext-section-literals` including the note for the Arduino IDE
+  (`platform.local.txt`, since it does not read `board.txt`). The ready-made `platform.local.txt` is in the project
+  folder, with the target paths for Windows, Linux and macOS.
+- Merged duplicated code (less flash, one place to maintain): removed the no longer linked page `/brightness`
+  (redirects to the Brightness tab), checkbox rows and ⓘ notes via shared helpers, one RLE reader for preview and
+  download, one upload handler for preset import and merge, shared designer functions in `web/designer_common.js`
+  (`/designer.js`), WPS credentials and time zone check without duplicated loops.
+- Backup: for troubleshooting it additionally contains the status page as text (`status.txt`) and all log files
+  (`log_*.log`, the log buffer is written first). They are skipped on restore. The status page and the Status tab
+  now share the same code for this (previously duplicated, about 260 lines); the tab thereby also shows the line
+  about the own NTP server.
 - Clock face and hand designer are served compressed: CSS and script are stored gzip-compressed in the firmware
   (the browser unpacks, the clock computes nothing), which saves about 90 KB of flash – about 140 KB are free now
   instead of 49 KB. The designers load faster and stay cached in the browser. Sources in `web/`,

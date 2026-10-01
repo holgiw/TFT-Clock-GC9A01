@@ -4570,6 +4570,60 @@
     }
 
 
+    // Liest ein RLEB-Zifferblatt Pixel fuer Pixel aus der Datei (ab der Position nach dem Kopf), mit kleinem
+    // Lesepuffer statt Vollpuffer. next() liefert false am Ende oder bei einem Lesefehler.
+
+    // Reads an RLEB clock face pixel by pixel from the file (from the position after the header), with a small
+    // read buffer instead of a full buffer. next() returns false at the end or on a read error.
+
+    struct RleFileReader {
+        File& file;
+        size_t remaining;
+        uint8_t buf[512];
+        size_t pos = 0, len = 0;
+        size_t runLeft = 0;
+        bool runLiteral = false;
+        uint16_t runPx = 0;
+
+        RleFileReader(File& f, size_t compressedSize) : file(f), remaining(compressedSize) {}
+
+        bool byte(uint8_t& out) {
+            if (pos >= len) {
+                if (remaining == 0) return false;
+                len = file.read(buf, remaining < sizeof(buf) ? remaining : sizeof(buf));
+                pos = 0;
+                if (len == 0) return false;
+                remaining -= len;
+            }
+            out = buf[pos++];
+            return true;
+        }
+
+        bool next(uint16_t& px) {
+            uint8_t b0, b1;
+            if (runLeft == 0) {
+                uint8_t ctrl;
+                if (!byte(ctrl)) return false;
+                runLiteral = ctrl <= 127;
+                runLeft = runLiteral ? ctrl + 1 : 257 - ctrl;
+                if (!runLiteral) {
+                    if (!byte(b0) || !byte(b1)) return false;
+                    runPx = b0 | (b1 << 8);
+                }
+            }
+            if (runLiteral) {
+                if (!byte(b0) || !byte(b1)) return false;
+                px = b0 | (b1 << 8);
+            }
+            else {
+                px = runPx;
+            }
+            runLeft--;
+            return true;
+        }
+    };
+
+
     // Liest eine BMP-Datei (16 bpp RGB565), skaliert sie in-memory auf outW x outH
     // herunter und sendet sie DIREKT als HTTP-Antwort (keine Flash-Kopie) - schnelle
     // <img>-Vorschau statt der vollen Aufloesung (z.B. 240x240=~115 KB) je Seitenaufruf.
@@ -4696,24 +4750,7 @@
             // downsampling - no full ~115 KB buffer needed
             // (RLE doesn't allow jumping directly to individual rows).
 
-            const size_t IN_CHUNK = 512;
-            uint8_t inBuf[IN_CHUNK];
-            size_t inPos = 0, inLen = 0, consumedTotal = 0;
-
-            auto readByte = [&](uint8_t& out) -> bool {
-                if (consumedTotal >= compressedSize) return false;
-                if (inPos >= inLen) {
-                    size_t remaining = compressedSize - consumedTotal;
-                    size_t toRead = remaining < IN_CHUNK ? remaining : IN_CHUNK;
-                    inLen = f.read(inBuf, toRead);
-                    inPos = 0;
-                    if (inLen == 0) return false;
-                }
-                out = inBuf[inPos++];
-                consumedTotal++;
-                return true;
-                };
-
+            RleFileReader rle(f, compressedSize);
             uint16_t* srcRow = new (std::nothrow) uint16_t[inW];
             if (!srcRow) {
 
@@ -4736,58 +4773,29 @@
             int nextNeededSrcRow = int(nextOutRow * scaleY);
             size_t written = 0;
             const size_t total = (size_t)inW * inH;
-            bool ok = true;
+            uint16_t px;
 
-            while (written < total && nextOutRow < outH && ok) {
-                uint8_t ctrl;
-                if (!readByte(ctrl)) { ok = false; break; }
-
-                bool literal = ctrl <= 127;
-                size_t len;
-                uint16_t litPx = 0;
-
-                if (literal) {
-                    len = ctrl + 1;
+            while (written < total && nextOutRow < outH && rle.next(px)) {
+                if (srcRowIdx == nextNeededSrcRow) {
+                    srcRow[srcCol] = px;
                 }
-                else {
-                    len = 257 - ctrl;
-                    uint8_t b0, b1;
-                    if (!readByte(b0) || !readByte(b1)) { ok = false; break; }
-                    litPx = b0 | (b1 << 8);
-                }
+                srcCol++;
+                written++;
 
-                for (size_t k = 0; k < len && written < total; k++) {
-                    uint16_t px;
-                    if (literal) {
-                        uint8_t b0, b1;
-                        if (!readByte(b0) || !readByte(b1)) { ok = false; break; }
-                        px = b0 | (b1 << 8);
-                    }
-                    else {
-                        px = litPx;
-                    }
-
+                if (srcCol >= inW) {
                     if (srcRowIdx == nextNeededSrcRow) {
-                        srcRow[srcCol] = px;
-                    }
-                    srcCol++;
-                    written++;
-
-                    if (srcCol >= inW) {
-                        if (srcRowIdx == nextNeededSrcRow) {
-                            uint8_t* outRow = outBmp + 66 + nextOutRow * outRowSize;
-                            for (int x = 0; x < outW; x++) {
-                                int sx = int(x * scaleX);
-                                uint16_t p = srcRow[sx];
-                                outRow[x * 2] = p & 0xFF;
-                                outRow[x * 2 + 1] = p >> 8;
-                            }
-                            nextOutRow++;
-                            nextNeededSrcRow = int(nextOutRow * scaleY);
+                        uint8_t* outRow = outBmp + 66 + nextOutRow * outRowSize;
+                        for (int x = 0; x < outW; x++) {
+                            int sx = int(x * scaleX);
+                            uint16_t p = srcRow[sx];
+                            outRow[x * 2] = p & 0xFF;
+                            outRow[x * 2 + 1] = p >> 8;
                         }
-                        srcCol = 0;
-                        srcRowIdx++;
+                        nextOutRow++;
+                        nextNeededSrcRow = int(nextOutRow * scaleY);
                     }
+                    srcCol = 0;
+                    srcRowIdx++;
                 }
             }
 
@@ -4912,29 +4920,7 @@
         webserver.send(200, contentType, "");
         webserver.sendContent_P((const char*)bmpHeader, 66);
 
-        // Kleiner Lese-Puffer fuer die komprimierten Eingabedaten (aus der
-        // Datei nachgefuellt, statt sie komplett vorab einzulesen).
-
-        // Small read buffer for the compressed input data (refilled
-        // from the file instead of reading it all in advance).
-
-        const size_t IN_CHUNK = 512;
-        uint8_t inBuf[IN_CHUNK];
-        size_t inPos = 0, inLen = 0, consumedTotal = 0;
-
-        auto readByte = [&](uint8_t& out) -> bool {
-            if (consumedTotal >= compressedSize) return false;
-            if (inPos >= inLen) {
-                size_t remaining = compressedSize - consumedTotal;
-                size_t toRead = remaining < IN_CHUNK ? remaining : IN_CHUNK;
-                inLen = f.read(inBuf, toRead);
-                inPos = 0;
-                if (inLen == 0) return false;
-            }
-            out = inBuf[inPos++];
-            consumedTotal++;
-            return true;
-            };
+        RleFileReader rle(f, compressedSize);
 
         // Antwort laeuft schon chunked, ein 500er ist also nicht mehr moeglich -
         // stattdessen Uebertragung sauber beenden und false zurueckgeben.
@@ -4953,48 +4939,19 @@
         int col = 0, row = 0;
         size_t written = 0;
         const size_t total = (size_t)w * h;
-        bool ok = true;
+        uint16_t px;
 
-        while (written < total && row < h && ok) {
-            uint8_t ctrl;
-            if (!readByte(ctrl)) { ok = false; break; }
+        while (written < total && row < h && rle.next(px)) {
+            rowBuf[col * 2] = px & 0xFF;
+            rowBuf[col * 2 + 1] = px >> 8;
+            col++;
+            written++;
 
-            bool literal = ctrl <= 127;
-            size_t len;
-            uint16_t litPx = 0;
-
-            if (literal) {
-                len = ctrl + 1;
-            }
-            else {
-                len = 257 - ctrl;
-                uint8_t b0, b1;
-                if (!readByte(b0) || !readByte(b1)) { ok = false; break; }
-                litPx = b0 | (b1 << 8);
-            }
-
-            for (size_t k = 0; k < len && written < total; k++) {
-                uint16_t px;
-                if (literal) {
-                    uint8_t b0, b1;
-                    if (!readByte(b0) || !readByte(b1)) { ok = false; break; }
-                    px = b0 | (b1 << 8);
-                }
-                else {
-                    px = litPx;
-                }
-
-                rowBuf[col * 2] = px & 0xFF;
-                rowBuf[col * 2 + 1] = px >> 8;
-                col++;
-                written++;
-
-                if (col >= w) {
-                    webserver.sendContent_P((const char*)rowBuf, rowSize);
-                    memset(rowBuf, 0, rowSize);
-                    col = 0;
-                    row++;
-                }
+            if (col >= w) {
+                webserver.sendContent_P((const char*)rowBuf, rowSize);
+                memset(rowBuf, 0, rowSize);
+                col = 0;
+                row++;
             }
         }
 
@@ -5016,7 +4973,7 @@
         webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
                                    // signal the end of the chunked transfer
 
-        return ok && written >= total;
+        return written >= total;
     }
 
 

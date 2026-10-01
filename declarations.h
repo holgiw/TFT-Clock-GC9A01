@@ -21,6 +21,7 @@
     void migrateWifiPasswords() ;
     String backupHex(const uint8_t* data, size_t len) ;
     int backupUnhex(const String& hex, uint8_t* out, size_t maxLen) ;
+    bool readWpsCredentials(String& ssid, String& pass) ;
     int saveWpsCredentials(const String& ssid, const String& pass) ;
     void onWpsEvent(WiFiEvent_t event) ;
     void restorePreviousWpsConnection() ;
@@ -255,6 +256,10 @@
 
     // backup.h: Komplettsicherung / full backup
 
+    void collectLogFiles(std::vector<String>& names, std::vector<size_t>& sizes) ;
+    void appendUtf8(String& out, uint32_t cp) ;
+    String htmlToText(const String& html) ;
+    String buildStatusText() ;
     void streamBackup(bool includeWifi) ;
     void backupWipe(String& s) ;
     void handleBackupRestoreUpload() ;
@@ -305,12 +310,15 @@
     String escapeJsonText(const String& text) ;
     String dayWindowText() ;
     String generateStorageInfo(size_t used, size_t total, bool forceEnglish = false) ;
+    String infoTip(const String& text) ;
+    String checkboxRow(const char* name, bool checked, const String& label, const String& tip, const char* id = "") ;
     String generateFlashMessage() ;
     String generateNavigation() ;
     String currentPreviewSignature() ;
     String generateSettingsTabNav() ;
     String generateLanguageSelector() ;
     String resetReasonToString(esp_reset_reason_t reason) ;
+    void generateStatusItems(String& chunk, std::function<void(String&)> flush) ;
     String rtcStatusToString(int status) ;
     String formatDurationMs(unsigned long ms) ;
     bool naturalLess(const String& a, const String& b) ;
@@ -322,6 +330,7 @@
     void setupWebServer() ;
     void handleFileUpload() ;
     bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) ;
+    void handlePresetUpload(bool skipExisting, const char* tag) ;
     void handlePresetImportUpload() ;
     void handlePresetMergeUpload() ;
 

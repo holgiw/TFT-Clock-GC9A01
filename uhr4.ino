@@ -1,15 +1,36 @@
-    // howl-clock@gmx.de - Stationsuhr. ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01, LovyanGFX
-    // 1.2.30. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // howl-clock@gmx.de - Stationsuhr uhr4: ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT
+    // GC9A01/GC9D01/ILI9341. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
-    // howl-clock@gmx.de - station clock. ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT GC9A01/GC9D01,
-    // LovyanGFX 1.2.30. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // Bibliotheken (Bibliotheksverwalter): LovyanGFX 1.2.31, RTClib 2.1.4 mit Adafruit BusIO 1.17.4. WiFi,
+    // WebServer, LittleFS, Preferences, DNSServer, ESPmDNS und Wire bringt der Core "esp32" 3.3.12 von
+    // Espressif mit.
+
+    // Board: "LOLIN S2 PICO", Partition Scheme "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"
+    // (Vorgabe); PSRAM ist bei diesem Board immer an.
+
+    // Linker braucht -mtext-section-literals (sonst "dangerous relocation: l32r"). Visual Micro liest
+    // board.txt. Arduino IDE: platform.local.txt aus dem Projektordner nach
+    // %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\ kopieren (Linux/macOS: siehe Datei).
+
+    // howl-clock@gmx.de - station clock uhr4: ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT
+    // GC9A01/GC9D01/ILI9341. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+
+    // Libraries (Library Manager): LovyanGFX 1.2.31, RTClib 2.1.4 with Adafruit BusIO 1.17.4. WiFi,
+    // WebServer, LittleFS, Preferences, DNSServer, ESPmDNS and Wire come with the "esp32" core 3.3.12 by
+    // Espressif.
+
+    // Board: "LOLIN S2 PICO", Partition Scheme "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"
+    // (default); PSRAM is always on for this board.
+
+    // The linker needs -mtext-section-literals (else "dangerous relocation: l32r"). Visual Micro reads
+    // board.txt. Arduino IDE: copy platform.local.txt from the project folder to
+    // %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\ (Linux/macOS: see the file).
 
     
 #include <WiFi.h>
 #include <WebServer.h>
 
 #include "prefs_keys.h"
-#include "build_defs.h"
 
 #include "config.h"        // Board-/Display-Auswahl, Pins, Timing-Makros
                            // board/display selection, pins, timing macros
@@ -68,6 +89,8 @@
                                // dial, hands, brightness
 #include "presets_manager.h"   // Presets laden/speichern/wechseln
                                // load/save/switch presets
+#include "designer_common_js.h" // gemeinsame Designer-Funktionen (erzeugt aus web/, gzip)
+                                 // shared designer functions (generated from web/, gzip)
 #include "hand_designer_html.h" // Zeiger-Designer-Seite (erzeugt aus web/, CSS/JS gzip)
                                 // hand designer page (generated from web/, CSS/JS gzip)
 #include "face_designer_html.h" // Zifferblatt-Designer-Seite (erzeugt aus web/, CSS/JS gzip)
@@ -474,7 +497,12 @@ void setup() {
 
         loadDisplayType();
 
-        snprintf(version, sizeof(version), "%d-%02d-%02d %02d:%02d:%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
+        // Build-Version aus der Kompilierzeit - DateTime (RTClib) liest __DATE__ ("Oct  1 2026") und __TIME__
+        // Build version from the compile time - DateTime (RTClib) parses __DATE__ ("Oct  1 2026") and __TIME__
+
+        DateTime built(__DATE__, __TIME__);
+        snprintf(version, sizeof(version), "%04d-%02d-%02d %02d:%02d:%02d",
+                 built.year(), built.month(), built.day(), built.hour(), built.minute(), built.second());
 
         DEBUG_PRINTLN("[SETUP] start");
         DEBUG_PRINTLN(String("[SETUP] Build-Version: ") + version);
@@ -1147,21 +1175,8 @@ void setup() {
                 // WPS succeeded: save the credentials and reboot. esp_wifi_get_config() sometimes returns
                 // empty data right after the event (bug #10339/#11705) - so retry with a short delay.
 
-                String newSsid = "";
-                String newPass = "";
-                for (int wpsReadAttempt = 0; wpsReadAttempt < 20 && newSsid == ""; wpsReadAttempt++) {
-                    wifi_config_t wpsResultConfig;
-                    if (esp_wifi_get_config(WIFI_IF_STA, &wpsResultConfig) == ESP_OK) {
-                        char ssidBuf[33] = { 0 };
-                        char passBuf[65] = { 0 };
-                        memcpy(ssidBuf, wpsResultConfig.sta.ssid, sizeof(wpsResultConfig.sta.ssid));
-                        memcpy(passBuf, wpsResultConfig.sta.password, sizeof(wpsResultConfig.sta.password));
-                        newSsid = String(ssidBuf);
-                        newPass = String(passBuf);
-                    }
-                    if (newSsid == "") delay(100); // kurz warten, dann erneut versuchen
-                                                   // wait briefly, then retry
-                }
+                String newSsid, newPass;
+                readWpsCredentials(newSsid, newPass);
                 DEBUG_PRINTLN("[WPS] Captured SSID '" + newSsid + "', password length: " + String(newPass.length()));
 
                 if (newSsid != "") {

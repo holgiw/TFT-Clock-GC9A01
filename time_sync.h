@@ -173,6 +173,23 @@
             return (i - start) >= 3;
         };
 
+        // Optionale Minuten und Sekunden ":mm[:ss]" (je 0-59) nach den Stunden
+        // Optional minutes and seconds ":mm[:ss]" (0-59 each) after the hours
+
+        auto parseMinSec = [&](int& i) -> bool {
+            for (int part = 0; part < 2; part++) {
+                if (i >= len || tz[i] != ':') break;
+                int save = i;
+                i++;
+                int mstart = i;
+                while (i < len && isDigit(tz[i])) i++;
+                if (i == mstart) { i = save; break; }
+                int mm = tz.substring(mstart, i).toInt();
+                if (mm < 0 || mm > 59) return false;
+            }
+            return true;
+        };
+
         // Offset: [+-]hh[:mm[:ss]], hh 0-24, mm/ss 0-59 falls vorhanden.
         // required=false: Abwesenheit ist ok (z.B. optionaler DST-Offset).
 
@@ -187,19 +204,7 @@
             if (i == digitsStart) { i = start; return !required; }
             int hh = tz.substring(digitsStart, i).toInt();
             if (hh < 0 || hh > 24) return false;
-            for (int part = 0; part < 2; part++) {
-                if (i < len && tz[i] == ':') {
-                    int save = i;
-                    i++;
-                    int mstart = i;
-                    while (i < len && isDigit(tz[i])) i++;
-                    if (i == mstart) { i = save; break; }
-                    int mm = tz.substring(mstart, i).toInt();
-                    if (mm < 0 || mm > 59) return false;
-                }
-                else break;
-            }
-            return true;
+            return parseMinSec(i);
         };
 
         // Datum einer Regel: Jn (1-365), n (0-365) oder Mm.w.d (m 1-12, w
@@ -266,18 +271,7 @@
                 if (i == digitsStart) return false;
                 int hh = tz.substring(digitsStart, i).toInt();
                 if (hh < -167 || hh > 167) return false;
-                for (int part = 0; part < 2; part++) {
-                    if (i < len && tz[i] == ':') {
-                        int save = i;
-                        i++;
-                        int mstart = i;
-                        while (i < len && isDigit(tz[i])) i++;
-                        if (i == mstart) { i = save; break; }
-                        int mm = tz.substring(mstart, i).toInt();
-                        if (mm < 0 || mm > 59) return false;
-                    }
-                    else break;
-                }
+                return parseMinSec(i);
             }
             return true;
         };

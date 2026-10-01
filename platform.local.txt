@@ -1,0 +1,23 @@
+# Arduino IDE / arduino-cli: Linker-Schalter fuer uhr4. Im Projektordner wirkt die Datei nicht - in den Ordner
+# des ESP32-Cores kopieren (neben dessen platform.txt), denn die Arduino IDE liest board.txt im Projekt nicht:
+#   Windows: %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\platform.local.txt
+#   Linux:   ~/.arduino15/packages/esp32/hardware/esp32/3.3.12/platform.local.txt
+#   macOS:   ~/Library/Arduino15/packages/esp32/hardware/esp32/3.3.12/platform.local.txt
+# Nach einem Core-Update (neuer Versionsordner) erneut kopieren, danach die IDE neu starten. Gilt dann fuer
+# alle ESP32-Sketche, schadet ihnen aber nicht. Visual Micro braucht die Datei nicht (liest board.txt).
+#
+# Arduino IDE / arduino-cli: linker flag for uhr4. In the project folder the file has no effect - copy it into
+# the ESP32 core's folder (next to its platform.txt), since the Arduino IDE does not read the project's
+# board.txt:
+#   Windows: %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\platform.local.txt
+#   Linux:   ~/.arduino15/packages/esp32/hardware/esp32/3.3.12/platform.local.txt
+#   macOS:   ~/Library/Arduino15/packages/esp32/hardware/esp32/3.3.12/platform.local.txt
+# Copy it again after a core update (new version folder), then restart the IDE. It then applies to all ESP32
+# sketches, but does them no harm. Visual Micro does not need the file (reads board.txt).
+#
+# -mtext-section-literals: Literale direkt neben jede Funktion legen - ohne meldet der Linker bei der grossen
+# Uebersetzungseinheit "dangerous relocation: l32r: literal target out of range".
+# -mtext-section-literals: place literals right next to each function - without it the linker reports
+# "dangerous relocation: l32r: literal target out of range" for the large translation unit.
+
+compiler.cpp.extra_flags=-mtext-section-literals

@@ -948,6 +948,33 @@
     }
 
 
+    // ⓘ-Hinweis mit Erklaerung als Tooltip (title) - der Punkt am Satzende kommt hier dazu
+    // ⓘ note with an explanation as tooltip (title) - the full stop at the end is added here
+
+    String infoTip(const String& text) {
+        return "<span title='" + text + ".' style='cursor:help;'>&#9432;</span>";
+    }
+
+
+    // Checkbox-Zeile der Einstellungen: Haken, Beschriftung und ⓘ-Hinweis; id optional (z.B. fuer Skripte)
+    // Settings checkbox row: tick, label and ⓘ note; id optional (e.g. for scripts)
+
+    String checkboxRow(const char* name, bool checked, const String& label, const String& tip, const char* id) {
+        String html = "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='";
+        html += name;
+        html += "'";
+        if (*id) {
+            html += " id='";
+            html += id;
+            html += "'";
+        }
+        html += " value='1' ";
+        html += checked ? "checked" : "";
+        html += " style='width:auto;margin:0;'>" + label + " " + infoTip(tip) + "</div><br>";
+        return html;
+    }
+
+
     // Zeigt nach einer Weiterleitung eine einheitliche Meldung (translate()-Schluessel): "msg" Erfolg, blendet
     // sich nach 4 s aus - "warn" Hinweis und "err" Fehler bleiben stehen.
 
@@ -1452,29 +1479,29 @@
         if (showBacklight || photoresistorFound) {
             html += "<table style='margin:auto;text-align:left;'>";
             if (showBacklight) {
-                html += "<tr><td colspan='2'><input type='hidden' name='useBacklightField' value='1'><label><input type='checkbox' name='useBacklight' value='1' " + String(useBacklight ? "checked" : "") + "> " + translate("Backlight control (pin 3)") + "</label> <span title='" + translate("Dims the display via the backlight PWM on pin 3 instead of darkening the pixels - only if the backlight is wired to pin 3 (always on GC9D01). Switching resets min. brightness and thresholds to the matching defaults") + ".' style='cursor:help;'>&#9432;</span></td></tr>";
+                html += "<tr><td colspan='2'><input type='hidden' name='useBacklightField' value='1'><label><input type='checkbox' name='useBacklight' value='1' " + String(useBacklight ? "checked" : "") + "> " + translate("Backlight control (pin 3)") + "</label> " + infoTip(translate("Dims the display via the backlight PWM on pin 3 instead of darkening the pixels - only if the backlight is wired to pin 3 (always on GC9D01). Switching resets min. brightness and thresholds to the matching defaults")) + "</td></tr>";
             }
             if (photoresistorFound) {
-                html += "<tr><td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> <span title='" + translate("Automatically adjusts brightness based on ambient light measured by the photoresistor") + ".' style='cursor:help;'>&#9432;</span></td>";
-                html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> <span title='" + translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter") + ".' style='cursor:help;'>&#9432;</span></td></tr>";
+                html += "<tr><td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> " + infoTip(translate("Automatically adjusts brightness based on ambient light measured by the photoresistor")) + "</td>";
+                html += "<td><label><input type='checkbox' name='adcInverted' value='1' " + String(adcInverted ? "checked" : "") + "> " + translate("Invert ADC Reading") + "</label> " + infoTip(translate("Reverses the brightness sensor reading - use if the display gets darker in bright light instead of brighter")) + "</td></tr>";
             }
             html += "</table><hr><br>";
         }
 
-        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> <span title='" + translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div>";
-        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> <span title='" + translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness from (hour, 0-23)") + ":</label><input name = 'brightStart' type = 'number' min = '0' max = '23' value = '" + String(brightStartHour) + "' style='width:70px;'> " + infoTip(translate("Start of the daily time window during which the display always uses full brightness, regardless of ambient light")) + "</div>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> " + infoTip(translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light")) + "</div><br>";
 
-        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or below the low threshold") + ".' style='cursor:help;'>&#9432;</span></div>";
-        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> <span title='" + translate("Display brightness used at or above the high threshold") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> " + infoTip(translate("Display brightness used at or below the low threshold")) + "</div>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> " + infoTip(translate("Display brightness used at or above the high threshold")) + "</div><br>";
 
         if (photoresistorFound) {
-            html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100 %) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> <span title='" + translate("Below this ambient light percentage, the display uses minimum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
-            html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> <span title='" + translate("Above this ambient light percentage, the display uses maximum brightness") + ".' style='cursor:help;'>&#9432;</span></div>";
+            html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100 %) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> " + infoTip(translate("Below this ambient light percentage, the display uses minimum brightness")) + "</div>";
+            html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> " + infoTip(translate("Above this ambient light percentage, the display uses maximum brightness")) + "</div>";
         }
 
         if (useBacklight) { // Gamma nur mit Backlight wirksam (stufenlose PWM)
                             // gamma only effective with a backlight (stepless PWM)
-        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> <span title='" + translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening") + ".' style='cursor:help;'>&#9432;</span></div>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> " + infoTip(translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening")) + "</div>";
         }
 
         return html;
@@ -1525,6 +1552,306 @@
     String rotationLabelHtml(uint8_t rotation) {
         static const char* labels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;", "n.a." };
         return labels[rotation <= TFT_ROTATION_NA ? rotation : 0];
+    }
+
+
+    // Eintraege der Statusseite (<li>...) - gemeinsam fuer /status, den Tab Status und status.txt in der Sicherung.
+    // flush() nimmt die Teilstuecke ab (Seiten: senden, Sicherung: sammeln), damit die Liste nicht als Ganzes im
+    // Speicher liegt.
+
+    // Entries of the status page (<li>...) - shared by /status, the Status tab and status.txt in the backup. flush()
+    // takes the pieces (pages: send, backup: collect), so the list is never held in memory as a whole.
+
+    void generateStatusItems(String& chunk, std::function<void(String&)> flush) {
+        chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
+
+        String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
+        String tzDesc;
+
+        tzDesc = tzLabel;
+
+        // Lokale Kopie statt der globalen timeinfo - der Haupt-Loop nutzt sie ebenfalls, ein Fehlschlag
+        // hier soll sie nicht mit einer ungueltigen Zwischenzeit ueberschreiben.
+
+        // Local copy instead of the global timeinfo - the main loop uses it too, a failure here should
+        // not overwrite it with an invalid intermediate time.
+
+        struct tm statusTimeinfo;
+        if (getLocalTime(&statusTimeinfo, 100)) {
+            char nowStr[32];
+            strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &statusTimeinfo);
+            chunk += "<li>Current Time: " + String(nowStr) + "</li>";
+            chunk += "<li>Timezone: " + tzDesc + "</li>";
+            chunk += "<li>Current week: " + String(currentWeek) + "</li>";
+            chunk += "<li>Last week reset: " + String(lastResetWeek) + "</li>";
+
+            unsigned long seconds = millis() / 1000;
+            unsigned long days = seconds / 86400;
+            unsigned long hours = (seconds % 86400) / 3600;
+            unsigned long minutes = (seconds % 3600) / 60;
+            unsigned long secs = seconds % 60;
+            chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
+            chunk += "<li>Last Reset Reason: " + resetReasonToString(esp_reset_reason()) + "</li>";
+            chunk += "<li>RTC Status: " + rtcStatusToString(rtcOk) + "</li>";
+            if (lastNtpSuccessMillis == 0) {
+                chunk += "<li>Last NTP Sync: never</li>";
+            }
+            else {
+                chunk += "<li>Last NTP Sync: " + formatDurationMs(millis() - lastNtpSuccessMillis) + " ago</li>";
+            }
+
+            chunk += "<br>";
+        }
+
+        flush(chunk);
+
+        chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
+
+        chunk += "<li>TFT Driver: " + tftType + "</li>";
+        chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
+
+        // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
+        // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
+
+        chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
+        chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
+
+        chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
+
+        chunk += "<br>";
+
+        flush(chunk);
+
+        chunk += "<li>Chip Model: " + String(ESP.getChipModel()) + "</li>";
+        chunk += "<li>Chip Revision: " + String(ESP.getChipRevision()) + "</li>";
+        chunk += "<li>Chip Cores: " + String(ESP.getChipCores()) + "</li>";
+        chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
+        chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
+
+        flush(chunk);
+
+        chunk += "<li>Hostname: " + String(hostname) + ".local" + "</li>";
+        chunk += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
+        chunk += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
+        chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
+        chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
+        chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
+        chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li>";
+
+        // ntpServerRunning kommt vom echten Rueckgabewert von udp.begin()
+        // (siehe startNtpServer()), nicht nur aus einem blinden Log.
+
+        // ntpServerRunning comes from udp.begin()'s real return value
+        // (see startNtpServer()), not just a blind log entry.
+
+        chunk += "<li>NTP Server (own): " + String(ntpServerRunning ? "running on port " + String(NTP_PORT) : "not running") +
+                 " - requests: " + String(ntpRequestsReceived) + ", answered: " + String(ntpRepliesSent) + "</li><br>";
+
+        flush(chunk);
+
+        chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
+        chunk += "<li>Arduino Core Version: " ESP_ARDUINO_VERSION_STR "</li><br>";
+
+        flush(chunk);
+
+        chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
+        chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
+        chunk += "<li>Max Allocatable Block: " + String(ESP.getMaxAllocHeap() / 1024) + " KB</li>";
+        chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
+        chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
+        chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
+        chunk += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
+
+        flush(chunk);
+
+        // Explizite Erkennung, da ohne PSRAM Groesse/Frei beide 0 waeren
+        // (nicht unterscheidbar von "PSRAM da, aber voll").
+
+        // Explicit detection, since without PSRAM size/free would both
+        // read 0 (indistinguishable from "PSRAM present but full").
+
+        chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
+        chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
+        chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
+
+
+        chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
+        chunk += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
+        chunk += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
+
+        flush(chunk);
+
+        if (photoresistorFound) {
+            chunk += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
+            chunk += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
+        }
+        else {
+            chunk += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
+        }
+
+        flush(chunk);
+
+
+
+        chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
+        //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";
+        chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
+        chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
+                                                                 // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
+        chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
+
+
+        chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
+        chunk += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
+
+        if (!i2cAddr.isEmpty()) {
+            chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
+            chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
+            chunk += "<li>I2C SCL GPIO: " + String(SCL_PIN) + "</li><br>";
+        }
+        else {
+            chunk += "<li>I2C: no device found</li><br>";
+        }
+
+        flush(chunk);
+
+        if (dcf77Count == 0) {
+            chunk += "<li>DCF77 Status: No signal received so far</li>";
+        }
+        else {
+            chunk += "<li>DCF77 Status: Pulses received</li>";
+        }
+        if (lastDcfSyncTime == 0) {
+            chunk += "<li>DCF77 last sync: never</li>";
+        }
+        else {
+            struct tm syncInfo;
+            localtime_r(&lastDcfSyncTime, &syncInfo);
+            char syncBuf[24];
+            snprintf(syncBuf, sizeof(syncBuf), "%04d-%02d-%02d %02d:%02d:%02d",
+                syncInfo.tm_year + 1900, syncInfo.tm_mon + 1, syncInfo.tm_mday,
+                syncInfo.tm_hour, syncInfo.tm_min, syncInfo.tm_sec);
+            chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
+        }
+        chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
+        chunk += "<li>DCF77 Input: both edges (CHANGE), polarity-independent</li><br>";
+
+        flush(chunk);
+
+        chunk += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
+        chunk += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
+
+        chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
+        chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
+        chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
+        chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
+        if (photoresistorFound) {
+            chunk += "<li>ADC Value: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
+        }
+
+
+        chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
+        chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + (useBacklight ? " (PWM)" : " (off - pixel dimming)") + "</li>";
+        chunk += "<br>";
+
+        flush(chunk);
+
+        chunk += "<li><h3>Actual Preferences</h3></li><ul>";
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+
+            // Dynamisch berechnete Schlüssel
+            // Dynamically computed keys
+
+            String ssidKey = pkSsid(i);
+
+            if (preferences.getString(ssidKey.c_str(), "") != "") {
+                if (preferences.getInt(PK_LAST_WLAN) != i) {
+                    chunk += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
+                }
+                else {
+                    chunk += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
+                }
+            }
+
+        }
+
+        flush(chunk);
+
+        for (int i = 0; i < MAX_WLAN; i++) {
+            if (preferences.getString((pkNtpServer(i)).c_str(), "") != "") {
+                chunk += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString((pkNtpServer(i)).c_str(), "") + "</li>";
+            }
+        }
+   
+
+        chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
+        chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
+        chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
+
+        // getLong() wie beim Schreiben (putLong()) - getUInt() lieferte wegen des NVS-Typs
+        // stillschweigend den Default. Gespeichert ist RGB888.
+
+        // getLong() as when writing (putLong()) - getUInt() would silently return the default due to the
+        // NVS type. Stored is RGB888.
+
+        chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
+        chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
+
+        uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
+        chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + "</li>";
+        {
+            uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
+            chunk += "<li><b>tftRotation2</b>: " + rotationLabelHtml(rotation2) + "</li>";
+        }
+
+        // Rotationsmodus zeigt, WIE die Werte angewendet werden: beim GC9D01
+        // ist Hardware-Rotation wirkungslos, nur mit PSRAM wird auf
+        // Software-Rotation umgeschaltet (siehe gc9d01SwRotation in uhr4.ino).
+
+        // Rotation mode shows HOW the values are applied: on the GC9D01
+        // hardware rotation has no effect, only with PSRAM does it switch to
+        // software rotation (see gc9d01SwRotation in uhr4.ino).
+
+        chunk += "<li><b>rotation mode</b>: ";
+        if (gc9d01SwRotation) {
+            chunk += "software (pixel remap, GC9D01 with PSRAM)";
+        }
+        else {
+            chunk += "hardware (display MADCTL register)";
+            if (displayGeom->swRotation) chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
+        }
+        chunk += "</li>";
+
+        flush(chunk);
+
+        // Booleans als Text
+        // Booleans as text
+    
+        bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
+        chunk += "<li><b>stationMode</b>: " + String(stationModeStatus ? "true" : "false") + "</li>";
+        chunk += "<li><b>smoothSecond</b>: " + String(getSmoothSecondPref(stationModeStatus) ? "true" : "false") + "</li>";
+        chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
+        chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
+
+        chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
+        chunk += "<li><b>useBacklight</b>: " + String(preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT) ? "true" : "false") + "</li>";
+        chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
+
+        chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
+
+        if (preferences.getBool(PK_USE_ADC, true)) {
+            chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
+            chunk += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt(PK_LOW_THRESHOLD, 40)) + "</li>";
+            chunk += "<li><b>adc highThreshold</b>: " + String(preferences.getInt(PK_HIGH_THRESHOLD, 60)) + "</li>";
+            chunk += "<li><b>adc Inverted</b>: " + String(preferences.getBool(PK_ADC_INVERTED, false) ? "true" : "false") + "</li>";
+        }
+        if (preferences.getBool(PK_ROCRAIL_ENABLED, false)) {
+            chunk += "<li><b>rocrailEnabled</b>: " + String(preferences.getBool(PK_ROCRAIL_ENABLED, false) ? "true" : "false") + "</li>";
+            chunk += "<li><b>rocrailServer</b>: " + preferences.getString(PK_ROCRAIL_SERVER, "") + "</li>";
+            chunk += "<li><b>rocrailServerPort</b>: " + String(preferences.getUShort(PK_ROCRAIL_SRV_PORT, ROCRAIL_DEFAULT_PORT)) + "</li>";
+        }
+        flush(chunk);
     }
 
 
@@ -2802,230 +3129,11 @@
             });
 
 
-        // Helligkeitseinstellungen Formular
-        // Brightness settings form
-
-        webserver.on("/brightness", HTTP_POST, []() {
-            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
-            webserver.send(200, "text/html", "");
-
-            String chunk = beginPage();
-            chunk.reserve(1024);
-            chunk += generateFlashMessage();
-            chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'><input type='hidden' name='returnTo' value='/brightness'>";
-
-            chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
-            chunk += brightnessFormFieldsHtml();
-            chunk += "</div>";
-
-
-            chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            if (photoresistorFound) {
-                chunk += "<br>";
-                chunk += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
-                chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
-                chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
-
-                chunk += "<br>";
-                chunk += "<form method='GET' action='/brightness'><button type='submit'>" + translate("Refresh") + "</button></form>";
-                chunk += "<br>"; chunk += "<br>";
-
-                webserver.sendContent(chunk);
-                chunk = "";
-
-                if (useBacklight) { // Gamma-Kurve nur mit Backlight (stufenlose PWM)
-                                    // gamma curve only with a backlight (stepless PWM)
-                chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
-
-                // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
-                // Variablennamen aus dem Sketch, keine uebersetzbaren Woerter
-                // (gleiche Begruendung wie bei den Achsentiteln weiter unten).
-
-                // "adc"/"targetBrightness" stay untranslated: these are the
-                // sketch's variable names, not translatable words (same
-                // reasoning as for the axis titles further below).
-
-                chunk += "<h2>" + translate("Gamma Correction") + ": adc &rarr; targetBrightness</h2>\n";
-                chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
-                chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
-                chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
-
-                chunk += "<script>\n";
-                chunk += "const minBrightness = " + String(minBrightness) + ";\n";
-                chunk += "const maxBrightness = " + String(maxBrightness) + ";\n";
-                chunk += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
-
-                chunk += "function computeBrightness(gamma) {\n";
-                chunk += "  return avg.map(val => {\n";
-                chunk += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
-                chunk += "    let gammaNorm = Math.pow(norm, gamma);\n";
-                chunk += "    return minBrightness + Math.round((maxBrightness - minBrightness) * gammaNorm);\n";
-                chunk += "  });\n";
-                chunk += "}\n\n";
-
-                webserver.sendContent(chunk);
-                chunk = "";
-
-                // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
-                // HTML-Entities dabei NICHT - ueber decodeHtml() aufloesen,
-                // wie bei den WLAN-Labels weiter unten.
-
-                // Plotly renders the chart title as SVG text and does NOT
-                // decode HTML entities - resolve it via decodeHtml(), same
-                // as the WiFi labels further below.
-
-                chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
-                chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
-
-                chunk += "function plotGamma(gamma) {\n";
-                chunk += "  const y = computeBrightness(gamma);\n";
-                chunk += "  Plotly.newPlot('plot', [{\n";
-                chunk += "    x: avg,\n";
-                chunk += "    y: y,\n";
-                chunk += "    mode: 'lines',\n";
-                chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
-                chunk += "  }], {\n";
-                chunk += "    title: gammaCurveTitle,\n";
-                chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
-                chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
-                chunk += "  });\n";
-                chunk += "}\n\n";
-
-                chunk += "const slider = document.getElementById('gammaSlider');\n";
-                chunk += "const gammaValue = document.getElementById('gammaValue');\n";
-                chunk += "slider.addEventListener('input', () => {\n";
-                chunk += "  const gamma = parseFloat(slider.value);\n";
-                chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
-                chunk += "  document.querySelector(\"input[name='gamma']\").value = gamma.toFixed(1);\n";
-                chunk += "  plotGamma(gamma);\n";
-                chunk += "});\n\n";
-
-                chunk += "plotGamma(" + String(gammaBrightness) + ");\n";
-                chunk += "</script>\n";
-                }
-            }
-
-            chunk += "<br><br>";
-            chunk += "</body></html>";
-            webserver.sendContent(chunk);
-            webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
-                                       // signal the end of the chunked transfer
-            });
-
-        // Helligkeitseinstellungen Formular
-        // Brightness settings form
+        // Alte Adresse der Helligkeitsseite - die Einstellungen stehen im Tab Helligkeit der Hauptseite
+        // Old address of the brightness page - the settings are in the Brightness tab of the main page
 
         webserver.on("/brightness", HTTP_GET, []() {
-            webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
-            webserver.send(200, "text/html", "");
-
-            String chunk = beginPage();
-            chunk.reserve(1024);
-            chunk += generateFlashMessage();
-            chunk += "<h2>" + translate("Brightness Settings") + "</h2><form method = 'POST' action = '/save_brightness'><input type='hidden' name='returnTo' value='/brightness'>";
-
-            chunk += "<div style='max-width:500px;margin:auto;text-align:left;border:1px solid #ccc;border-radius:8px;padding:12px 16px;'>";
-            chunk += brightnessFormFieldsHtml();
-            chunk += "</div>";
-
-
-            chunk += "<button type='submit'>" + translate("Save") + "</button></form>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            if (photoresistorFound) {
-                chunk += "<br>";
-                chunk += "<hr><strong>" + translate("Current ADC Value") + ":</strong> " + String(currentAdcAvg) + "<br>";
-                chunk += "<strong>" + translate("Current Brightness") + ":</strong> " + String(currentBrightness) + " / 255<br>";
-                chunk += "<strong>" + translate("Light (for Threshold)") + ":</strong> " + String(currentLightPercent) + " % <br>";
-                chunk += "<br>";
-                chunk += "<form method='GET' action='/brightness'><button type='submit'>" + translate("Refresh") + "</button></form>";
-                chunk += "<br>";
-
-                webserver.sendContent(chunk);
-                chunk = "";
-
-                if (useBacklight) { // Gamma-Kurve nur mit Backlight (stufenlose PWM)
-                                    // gamma curve only with a backlight (stepless PWM)
-                chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
-
-                // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
-                // Variablennamen aus dem Sketch, keine uebersetzbaren Woerter
-                // (gleiche Begruendung wie bei den Achsentiteln weiter unten).
-
-                // "adc"/"targetBrightness" stay untranslated: these are the
-                // sketch's variable names, not translatable words (same
-                // reasoning as for the axis titles further below).
-
-                chunk += "<h2>" + translate("Gamma Correction") + ": adc &rarr; targetBrightness</h2>\n";
-                chunk += "<label for='gammaSlider'>Gamma: <span id='gammaValue'>" + String(gammaBrightness) + "</span></label>\n";
-                chunk += "<input type='range' id='gammaSlider' min='0.1' max='3.0' step='0.1' value='" + String(gammaBrightness) + "' style='width:300px;'><br><br>\n";
-                chunk += "<div id='plot' style='width:100%; height:600px;'></div>\n";
-
-                chunk += "<script>\n";
-                chunk += "const minBrightness = " + String(minBrightness) + ";\n";
-                chunk += "const maxBrightness = " + String(maxBrightness) + ";\n";
-                chunk += "const avg = Array.from({length: 500}, (_, i) => i * (4095 / 499));\n\n";
-
-                chunk += "function computeBrightness(gamma) {\n";
-                chunk += "  return avg.map(val => {\n";
-                chunk += "    let norm = Math.min(Math.max(val / 4095.0, 0.0), 1.0);\n";
-                chunk += "    let gammaNorm = Math.pow(norm, gamma);\n";
-                chunk += "    return minBrightness + Math.round((maxBrightness - minBrightness) * gammaNorm);\n";
-                chunk += "  });\n";
-                chunk += "}\n\n";
-
-                webserver.sendContent(chunk);
-                chunk = "";
-
-                // Plotly rendert den Diagrammtitel als SVG-Text und dekodiert
-                // HTML-Entities dabei NICHT - ueber decodeHtml() aufloesen,
-                // wie bei den WLAN-Labels weiter unten.
-
-                // Plotly renders the chart title as SVG text and does NOT
-                // decode HTML entities - resolve it via decodeHtml(), same
-                // as the WiFi labels further below.
-
-                chunk += "function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=s;return t.value;}\n";
-                chunk += "const gammaCurveTitle = decodeHtml('" + translate("Gamma correction curve") + "');\n";
-
-                chunk += "function plotGamma(gamma) {\n";
-                chunk += "  const y = computeBrightness(gamma);\n";
-                chunk += "  Plotly.newPlot('plot', [{\n";
-                chunk += "    x: avg,\n";
-                chunk += "    y: y,\n";
-                chunk += "    mode: 'lines',\n";
-                chunk += "    name: `Gamma = ${gamma.toFixed(1)}`\n";
-                chunk += "  }], {\n";
-                chunk += "    title: gammaCurveTitle,\n";
-                chunk += "    xaxis: { title: 'adc (0 - 4095)' },\n";
-                chunk += "    yaxis: { title: 'targetBrightness (0 - 255)' }\n";
-                chunk += "  });\n";
-                chunk += "}\n\n";
-
-                chunk += "const slider = document.getElementById('gammaSlider');\n";
-                chunk += "const gammaValue = document.getElementById('gammaValue');\n";
-                chunk += "slider.addEventListener('input', () => {\n";
-                chunk += "  const gamma = parseFloat(slider.value);\n";
-                chunk += "  gammaValue.textContent = gamma.toFixed(1);\n";
-                chunk += "  document.querySelector(\"input[name='gamma']\").value = gamma.toFixed(1);\n";
-                chunk += "  plotGamma(gamma);\n";
-                chunk += "});\n\n";
-
-                chunk += "plotGamma(" + String(gammaBrightness) + ");\n";
-                chunk += "</script>\n";
-                }
-            }
-
-            chunk += "<br><br></body></html>";
-            webserver.sendContent(chunk);
-            webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
-                                       // signal the end of the chunked transfer
+            redirectTo("/?tab=helligkeit");
             });
 
         // Helligkeitseinstellungen speichern
@@ -3605,307 +3713,7 @@
             chunk = "";
 
             chunk += "<h2>" + translate("System Status") + "</h2><ul>";
-            chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
-
-            String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
-            String tzDesc;
-
-            tzDesc = tzLabel;
-
-            // Lokale Kopie statt der globalen timeinfo - der Haupt-Loop nutzt sie ebenfalls, ein Fehlschlag
-            // hier soll sie nicht mit einer ungueltigen Zwischenzeit ueberschreiben.
-
-            // Local copy instead of the global timeinfo - the main loop uses it too, a failure here should
-            // not overwrite it with an invalid intermediate time.
-
-            struct tm statusTimeinfo;
-            if (getLocalTime(&statusTimeinfo, 100)) {
-                char nowStr[32];
-                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &statusTimeinfo);
-                chunk += "<li>Current Time: " + String(nowStr) + "</li>";
-                chunk += "<li>Timezone: " + tzDesc + "</li>";
-                chunk += "<li>Current week: " + String(currentWeek) + "</li>";
-                chunk += "<li>Last week reset: " + String(lastResetWeek) + "</li>";
-
-                unsigned long seconds = millis() / 1000;
-                unsigned long days = seconds / 86400;
-                unsigned long hours = (seconds % 86400) / 3600;
-                unsigned long minutes = (seconds % 3600) / 60;
-                unsigned long secs = seconds % 60;
-                chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
-                chunk += "<li>Last Reset Reason: " + resetReasonToString(esp_reset_reason()) + "</li>";
-                chunk += "<li>RTC Status: " + rtcStatusToString(rtcOk) + "</li>";
-                if (lastNtpSuccessMillis == 0) {
-                    chunk += "<li>Last NTP Sync: never</li>";
-                }
-                else {
-                    chunk += "<li>Last NTP Sync: " + formatDurationMs(millis() - lastNtpSuccessMillis) + " ago</li>";
-                }
-
-                chunk += "<br>";
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
-
-            chunk += "<li>TFT Driver: " + tftType + "</li>";
-            chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
-
-            // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
-            // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
-
-            chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
-            chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
-
-            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
-
-            chunk += "<br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Chip Model: " + String(ESP.getChipModel()) + "</li>";
-            chunk += "<li>Chip Revision: " + String(ESP.getChipRevision()) + "</li>";
-            chunk += "<li>Chip Cores: " + String(ESP.getChipCores()) + "</li>";
-            chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
-            chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Hostname: " + String(hostname) + ".local" + "</li>";
-            chunk += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
-            chunk += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
-            chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
-            chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
-            chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
-            chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li>";
-
-            // ntpServerRunning kommt vom echten Rueckgabewert von udp.begin()
-            // (siehe startNtpServer()), nicht nur aus einem blinden Log.
-
-            // ntpServerRunning comes from udp.begin()'s real return value
-            // (see startNtpServer()), not just a blind log entry.
-
-            chunk += "<li>NTP Server (own): " + String(ntpServerRunning ? "running on port " + String(NTP_PORT) : "not running") +
-                     " - requests: " + String(ntpRequestsReceived) + ", answered: " + String(ntpRepliesSent) + "</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
-            chunk += "<li>Arduino Core Version: " ESP_ARDUINO_VERSION_STR "</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
-            chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
-            chunk += "<li>Max Allocatable Block: " + String(ESP.getMaxAllocHeap() / 1024) + " KB</li>";
-            chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
-            chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
-            chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
-            chunk += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            // Explizite Erkennung, da ohne PSRAM Groesse/Frei beide 0 waeren
-            // (nicht unterscheidbar von "PSRAM da, aber voll").
-
-            // Explicit detection, since without PSRAM size/free would both
-            // read 0 (indistinguishable from "PSRAM present but full").
-
-            chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
-            chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
-            chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
-
-
-            chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
-            chunk += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
-            chunk += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            if (photoresistorFound) {
-                chunk += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
-                chunk += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
-            }
-            else {
-                chunk += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-
-
-            chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
-            //chunk += "<li>TFT_MISO: " + String(TFT_MISO) + "</li>";
-            chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
-                                                                     // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
-            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
-
-
-            chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
-            chunk += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
-
-            if (!i2cAddr.isEmpty()) {
-                chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
-                chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
-                chunk += "<li>I2C SCL GPIO: " + String(SCL_PIN) + "</li><br>";
-            }
-            else {
-                chunk += "<li>I2C: no device found</li><br>";
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            if (dcf77Count == 0) {
-                chunk += "<li>DCF77 Status: No signal received so far</li>";
-            }
-            else {
-                chunk += "<li>DCF77 Status: Pulses received</li>";
-            }
-            if (lastDcfSyncTime == 0) {
-                chunk += "<li>DCF77 last sync: never</li>";
-            }
-            else {
-                struct tm syncInfo;
-                localtime_r(&lastDcfSyncTime, &syncInfo);
-                char syncBuf[24];
-                snprintf(syncBuf, sizeof(syncBuf), "%04d-%02d-%02d %02d:%02d:%02d",
-                    syncInfo.tm_year + 1900, syncInfo.tm_mon + 1, syncInfo.tm_mday,
-                    syncInfo.tm_hour, syncInfo.tm_min, syncInfo.tm_sec);
-                chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
-            }
-            chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";  
-            chunk += "<li>DCF77 Input: both edges (CHANGE), polarity-independent</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
-            chunk += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
-
-            chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
-            chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
-            chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
-            chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
-            if (photoresistorFound) {
-                chunk += "<li>ADC Value: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
-            }
-
-
-            chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
-            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + (useBacklight ? " (PWM)" : " (off - pixel dimming)") + "</li>";
-            chunk += "<br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li><h3>Actual Preferences</h3></li><ul>";
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-
-                // Dynamisch berechnete Schlüssel
-                // Dynamically computed keys
-
-                String ssidKey = pkSsid(i);
-
-                if (preferences.getString(ssidKey.c_str(), "") != "") {
-                    if (preferences.getInt(PK_LAST_WLAN) != i) {
-                        chunk += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
-                    }
-                    else {
-                        chunk += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
-                    }
-                }
-    
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-                if (preferences.getString((pkNtpServer(i)).c_str(), "") != "") {
-                    chunk += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString((pkNtpServer(i)).c_str(), "") + "</li>";
-                }
-            }
-       
-
-            chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
-            chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
-            chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-
-            // getLong() wie beim Schreiben (putLong()) - getUInt() lieferte wegen des NVS-Typs
-            // stillschweigend den Default. Gespeichert ist RGB888.
-
-            // getLong() as when writing (putLong()) - getUInt() would silently return the default due to the
-            // NVS type. Stored is RGB888.
-
-            chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
-            chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
-
-            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
-            chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + "</li>";
-            {
-                uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
-                chunk += "<li><b>tftRotation2</b>: " + rotationLabelHtml(rotation2) + "</li>";
-            }
-
-            // Rotationsmodus zeigt, WIE die Werte angewendet werden: beim GC9D01
-            // ist Hardware-Rotation wirkungslos, nur mit PSRAM wird auf
-            // Software-Rotation umgeschaltet (siehe gc9d01SwRotation in uhr4.ino).
-
-            // Rotation mode shows HOW the values are applied: on the GC9D01
-            // hardware rotation has no effect, only with PSRAM does it switch to
-            // software rotation (see gc9d01SwRotation in uhr4.ino).
-
-            chunk += "<li><b>rotation mode</b>: ";
-            if (gc9d01SwRotation) {
-                chunk += "software (pixel remap, GC9D01 with PSRAM)";
-            }
-            else {
-                chunk += "hardware (display MADCTL register)";
-                if (displayGeom->swRotation) chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
-            }
-            chunk += "</li>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            // Booleans als Text
-            // Booleans as text
-        
-            bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
-            chunk += "<li><b>stationMode</b>: " + String(stationModeStatus ? "true" : "false") + "</li>";
-            chunk += "<li><b>smoothSecond</b>: " + String(getSmoothSecondPref(stationModeStatus) ? "true" : "false") + "</li>";
-            chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
-            chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
-
-            chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
-            chunk += "<li><b>useBacklight</b>: " + String(preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT) ? "true" : "false") + "</li>";
-            chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
-
-            chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
-
-            if (preferences.getBool(PK_USE_ADC, true)) {
-                chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
-                chunk += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt(PK_LOW_THRESHOLD, 40)) + "</li>";
-                chunk += "<li><b>adc highThreshold</b>: " + String(preferences.getInt(PK_HIGH_THRESHOLD, 60)) + "</li>";
-                chunk += "<li><b>adc Inverted</b>: " + String(preferences.getBool(PK_ADC_INVERTED, false) ? "true" : "false") + "</li>";
-            }
-            if (preferences.getBool(PK_ROCRAIL_ENABLED, false)) {
-                chunk += "<li><b>rocrailEnabled</b>: " + String(preferences.getBool(PK_ROCRAIL_ENABLED, false) ? "true" : "false") + "</li>";
-                chunk += "<li><b>rocrailServer</b>: " + preferences.getString(PK_ROCRAIL_SERVER, "") + "</li>";
-                chunk += "<li><b>rocrailServerPort</b>: " + String(preferences.getUShort(PK_ROCRAIL_SRV_PORT, ROCRAIL_DEFAULT_PORT)) + "</li>";
-            }
+            generateStatusItems(chunk, [](String& part) { webserver.sendContent(part); part = ""; });
             chunk += "</ul>";
             chunk += "</br>";
             chunk += "<li>Contact: <a href='mailto:howl-clock@gmx.de'>howl-clock@gmx.de</a></li>";
@@ -5468,266 +5276,7 @@
             }
             else {
             chunk += "<ul>";
-            chunk += "<li>" + generateStorageInfo(LittleFS.usedBytes(), LittleFS.totalBytes(), true) + "</li>";
-
-            String tzLabel = preferences.getString(PK_TIMEZONE, "DE");
-            String tzDesc = tzLabel;
-
-            // Lokale Kopie statt der globalen timeinfo - siehe Begruendung
-            // an der ersten Statusseiten-Stelle weiter oben.
-
-            // Local copy instead of the global timeinfo - see the reasoning
-            // at the first status-page spot further above.
-
-            struct tm statusTimeinfo;
-            if (getLocalTime(&statusTimeinfo, 100)) {
-                char nowStr[32];
-                strftime(nowStr, sizeof(nowStr), "%Y-%m-%d %H:%M:%S", &statusTimeinfo);
-                chunk += "<li>Current Time: " + String(nowStr) + "</li>";
-                chunk += "<li>Timezone: " + tzDesc + "</li>";
-                chunk += "<li>Current week: " + String(currentWeek) + "</li>";
-                chunk += "<li>Last week reset: " + String(lastResetWeek) + "</li>";
-
-                unsigned long seconds = millis() / 1000;
-                unsigned long days = seconds / 86400;
-                unsigned long hours = (seconds % 86400) / 3600;
-                unsigned long minutes = (seconds % 3600) / 60;
-                unsigned long secs = seconds % 60;
-                chunk += "<li>Uptime: " + String(days) + "d " + String(hours) + "h " + String(minutes) + "m " + String(secs) + "s</li>";
-                chunk += "<li>Last Reset Reason: " + resetReasonToString(esp_reset_reason()) + "</li>";
-                chunk += "<li>RTC Status: " + rtcStatusToString(rtcOk) + "</li>";
-                if (lastNtpSuccessMillis == 0) {
-                    chunk += "<li>Last NTP Sync: never</li>";
-                }
-                else {
-                    chunk += "<li>Last NTP Sync: " + formatDurationMs(millis() - lastNtpSuccessMillis) + " ago</li>";
-                }
-                chunk += "<br>";
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Compiled on: <strong>" + (String)version + "</strong></li><br>";
-            chunk += "<li>TFT Driver: " + tftType + "</li>";
-            chunk += "<li>Graphics Library: LovyanGFX " + String(LGFX_VERSION_MAJOR) + "." + String(LGFX_VERSION_MINOR) + "." + String(LGFX_VERSION_PATCH) + "</li>";
-
-            // Bildrate der Uhranzeige (recordRenderFrame() in display.h) plus Zeigerstil - zur Diagnose ruckelnder/tickender Zeiger
-            // frame rate of the clock display (recordRenderFrame() in display.h) plus hand style - for diagnosing jerky/ticking hands
-
-            chunk += "<li>Render: " + String(renderStats.fps, 1) + " fps, avg " + String(renderStats.avgMs, 1) + " ms, max " + String(renderStats.maxMs, 1) + " ms, partial " + String(renderStats.partialPercent, 0) + " % (last 5 s)</li>";
-            chunk += "<li>Second hand: " + String(smoothSecond ? "smooth" : "ticking") + ", station mode " + String(stationMode ? "on" : "off") + "</li>";
-            chunk += "<li>TFT Size: " + String(TFT_WIDTH) + " x " + String(TFT_HEIGHT) + "</li>";
-            chunk += "<br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Chip Model: " + String(ESP.getChipModel()) + "</li>";
-            chunk += "<li>Chip Revision: " + String(ESP.getChipRevision()) + "</li>";
-            chunk += "<li>Chip Cores: " + String(ESP.getChipCores()) + "</li>";
-            chunk += "<li>Chip ID: " + String((uint32_t)ESP.getEfuseMac(), HEX) + "</li>";
-            chunk += "<li>CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Hostname: " + String(hostname) + ".local" + "</li>";
-            chunk += "<li>IP Address: " + WiFi.localIP().toString() + "</li>";
-            chunk += "<li>MAC Address: " + WiFi.macAddress() + "</li>";
-            chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
-            chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
-            chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
-            chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>SDK Version: " + String(ESP.getSdkVersion()) + "</li><br>";
-            chunk += "<li>Arduino Core Version: " ESP_ARDUINO_VERSION_STR "</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024) + " KB</li>";
-            chunk += "<li>Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB</li>";
-            chunk += "<li>Max Allocatable Block: " + String(ESP.getMaxAllocHeap() / 1024) + " KB</li>";
-            chunk += "<li>Min Free Heap (since boot): " + String(ESP.getMinFreeHeap() / 1024) + " KB</li>";
-            chunk += "<li>Max Sketch Size: " + String(ESP.getFreeSketchSpace() / 1024) + " KB</li>";
-            chunk += "<li>Sketch Size: " + String(ESP.getSketchSize() / 1024) + " KB</li>";
-            chunk += "<li>Free Sketch Space: " + String((ESP.getFreeSketchSpace() / 1024) - (ESP.getSketchSize() / 1024)) + " KB</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            // PSRAM-Erkennung, siehe Kommentar oben in /status.
-            // PSRAM detection, see the comment above in /status.
-
-            chunk += "<li>PSRAM Detected: " + String(psramFound() ? "yes" : "no") + "</li>";
-            chunk += "<li>PSRAM Size: " + String(ESP.getPsramSize() / 1024) + " kB</li>";
-            chunk += "<li>PSRAM Free: " + String(ESP.getFreePsram() / 1024) + " kB</li><br>";
-            chunk += "<li>LittleFS Size: " + String(LittleFS.totalBytes() / 1024) + " KB</li>";
-            chunk += "<li>LittleFS Used: " + String(LittleFS.usedBytes() / 1024) + " KB</li>";
-            chunk += "<li>LittleFS Free: " + String((LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024) + " KB</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            if (photoresistorFound) {
-                chunk += "<li>Photoresistor found on GPIO: " + String(ADC_PIN) + "</li>";
-                chunk += "<li>Actual brightness (0-255): " + String(currentBrightness) + "</li><br>";
-            }
-            else {
-                chunk += "<li>Photoresistor not found on GPIO: " + String(ADC_PIN) + "</li><br>";
-            }
-
-            chunk += "<li>TFT_SCLK GPIO: " + String(TFT_SCLK) + "</li>";
-            chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
-            chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
-                                                                     // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
-            chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
-
-            chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
-            chunk += "<li>TFT_RST GPIO: " + String(TFT_RST) + "</li><br>";
-
-            if (!i2cAddr.isEmpty()) {
-                chunk += "<li>I2C ADR: " + i2cAddr + "</li>";
-                chunk += "<li>I2C SDA GPIO: " + String(SDA_PIN) + "</li>";
-                chunk += "<li>I2C SCL GPIO: " + String(SCL_PIN) + "</li><br>";
-            }
-            else {
-                chunk += "<li>I2C: no device found</li><br>";
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            if (dcf77Count == 0) {
-                chunk += "<li>DCF77 Status: No signal received so far</li>";
-            }
-            else {
-                chunk += "<li>DCF77 Status: Pulses received</li>";
-            }
-            if (lastDcfSyncTime == 0) {
-                chunk += "<li>DCF77 last sync: never</li>";
-            }
-            else {
-                struct tm syncInfo;
-                localtime_r(&lastDcfSyncTime, &syncInfo);
-                char syncBuf[24];
-                snprintf(syncBuf, sizeof(syncBuf), "%04d-%02d-%02d %02d:%02d:%02d",
-                    syncInfo.tm_year + 1900, syncInfo.tm_mon + 1, syncInfo.tm_mday,
-                    syncInfo.tm_hour, syncInfo.tm_min, syncInfo.tm_sec);
-                chunk += "<li>DCF77 last sync: " + String(syncBuf) + "</li>";
-            }
-            chunk += "<li>DCF77 Data GPIO: " + String(DCF77_DATAPIN) + "</li>";
-            chunk += "<li>DCF77 Input: both edges (CHANGE), polarity-independent</li><br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
-            chunk += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
-
-            chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
-            chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
-            chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
-            chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
-            if (photoresistorFound) {
-                chunk += "<li>ADC Value: " + String(getAdjustedAdcValue(analogRead(ADC_PIN))) + "</li><br>";
-            }
-
-            chunk += "<li>Build: " BUILD_DISPLAY_MARKER "</li>";
-            chunk += "<li>TFT_Backlight GPIO: " + String(TFT_Backlight) + (useBacklight ? " (PWM)" : " (off - pixel dimming)") + "</li>";
-            chunk += "<br>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            chunk += "<li><h3>Actual Preferences</h3></li><ul>";
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-
-                // Dynamisch berechnete Schlüssel
-                // Dynamically computed keys
-
-                String ssidKey = pkSsid(i);
-
-                if (preferences.getString(ssidKey.c_str(), "") != "") {
-                    if (preferences.getInt(PK_LAST_WLAN) != i) {
-                        chunk += "<li><b>" + ssidKey + ":</b> " + preferences.getString(ssidKey.c_str(), "") + "</li>";
-                    }
-                    else {
-                        chunk += "<li><b>" + ssidKey + ": " + preferences.getString(ssidKey.c_str(), "") + "</b></li>";
-                    }
-                }
-            }
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            for (int i = 0; i < MAX_WLAN; i++) {
-                if (preferences.getString((pkNtpServer(i)).c_str(), "") != "") {
-                    chunk += "<li><b>ntpServer" + String(i + 1) + ":</b> " + preferences.getString((pkNtpServer(i)).c_str(), "") + "</li>";
-                }
-            }
-
-
-            chunk += "<li><b>timezone</b>: " + preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT) + "</li>";
-            chunk += "<li><b>background</b>: " + preferences.getString(PK_BACKGROUND, "/faces/default") + "</li>";
-            chunk += "<li><b>handset</b>: " + preferences.getString(PK_HANDSET, "") + "</li>";
-
-            // centerColor/rotation mode: siehe Kommentare oben in /status.
-            // centerColor/rotation mode: see the comments above in /status.
-
-            chunk += "<li><b>centerColor (RGB888)</b>: " + String(preferences.getLong(PK_CENTER_COLOR, 0xEC0016), HEX) + "</li>";
-            chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
-
-            uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
-            chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + "</li>";
-            {
-                uint8_t rotation2Panel = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
-                chunk += "<li><b>tftRotation2</b>: " + rotationLabelHtml(rotation2Panel) + "</li>";
-            }
-            chunk += "<li><b>rotation mode</b>: ";
-            if (gc9d01SwRotation) {
-                chunk += "software (pixel remap, GC9D01 with PSRAM)";
-            }
-            else {
-                chunk += "hardware (display MADCTL register)";
-                if (displayGeom->swRotation) chunk += " - <b>ineffective on GC9D01</b>, software rotation needs PSRAM";
-            }
-            chunk += "</li>";
-
-            webserver.sendContent(chunk);
-            chunk = "";
-
-            // Booleans als Text
-            // Booleans as text
-
-            bool stationModeStatus = preferences.getBool(PK_STATION_MODE, true);
-            chunk += "<li><b>stationMode</b>: " + String(stationModeStatus ? "true" : "false") + "</li>";
-            chunk += "<li><b>smoothSecond</b>: " + String(getSmoothSecondPref(stationModeStatus) ? "true" : "false") + "</li>";
-            chunk += "<li><b>showSecondhand</b>: " + String(preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "true" : "false") + "</li>";
-            chunk += "<li><b>smoothMinute</b>: " + String(preferences.getBool(PK_SMOOTH_MINUTE, false) ? "true" : "false") + "</li>";
-
-            chunk += "<li><b>minBrightness</b>: " + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100)) + "</li>";
-            chunk += "<li><b>useBacklight</b>: " + String(preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT) ? "true" : "false") + "</li>";
-            chunk += "<li><b>maxBrightness</b>: " + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255)) + "</li>";
-
-            chunk += "<li><b>daywindow</b>: " + dayWindowText() + "</li>";
-
-            if (preferences.getBool(PK_USE_ADC, true)) {
-                chunk += "<li><b>use_adc</b>: " + String(preferences.getBool(PK_USE_ADC, true) ? "true" : "false") + "</li>";
-                chunk += "<li><b>adc lowThreshold</b>: " + String(preferences.getInt(PK_LOW_THRESHOLD, 40)) + "</li>";
-                chunk += "<li><b>adc highThreshold</b>: " + String(preferences.getInt(PK_HIGH_THRESHOLD, 60)) + "</li>";
-                chunk += "<li><b>adc Inverted</b>: " + String(preferences.getBool(PK_ADC_INVERTED, false) ? "true" : "false") + "</li>";
-            }
-            if (preferences.getBool(PK_ROCRAIL_ENABLED, false)) {
-                chunk += "<li><b>rocrailEnabled</b>: " + String(preferences.getBool(PK_ROCRAIL_ENABLED, false) ? "true" : "false") + "</li>";
-                chunk += "<li><b>rocrailServer</b>: " + preferences.getString(PK_ROCRAIL_SERVER, "") + "</li>";
-                chunk += "<li><b>rocrailServerPort</b>: " + String(preferences.getUShort(PK_ROCRAIL_SRV_PORT, ROCRAIL_DEFAULT_PORT)) + "</li>";
-            }
+            generateStatusItems(chunk, [](String& part) { webserver.sendContent(part); part = ""; });
             chunk += "</ul>";
             chunk += "</br>";
             chunk += "<li>Contact: <a href='mailto:howl-clock@gmx.de'>howl-clock@gmx.de</a></li>";
@@ -5974,7 +5523,7 @@
             // hostname comes unfiltered from /sethostname - without
             // escapeHtmlText(), a "'" in it could break out of this title attribute.
 
-            chunk += "<span title='" + translate("The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.") + " http://" + escapeHtmlText(String(hostname)) + ".local. " + translate("A restart is required for a changed hostname to take effect. Not all routers support hostname resolution") + ".' style='cursor:help;'>&#9432;</span>";
+            chunk += infoTip(translate("The clock can also be reached at http://&quot;hostname&quot;.local instead of its IP address, e.g.") + " http://" + escapeHtmlText(String(hostname)) + ".local. " + translate("A restart is required for a changed hostname to take effect. Not all routers support hostname resolution"));
             chunk += "<input name='hostname' maxlength='30' value='" + escapeHtmlText(String(hostname)) + "' style='width:170px;'>";
             chunk += "<button type='submit' style='width:140px;'>" + translate("Save") + "</button>";
             chunk += "</div>";
@@ -5987,9 +5536,9 @@
             chunk += "<form method='POST' action='/api/startWPS' style='margin:0;'>";
             chunk += "<button type='submit' style='width:170px;'>" + translate("Add Network via WPS") + "</button>";
             chunk += "</form>";
-            chunk += "<span title='" + translate("Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 2 minutes while this happens") + ".' style='cursor:help;'>&#9432;</span>";
+            chunk += infoTip(translate("Adds a new network via WPS - press the WPS button on your router when prompted. The clock's connection may be lost for about 2 minutes while this happens"));
             chunk += "<button id='rescanBtn' type='button' style='width:170px;'>" + translate("Rescan Networks") + "</button>";
-            chunk += "<span title='" + translate("Scans for available WiFi networks again and refreshes the dropdown lists below") + ".' style='cursor:help;'>&#9432;</span>";
+            chunk += infoTip(translate("Scans for available WiFi networks again and refreshes the dropdown lists below"));
             chunk += "</div><br>";
 
             // Zaehlt die bereits gespeicherten Netzwerke, um den "Verbinden"-Button
@@ -6019,7 +5568,7 @@
                 upperSsidKey.toUpperCase();
                 chunk += "<h3 style='display:flex;align-items:center;justify-content:center;gap:6px;'>" + upperSsidKey;
                 if (i == 0) {
-                    chunk += " <span title='" + translate("Up to") + " " + String(MAX_WLAN) + " " + translate("WiFi networks can be stored") + ".' style='cursor:help;'>&#9432;</span>";
+                    chunk += " " + infoTip(translate("Up to") + " " + String(MAX_WLAN) + " " + translate("WiFi networks can be stored"));
                 }
                 chunk += "</h3>";
 
@@ -6150,17 +5699,9 @@
             chunk += "<form action='/applydisplaysettings' method='POST'>";
             chunk += "<div class='card'>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='showSecondHand' id='cbShowSec' value='1' ";
-            chunk += preferences.getBool(PK_SHOW_SECOND_HAND, true) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Show Seconds");
-            chunk += " <span title='" + translate("Shows or hides the second hand on the clock face") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            chunk += checkboxRow("showSecondHand", preferences.getBool(PK_SHOW_SECOND_HAND, true), translate("Show Seconds"), translate("Shows or hides the second hand on the clock face"), "cbShowSec");
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='stationMode' id='cbStation' value='1' ";
-            chunk += preferences.getBool(PK_STATION_MODE, true) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Train Station Mode");
-            chunk += " <span title='" + translate("The second hand completes its lap in about 58.5 seconds and then waits at 60 until the minute changes, like a classic train station clock") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothSecond' id='cbSmoothSec' value='1' ";
+            chunk += checkboxRow("stationMode", preferences.getBool(PK_STATION_MODE, true), translate("Train Station Mode"), translate("The second hand completes its lap in about 58.5 seconds and then waits at 60 until the minute changes, like a classic train station clock"), "cbStation");
 
             // Fallback bewusst PK_STATION_MODE (siehe smoothSecond in uhr4.ino) - Uhren ohne gespeichertes
             // smoothSecond behalten ihr Aussehen.
@@ -6168,18 +5709,12 @@
             // Fallback deliberately PK_STATION_MODE (see smoothSecond in uhr4.ino) - clocks without a stored
             // smoothSecond keep their look.
 
-            chunk += getSmoothSecondPref(preferences.getBool(PK_STATION_MODE, true)) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Smooth Second Hand");
-            chunk += " <span title='" + translate("The second hand moves smoothly instead of jumping in 1-second steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
-
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='smoothMinute' value='1' ";
+            chunk += checkboxRow("smoothSecond", getSmoothSecondPref(preferences.getBool(PK_STATION_MODE, true)), translate("Smooth Second Hand"), translate("The second hand moves smoothly instead of jumping in 1-second steps"), "cbSmoothSec");
 
             // Default false - sonst zeigte die Checkbox nach einem Werksreset faelschlich "aktiviert".
             // Default false - otherwise the checkbox would falsely show "enabled" after a factory reset.
 
-            chunk += preferences.getBool(PK_SMOOTH_MINUTE, false) ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Smooth Minute Hand");
-            chunk += " <span title='" + translate("The minute hand moves smoothly instead of jumping in 1-minute steps") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            chunk += checkboxRow("smoothMinute", preferences.getBool(PK_SMOOTH_MINUTE, false), translate("Smooth Minute Hand"), translate("The minute hand moves smoothly instead of jumping in 1-minute steps"));
 
             // Ohne Sekundenzeiger sind Bahnhofsmodus und sanfter Sekundenzeiger aus und ausgegraut (abgeschaltete
             // Felder werden nicht gesendet); wieder angehakt kommt ihr vorheriger Zustand zurueck.
@@ -6191,10 +5726,7 @@
             chunk += "function upd(){deps.forEach(function(c){if(!show.checked){if(!c.disabled)c.dataset.was=c.checked?'1':'0';c.checked=false;}else if(c.disabled){c.checked=c.dataset.was==='1';}";
             chunk += "c.disabled=!show.checked;c.parentNode.style.opacity=show.checked?'':'0.45';});}show.addEventListener('change',upd);upd();})();</script>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='wifiActive' value='1' ";
-            chunk += wifiActive ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Reconnect WiFi");
-            chunk += " <span title='" + translate("Automatically tries to reconnect if the WiFi connection is lost") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            chunk += checkboxRow("wifiActive", wifiActive, translate("Reconnect WiFi"), translate("Automatically tries to reconnect if the WiFi connection is lost"));
 
             // Default aus - schaltet Nutzung und Sichtbarkeit des separaten
             // Rocrail-Tabs frei (siehe generateSettingsTabNav()).
@@ -6202,15 +5734,9 @@
             // Default off - unlocks use and visibility of the separate
             // Rocrail tab (see generateSettingsTabNav()).
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='rocrailEnabled' value='1' ";
-            chunk += rocrailEnabled ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Rocrail");
-            chunk += " <span title='" + translate("Take over the model time from a Rocrail server (model railroad control software) for the hands - unlocks the Rocrail tab, where the server address can then be entered") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            chunk += checkboxRow("rocrailEnabled", rocrailEnabled, translate("Rocrail"), translate("Take over the model time from a Rocrail server (model railroad control software) for the hands - unlocks the Rocrail tab, where the server address can then be entered"));
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='loggingEnabled' value='1' ";
-            chunk += loggingEnabled ? "checked" : "";
-            chunk += " style='width:auto;margin:0;'>" + translate("Enable Logging");
-            chunk += " <span title='" + translate("Writes up to 9 log files to LittleFS for troubleshooting") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+            chunk += checkboxRow("loggingEnabled", loggingEnabled, translate("Enable Logging"), translate("Writes up to 9 log files to LittleFS for troubleshooting"));
 
             // Nur sichtbar mit DCF77-Hardware UND dcf77Confirmed - ohne je
             // erkanntes Signal soll die Option gar nicht erst auftauchen.
@@ -6219,10 +5745,7 @@
             // signal ever recognized, the option should not appear at all.
 
             if (dcf77Confirmed) {
-                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><input type='checkbox' name='dcfSyncLed' value='1' ";
-                chunk += dcfSyncLedEnabled ? "checked" : "";
-                chunk += " style='width:auto;margin:0;'>" + translate("DCF77 Sync LED Blink");
-                chunk += " <span title='" + translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal") + ".' style='cursor:help;'>&#9432;</span></div><br>";
+                chunk += checkboxRow("dcfSyncLed", dcfSyncLedEnabled, translate("DCF77 Sync LED Blink"), translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal"));
             }
 
             // Displaytyp mit vier Eintraegen wie in flashESP (Werte = parseDisplayName()), ohne
@@ -6241,7 +5764,7 @@
                     { "GC9D01", DISPLAY_TYPE_GC9D01, "GC9D01 (160x160)" },
                     { "ILI9341", DISPLAY_TYPE_ILI9341, "ILI9341 (240x320) with time and date below the clock" },
                 };
-                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": <span title='" + translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching to another display type restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for (GC9A01 and ILI9341 share the 240 size)") + ".' style='cursor:help;'>&#9432;</span> ";
+                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": " + infoTip(translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching to another display type restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for (GC9A01 and ILI9341 share the 240 size)")) + " ";
                 chunk += "<select data-cur='" + String(curChoice) + "' data-t='" + String(displayType) + "' style='min-width:190px;max-width:100%;' onchange=\"var o=this.options[this.selectedIndex];if(confirm('" + translate("Change the display type to") + ": '+o.text+'?'+(o.dataset.t!=this.dataset.t?'\\n" + translate("The clock restarts to apply the display type") + ".':''))){var f=document.createElement('form');f.method='POST';f.action='/save_displaytype';var i=document.createElement('input');i.type='hidden';i.name='display';i.value=this.value;f.appendChild(i);document.body.appendChild(f);f.submit();}else{this.value=this.dataset.cur;}\">";
                 for (const auto& c : choices) {
                     chunk += "<option value='" + String(c.name) + "' data-t='" + String(c.type) + "'";
@@ -6251,7 +5774,7 @@
                 chunk += "</select></div>";
             }
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": <span title='" + translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation' style='width:190px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": " + infoTip(translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing")) + " <select name='rotation' style='width:190px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             String rotationNaLabel = translate("not connected (n.a.)");
             for (int i = 0; i <= TFT_ROTATION_NA; i++) {
@@ -6261,7 +5784,7 @@
             }
             chunk += "</select></div>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": <span title='" + translate("Rotates Display 2's (CS2) clock face independently of Display 1") + ".' style='cursor:help;'>&#9432;</span> <select name='rotation2' style='width:190px;'>";
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": " + infoTip(translate("Rotates Display 2's (CS2) clock face independently of Display 1")) + " <select name='rotation2' style='width:190px;'>";
             for (int i = 0; i <= TFT_ROTATION_NA; i++) {
                 chunk += "<option value='" + String(i) + "'";
                 if (i == tftRotation2) chunk += " selected";
@@ -7565,6 +7088,7 @@
             size_t len;
         };
         static const GzAsset gzAssets[] = {
+            { "/designer.js", "application/javascript; charset=utf-8", DESIGNER_COMMON_JS_GZ, sizeof(DESIGNER_COMMON_JS_GZ) },
             { "/facedesigner.css", "text/css; charset=utf-8", FACE_DESIGNER_CSS_GZ, sizeof(FACE_DESIGNER_CSS_GZ) },
             { "/facedesigner.js", "application/javascript; charset=utf-8", FACE_DESIGNER_JS_GZ, sizeof(FACE_DESIGNER_JS_GZ) },
             { "/handdesigner.css", "text/css; charset=utf-8", HAND_DESIGNER_CSS_GZ, sizeof(HAND_DESIGNER_CSS_GZ) },
@@ -8087,6 +7611,7 @@
 
             html += "<h3>" + translate("Create Backup") + "</h3>";
             html += "<p>" + translate("Saves all settings, presets, clock faces and hand sets in one file") + ".</p>";
+            html += "<p><small>" + translate("For troubleshooting, the backup also contains the status page and all log files - they are not restored") + ".</small></p>";
 
             // POST statt GET: keine Sicherung per Link/Vorabruf ausloesbar. Der
             // Warnhinweis erscheint mit dem WLAN-Haken - die Daten sind nur mit
@@ -8558,17 +8083,19 @@
     }
 
 
-    // Upload fuer /importpresets: liest "Name<TAB>URL"-Zeilen und fuegt nur
-    // NEUE Presets in freie Slots ein - bestehende bleiben unangetastet.
+    // Upload fuer /importpresets und /importpresetsmerge: liest "Name<TAB>URL"-Zeilen und fuegt die Presets in freie
+    // Slots ein. skipExisting (Import): Namen, die es schon gibt, ueberspringen - bestehende bleiben unangetastet;
+    // beim Zusammenfuehren filtert das aufrufende Skript sie schon vorher heraus. tag steht vor den Logzeilen.
 
-    // Upload for /importpresets: reads "Name<TAB>URL" lines and inserts only
-    // NEW presets into free slots - existing ones stay untouched.
+    // Upload for /importpresets and /importpresetsmerge: reads "Name<TAB>URL" lines and inserts the presets into
+    // free slots. skipExisting (import): skip names that already exist - existing ones stay untouched; when merging,
+    // the calling script already filters them out beforehand. tag precedes the log lines.
 
-    void handlePresetImportUpload() {
+    void handlePresetUpload(bool skipExisting, const char* tag) {
         HTTPUpload& upload = webserver.upload();
 
         if (upload.status == UPLOAD_FILE_START) {
-            DEBUG_PRINTLN("[PRESET-IMPORT] Start (from " + webserver.client().remoteIP().toString() + ")");
+            DEBUG_PRINTLN(String(tag) + " Start (from " + webserver.client().remoteIP().toString() + ")");
             presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
             presetImportSuccess = presetImportFile ? true : false;
         }
@@ -8583,7 +8110,7 @@
 
                 File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
                 if (!readFile) {
-                    DEBUG_PRINTLN("[PRESET-IMPORT] Could not read file (from " + webserver.client().remoteIP().toString() + ")");
+                    DEBUG_PRINTLN(String(tag) + " Could not read file (from " + webserver.client().remoteIP().toString() + ")");
                     presetImportSuccess = false;
                     return;
                 }
@@ -8629,7 +8156,7 @@
 
                     int tabPos = line.indexOf('\t');
                     if (tabPos == -1) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Ungueltige Zeile (kein Tab): " + line + " (from " + webserver.client().remoteIP().toString() + ")");
+                        DEBUG_PRINTLN(String(tag) + " Ungueltige Zeile (kein Tab): " + line + " (from " + webserver.client().remoteIP().toString() + ")");
                         continue;
                     }
 
@@ -8637,24 +8164,21 @@
                     String url = line.substring(tabPos + 1);
                     if (name.isEmpty() || url.isEmpty()) continue;
 
-                    // Preset mit gleichem Namen existiert bereits - ueberspringen,
-                    // statt es zu ueberschreiben oder zu loeschen.
-
-                    // A preset with the same name already exists - skip it instead of
-                    // overwriting or deleting it.
+                    // Import: Preset mit gleichem Namen existiert bereits - ueberspringen, statt es zu ueberschreiben
+                    // Import: a preset with the same name already exists - skip it instead of overwriting it
 
                     bool alreadyExists = false;
                     for (const String& existingName : existingPresetNames) {
-                        if (existingName == name) { alreadyExists = true; break; }
+                        if (skipExisting && existingName == name) { alreadyExists = true; break; }
                     }
                     if (alreadyExists) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (already exists): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
+                        DEBUG_PRINTLN(String(tag) + " Skipped (already exists): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
                         skippedCount++;
                         continue;
                     }
 
                     if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] Skipped (clock face not found): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
+                        DEBUG_PRINTLN(String(tag) + " Skipped (clock face not found): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
                         skippedCount++;
                         continue;
                     }
@@ -8667,7 +8191,7 @@
                         }
                     }
                     if (freeIndex == -1) {
-                        DEBUG_PRINTLN("[PRESET-IMPORT] No free slot left - aborted (from " + webserver.client().remoteIP().toString() + ")");
+                        DEBUG_PRINTLN(String(tag) + " No free slot left - aborted (preset: " + name + ") (from " + webserver.client().remoteIP().toString() + ")");
                         break;
                     }
 
@@ -8684,108 +8208,25 @@
                     savePresets();
                 }
 
-                DEBUG_PRINTLN("[PRESET-IMPORT] " + String(importedCount) + " presets imported, " + String(skippedCount) + " skipped (from " + webserver.client().remoteIP().toString() + ")");
+                DEBUG_PRINTLN(String(tag) + " " + String(importedCount) + " presets added, " + String(skippedCount) + " skipped (from " + webserver.client().remoteIP().toString() + ")");
                 presetImportSuccess = true; // auch 0 neue Presets ist kein Fehler (z.B. alles schon vorhanden)
                                             // 0 new presets is also not an error (e.g. everything already existed)
             }
             else {
-                DEBUG_PRINTLN("[PRESET-IMPORT] Failed while writing (from " + webserver.client().remoteIP().toString() + ")");
+                DEBUG_PRINTLN(String(tag) + " Failed while writing (from " + webserver.client().remoteIP().toString() + ")");
             }
         }
     }
 
 
-    // Wie handlePresetImportUpload(), aber ohne Namens-Dopplungspruefung -
-    // der aufrufende JS-Code filtert vorhandene Namen bereits vorher heraus.
+    // Upload-Rueckrufe der beiden Routen (WebServer erwartet Funktionen ohne Parameter)
+    // Upload callbacks of the two routes (WebServer expects functions without parameters)
 
-    // Like handlePresetImportUpload(), but without a name-duplicate check -
-    // the calling JS code already filters out existing names beforehand.
+    void handlePresetImportUpload() {
+        handlePresetUpload(true, "[PRESET-IMPORT]");
+    }
 
     void handlePresetMergeUpload() {
-        HTTPUpload& upload = webserver.upload();
-
-        if (upload.status == UPLOAD_FILE_START) {
-            DEBUG_PRINTLN("[PRESET-MERGE] Start (from " + webserver.client().remoteIP().toString() + ")");
-            presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
-            presetImportSuccess = presetImportFile ? true : false;
-        }
-        else if (upload.status == UPLOAD_FILE_WRITE) {
-            if (presetImportSuccess && presetImportFile) {
-                presetImportFile.write(upload.buf, upload.currentSize);
-            }
-        }
-        else if (upload.status == UPLOAD_FILE_END) {
-            if (presetImportSuccess && presetImportFile) {
-                presetImportFile.close();
-
-                File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
-                if (!readFile) {
-                    DEBUG_PRINTLN("[PRESET-MERGE] Could not read file (from " + webserver.client().remoteIP().toString() + ")");
-                    presetImportSuccess = false;
-                    return;
-                }
-
-                std::vector<String> existingFaces;
-                File faceRoot = LittleFS.open("/");
-                File faceEntry = faceRoot.openNextFile();
-                while (faceEntry) {
-                    String entryName = faceEntry.name();
-                    if (!faceEntry.isDirectory() && entryName.startsWith("face_") && entryName.endsWith(".bmp")) {
-                        existingFaces.push_back(entryName);
-                    }
-                    faceEntry = faceRoot.openNextFile();
-                }
-
-                int addedCount = 0;
-                int skippedCount = 0;
-                while (readFile.available()) {
-                    String line = readFile.readStringUntil('\n');
-                    line.trim();
-                    if (line.isEmpty()) continue;
-
-                    int tabPos = line.indexOf('\t');
-                    if (tabPos == -1) continue;
-
-                    String name = line.substring(0, tabPos);
-                    String url = line.substring(tabPos + 1);
-                    if (name.isEmpty() || url.isEmpty()) continue;
-
-                    if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] Skipped (clock face not found): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
-                        skippedCount++;
-                        continue;
-                    }
-
-                    int freeIndex = -1;
-                    for (int i = 0; i < MAX_PRESETS; i++) {
-                        if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
-                            freeIndex = i;
-                            break;
-                        }
-                    }
-                    if (freeIndex == -1) {
-                        DEBUG_PRINTLN("[PRESET-MERGE] No free slot left - aborted (preset: " + name + ") (from " + webserver.client().remoteIP().toString() + ")");
-                        break;
-                    }
-
-                    presets[freeIndex].name = name;
-                    presets[freeIndex].url = url;
-                    addedCount++;
-                    DEBUG_PRINTLN("[PRESET-MERGE] Added: " + name + " (from " + webserver.client().remoteIP().toString() + ")");
-                }
-                readFile.close();
-                LittleFS.remove(PRESET_IMPORT_TMP_PATH);
-
-                if (addedCount > 0) {
-                    savePresets();
-                }
-                presetImportSuccess = true; // Auch bei 0 neuen Presets kein Fehler (z.B. alles schon vorhanden)
-                                            // 0 new presets is also not an error (e.g. everything already existed)
-                DEBUG_PRINTLN("[PRESET-MERGE] " + String(addedCount) + " new presets added, " + String(skippedCount) + " skipped (from " + webserver.client().remoteIP().toString() + ")");
-            }
-            else {
-                DEBUG_PRINTLN("[PRESET-MERGE] Failed while writing (from " + webserver.client().remoteIP().toString() + ")");
-            }
-        }
+        handlePresetUpload(false, "[PRESET-MERGE]");
     }
 

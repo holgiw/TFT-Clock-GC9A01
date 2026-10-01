@@ -12,7 +12,7 @@
 
   var TX = {
     de: { base: 'Basis:', builtin: 'Standard (eingebaut)', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
-      activate: 'neues Zifferblatt aktivieren', saveBtn: 'Als neues Zifferblatt speichern', name: 'Name:',
+      saveBtn: 'Als neues Zifferblatt speichern', name: 'Name:',
       saveCurBtn: 'Aktuelles Zifferblatt speichern und anwenden', tools: 'Werkzeug', bw: 'Stiftbreite:',
       pen: 'Stift', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse', ellf: 'Ellipse gef\u00fcllt', circ: 'Kreis', circf: 'Kreis gef\u00fcllt', radius: 'Radius',
       poly: 'Polygon', fill: 'F\u00fcllen', text: 'Text', pick: 'Pipette', sym: 'Symmetrie:', txtSize: 'Gr\u00f6\u00dfe:',
@@ -69,7 +69,7 @@
       df4: 'JJJJ-MM-TT', df5: 'TT.MM.', vlwCur: ' (auf der Uhr)', vlwErr: 'Schrift f\u00fcr den Streifen konnte nicht erzeugt werden.',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
-      activate: 'activate new clock face', saveBtn: 'Save as new clock face', name: 'Name:',
+      saveBtn: 'Save as new clock face', name: 'Name:',
       saveCurBtn: 'Save and apply current clock face', tools: 'Tool', bw: 'Pen width:',
       pen: 'Pen', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Filled ellipse', circ: 'Circle', circf: 'Filled circle', radius: 'Radius',
       poly: 'Polygon', fill: 'Fill', text: 'Text', pick: 'Picker', sym: 'Symmetry:', txtSize: 'Size:',
@@ -132,7 +132,6 @@
     if (a !== undefined) s = s.replace('{0}', a);
     return b === undefined ? s : s.replace('{1}', b);
   }
-  function $(id) { return document.getElementById(id); }
 
   // Zustand
   // State
@@ -144,10 +143,13 @@
   // Overwriting only for files whose name /upload accepts as well
 
   function canOverwrite() { return base !== DEF && /^\/face_[A-Za-z0-9_.-]+\.bmp$/.test(base); }
+  // Beide Knoepfe sind immer bedienbar (auch ohne Aenderung), nur das eingebaute Zifferblatt ist nicht ueberschreibbar
+  // Both buttons are always usable (even without a change), only the built-in clock face cannot be overwritten
+
   function setDirty(v) {
-    dirty = v; $('saveBtn').disabled = !v;
+    dirty = v; $('saveBtn').disabled = false;
     var ok = canOverwrite();
-    $('saveCurBtn').disabled = !v || !ok;
+    $('saveCurBtn').disabled = !ok;
     $('saveCurBtn').title = ok ? '' : t('builtinRO');
   }
 
@@ -156,9 +158,6 @@
 
   function rgb565(r, g, b) { return (Math.round(r * 31 / 255) << 11) | (Math.round(g * 63 / 255) << 5) | Math.round(b * 31 / 255); }
   function to565(hex) { return rgb565(parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)); }
-  function rgbOf(v) { return [((v >> 11) & 31) * 255 / 31 | 0, ((v >> 5) & 63) * 255 / 63 | 0, (v & 31) * 255 / 31 | 0]; }
-  function hexOf(v) { var c = rgbOf(v); return '#' + c.map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }
-  function cssOf(v) { var c = rgbOf(v); return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
 
   // Puffer <-> Canvas
   // Buffer <-> canvas
@@ -209,21 +208,6 @@
   }
   applyZoom();
 
-  // Seitliche Karten bleiben beim Scrollen unter der Topbar stehen - nur solange
-  // alle drei Karten nebeneinander passen, sonst wuerden sie den Editor verdecken.
-
-  // Side cards stay put below the topbar while scrolling - only while all three
-  // cards fit side by side, otherwise they would cover the editor.
-
-  function updateSticky() {
-    var root = $('hdRoot'), cards = root.querySelectorAll('.row > .card');
-    var tb = document.querySelector('.topbar');
-    root.style.setProperty('--hdTop', ((tb ? tb.offsetHeight : 0) + 8) + 'px');
-    root.classList.remove('stickon');
-    var top = cards[0].offsetTop, oneLine = true;
-    for (var i = 1; i < cards.length; i++) if (cards[i].offsetTop !== top) oneLine = false;
-    root.classList.toggle('stickon', oneLine);
-  }
   window.addEventListener('resize', updateSticky);
   updateSticky();
   $('zoomOut').onclick = function () { setZoom(Z - 1); };
@@ -578,11 +562,6 @@
   // Werkzeugleiste
   // Toolbar
 
-  function button(parent, label, onClick, cls) {
-    var b = document.createElement('button');
-    b.type = 'button'; b.className = cls || 'tb'; b.textContent = label; b.onclick = onClick;
-    parent.appendChild(b); return b;
-  }
   function options(sel, keys) {
     keys.forEach(function (k) { var o = document.createElement('option'); o.value = k[0]; o.textContent = t(k[1]); sel.appendChild(o); });
   }
@@ -866,18 +845,6 @@
   // BMP lesen/schreiben (Format wie encodeBmpToBytes() im Geraet)
   // BMP read/write (format like encodeBmpToBytes() on the device)
 
-  function parseBmp(ab) {
-    var dv = new DataView(ab);
-    if (dv.getUint8(0) !== 66 || dv.getUint8(1) !== 77) throw new Error('no BMP');
-    var off = dv.getUint32(10, true), w = dv.getInt32(18, true), h = dv.getInt32(22, true), bpp = dv.getUint16(28, true);
-    if ([16, 24, 32].indexOf(bpp) < 0) throw new Error(bpp + ' bpp');
-    var topDown = h < 0, ah = Math.abs(h), rs = Math.floor((w * bpp / 8 + 3) / 4) * 4;
-    return { w: w, h: ah, px: function (x, y) {
-      var p = off + (topDown ? y : ah - 1 - y) * rs + x * (bpp / 8);
-      if (bpp === 16) return dv.getUint16(p, true);
-      return ((dv.getUint8(p + 2) >> 3) << 11) | ((dv.getUint8(p + 1) >> 2) << 5) | (dv.getUint8(p) >> 3);
-    } };
-  }
   function decodeImg(ab, w, h) {
     var img = parseBmp(ab), out = new Uint16Array(w * h);
     for (var ty = 0; ty < h; ty++) for (var tx = 0; tx < w; tx++)
@@ -948,7 +915,6 @@
   // Laden und Speichern
   // Load and save
 
-  function showMsg(text, ok) { $('msg').className = ok === undefined ? '' : (ok ? 'msg ok' : 'msg err'); $('msg').textContent = text; }
   function faceLabel(path) { return path.replace(/^\/?face_/, '').replace(/\.bmp$/, ''); }
   function showBase() {
     $('baseInfo').textContent = t('base') + ' ' + (base === DEF ? t('builtin') : faceLabel(base)) + ' (' + t('active') + ')';
@@ -988,12 +954,12 @@
   };
 
   // Hochladen ueber /upload (wird dort RLE-komprimiert, bei runden Displays maskiert),
-  // Weiterleitung NICHT folgen; optional aktivieren - /setbackground laedt neu.
+  // Weiterleitung NICHT folgen; danach aktivieren - /setbackground laedt neu.
 
   // Upload via /upload (RLE-compressed there, masked on round displays),
-  // do NOT follow the redirect; optionally activate - /setbackground reloads.
+  // do NOT follow the redirect; then activate - /setbackground reloads.
 
-  function saveFace(file, activate, isNew) {
+  function saveFace(file, isNew) {
     $('saveBtn').disabled = true; $('saveCurBtn').disabled = true;
     showMsg(t('saving'));
     function upload(blob, name) {
@@ -1006,7 +972,6 @@
     upload(encodeBmp(rows(pix, OY, FH), W, FH), file).then(function () {
       if (SH) return upload(encodeBmp(rows(pix, stripY(), SH), W, SH), 'strip_' + file.replace(/^face_/, ''));
     }).then(function () {
-      if (!activate) return;
       return fetch('/setbackground?file=' + encodeURIComponent(file), { redirect: 'manual' }).then(function () {
         FD.active = '/' + file; base = FD.active;
       });
@@ -1015,7 +980,7 @@
       setDirty(false);
       showBase();
       $('faceName').value = nextName();
-      showMsg(isNew ? t('saved', faceLabel(file)) + (activate ? t('activated') : '') : t('savedCur', faceLabel(file)), true);
+      showMsg(isNew ? t('saved', faceLabel(file)) + t('activated') : t('savedCur', faceLabel(file)), true);
     }).catch(function (e) {
       showMsg(t('failed') + e.message, false);
       setDirty(true);
@@ -1026,10 +991,10 @@
     if (!/^[A-Za-z0-9_-]{1,20}$/.test(name)) { showMsg(t('badName'), false); return; }
     var file = 'face_' + name + '.bmp';
     if (FD.faces.indexOf(file) >= 0 && !confirm(t('confirmExists', name))) return;
-    saveFace(file, $('activate').checked, true);
+    saveFace(file, true);
   };
   $('saveCurBtn').onclick = function () {
-    if (canOverwrite()) saveFace(base.substring(1), true, false);
+    if (canOverwrite()) saveFace(base.substring(1), false);
   };
   window.addEventListener('beforeunload', function (ev) { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
@@ -1152,22 +1117,6 @@
     pctx.restore();
   }
 
-  // Zeigerwinkel wie renderClockFrame() im Geraet: Bahnhofsuhr (Sekunde eilt
-  // und wartet auf der 12), schleichende oder springende Minute und Sekunde.
-
-  // Hand angles like renderClockFrame() on the device: station clock (second
-  // races and waits at 12), smooth or jumping minute and second.
-
-  function handAngles(d, M) {
-    var h = d.getHours() % 12, m = d.getMinutes(), s = d.getSeconds(), ms = d.getMilliseconds(), sec;
-    M = M || {};
-    if (M.station) {
-      var el = s * 1000 + ms, fast = M.fastMs || 975, tick = Math.floor(el / fast), sub = (el % fast) / fast;
-      sec = Math.min(M.smoothSec ? tick + (1 - Math.cos(Math.PI * Math.sqrt(sub))) / 2 : tick, 60);
-    }
-    else sec = M.smoothSec ? s + ms / 1000 : s;
-    return { hour: (h + m / 60 + s / 3600) * 30, minute: (M.smoothMin && !M.station) ? (m + s / 60) * 6 : m * 6, second: sec * 6 };
-  }
   function modeText(M) {
     M = M || {};
     return t('modeAs') + ' ' + [M.station ? t('mStation') : '', M.smoothSec ? t('mSecSmooth') : t('mSecTick'),
@@ -1218,7 +1167,7 @@
   // Beschriftungen
   // Labels
 
-  var labels = { tActivate: 'activate', tName: 'name', tTools: 'tools', tBw: 'bw', tSym: 'sym', tTxtSize: 'txtSize',
+  var labels = { tName: 'name', tTools: 'tools', tBw: 'bw', tSym: 'sym', tTxtSize: 'txtSize',
     tColor: 'color', tStd: 'std', tPal: 'pal', tEdit: 'edit', tImport: 'import', tGen: 'gen', tBg: 'bg', tRing: 'ring',
     tHourM: 'hourM', tMinM: 'minM', tNum: 'num', tNSize: 'nSize', tNDist: 'nDist', tNFont: 'nFont', genHint: 'genHint',
     tPreview: 'preview', tLive: 'live', tShowHands: 'showHands', tTxtMode: 'txtMode', tTxtRot: 'txtRot',
