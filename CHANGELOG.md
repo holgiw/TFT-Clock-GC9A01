@@ -62,7 +62,8 @@ Neueste Einträge oben.
 
 ### Geändert
 - Screenshots (`screenshots/de`, `screenshots/en`) neu von einer runden Uhr mit RTC und DCF77 aufgenommen, neu
-  dazu die Seite DCF77 (`dcf77.png`). Die Bilder der ILI9341-Designer bleiben unverändert.
+  dazu die Seite DCF77 (`dcf77.png`) und der Tab Rocrail (`rocrail.png`). Die Bilder der ILI9341-Designer
+  bleiben unverändert.
 - `CONTRIBUTING.md` zweisprachig wie die übrigen Anleitungen: erst Deutsch, dann Englisch, oben der Hinweis auf
   die englische Fassung.
 - Zifferblatt- und Zeiger-Designer: „neues Zifferblatt/Design aktivieren“ entfällt – Neues wird beim Speichern immer
@@ -285,7 +286,7 @@ Newest entries on top.
 
 ### Changed
 - Screenshots (`screenshots/de`, `screenshots/en`) retaken from a round clock with RTC and DCF77, new is the
-  DCF77 page (`dcf77.png`). The ILI9341 designer images are unchanged.
+  DCF77 page (`dcf77.png`) and the Rocrail tab (`rocrail.png`). The ILI9341 designer images are unchanged.
 - `CONTRIBUTING.md` bilingual like the other guides: German first, then English, with the note about the English
   version at the top.
 - Clock face and hand designer: "activate new clock face/design" is gone – new ones are always activated when saved. In
