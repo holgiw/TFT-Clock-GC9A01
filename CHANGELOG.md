@@ -61,6 +61,9 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- DCF77: der Eintrag in der Navigation ist immer sichtbar, auch ohne Empfänger. Die Seite DCF77 meldet live,
+  wenn am Pin noch gar keine Pegelwechsel kamen (kein Empfänger erkannt) oder zwar Pegelwechsel, aber noch
+  kein gleichmäßiges DCF77-Signal.
 - Screenshots (`screenshots/de`, `screenshots/en`) neu von einer runden Uhr mit RTC und DCF77 aufgenommen, neu
   dazu die Seite DCF77 (`dcf77.png`) und der Tab Rocrail (`rocrail.png`). Die Bilder der ILI9341-Designer
   bleiben unverändert.
@@ -285,6 +288,9 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- DCF77: the navigation entry is always visible, even without a receiver. The DCF77 page reports live when
+  there have been no level changes on the pin at all (no receiver detected) or level changes but no steady
+  DCF77 signal yet.
 - Screenshots (`screenshots/de`, `screenshots/en`) retaken from a round clock with RTC and DCF77, new is the
   DCF77 page (`dcf77.png`) and the Rocrail tab (`rocrail.png`). The ILI9341 designer images are unchanged.
 - `CONTRIBUTING.md` bilingual like the other guides: German first, then English, with the note about the English

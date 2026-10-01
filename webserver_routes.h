@@ -676,11 +676,11 @@
         html += "var pageVersion=\"" + String(version) + "\";";
         html += "function setStatusDot(id,state,title){var el=document.getElementById(id);if(!el)return;el.classList.toggle('ok',state==='ok');el.classList.toggle('syncing',state==='syncing');el.classList.toggle('na',state==='na');if(title){el.title=title;el.setAttribute('aria-label',title);}}";
 
-        // setPresent(): blendet einen Eintrag (aktuell nur DCF77) live ein,
-        // sobald der Server echte Aktivitaet bestaetigt.
+        // setPresent(): blendet einen Eintrag der Statuszeile (RTC, DCF77, Rocrail) live ein oder aus,
+        // je nachdem, was der Server meldet.
 
-        // setPresent(): reveals an entry (currently only DCF77) live once
-        // the server confirms real activity.
+        // setPresent(): shows or hides a status bar entry (RTC, DCF77, Rocrail) live, depending on what
+        // the server reports.
 
         html += "function setPresent(id,present){var el=document.getElementById(id);if(!el)return;el.hidden=!present;}";
 
@@ -708,13 +708,6 @@
         html += "setPresent('status-dcf77',s.dcf77Present);setStatusDot('dot-dcf77',s.dcf77,s.dcf77Title);";
         html += "setPresent('status-rocrail',s.rocrailEnabled);setStatusDot('dot-rocrail',s.rocrailConnected?'ok':'error',s.rocrailTitle);";
 
-        // Gleiches Feld wie oben (s.dcf77Present) treibt auch den
-        // Navigations-Eintrag - siehe Kommentar in generateNavigation().
-
-        // Same field as above (s.dcf77Present) also drives the navigation
-        // entry - see the comment in generateNavigation().
-
-        html += "setPresent('nav-dcf77',s.dcf77Present);";
         html += "setValue('value-light',s.lightValue);";
         html += "var dt=document.getElementById('topbar-datetime');if(dt)dt.textContent=s.datetime;";
         html += "}).catch(function(){failCount++;if(failCount>=2)setOnline(false);});}";
@@ -787,15 +780,6 @@
         nav += "a:hover { text-decoration: underline; }";
         nav += ".navToggle { display: none; cursor: pointer; font-size: 1.8em; user-select: none; }";
 
-        // Ueberschreibt "display:block!important" der mobilen Regel unten
-        // fuer ausgeblendete Eintraege (z.B. DCF77 vor dcf77Confirmed) - hoehere
-        // Selektor-Spezifitaet reicht theoretisch, explizit ist aber robuster.
-
-        // Overrides the mobile rule's "display:block!important" below for
-        // hidden entries (e.g. DCF77 before dcf77Confirmed) - higher selector
-        // specificity would technically suffice, but being explicit is more robust.
-
-        nav += ".navLinks a[hidden],.navLinks span[hidden]{display:none !important;}";
         nav += "@media (max-width: 600px) {";
         nav += "  .navToggle { display: inline-block; }";
         nav += "  .navLinks { display: none; }";
@@ -843,41 +827,19 @@
 
         for (const auto& item : navItems) {
 
-            // "/dcf77" nur weglassen, wenn keine Hardware verbaut ist - sonst
-            // wird der Eintrag per 'hidden' unsichtbar gerendert und per
-            // Live-Poll eingeblendet, sobald DCF77 erkannt wird.
-
-            // Only omit "/dcf77" when no hardware is wired up - otherwise
-            // the entry is rendered invisible via 'hidden' and gets
-            // revealed live once DCF77 is recognized at runtime.
-
-            bool dcf77Hidden = false;
-            if (item.path == "/dcf77") {
-                dcf77Hidden = !dcf77Confirmed;
-            }
-
-            // id nur fuer den DCF77-Eintrag, damit setPresent() ihn per
-            // Live-Poll gezielt ein-/ausblenden kann (siehe oben).
-
-            // id only for the DCF77 entry, so setPresent() can toggle its
-            // visibility via the live poll (see above).
-
-            String idAttr = (item.path == "/dcf77") ? " id='nav-dcf77'" : "";
-            String hiddenAttr = dcf77Hidden ? " hidden" : "";
-
             if (item.path == currentPath) {
 
                 // Wenn der aktuelle Pfad mit dem Navigationseintrag übereinstimmt, nur Text anzeigen
                 // If the current path matches the nav entry, show plain text only
 
-                nav += "<span" + idAttr + hiddenAttr + " style=\"margin-right:15px; font-weight:bold;\">" + item.label + "</span> ";
+                nav += "<span style=\"margin-right:15px; font-weight:bold;\">" + item.label + "</span> ";
             }
             else {
 
                 // Andernfalls als Link anzeigen
                 // Otherwise show as a link
 
-                nav += "<a" + idAttr + hiddenAttr + " href=\"" + item.path + "\" style=\"margin-right:15px;\"";
+                nav += "<a href=\"" + item.path + "\" style=\"margin-right:15px;\"";
                 if (!item.confirmMessage.isEmpty()) {
                     nav += " onclick=\"return confirm('" + item.confirmMessage + "')\"";
                 }
@@ -3940,6 +3902,8 @@
 
             String json = "{\"present\":true";
             json += ",\"state\":\"" + getDcf77Status() + "\"";
+            json += ",\"edges\":" + String(dcf77Count != 0 ? "true" : "false");
+            json += ",\"confirmed\":" + String(dcf77Confirmed ? "true" : "false");
             json += ",\"bitIndex\":" + String(dcf77BitIndex);
             json += ",\"bits\":\"" + bits + "\"";
             json += ",\"synced\":" + String(dcf77Synced ? "true" : "false"); // Diagnose: ist die Position im Telegramm bekannt? (siehe dcf77Synced in globals.h)
@@ -4592,6 +4556,20 @@
             chunk.reserve(6000);
             chunk += "<h2>DCF77</h2>";
 
+            // Hinweis ohne erkannten Empfaenger: gar keine Pegelwechsel am Pin (nichts angeschlossen) oder
+            // Wechsel ohne gleichmaessigen Sekundentakt (Stoerungen, schlechter Empfang). poll() schaltet um.
+
+            // Note without a recognized receiver: no level changes on the pin at all (nothing connected) or
+            // changes without a steady one-second rhythm (interference, poor reception). poll() toggles them.
+
+            String dcfPin = String(DCF77_DATAPIN);
+            String noEdges = translate("No level changes on GPIO {pin} yet - no DCF77 receiver detected.");
+            String noSignal = translate("Level changes on GPIO {pin}, but no steady DCF77 signal yet - align the receiver and keep it away from interference.");
+            noEdges.replace("{pin}", dcfPin);
+            noSignal.replace("{pin}", dcfPin);
+            chunk += "<div id='dcfNoEdges' class='msg warn'" + String(dcf77Count == 0 ? "" : " hidden") + ">" + noEdges + "</div>";
+            chunk += "<div id='dcfNoSignal' class='msg warn'" + String(dcf77Count != 0 && !dcf77Confirmed ? "" : " hidden") + ">" + noSignal + "</div>";
+
             chunk += "<div class='card' style='max-width:900px;'>"; // 900px: breit genug fuer alle 59 Bit-Kaestchen in einer kompakten Rastergrid ohne unnoetige Zeilenumbrueche auf einem Desktop-Bildschirm
                                                                      // 900px: wide enough to fit all 59 bit boxes in a compact grid without unnecessary line wraps on a desktop screen
             chunk += "<h3>" + translate("Bit progress") + "</h3>";
@@ -4745,8 +4723,10 @@
             chunk += "document.getElementById('dcfAge').textContent=d.ageSeconds;";
             chunk += "var rp=document.getElementById('dcfRepaired');if(rp)rp.textContent=(d.repaired?d.repaired:0);";
             chunk += "}";
+            chunk += "function showHw(s){var ne=document.getElementById('dcfNoEdges'),ns=document.getElementById('dcfNoSignal');"
+                     "if(ne)ne.hidden=s.edges;if(ns)ns.hidden=!s.edges||s.confirmed;}";
             chunk += "var timer=null;";
-            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;var rn=document.getElementById('dcfRawNote');if(rn)rn.hidden=!!s.synced;var sy=document.getElementById('dcfSynced');if(sy)sy.textContent=s.synced?SYNC_YES.replace('{pos}',s.markerPos):SYNC_NO;var se=document.getElementById('dcfSeen');if(se)se.textContent=s.pulsesSeen;var mi=document.getElementById('dcfMissed');if(mi)mi.textContent=s.pulsesMissed;var br=document.getElementById('dcfBreaks');if(br)br.textContent=s.phaseBreaks;var pu=document.getElementById('dcfPulses');if(pu){if(!s.pulses||!s.pulses.length){pu.textContent='-';}else{pu.textContent=s.pulses.map(function(p){return p[0]+'/'+p[1];}).join('  ');}}}).catch(function(){});}";
+            chunk += "function poll(){fetch('/api/dcf77status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){showHw(s);paintBits(s.bitIndex,s.bits);renderDecoded(s.decoded);var ed=document.getElementById('dcfEdgeDropped');if(ed)ed.textContent=s.edgeDropped;var rn=document.getElementById('dcfRawNote');if(rn)rn.hidden=!!s.synced;var sy=document.getElementById('dcfSynced');if(sy)sy.textContent=s.synced?SYNC_YES.replace('{pos}',s.markerPos):SYNC_NO;var se=document.getElementById('dcfSeen');if(se)se.textContent=s.pulsesSeen;var mi=document.getElementById('dcfMissed');if(mi)mi.textContent=s.pulsesMissed;var br=document.getElementById('dcfBreaks');if(br)br.textContent=s.phaseBreaks;var pu=document.getElementById('dcfPulses');if(pu){if(!s.pulses||!s.pulses.length){pu.textContent='-';}else{pu.textContent=s.pulses.map(function(p){return p[0]+'/'+p[1];}).join('  ');}}}).catch(function(){});}";
             chunk += "function start(){if(timer)return;poll();timer=setInterval(poll,1000);}";
             chunk += "function stop(){if(!timer)return;clearInterval(timer);timer=null;}";
             chunk += "document.addEventListener('visibilitychange',function(){if(document.hidden)stop();else start();});";

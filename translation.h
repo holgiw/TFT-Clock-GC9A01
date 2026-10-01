@@ -433,6 +433,8 @@
         { "(DCF77: 1=Mon..7=Sun)", "(DCF77: 1=Mo..7=So)" },
         { "next", "n&auml;chstes" },
         { "lost", "verloren" },
+        { "No level changes on GPIO {pin} yet - no DCF77 receiver detected.", "Noch keine Pegelwechsel an GPIO {pin} - kein DCF77-Empf&auml;nger erkannt." },
+        { "Level changes on GPIO {pin}, but no steady DCF77 signal yet - align the receiver and keep it away from interference.", "Pegelwechsel an GPIO {pin}, aber noch kein gleichm&auml;&szlig;iges DCF77-Signal - Empf&auml;nger ausrichten und von St&ouml;rquellen fernhalten." },
 
         // Bit-Tooltips im /dcf77-Bitraster (title-Attribut je Kaestchen) -
         // Bit-Kennzahlen (BCD-Bit N, Paritaeten) werden im Code an den
