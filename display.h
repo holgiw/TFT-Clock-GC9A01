@@ -993,61 +993,6 @@
     }
 
 
-    // Wie rleDecode565(), schreibt aber direkt in einen zeilenweise auf 4-Byte-
-    // Grenzen gepolsterten BMP-Pixelbereich - vermeidet einen zusaetzlichen
-    // Zwischenpuffer, spart bei 240x240 bis zu ~115 KB Spitzen-Heap-Bedarf.
-
-    // Like rleDecode565(), but writes directly into a BMP pixel area
-    // padded to 4-byte row boundaries - avoids an extra
-    // intermediate buffer, saving up to ~115 KB peak heap at 240x240.
-
-    void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) {
-        size_t i = 0;
-        int col = 0, row = 0;
-        size_t written = 0;
-        const size_t total = (size_t)width * height;
-
-        while (i < inSize && written < total && row < height) {
-            if (written % 5000 == 0) yield(); // Watchdog-Reset vermeiden bei grossen Bildern
-                                              // avoid watchdog reset on large images
-            uint8_t ctrl = in[i++];
-            bool literal = ctrl <= 127;
-            size_t len;
-            uint16_t litPx = 0;
-
-            if (literal) {
-                len = ctrl + 1;
-            }
-            else {
-                len = 257 - ctrl;
-                if (i + 1 >= inSize) break;
-                litPx = in[i] | (in[i + 1] << 8);
-                i += 2;
-            }
-
-            for (size_t k = 0; k < len && written < total; k++) {
-                uint16_t px;
-                if (literal) {
-                    if (i + 1 >= inSize) { written = total; break; }
-                    px = in[i] | (in[i + 1] << 8);
-                    i += 2;
-                }
-                else {
-                    px = litPx;
-                }
-
-                uint8_t* dst = pixelArea + (size_t)row * rowStride + (size_t)col * 2;
-                dst[0] = px & 0xFF;
-                dst[1] = px >> 8;
-
-                col++;
-                if (col >= width) { col = 0; row++; }
-                written++;
-            }
-        }
-    }
-
-
     // Standard-Zifferblatt ohne Ziffern wie der Generator im Zifferblatt-Designer mit dessen Vorgaben: weiss,
     // schwarzer Rand, Stunden- und Minutenstriche. Je Pixel 4 x 4 Abtastpunkte (Kantenglaettung) in ganzen
     // Achtelpixeln; zeilenweise, damit nie ein ganzes Bild im RAM liegen muss.
@@ -1068,9 +1013,12 @@
         Mark marks[60];
         int w, c8, ringIn, ringOut; // Mitte und Rand (Achtelpixel)
                                     // centre and ring (eighths of a pixel)
+        bool round;                 // rundes Display: ausserhalb des Kreises weiss wie scaleAndSaveBmp()
+                                    // round display: white outside the circle like scaleAndSaveBmp()
 
         void init() {
             w = CLOCK_WIDTH;
+            round = displayGeom->round;
             int r = w / 2;
             int ring = lroundf(w * 0.02f);
             int outer = r - ring - lroundf(r * 0.03f);
@@ -1120,7 +1068,7 @@
             int32_t cy = 8 * y + 4 - c8;
             for (int x = 0; x < w; x++) {
                 int32_t cx = 8 * x + 4 - c8, d2 = cx * cx + cy * cy;
-                if (d2 < nearIn || d2 > nearOut) continue;
+                if (d2 < nearIn || d2 > nearOut || (round && d2 > out2)) continue;
                 if (d2 > fullIn && d2 < fullOut) { cov[x] = 16; continue; }
                 for (int sy = 0; sy < 4; sy++) {
                     int32_t dy = 8 * y + 2 * sy + 1 - c8;
@@ -5013,143 +4961,127 @@
     }
 
 
-    // Liest eine RLEB-komprimierte face_*.bmp-Datei zeilenweise und sendet das
-    // Ergebnis SOFORT per Chunked-Response, statt es komplett im RAM zu
-    // materialisieren - haelt nie mehr als eine Bildzeile im RAM (statt ~115 KB).
+    // Breite und Hoehe einer RLEB-Datei - false, wenn sie kein gueltiger RLEB-Kopf ist
+    // Width and height of an RLEB file - false if it has no valid RLEB header
 
-    // Reads an RLEB-compressed face_*.bmp file row by row and sends the
-    // result IMMEDIATELY via chunked response, instead of materializing
-    // it fully in RAM - never holds more than one image row in RAM (instead of ~115 KB).
-
-    bool streamRleFaceAsStandardBmp(const String& path, const char* contentType) {
+    bool readRleSize(const String& path, int32_t& w, int32_t& h) {
+        w = 0;
+        h = 0;
         File f = LittleFS.open(path, "r");
         if (!f) return false;
+        uint8_t head[20];
+        bool rle = f.read(head, sizeof(head)) == sizeof(head) && isRleFace(head);
+        f.close();
+        if (!rle) return false;
+        w = *(int32_t*)&head[4];
+        h = *(int32_t*)&head[8];
+        return w > 0 && h > 0 && *(uint32_t*)&head[16] == (uint32_t)w * h * 2;
+    }
 
-        uint8_t magic[4];
-        if (f.read(magic, 4) != 4 || !isRleFace(magic)) {
+    // Groesse als Standard-BMP: 66-Byte-Kopf, Zeilen auf 4 Byte aufgefuellt
+    // Size as a standard BMP: 66-byte header, rows padded to 4 bytes
+
+    size_t bmpFileSize565(int32_t w, int32_t h) {
+        return 66 + (size_t)((w * 2 + 3) / 4 * 4) * h;
+    }
+
+    // 66-Byte-Kopf eines Top-down-BMP mit 16 Bit RGB565 (BI_BITFIELDS)
+    // 66-byte header of a top-down BMP with 16-bit RGB565 (BI_BITFIELDS)
+
+    void buildBmpHeader565(uint8_t* hdr, int32_t w, int32_t h) {
+        memset(hdr, 0, 66);
+        hdr[0] = 'B'; hdr[1] = 'M';
+        *(uint32_t*)&hdr[2] = bmpFileSize565(w, h);
+        *(uint32_t*)&hdr[10] = 66;
+        *(uint32_t*)&hdr[14] = 40;
+        *(int32_t*)&hdr[18] = w;
+        *(int32_t*)&hdr[22] = -h;
+        *(uint16_t*)&hdr[26] = 1;
+        *(uint16_t*)&hdr[28] = 16;
+        *(uint32_t*)&hdr[30] = 3;
+        *(uint32_t*)&hdr[34] = bmpFileSize565(w, h) - 66;
+        *(uint32_t*)&hdr[54] = 0xF800;
+        *(uint32_t*)&hdr[58] = 0x07E0;
+        *(uint32_t*)&hdr[62] = 0x001F;
+    }
+
+    // Gibt eine RLEB-Datei als Standard-BMP ueber 'out' aus, Zeile fuer Zeile (nie mehr als eine Bildzeile im
+    // RAM) und immer in voller Laenge (bmpFileSize565()), fehlende Pixel als Nullen. False, wenn sie kein
+    // gueltiges RLEB ist (dann wird nichts ausgegeben) oder Daten fehlten.
+
+    // Outputs an RLEB file as a standard BMP via 'out', row by row (never more than one image row in RAM) and
+    // always at full length (bmpFileSize565()), missing pixels as zeros. False if it is not a valid RLEB (then
+    // nothing is output) or data was missing.
+
+    bool writeRleAsBmp(const String& path, const std::function<void(const uint8_t*, size_t)>& out) {
+        int32_t w, h;
+        if (!readRleSize(path, w, h)) return false;
+        File f = LittleFS.open(path, "r");
+        if (!f) return false;
+        uint8_t head[20];
+        f.read(head, sizeof(head));
+        const int rowSize = (w * 2 + 3) / 4 * 4;
+        uint8_t* rowBuf = new (std::nothrow) uint8_t[rowSize];
+        if (!rowBuf) {
             f.close();
             return false;
         }
+        uint8_t hdr[66];
+        buildBmpHeader565(hdr, w, h);
+        out(hdr, sizeof(hdr));
 
-        uint8_t rest[16];
-        if (f.read(rest, 16) != 16) { f.close(); return false; }
-        int32_t w = *(int32_t*)&rest[0];
-        int32_t h = *(int32_t*)&rest[4];
-        uint32_t compressedSize = *(uint32_t*)&rest[8];
-        uint32_t uncompressedSize = *(uint32_t*)&rest[12];
-
-        if (w <= 0 || h <= 0 || uncompressedSize != (uint32_t)w * h * 2) {
-            f.close();
-            return false;
-        }
-
-        const int rowSize = ((w * 2 + 3) / 4) * 4;
-        const int dataSize = rowSize * h;
-        const int fileSize = 66 + dataSize;
-
-        uint8_t bmpHeader[66] = { 0 };
-        bmpHeader[0] = 'B'; bmpHeader[1] = 'M';
-        *(uint32_t*)&bmpHeader[2] = fileSize;
-        *(uint32_t*)&bmpHeader[10] = 66;
-        *(uint32_t*)&bmpHeader[14] = 40;
-        *(int32_t*)&bmpHeader[18] = w;
-        *(int32_t*)&bmpHeader[22] = -h; // Top-down-BMP
-                                        // Top-down BMP
-        *(uint16_t*)&bmpHeader[26] = 1;
-        *(uint16_t*)&bmpHeader[28] = 16;
-        *(uint32_t*)&bmpHeader[30] = 3; // BI_BITFIELDS
-                                        // BI_BITFIELDS
-        *(uint32_t*)&bmpHeader[34] = dataSize;
-        *(uint32_t*)&bmpHeader[54] = 0xF800;
-        *(uint32_t*)&bmpHeader[58] = 0x07E0;
-        *(uint32_t*)&bmpHeader[62] = 0x001F;
-
-        // Kleine Bilder (z.B. Zeiger) komplett dekodieren und in EINEM Rutsch senden -
-        // bei kleinen Dateien ueberwiegt sonst der Netzwerk-Overhead vieler einzelner
-        // sendContent()-Aufrufe. Grosse Zifferblaetter bleiben zeilenweise gestreamt.
-
-        // Fully decode small images (e.g. hands) and send them in ONE go -
-        // for small files the network overhead of many individual
-        // sendContent() calls would otherwise dominate. Large clock faces stay streamed row by row.
-
-        const uint32_t SMALL_IMAGE_THRESHOLD = 20000;
-        if (uncompressedSize <= SMALL_IMAGE_THRESHOLD) {
-            uint8_t* compBuf = (uint8_t*)preferPsramMalloc(compressedSize);
-            if (!compBuf) { f.close(); return false; }
-            if (f.read(compBuf, compressedSize) != compressedSize) {
-                free(compBuf); f.close(); return false;
+        RleFileReader rle(f, *(uint32_t*)&head[12]);
+        bool complete = true;
+        uint16_t px;
+        for (int y = 0; y < h; y++) {
+            memset(rowBuf, 0, rowSize);
+            for (int x = 0; x < w && complete; x++) {
+                complete = rle.next(px);
+                if (complete) {
+                    rowBuf[x * 2] = px & 0xFF;
+                    rowBuf[x * 2 + 1] = px >> 8;
+                }
             }
-            f.close();
-
-            uint8_t* fullBmp = new (std::nothrow) uint8_t[fileSize];
-            if (!fullBmp) { free(compBuf); return false; }
-            memcpy(fullBmp, bmpHeader, 66);
-            rleDecode565ToBmpRows(compBuf, compressedSize, fullBmp + 66, w, h, rowSize);
-            free(compBuf);
-
-            webserver.send_P(200, contentType, (const char*)fullBmp, fileSize);
-            delete[] fullBmp;
-            return true;
+            out(rowBuf, rowSize);
+            if (y % 20 == 0) yield();
         }
+        delete[] rowBuf;
+        f.close();
+        return complete;
+    }
+
+    // Sendet eine RLEB-Datei als Standard-BMP (fuer externe Tools lesbar). Kleine Bilder wie Zeiger in EINEM
+    // Rutsch - sonst ueberwiegt der Overhead vieler sendContent()-Aufrufe -, grosse Zifferblaetter gestreamt.
+
+    // Sends an RLEB file as a standard BMP (readable by external tools). Small images like hands in ONE go -
+    // otherwise the overhead of many sendContent() calls dominates -, large clock faces streamed.
+
+    bool streamRleFaceAsStandardBmp(const String& path, const char* contentType) {
+        int32_t w, h;
+        if (!readRleSize(path, w, h)) return false;
+        const size_t fileSize = bmpFileSize565(w, h);
+
+        if (fileSize <= 20000) {
+            uint8_t* bmp = new (std::nothrow) uint8_t[fileSize];
+            if (!bmp) return false;
+            size_t fill = 0;
+            bool ok = writeRleAsBmp(path, [&](const uint8_t* data, size_t n) {
+                memcpy(bmp + fill, data, n);
+                fill += n;
+            });
+            if (ok) webserver.send_P(200, contentType, (const char*)bmp, fileSize);
+            delete[] bmp;
+            return ok;
+        }
+
+        // Ab hier laeuft die Antwort schon, ein 500er ist nicht mehr moeglich
+        // From here on the response is already running, a 500 is no longer possible
 
         webserver.setContentLength(CONTENT_LENGTH_UNKNOWN);
         webserver.send(200, contentType, "");
-        webserver.sendContent_P((const char*)bmpHeader, 66);
-
-        RleFileReader rle(f, compressedSize);
-
-        // Antwort laeuft schon chunked, ein 500er ist also nicht mehr moeglich -
-        // stattdessen Uebertragung sauber beenden und false zurueckgeben.
-
-        // The response is already streaming chunked, so a 500 is no longer
-        // possible - instead terminate the transfer cleanly and return false.
-
-        uint8_t* rowBuf = new (std::nothrow) uint8_t[rowSize];
-        if (!rowBuf) {
-            DEBUG_PRINTLN("[BMP] Error: couldnt allocate row buffer for RLE streaming");
-            f.close();
-            webserver.sendContent("");
-            return false;
-        }
-        memset(rowBuf, 0, rowSize);
-        int col = 0, row = 0;
-        size_t written = 0;
-        const size_t total = (size_t)w * h;
-        uint16_t px;
-
-        while (written < total && row < h && rle.next(px)) {
-            rowBuf[col * 2] = px & 0xFF;
-            rowBuf[col * 2 + 1] = px >> 8;
-            col++;
-            written++;
-
-            if (col >= w) {
-                webserver.sendContent_P((const char*)rowBuf, rowSize);
-                memset(rowBuf, 0, rowSize);
-                col = 0;
-                row++;
-            }
-        }
-
-        // Falls die letzte Zeile nicht vollstaendig gefuellt wurde (bei
-        // gueltigen Dateien sollte das nicht vorkommen), trotzdem senden,
-        // damit die Gesamtlaenge zur angekuendigten Content-Length passt.
-
-        // If the last row wasn't fully filled (shouldn't happen
-        // with valid files), send it anyway,
-        // so the total length matches the announced content length.
-
-        if (col > 0 && row < h) {
-            webserver.sendContent_P((const char*)rowBuf, rowSize);
-            row++;
-        }
-
-        delete[] rowBuf;
-        f.close();
-        webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
-                                   // signal the end of the chunked transfer
-
-        return written >= total;
+        bool ok = writeRleAsBmp(path, [](const uint8_t* data, size_t n) { webserver.sendContent_P((const char*)data, n); });
+        webserver.sendContent("");
+        return ok;
     }
 
 

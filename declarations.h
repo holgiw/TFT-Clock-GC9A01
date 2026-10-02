@@ -141,7 +141,6 @@
     size_t rleMaxEncodedSize(size_t pixelCount) ;
     size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) ;
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
-    void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) ;
     void drawDefaultFace(uint16_t* dest) ;
     bool ensureDefaultFace() ;
     void loadFaceOrDefault(const String& path, uint16_t* dest) ;
@@ -211,6 +210,10 @@
     bool peekFirstPixelIsWhite(const String& path) ;
     void remaskExistingFaceCorners() ;
     void sendScaledBmpPreview(const String& sourcePath, int outW, int outH) ;
+    bool readRleSize(const String& path, int32_t& w, int32_t& h) ;
+    size_t bmpFileSize565(int32_t w, int32_t h) ;
+    void buildBmpHeader565(uint8_t* hdr, int32_t w, int32_t h) ;
+    bool writeRleAsBmp(const String& path, const std::function<void(const uint8_t*, size_t)>& out) ;
     bool streamRleFaceAsStandardBmp(const String& path, const char* contentType = "image/bmp") ;
     bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, uint8_t** outBytes, size_t& outSize, const String& presetUrl = "") ;
     void setLedOff() ;

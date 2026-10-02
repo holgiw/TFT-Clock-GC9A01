@@ -32,6 +32,8 @@
 #include <esp_random.h>
 
 #define BACKUP_SETTINGS_NAME   "settings.txt"
+#define BACKUP_TMP_PATH        "/backup_restore.tmp" // BMP aus der Sicherung, bis es RLE-komprimiert abgelegt ist
+                                                     // BMP from the backup until it is stored RLE-compressed
 #define BACKUP_SETTINGS_MAGIC  "# uhr4-backup"
 #define BACKUP_FORMAT_VERSION  2            // 2: WLAN verschluesselt (wifienc), 1: WLAN im Klartext (nur noch lesen)
                                             // 2: WiFi encrypted (wifienc), 1: WiFi in plain text (read only)
@@ -540,11 +542,13 @@
     }
 
 
-    // Sicherung als TAR direkt in die HTTP-Antwort streamen - Dateien werden in
-    // 1-KB-Stuecken gelesen, es liegt nie das ganze Archiv im RAM.
+    // Sicherung als TAR direkt in die HTTP-Antwort streamen - es liegt nie das ganze Archiv im RAM. Bilder
+    // (Zifferblaetter, Zeiger, Streifen) als Standard-BMP statt im RLEB-Format der Uhr, damit sie sich mit
+    // jedem Bildprogramm oeffnen lassen; Wiederherstellen packt sie wieder (backupRestoreFinishBmp()).
 
-    // Stream the backup as TAR straight into the HTTP response - files are read
-    // in 1 KB pieces, the whole archive is never held in RAM.
+    // Stream the backup as TAR straight into the HTTP response - the whole archive is never held in RAM.
+    // Images (clock faces, hands, strips) as standard BMP instead of the clock's RLEB format, so any image
+    // program can open them; restoring packs them again (backupRestoreFinishBmp()).
 
     void streamBackup(bool includeWifi) {
         String settings = buildBackupSettings(includeWifi);
@@ -555,6 +559,14 @@
         std::vector<String> names;
         std::vector<size_t> sizes;
         collectBackupFiles(names, sizes);
+        std::vector<bool> asBmp(names.size(), false);
+        for (size_t i = 0; i < names.size(); i++) {
+            int32_t w, h;
+            if (names[i].endsWith(".bmp") && readRleSize("/" + names[i], w, h)) {
+                asBmp[i] = true;
+                sizes[i] = bmpFileSize565(w, h);
+            }
+        }
 
         // Zur Fehlersuche: gepufferte Logzeilen zuerst schreiben, dann Statusseite und Logs ans Ende
         // For troubleshooting: write buffered log lines first, then status page and logs at the end
@@ -591,11 +603,18 @@
         webserver.sendContent((const char*)zeros, tarPadding(settings.length()));
 
         uint8_t buf[1024];
-        auto sendFile = [&](const String& name, size_t size) {
-            File f = LittleFS.open("/" + name, "r");
+        auto sendFile = [&](const String& name, size_t size, bool bmp) {
             buildTarHeader(header, name, size);
             webserver.sendContent((const char*)header, 512);
             size_t sent = 0;
+            if (bmp) {
+                writeRleAsBmp("/" + name, [&](const uint8_t* data, size_t n) {
+                    n = min(n, size - sent);
+                    webserver.sendContent((const char*)data, n);
+                    sent += n;
+                });
+            }
+            File f = (sent < size && !bmp) ? LittleFS.open("/" + name, "r") : File();
             while (sent < size) {
                 size_t n = f ? f.read(buf, min(sizeof(buf), size - sent)) : 0;
                 if (n == 0) {
@@ -616,13 +635,13 @@
             if (f) f.close();
             if (tarPadding(size)) webserver.sendContent((const char*)zeros, tarPadding(size));
         };
-        for (size_t i = 0; i < names.size(); i++) sendFile(names[i], sizes[i]);
+        for (size_t i = 0; i < names.size(); i++) sendFile(names[i], sizes[i], asBmp[i]);
 
         buildTarHeader(header, "status.txt", status.length());
         webserver.sendContent((const char*)header, 512);
         webserver.sendContent(status.c_str(), status.length());
         if (tarPadding(status.length())) webserver.sendContent((const char*)zeros, tarPadding(status.length()));
-        for (size_t i = 0; i < logNames.size(); i++) sendFile(logNames[i], logSizes[i]);
+        for (size_t i = 0; i < logNames.size(); i++) sendFile(logNames[i], logSizes[i], false);
 
         webserver.sendContent((const char*)zeros, 512);
         webserver.sendContent((const char*)zeros, 512);
@@ -917,6 +936,8 @@
         bool toSettings = false;
         String settings;
         File out;
+        String bmpTarget;          // Bild, das gerade nach BACKUP_TMP_PATH geschrieben wird
+                                   // image currently being written to BACKUP_TMP_PATH
         std::vector<String> restoredFiles;
         String error;
 
@@ -943,6 +964,7 @@
     void backupRestoreFail(const String& error) {
         if (!backupRestore) return;
         if (backupRestore->out) backupRestore->out.close();
+        LittleFS.remove(BACKUP_TMP_PATH);
         backupRestore->phase = BackupRestoreState::FAILED;
         backupRestore->error = error;
         DEBUG_PRINTLN("[Backup] Restore failed: " + error);
@@ -982,6 +1004,26 @@
         deleteAllFacesAndHands();
         s.settingsChecked = true;
         return true;
+    }
+
+    // Bild aus der Sicherung ablegen: Standard-BMP wie beim Hochladen RLE-komprimiert (scaleAndSaveBmp() in
+    // gleicher Groesse), RLEB aus aelteren Sicherungen unveraendert.
+
+    // Store an image from the backup: standard BMP RLE-compressed like on upload (scaleAndSaveBmp() at the
+    // same size), RLEB from older backups unchanged.
+
+    void backupRestoreFinishBmp() {
+        BackupRestoreState& s = *backupRestore;
+        if (s.bmpTarget.isEmpty()) return;
+        String target = "/" + s.bmpTarget;
+        s.bmpTarget = "";
+        int32_t w = 0, h = 0;
+        LittleFS.remove(target);
+        bool ok = readRleSize(BACKUP_TMP_PATH, w, h)
+                ? LittleFS.rename(BACKUP_TMP_PATH, target)
+                : readImageSize(BACKUP_TMP_PATH, w, h) && scaleAndSaveBmp(BACKUP_TMP_PATH, target.c_str(), w, h);
+        LittleFS.remove(BACKUP_TMP_PATH);
+        if (!ok) backupRestoreFail("cannot store " + target.substring(1));
     }
 
     void backupRestoreHeader() {
@@ -1031,8 +1073,11 @@
             s.toSettings = true;
             s.settings.reserve(size);
         }
-        else if ((type == '0' || type == 0) && isBackupFileName(name)) {
-            s.out = LittleFS.open("/" + name, "w");
+        else if ((type == '0' || type == 0) && isBackupFileName(name) && size > 0) {
+            bool bmp = name.endsWith(".bmp");
+            s.bmpTarget = bmp ? name : String();
+            String path = bmp ? String(BACKUP_TMP_PATH) : String("/" + name);
+            s.out = LittleFS.open(path, "w");
             if (!s.out) {
                 backupRestoreFail("cannot write " + name);
                 return;
@@ -1075,6 +1120,8 @@
                 s.remaining -= n; data += n; len -= n;
                 if (s.remaining == 0) {
                     if (s.out) s.out.close();
+                    backupRestoreFinishBmp();
+                    if (s.phase == BackupRestoreState::FAILED) return;
                     s.phase = (s.padding > 0) ? BackupRestoreState::PAD : BackupRestoreState::HEADER;
                     if (s.toSettings && !backupRestoreSettingsDone()) return;
                 }
