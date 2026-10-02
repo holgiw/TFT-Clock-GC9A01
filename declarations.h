@@ -145,6 +145,12 @@
     void drawDefaultFace(uint16_t* dest) ;
     bool ensureDefaultFace() ;
     void loadFaceOrDefault(const String& path, uint16_t* dest) ;
+    bool writeRleImage(const String& path, int w, int h, const std::function<void(int, uint16_t*)>& rowFn) ;
+    void defaultHandRow(const char* part, int y, uint16_t* row) ;
+    void drawDefaultHand(const char* part, uint16_t* dest) ;
+    bool ensureDefaultHands() ;
+    String handSetFileId(const String& setId) ;
+    void loadHandOrDefault(const String& setId, const char* part, uint16_t* dest) ;
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) ;
     void loadClockFace(uint8_t rotation = primaryDisplayRotation()) ; // ohne Argument = Rotation des ersten angeschlossenen Displays (Standardverhalten fuer alle Aufrufer ausserhalb von renderClockFrame())
                                                                       // no argument = rotation of the first connected display (default behaviour for every caller outside renderClockFrame())
@@ -154,7 +160,6 @@
     void pushHandRowCentered(LGFX_Sprite* sprite, int row, uint16_t* rowPixels, int srcWidth, const uint8_t* transparentColor) ;
     void loadHandSprites() ;
     void placeHand(const uint16_t* src, int w, int h, uint16_t* dest) ;
-    void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) ;
     bool loadHandPixels(const String& path, uint16_t* dest) ;
     void handTargetSize(const char* path, int& outW, int& outH) ;
     bool readImageSize(const char* path, int32_t& w, int32_t& h) ;
@@ -196,7 +201,6 @@
     void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) ;
     String encodePngToBase64(const uint16_t* data, int width, int height) ;
     uint8_t* encodeBmpToBytes(const uint16_t* data, int width, int height, size_t* outSize) ;
-    String encodeBmpToBase64(const uint16_t* data, int width, int height) ;
     void clearTFT() ;
     float rotatedAngle(float angle, int orientation) ;
     bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) ;

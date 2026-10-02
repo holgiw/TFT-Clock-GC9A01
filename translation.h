@@ -249,7 +249,7 @@
         { "Delete Clock Faces (except default)", "Zifferbl&auml;tter l&ouml;schen (au&szlig;er Standard)" },
         { "Deletes all clock faces - the default clock face is created again", "L&ouml;scht alle Zifferbl&auml;tter - das Standard-Zifferblatt wird neu erzeugt" },
         { "Delete Hand Sets (except default)", "Zeigers&auml;tze l&ouml;schen (au&szlig;er Standard)" },
-        { "Deletes all uploaded hand sets - the built-in default remains", "L&ouml;scht alle hochgeladenen Zeigers&auml;tze - der eingebaute Standard bleibt erhalten" },
+        { "Deletes all hand sets - the default hand set is created again", "L&ouml;scht alle Zeigers&auml;tze - der Standard-Zeigersatz wird neu erzeugt" },
         { "Delete Presets", "Uhren Sets l&ouml;schen" },
         { "Deletes all saved presets", "L&ouml;scht alle gespeicherten Uhren Sets" },
         { "Are you sure you want to delete all clock faces except the default one?", "Sind Sie sicher, dass Sie alle Zifferbl&auml;tter au&szlig;er dem Standard l&ouml;schen wollen?" },

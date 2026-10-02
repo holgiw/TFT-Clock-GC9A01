@@ -1170,51 +1170,57 @@
         for (int y = 0; y < gen.w; y++) gen.row(y, dest + (size_t)y * gen.w);
     }
 
-    // Legt face_default.bmp an, falls es fehlt (nach dem ersten Flashen, Werksreset oder Loeschen): RLEB wie
-    // hochgeladene Zifferblaetter, zeilenweise kodiert - erst Groesse zaehlen, dann schreiben.
+    // Schreibt ein Bild zeilenweise als RLEB-Datei wie hochgeladene Zifferblaetter und Zeiger: erst die Groesse
+    // zaehlen, dann schreiben. rowFn liefert Zeile y (w <= CLOCK_MAX Pixel). Bei einem Fehler wird die Datei entfernt.
 
-    // Creates face_default.bmp if it is missing (after the first flash, a factory reset or deletion): RLEB like
-    // uploaded clock faces, encoded row by row - count the size first, then write.
+    // Writes an image row by row as an RLEB file like uploaded clock faces and hands: count the size first, then
+    // write. rowFn delivers row y (w <= CLOCK_MAX pixels). On an error the file is removed.
 
-    bool ensureDefaultFace() {
-        const char* path = "/face_default.bmp";
-        if (LittleFS.exists(path)) return true;
-        DefaultFaceGen gen;
-        gen.init();
+    bool writeRleImage(const String& path, int w, int h, const std::function<void(int, uint16_t*)>& rowFn) {
         uint16_t row[CLOCK_MAX];
         uint8_t enc[CLOCK_MAX * 2 + 8]; // >= rleMaxEncodedSize(CLOCK_MAX)
                                         // >= rleMaxEncodedSize(CLOCK_MAX)
         uint32_t compressed = 0;
-        for (int y = 0; y < gen.w; y++) {
-            gen.row(y, row);
-            compressed += rleEncode565(row, gen.w, enc);
+        for (int y = 0; y < h; y++) {
+            rowFn(y, row);
+            compressed += rleEncode565(row, w, enc);
         }
         File f = LittleFS.open(path, "w");
         if (!f) {
-            DEBUG_PRINTLN("[BG] Error: couldnt create " + String(path));
+            DEBUG_PRINTLN("[FS] Error: couldnt create " + path);
             return false;
         }
         uint8_t header[20];
         header[0] = 'R'; header[1] = 'L'; header[2] = 'E'; header[3] = 'B';
-        *(int32_t*)&header[4] = gen.w;
-        *(int32_t*)&header[8] = gen.w;
+        *(int32_t*)&header[4] = w;
+        *(int32_t*)&header[8] = h;
         *(uint32_t*)&header[12] = compressed;
-        *(uint32_t*)&header[16] = (uint32_t)gen.w * gen.w * 2;
+        *(uint32_t*)&header[16] = (uint32_t)w * h * 2;
         bool ok = f.write(header, sizeof(header)) == sizeof(header);
-        for (int y = 0; ok && y < gen.w; y++) {
+        for (int y = 0; ok && y < h; y++) {
             if (y % 20 == 0) yield();
-            gen.row(y, row);
-            size_t n = rleEncode565(row, gen.w, enc);
+            rowFn(y, row);
+            size_t n = rleEncode565(row, w, enc);
             ok = f.write(enc, n) == n;
         }
         f.close();
         if (!ok) {
             LittleFS.remove(path);
-            DEBUG_PRINTLN("[BG] Error: couldnt write " + String(path) + " (file system full?)");
+            DEBUG_PRINTLN("[FS] Error: couldnt write " + path + " (file system full?)");
             return false;
         }
-        DEBUG_PRINTLN("[BG] Default clock face created: " + String(path) + " (" + String(compressed + 20) + " bytes)");
+        DEBUG_PRINTLN("[FS] Created " + path + " (" + String(compressed + 20) + " bytes)");
         return true;
+    }
+
+    // Legt face_default.bmp an, falls es fehlt (nach dem ersten Flashen, Werksreset oder Loeschen)
+    // Creates face_default.bmp if it is missing (after the first flash, a factory reset or deletion)
+
+    bool ensureDefaultFace() {
+        if (LittleFS.exists("/face_default.bmp")) return true;
+        DefaultFaceGen gen;
+        gen.init();
+        return writeRleImage("/face_default.bmp", gen.w, gen.w, [&gen](int y, uint16_t* row) { gen.row(y, row); });
     }
 
     // Laedt ein Zifferblatt nach 'dest'; fehlt es oder ist es unlesbar, das Standard-Zifferblatt (bei Bedarf
@@ -1227,6 +1233,65 @@
         if (LittleFS.exists(path) && loadFaceBmpInto(path, dest, CLOCK_WIDTH, CLOCK_HEIGHT)) return;
         if (ensureDefaultFace() && loadFaceBmpInto("/face_default.bmp", dest, CLOCK_WIDTH, CLOCK_HEIGHT)) return;
         drawDefaultFace(dest);
+    }
+
+    // Standard-Zeigersatz 0 wie Satz 2: Stunden- und Minutenzeiger als schwarze Balken, Sekundenzeiger als duenne
+    // rote Linie, mittig auf dem Drehpunkt bis zum unteren Bildrand. Hintergrund weiss wie bei hochgeladenen
+    // Zeigern (gilt ueberall als transparent und erscheint so auch in der Zeigeruebersicht).
+
+    // Default hand set 0 like set 2: hour and minute hand as black bars, second hand as a thin red line, centred
+    // on the pivot down to the bottom edge. Background white like uploaded hands (counts as transparent
+    // everywhere and also shows as such in the hand set overview).
+
+    void defaultHandRow(const char* part, int y, uint16_t* row) {
+        bool second = strcmp(part, "second") == 0;
+        int half = lroundf(CLOCK_WIDTH * (second ? 0.0083f : 0.027f));
+        int top = strcmp(part, "hour") == 0 ? HAND_PIVOT_Y - lroundf(HAND_LEGACY_PIVOT_Y * 0.56f) : HAND_TOP_PAD;
+        uint16_t color = second ? 0xF800 : 0x0000;
+        for (int x = 0; x < HAND_WIDTH; x++) {
+            row[x] = (y >= top && abs(x - HAND_WIDTH / 2) <= half) ? color : 0xFFFF;
+        }
+    }
+
+    // Zeichnet einen Standardzeiger nach 'dest' (HAND_WIDTH x HAND_HEIGHT) - Notloesung ohne Datei
+    // Draws a default hand into 'dest' (HAND_WIDTH x HAND_HEIGHT) - fallback without a file
+
+    void drawDefaultHand(const char* part, uint16_t* dest) {
+        for (int y = 0; y < HAND_HEIGHT; y++) defaultHandRow(part, y, dest + y * HAND_WIDTH);
+    }
+
+    // Legt fehlende Dateien des Standard-Zeigersatzes 0 an (hand_set0_hour/minute/second.bmp)
+    // Creates missing files of the default hand set 0 (hand_set0_hour/minute/second.bmp)
+
+    bool ensureDefaultHands() {
+        bool ok = true;
+        for (const char* part : { "hour", "minute", "second" }) {
+            String path = String("/hand_set0_") + part + ".bmp";
+            if (LittleFS.exists(path)) continue;
+            ok = writeRleImage(path, HAND_WIDTH, HAND_HEIGHT, [part](int y, uint16_t* row) { defaultHandRow(part, y, row); }) && ok;
+        }
+        return ok;
+    }
+
+    // Satz-ID der Dateien: leer und "default" (alte Einstellungen, Presets) stehen fuer den Standardsatz 0
+    // Set ID of the files: empty and "default" (old settings, presets) stand for the default set 0
+
+    String handSetFileId(const String& setId) {
+        return (setId.isEmpty() || setId == "default") ? String("0") : setId;
+    }
+
+    // Laedt einen Zeiger des Satzes nach 'dest'; fehlt er, den des Standardsatzes 0 (bei Bedarf erzeugt, notfalls
+    // nur gezeichnet).
+
+    // Loads a hand of the set into 'dest'; if it is missing, the one of the default set 0 (created if needed, drawn
+    // only as a last resort).
+
+    void loadHandOrDefault(const String& setId, const char* part, uint16_t* dest) {
+        String path = "/hand_set" + handSetFileId(setId) + "_" + part + ".bmp";
+        if (LittleFS.exists(path) && loadHandPixels(path, dest)) return;
+        String fallback = String("/hand_set0_") + part + ".bmp";
+        if (ensureDefaultHands() && loadHandPixels(fallback, dest)) return;
+        drawDefaultHand(part, dest);
     }
 
     // Liest eine face_*.bmp-Datei (Standard-BMP oder RLEB-komprimiert) direkt in
@@ -1323,13 +1388,6 @@
         int ox = (HAND_WIDTH - w) / 2, oy = HAND_HEIGHT - h;
         for (int i = 0; i < HAND_WIDTH * HAND_HEIGHT; i++) dest[i] = TRANSPARENT_COLOR;
         for (int y = 0; y < h; y++) memcpy(dest + (y + oy) * HAND_WIDTH + ox, src + y * w, (size_t)w * sizeof(uint16_t));
-    }
-
-    // Eingebaute Standardzeiger liegen im alten Format vor
-    // Built-in default hands are in the old format
-
-    void copyLegacyHand(const uint16_t* legacy, uint16_t* dest) {
-        placeHand(legacy, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT, dest);
     }
 
     // Laedt eine Zeigerdatei (BMP/RLEB) in einem der vier gueltigen Formate (Breite
@@ -1677,13 +1735,11 @@
     }
 
 
-    // Loescht alle hochgeladenen Zifferblaetter (face_*.bmp) - der eingebaute
-    // Standard bleibt erhalten, da er nicht als Datei existiert. Raeumt
-    // verwaiste Presets auf und schaltet bei Bedarf auf den Standard zurueck.
+    // Loescht alle Zifferblaetter (face_*.bmp) - das Standard-Zifferblatt wird danach neu erzeugt. Raeumt
+    // verwaiste Presets auf und schaltet auf den Standard zurueck.
 
-    // Deletes all uploaded clock faces (face_*.bmp) - the built-in
-    // default remains, since it doesn't exist as a file. Cleans up
-    // orphaned presets and falls back to the default if needed.
+    // Deletes all clock faces (face_*.bmp) - the default clock face is created again afterwards. Cleans up
+    // orphaned presets and falls back to the default.
 
     void resetFacesToDefault() {
         std::vector<String> toDelete;
@@ -1711,13 +1767,11 @@
     }
 
 
-    // Loescht alle hochgeladenen Zeigersaetze (hand_set*.bmp) - der eingebaute
-    // Standard bleibt erhalten. Raeumt verwaiste Presets auf und schaltet auf
-    // den Standard-Zeigersatz zurueck.
+    // Loescht alle Zeigersaetze (hand_set*.bmp) - der Standardsatz 0 wird danach neu erzeugt. Raeumt
+    // verwaiste Presets auf und schaltet auf den Standardsatz zurueck.
 
-    // Deletes all uploaded hand sets (hand_set*.bmp) - the built-in
-    // default remains. Cleans up orphaned presets and falls back
-    // to the default hand set.
+    // Deletes all hand sets (hand_set*.bmp) - the default set 0 is created again afterwards. Cleans up
+    // orphaned presets and falls back to the default set.
 
     void resetHandsToDefault() {
         std::vector<String> toDelete;
@@ -1783,13 +1837,12 @@
         clockAssetGeneration++;
 
         String setId = preferences.getString(PK_HANDSET, "");
-        bool customSet = (setId != "" && setId != "default");
 
-        // Ein Puffer fuer alle drei Zeiger: Datei (neues oder altes Format) oder
-        // eingebauter Standard, die alte Hoehe jeweils oben transparent aufgefuellt.
+        // Ein Puffer fuer alle drei Zeiger: Datei (neues oder altes Format, sonst Standardsatz 0), die alte Hoehe
+        // jeweils oben transparent aufgefuellt.
 
-        // One buffer for all three hands: file (new or old format) or built-in
-        // default, the old height padded transparent at the top in either case.
+        // One buffer for all three hands: file (new or old format, otherwise default set 0), the old height padded
+        // transparent at the top in either case.
 
         uint16_t* pix = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * sizeof(uint16_t));
         if (!pix) {
@@ -1800,16 +1853,14 @@
         struct HandConfig {
             const char* label;
             LGFX_Sprite* sprite;
-            const uint16_t* fallback;
         } hands[3] = {
-            {"hour", &hourHandSprite, handHour},
-            {"minute", &minuteHandSprite, handMinute},
-            {"second", &secondHandSprite, handSecond}
+            {"hour", &hourHandSprite},
+            {"minute", &minuteHandSprite},
+            {"second", &secondHandSprite}
         };
 
         for (auto& h : hands) {
-            bool fromFile = customSet && loadHandPixels("/hand_set" + setId + "_" + h.label + ".bmp", pix);
-            if (!fromFile) copyLegacyHand(h.fallback, pix);
+            loadHandOrDefault(setId, h.label, pix);
 
             // Zeilenweise, damit der mittige Zuschnitt fuer schmalere Sprites greift
             // (siehe pushHandRowCentered()); jede Zeile wird komplett geschrieben.
@@ -3887,12 +3938,10 @@
 
 
     // Kodiert ein RGB565-Bild als PNG (echte Alpha-Transparenz) und liefert
-    // Base64. TRANSPARENT_COLOR und Weiss (0xFFFF) werden zu Alpha=0 - anders
-    // als encodeBmpToBase64() (BMP ohne Alpha, Transparenz nur als Weiss).
+    // Base64. TRANSPARENT_COLOR und Weiss (0xFFFF) werden zu Alpha=0.
 
     // Encodes an RGB565 image as PNG (true alpha transparency) and returns
-    // base64. TRANSPARENT_COLOR and white (0xFFFF) become alpha=0 - unlike
-    // encodeBmpToBase64() (BMP without alpha, transparency shown as white only).
+    // base64. TRANSPARENT_COLOR and white (0xFFFF) become alpha=0.
 
     String encodePngToBase64(const uint16_t* data, int width, int height) {
 
@@ -4042,20 +4091,6 @@
 
         *outSize = fileSize;
         return bmpData;
-    }
-
-
-    String encodeBmpToBase64(const uint16_t* data, int width, int height) {
-        size_t fileSize = 0;
-        uint8_t* bmpData = encodeBmpToBytes(data, width, height, &fileSize);
-        if (!bmpData) return "";
-
-        String result = base64::encode(bmpData, fileSize);
-        result.replace("\n", "");
-
-        delete[] bmpData;
-
-        return result;
     }
 
 
@@ -5295,21 +5330,17 @@
         }
         free(faceBuf);
 
-        // 2) Zeiger laden (aus Datei, falls Set vorhanden, sonst eingebauter Standard)
-        // 2) Load hands (from file if a set exists, otherwise built-in default)
+        // 2) Zeiger laden (aus Datei, sonst Standardsatz 0)
+        // 2) Load hands (from file, otherwise default set 0)
 
-        bool useCustomSet = (handSetName != "default" && handSetName != "");
-        auto loadPreviewHand = [&](const char* label, const uint16_t* fallback) -> uint16_t* {
+        auto loadPreviewHand = [&](const char* label) -> uint16_t* {
             uint16_t* buf = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * 2);
-            if (!buf) return nullptr;
-            if (!useCustomSet || !loadHandPixels("/hand_set" + handSetName + "_" + label + ".bmp", buf)) {
-                copyLegacyHand(fallback, buf);
-            }
+            if (buf) loadHandOrDefault(handSetName, label, buf);
             return buf;
         };
-        uint16_t* hourPix = loadPreviewHand("hour", handHour);
-        uint16_t* minutePix = loadPreviewHand("minute", handMinute);
-        uint16_t* secondPix = showSecond ? loadPreviewHand("second", handSecond) : nullptr;
+        uint16_t* hourPix = loadPreviewHand("hour");
+        uint16_t* minutePix = loadPreviewHand("minute");
+        uint16_t* secondPix = showSecond ? loadPreviewHand("second") : nullptr;
 
         // 3) Demo-Zeit 10:10:30 - klassischer Uhrenwerbung-Winkel
         // 3) Demo time 10:10:30 - the classic clock-advertisement angle

@@ -61,6 +61,13 @@ Neueste Einträge oben.
   ist korrigiert. Zifferblatt und Streifen stoßen dort jetzt nahtlos aneinander (gemeinsamer Rahmen wie ein Display).
 
 ### Geändert
+- Auch die eingebauten Standardzeiger sind entfernt (spart rund 23 KB Flash). Fehlen Dateien des
+  Standard-Zeigersatzes 0 (`hand_set0_hour/minute/second.bmp`), zeichnet die Uhr sie selbst wie Satz 2:
+  Stunden- und Minutenzeiger als schwarze Balken, Sekundenzeiger als dünne rote Linie. Satz 0 ist ein
+  normaler Zeigersatz (im Designer überschreibbar, nach dem Löschen bei Bedarf neu erzeugt); fehlt einem
+  Satz ein Zeiger, nimmt die Uhr den aus Satz 0. Die Einstellung `default` (alte Einstellungen, Presets)
+  steht weiter für Satz 0. `graphic/make_default_hands.py`, `default_hands.h` und die alten
+  Grafikquellen `graphic/<Größe>/clock_default.h` entfallen.
 - Das eingebaute Standard-Zifferblatt ist entfernt (spart rund 33 KB Flash). Fehlt `face_default.bmp`
   (erstes Flashen, Werksreset, gelöscht), zeichnet die Uhr es selbst wie der Generator im
   Zifferblatt-Designer mit dessen Vorgaben – weiß, schwarzer Rand, Stunden- und Minutenstriche, ohne
@@ -294,6 +301,13 @@ Newest entries on top.
   nesting is fixed. Clock face and strip now join seamlessly there (one shared frame like a display).
 
 ### Changed
+- Removed the built-in default hands as well (saves about 23 KB of flash). If files of the default hand
+  set 0 (`hand_set0_hour/minute/second.bmp`) are missing, the clock draws them itself like set 2: hour and
+  minute hand as black bars, second hand as a thin red line. Set 0 is a normal hand set (can be
+  overwritten in the designer, recreated when needed after deletion); if a set lacks a hand, the clock
+  uses the one from set 0. The setting `default` (old settings, presets) still stands for set 0.
+  `graphic/make_default_hands.py`, `default_hands.h` and the old graphics sources
+  `graphic/<size>/clock_default.h` are gone.
 - Removed the built-in default clock face (saves about 33 KB of flash). If `face_default.bmp` is missing
   (first flash, factory reset, deleted), the clock draws it itself like the generator in the clock face
   designer with its defaults – white, black rim, hour and minute marks, without numerals – and stores it as a

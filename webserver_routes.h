@@ -442,13 +442,10 @@
                 String setId = name.substring(start, end);
                 removeOrphanedPresets("", setId);
 
-                // Falls der betroffene Zeigersatz gerade aktiv war,
-                // sofort auf den eingebauten Standard zurueckschalten.
+                // Falls der betroffene Zeigersatz gerade aktiv war, sofort auf den Standardsatz zurueckschalten
+                // If the affected hand set was currently active, switch back to the default set immediately
 
-                // If the affected hand set was currently active, switch back to the
-                // built-in default immediately.
-
-                if (preferences.getString(PK_HANDSET, "") == setId) {
+                if (handSetFileId(preferences.getString(PK_HANDSET, "")) == setId) {
                     preferences.putString(PK_HANDSET, "default");
                     freeClockFaceBuffer();
                     loadClockFace();
@@ -4091,25 +4088,21 @@
             String activeHandSet = preferences.getString(PK_HANDSET, "");
             String previewSig = currentPreviewSignature();
 
-            // Alle drei Zeiger im aktuellen Format: Datei (neu oder alt) oder
-            // eingebauter Standard, alte Hoehe oben transparent aufgefuellt.
+            // Alle drei Zeiger im aktuellen Format: Datei (neu oder alt, sonst Standardsatz 0), alte Hoehe oben
+            // transparent aufgefuellt.
 
-            // All three hands in the current format: file (new or old) or the
-            // built-in default, old height padded transparent at the top.
+            // All three hands in the current format: file (new or old, otherwise default set 0), old height padded
+            // transparent at the top.
 
             const size_t handPixelCount = (size_t)HAND_WIDTH * HAND_HEIGHT;
-            bool customHandSet = (activeHandSet != "" && activeHandSet != "default");
-            auto loadPreviewHand = [&](const char* label, const uint16_t* fallback) -> uint16_t* {
+            auto loadPreviewHand = [&](const char* label) -> uint16_t* {
                 uint16_t* buf = (uint16_t*)malloc(handPixelCount * 2);
-                if (!buf) return nullptr;
-                if (!customHandSet || !loadHandPixels("/hand_set" + activeHandSet + "_" + label + ".bmp", buf)) {
-                    copyLegacyHand(fallback, buf);
-                }
+                if (buf) loadHandOrDefault(activeHandSet, label, buf);
                 return buf;
             };
-            uint16_t* previewHour = loadPreviewHand("hour", handHour);
-            uint16_t* previewMinute = loadPreviewHand("minute", handMinute);
-            uint16_t* previewSecond = loadPreviewHand("second", handSecond);
+            uint16_t* previewHour = loadPreviewHand("hour");
+            uint16_t* previewMinute = loadPreviewHand("minute");
+            uint16_t* previewSecond = loadPreviewHand("second");
 
             // Zeiger wie auf dem Display zuschneiden: das Zifferblatt kann
             // schmalere Zeiger vorgeben (face_x!h!m!s.bmp), die Uhr schneidet
@@ -6528,10 +6521,11 @@
 
                 path = String(path.c_str());
 
-                // Das Standard-Zifferblatt bei Bedarf erst erzeugen - die Designer laden es von hier
-                // Create the default clock face first if needed - the designers load it from here
+                // Standard-Zifferblatt und Standard-Zeigersatz bei Bedarf erst erzeugen - die Designer laden sie von hier
+                // Create the default clock face and default hand set first if needed - the designers load them from here
 
                 if (path == "/face_default.bmp") ensureDefaultFace();
+                else if (path.startsWith("/hand_set0_")) ensureDefaultHands();
 
                 // Logdateien nur aus einem privaten Netz einsehbar (koennen IPs, SSIDs u.ae. enthalten);
                 // andere Dateien von ueberall.
@@ -6639,7 +6633,12 @@
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
             webserver.sendContent(chunk);
 
-            String activeSet = preferences.getString(PK_HANDSET, "");
+            String activeSet = handSetFileId(preferences.getString(PK_HANDSET, ""));
+
+            // Der Standardsatz 0 fehlt nie in der Liste (z.B. nach dem Loeschen neu erzeugt)
+            // The default set 0 is never missing from the list (e.g. recreated after deletion)
+
+            ensureDefaultHands();
 
             // Numerisch sortieren (std::map<int,String>), damit z.B. "10" nach "9" statt
             // zwischen "1" und "2" landet. Nicht-numerische Namen (unueblich) landen
@@ -6677,25 +6676,6 @@
                 file = root.openNextFile();
             }
 
-
-            String handHourBase64 = encodeBmpToBase64(handHour, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
-            String handMinuteBase64 = encodeBmpToBase64(handMinute, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
-            String handSecondBase64 = encodeBmpToBase64(handSecond, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT);
-
-            // Default-Zeigersatz (eingebaut) - eigener Chunk
-            // Default hand set (built-in) - its own chunk
-
-            bool defaultSetActive = (activeSet == "default" || activeSet.isEmpty());
-            chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
-            chunk += "<a href='/sethandset?set=default'>";
-            chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
-            chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
-            chunk += "<img src='data:image/bmp;charset=utf-8;base64, " + handSecondBase64 + "'>";
-            chunk += "</a><br>0" + String(defaultSetActive ? " (" + translate("active") + ")" : "");
-            chunk += "<br><a href='/sethandset?set=default&designer=1'>" + translate("Designer") + "</a>";
-            chunk += "</div>";
-            webserver.sendContent(chunk);
-
             // Jeden gefundenen Zeigersatz SOFORT senden statt zu sammeln - so liegt
             // nie mehr als ein Zeigersatz gleichzeitig im Speicher.
 
@@ -6714,13 +6694,16 @@
 
                 String safeSetId = escapeHtmlText(setId);
                 chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
-                String hourPath = "/hand_set" + setId + "_hour.bmp";
-                String minutePath = "/hand_set" + setId + "_minute.bmp";
-                String secondPath = "/hand_set" + setId + "_second.bmp";
                 chunk += "<a href='/sethandset?set=" + safeSetId + "'>";
-                chunk += LittleFS.exists(hourPath) ? "<img src='/file?name=" + escapeHtmlText(hourPath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handHourBase64 + "'> ";
-                chunk += LittleFS.exists(minutePath) ? "<img src='/file?name=" + escapeHtmlText(minutePath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64, " + handMinuteBase64 + "'> ";
-                chunk += LittleFS.exists(secondPath) ? "<img src='/file?name=" + escapeHtmlText(secondPath) + "'> " : "<img src='data:image/bmp;charset=utf-8;base64," + handSecondBase64 + "'>";
+
+                // Fehlende Zeiger eines Satzes zeigt die Uhr aus dem Standardsatz 0 - hier ebenso
+                // The clock shows missing hands of a set from the default set 0 - likewise here
+
+                for (const char* part : { "hour", "minute", "second" }) {
+                    String path = "/hand_set" + setId + "_" + part + ".bmp";
+                    if (!LittleFS.exists(path)) path = String("/hand_set0_") + part + ".bmp";
+                    chunk += "<img src='/file?name=" + escapeHtmlText(path) + "'> ";
+                }
                 chunk += "</a><br>" + safeSetId + (setId == activeSet ? " (" + translate("active") + ")" : "");
                 chunk += "<br><a href='/sethandset?set=" + safeSetId + "&designer=1'>" + translate("Designer") + "</a>";
                 chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\")'>" + translate("Delete") + "</a>";
@@ -6742,13 +6725,6 @@
             for (const String& setId : otherSets) {
                 renderSetRow(setId);
             }
-
-            // Ab hier sind die grossen Base64-Strings nicht mehr benoetigt.
-            // From here on the large base64 strings are no longer needed.
-
-            handHourBase64 = String();
-            handMinuteBase64 = String();
-            handSecondBase64 = String();
 
             chunk = "</div><hr>";
 
@@ -6991,6 +6967,7 @@
             std::map<int, String> numericSets;
             std::vector<String> otherSets;
             std::set<String> seenSetIds;
+            ensureDefaultHands();
             File root = LittleFS.open("/");
             File file = root.openNextFile();
             while (file) {
@@ -7040,7 +7017,7 @@
 
             chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) +
                      ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
-                     ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(preferences.getString(PK_HANDSET, "")) +
+                     ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(handSetFileId(preferences.getString(PK_HANDSET, ""))) +
                      "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
                      "',lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}" + modeJs + "};</script>";
@@ -7048,32 +7025,6 @@
             webserver.sendContent_P(HAND_DESIGNER_HTML);
             webserver.sendContent("</body></html>");
             webserver.sendContent("");
-            });
-
-        // Eingebauter Standard-Zeiger als BMP - Ausgangspunkt im Designer, da
-        // der Standardsatz nicht in LittleFS liegt, sondern in der Firmware.
-
-        // Built-in default hand as a BMP - starting point in the designer,
-        // since the default set lives in the firmware, not in LittleFS.
-
-        webserver.on("/api/defaulthand", HTTP_GET, []() {
-            String part = webserver.arg("part");
-            const uint16_t* src = (part == "hour") ? handHour : (part == "minute") ? handMinute : (part == "second") ? handSecond : nullptr;
-            if (!src) {
-                webserver.send(400, "text/plain", "part must be hour, minute or second");
-                return;
-            }
-            size_t size = 0;
-            uint8_t* bmp = encodeBmpToBytes(src, HAND_LEGACY_WIDTH, HAND_LEGACY_HEIGHT, &size);
-            if (!bmp) {
-                webserver.send(500, "text/plain", "Out of memory");
-                return;
-            }
-            webserver.sendHeader("Cache-Control", "no-store");
-            webserver.setContentLength(size);
-            webserver.send(200, "image/bmp", "");
-            webserver.sendContent((const char*)bmp, size);
-            delete[] bmp;
             });
 
         // Zifferblatt-Designer: gemeinsamer Seitenkopf + Markup aus dem Flash (FACE_DESIGNER_HTML in
@@ -7179,7 +7130,7 @@
             chunk += "<script>var FD={w:" + String(CLOCK_WIDTH) + ",h:" + String(CLOCK_HEIGHT) + ",round:" + String(roundJs) +
                      ",active:'" + jsSafe(selectedBackground) + "',faces:[" + facesJs + "],free:" + String(freeBytes) +
                      ",hand:{w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) + ",py:" + String(HAND_PIVOT_Y) +
-                     ",set:'" + jsSafe(preferences.getString(PK_HANDSET, "")) + "'" +
+                     ",set:'" + jsSafe(handSetFileId(preferences.getString(PK_HANDSET, ""))) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
                      ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + ",strip:" + stripJs + ",fonts:[" + fontsJs + "]};</script>";
@@ -7215,15 +7166,13 @@
                 }
                 removeOrphanedPresets("", setId);
 
-                // Falls der geloeschte Zeigersatz gerade aktiv war, sofort auf
-                // den eingebauten Standard zurueckschalten - sonst wuerde die
-                // Uhr versuchen, einen nicht mehr existierenden Zeigersatz zu laden.
+                // Falls der geloeschte Zeigersatz gerade aktiv war, sofort auf den Standardsatz zurueckschalten
+                // (der Standardsatz 0 selbst wird dabei neu erzeugt).
 
-                // If the deleted hand set was currently active, switch back to the
-                // built-in default immediately - otherwise the clock would try to load
-                // a hand set that no longer exists.
+                // If the deleted hand set was currently active, switch back to the default set immediately (the
+                // default set 0 itself is created again in the process).
 
-                if (preferences.getString(PK_HANDSET, "") == setId) {
+                if (handSetFileId(preferences.getString(PK_HANDSET, "")) == setId) {
                     preferences.putString(PK_HANDSET, "default");
                     freeClockFaceBuffer();
                     loadClockFace();
@@ -7543,7 +7492,7 @@
             html += "<button type='submit'>" + translate("Delete Clock Faces (except default)") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Hand Sets (except default)") + "</h3>";
-            html += "<p>" + translate("Deletes all uploaded hand sets - the built-in default remains") + ".</p>";
+            html += "<p>" + translate("Deletes all hand sets - the default hand set is created again") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all hand sets except the default one?") + "');\">";
             html += "<input type='hidden' name='action' value='hands'>";
             html += "<button type='submit'>" + translate("Delete Hand Sets (except default)") + "</button></form><hr>";

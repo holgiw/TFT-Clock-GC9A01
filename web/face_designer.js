@@ -1061,8 +1061,8 @@
     return out;
   }
   PARTS.forEach(function (p) {
-    var def = '/api/defaulthand?part=' + p, set = FD.hand.set;
-    var url = (!set || set === 'default') ? def : '/file?name=' + encodeURIComponent('/hand_set' + set + '_' + p + '.bmp');
+    var def = '/file?name=' + encodeURIComponent('/hand_set0_' + p + '.bmp');
+    var url = '/file?name=' + encodeURIComponent('/hand_set' + (FD.hand.set || '0') + '_' + p + '.bmp');
     function get(u) { return fetch(u, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }); }
     get(url).catch(function () { return get(def); }).then(function (ab) {
       hands[p] = handCanvas(decodeHand(ab), p);

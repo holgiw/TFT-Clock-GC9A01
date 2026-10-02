@@ -4,7 +4,7 @@
   var TRANSPARENT = -1;
 
   var TX = {
-    de: { base: 'Basis:', builtin: 'Standard (eingebaut)', set: 'Satz', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
+    de: { base: 'Basis:', set: 'Satz', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
       saveBtn: 'Als neues Design speichern', part: 'Zeiger', hour: 'Stunde', minute: 'Minute', second: 'Sekunde', tools: 'Werkzeug',
       pen: 'Stift', erase: 'Radierer', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse',
       ellf: 'Ellipse gef\u00fcllt', circ: 'Kreis', circf: 'Kreis gef\u00fcllt', radius: 'Radius', poly: 'Polygon', fill: 'F\u00fcllen', blur: 'Weichzeichnen', pick: 'Pipette', sym: 'Spiegeln an der Mittelachse',
@@ -14,7 +14,6 @@
       genBtn: 'Erzeugen', preview: 'Vorschau', live: 'Live-Uhrzeit', bgFace: 'Zifferblatt', bgDark: 'dunkel',
       bgLight: 'hell', saving: 'Speichere...', saved: 'Als neues Design Satz {0} gespeichert', activated: ' und aktiviert',
       saveCurBtn: 'Aktuelles Design speichern und anwenden', savedCur: 'Satz {0} gespeichert und angewendet',
-      builtinRO: 'Das eingebaute Standard-Design kann nicht \u00fcberschrieben werden - bitte als neues Design speichern.',
       loading: 'Lade...', loaded: 'Aktives Design geladen', failed: 'Fehler: ', missing: 'fehlt - Standard verwendet',
       confirmReset: 'Alle \u00c4nderungen verwerfen und das aktive Design neu laden?', confirmClear: 'Diesen Zeiger komplett leeren?',
       confirmGen: 'Aktuellen Zeiger durch die erzeugte Form ersetzen?',
@@ -38,7 +37,7 @@
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       pos: 'Pixel', pivot: 'Drehpunkt',
       widthHint: 'Das aktuelle Zifferblatt zeigt diesen Zeiger nur {0} px breit - ausgegraute Spalten werden auf der Uhr abgeschnitten.' },
-    en: { base: 'Based on:', builtin: 'Default (built-in)', set: 'Set', active: 'active', reset: 'Discard changes',
+    en: { base: 'Based on:', set: 'Set', active: 'active', reset: 'Discard changes',
       saveBtn: 'Save as new design', part: 'Hand', hour: 'Hour', minute: 'Minute', second: 'Second', tools: 'Tool',
       pen: 'Pen', erase: 'Eraser', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse',
       ellf: 'Filled ellipse', circ: 'Circle', circf: 'Filled circle', radius: 'Radius', poly: 'Polygon', fill: 'Fill', blur: 'Blur', pick: 'Picker', sym: 'Mirror at the centre axis',
@@ -48,7 +47,6 @@
       genBtn: 'Generate', preview: 'Preview', live: 'Live time', bgFace: 'Clock face', bgDark: 'dark',
       bgLight: 'light', saving: 'Saving...', saved: 'Saved as new design, set {0}', activated: ' and activated',
       saveCurBtn: 'Save and apply current design', savedCur: 'Set {0} saved and applied',
-      builtinRO: 'The built-in default design cannot be overwritten - please save as a new design.',
       loading: 'Loading...', loaded: 'Active design loaded', failed: 'Error: ', missing: 'missing - default used',
       confirmReset: 'Discard all changes and reload the active design?', confirmClear: 'Clear this hand completely?',
       confirmGen: 'Replace the current hand with the generated shape?',
@@ -83,17 +81,8 @@
   PARTS.forEach(function (p) { pix[p] = new Int32Array(N).fill(TRANSPARENT); undoSt[p] = []; redoSt[p] = []; });
   var part = 'hour', tool = 'pen', color = 0x0000, dirty = false;
   function setDirty(v) {
-    dirty = v; $('saveBtn').disabled = false;
-
-    // Beide Knoepfe immer bedienbar (auch ohne Aenderung) - nur das eingebaute Standard-Design liegt im Flash
-    // und laesst sich nicht ueberschreiben.
-
-    // Both buttons always usable (even without a change) - only the built-in default design lives in flash and
-    // cannot be overwritten.
-
-    var builtin = activeBase() === 'default';
-    $('saveCurBtn').disabled = builtin;
-    $('saveCurBtn').title = builtin ? t('builtinRO') : '';
+    dirty = v; $('saveBtn').disabled = false; // beide Knoepfe immer bedienbar, auch ohne Aenderung
+                                              // both buttons always usable, even without a change
   }
 
   // Formparameter je Zeiger (Startwerte aus den Displaymassen)
@@ -618,15 +607,14 @@
   // Load and save
 
   // Basis ist immer das aktive Design - fehlt dort ein Zeiger, nimmt die Uhr
-  // den eingebauten Standard, daher hier genauso.
+  // den des Standardsatzes 0, daher hier genauso.
 
   // The basis is always the active design - if a hand is missing there, the
-  // clock uses the built-in default, so the same happens here.
+  // clock uses the one of the default set 0, so the same happens here.
 
-  function activeBase() { return (HD.active && HD.sets.indexOf(HD.active) >= 0) ? HD.active : 'default'; }
+  function activeBase() { return (HD.active && HD.sets.indexOf(HD.active) >= 0) ? HD.active : '0'; }
   function showBase() {
-    var b = activeBase();
-    $('baseInfo').textContent = t('base') + ' ' + (b === 'default' ? t('builtin') : t('set') + ' ' + b) + ' (' + t('active') + ')';
+    $('baseInfo').textContent = t('base') + ' ' + t('set') + ' ' + activeBase() + ' (' + t('active') + ')';
   }
   function nextId() {
     var max = 0;
@@ -643,10 +631,10 @@
     var id = activeBase(), notes = [];
     showMsg(t('loading'));
     Promise.all(PARTS.map(function (p) {
-      var def = '/api/defaulthand?part=' + p;
-      var url = id === 'default' ? def : '/file?name=' + encodeURIComponent('/hand_set' + id + '_' + p + '.bmp');
+      var def = '/file?name=' + encodeURIComponent('/hand_set0_' + p + '.bmp');
+      var url = '/file?name=' + encodeURIComponent('/hand_set' + id + '_' + p + '.bmp');
       return fetchHand(url).catch(function () {
-        if (id !== 'default') notes.push(t(p) + ' ' + t('missing'));
+        notes.push(t(p) + ' ' + t('missing'));
         return fetchHand(def);
       }).then(function (buf) { pix[p] = buf; }).catch(function () { pix[p] = new Int32Array(N).fill(TRANSPARENT); });
     })).then(function () {
@@ -700,11 +688,7 @@
     });
   }
   $('saveBtn').onclick = function () { saveSet(nextId(), true); };
-  $('saveCurBtn').onclick = function () {
-    var id = activeBase();
-    if (id === 'default') return;
-    saveSet(id, false);
-  };
+  $('saveCurBtn').onclick = function () { saveSet(activeBase(), false); };
   window.addEventListener('beforeunload', function (ev) { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
   // Vorschau
