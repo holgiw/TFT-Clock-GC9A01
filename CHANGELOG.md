@@ -6,7 +6,7 @@
 
 ### Geändert
 - Screenshots (`screenshots/de`, `screenshots/en`) neu aufgenommen; die Seite DCF77 stammt von einer Uhr mit
-  Empfänger.
+  Empfänger, dazu wieder der Zifferblatt-Designer einer ILI9341-Uhr (`zifferblatt_designer_ili.png`).
 - Auswahl der mitgelieferten Zifferblätter, Zeiger und Presets überarbeitet (`graphic/` mit den Zips
   `faces_handsets_160.zip` und `faces_handsets_240.zip`, `presets.txt`).
 
@@ -22,7 +22,7 @@
 
 ### Changed
 - Retook the screenshots (`screenshots/de`, `screenshots/en`); the DCF77 page comes from a clock with a
-  receiver.
+  receiver, plus again the clock face designer of an ILI9341 clock (`clock_face_designer_ili.png`).
 - Revised the selection of included clock faces, hands and presets (`graphic/` with the zips
   `faces_handsets_160.zip` and `faces_handsets_240.zip`, `presets.txt`).
 
