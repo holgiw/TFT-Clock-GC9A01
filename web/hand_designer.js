@@ -760,15 +760,11 @@
   $('bgSel').onchange = schedulePreview;
   $('live').onchange = schedulePreview;
 
-  // Zifferblatt selbst dekodieren statt per <img> - nicht jeder Browser
-  // zeigt 16-Bit-BMPs an; das Standard-Zifferblatt liegt in der Firmware.
-
-  // Decode the clock face ourselves instead of via <img> - not every browser
-  // displays 16-bit BMPs; the default clock face lives in the firmware.
+  // Zifferblatt selbst dekodieren statt per <img> - nicht jeder Browser zeigt 16-Bit-BMPs an
+  // Decode the clock face ourselves instead of via <img> - not every browser displays 16-bit BMPs
 
   if (HD.face) {
-    var faceUrl = HD.face === '/face_default.bmp' ? '/api/defaultface' : '/file?name=' + encodeURIComponent(HD.face);
-    fetch(faceUrl, { cache: 'no-store' }).then(function (r) {
+    fetch('/file?name=' + encodeURIComponent(HD.face), { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.arrayBuffer();
     }).then(function (ab) {

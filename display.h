@@ -1048,31 +1048,185 @@
     }
 
 
-    // Eingebaute Standardgrafiken (RLE, siehe DISPLAY_GEOMETRY): entpackt das Standard-Zifferblatt des
-    // aktiven Displaytyps nach 'dest' (CLOCK_WIDTH x CLOCK_HEIGHT).
+    // Standard-Zifferblatt ohne Ziffern wie der Generator im Zifferblatt-Designer mit dessen Vorgaben: weiss,
+    // schwarzer Rand, Stunden- und Minutenstriche. Je Pixel 4 x 4 Abtastpunkte (Kantenglaettung) in ganzen
+    // Achtelpixeln; zeilenweise, damit nie ein ganzes Bild im RAM liegen muss.
 
-    // Built-in default graphics (RLE, see DISPLAY_GEOMETRY): unpacks the active display type's default clock
-    // face into 'dest' (CLOCK_WIDTH x CLOCK_HEIGHT).
+    // Default clock face without numerals like the generator in the clock face designer with its defaults:
+    // white, black ring, hour and minute marks. 4 x 4 samples per pixel (anti-aliasing) in whole eighths of a
+    // pixel; row by row, so a whole image never has to be held in RAM.
 
-    void decodeDefaultFace(uint16_t* dest) {
+    struct DefaultFaceGen {
+        struct Mark {
+            int16_t x0, x1, y0, y1; // Pixelbereich des Strichs
+                                    // pixel range of the mark
+            int16_t s, c;           // Richtung (sin, -cos) x 1024
+                                    // direction (sin, -cos) x 1024
+            int16_t t0, t1, hw;     // radial von t0 bis t1, halbe Breite hw (Achtelpixel)
+                                    // radially from t0 to t1, half width hw (eighths of a pixel)
+        };
+        Mark marks[60];
+        int w, c8, ringIn, ringOut; // Mitte und Rand (Achtelpixel)
+                                    // centre and ring (eighths of a pixel)
+
+        void init() {
+            w = CLOCK_WIDTH;
+            int r = w / 2;
+            int ring = lroundf(w * 0.02f);
+            int outer = r - ring - lroundf(r * 0.03f);
+            c8 = 8 * r;
+            ringIn = 8 * (r - ring);
+            ringOut = 8 * r;
+
+            // 60 Striche reihum, jeder fuenfte ist ein Stundenstrich
+            // 60 marks around, every fifth is an hour mark
+
+            for (int i = 0; i < 60; i++) {
+                bool hour = (i % 5 == 0);
+                int len = lroundf(w * (hour ? 0.08f : 0.03f));
+                int width = lroundf(w * (hour ? 0.025f : 0.008f));
+                if (width < 1) width = 1;
+                float a = i * 2 * PI / 60, s = sinf(a), c = -cosf(a);
+                Mark& m = marks[i];
+                m.s = lroundf(s * 1024);
+                m.c = lroundf(c * 1024);
+                m.t0 = 8 * (outer - len);
+                m.t1 = 8 * outer;
+                m.hw = 4 * width;
+                float minX = w, maxX = 0, minY = w, maxY = 0;
+                for (int k = 0; k < 4; k++) {
+                    float rr = (k & 1) ? outer : outer - len, side = (k & 2) ? width / 2.0f : -width / 2.0f;
+                    float x = r + s * rr - c * side, y = r + c * rr + s * side;
+                    minX = min(minX, x); maxX = max(maxX, x);
+                    minY = min(minY, y); maxY = max(maxY, y);
+                }
+                m.x0 = max(0, (int)floorf(minX)); m.x1 = min(w - 1, (int)floorf(maxX));
+                m.y0 = max(0, (int)floorf(minY)); m.y1 = min(w - 1, (int)floorf(maxY));
+            }
+        }
+
+        // Eine Zeile (w Pixel, RGB565) - Schwarz deckt Weiss je nach Zahl getroffener Abtastpunkte
+        // One row (w pixels, RGB565) - black covers white according to the number of samples hit
+
+        void row(int y, uint16_t* out) const {
+            uint8_t cov[CLOCK_MAX] = { 0 };
+            const int32_t in2 = (int32_t)ringIn * ringIn, out2 = (int32_t)ringOut * ringOut;
+            const int32_t nearIn = (int32_t)(ringIn - 6) * (ringIn - 6), nearOut = (int32_t)(ringOut + 6) * (ringOut + 6);
+            const int32_t fullIn = (int32_t)(ringIn + 6) * (ringIn + 6), fullOut = (int32_t)(ringOut - 6) * (ringOut - 6);
+
+            // Rand: Pixelmitte weit genug innen oder aussen -> ohne Abtastung entschieden
+            // Ring: pixel centre far enough inside or outside -> decided without sampling
+
+            int32_t cy = 8 * y + 4 - c8;
+            for (int x = 0; x < w; x++) {
+                int32_t cx = 8 * x + 4 - c8, d2 = cx * cx + cy * cy;
+                if (d2 < nearIn || d2 > nearOut) continue;
+                if (d2 > fullIn && d2 < fullOut) { cov[x] = 16; continue; }
+                for (int sy = 0; sy < 4; sy++) {
+                    int32_t dy = 8 * y + 2 * sy + 1 - c8;
+                    for (int sx = 0; sx < 4; sx++) {
+                        int32_t dx = 8 * x + 2 * sx + 1 - c8, sd2 = dx * dx + dy * dy;
+                        if (sd2 >= in2 && sd2 <= out2) cov[x]++;
+                    }
+                }
+            }
+
+            // Striche als gedrehte Rechtecke: radial t, quer u (beides x 1024)
+            // Marks as rotated rectangles: radial t, across u (both x 1024)
+
+            for (const Mark& m : marks) {
+                if (y < m.y0 || y > m.y1) continue;
+                for (int x = m.x0; x <= m.x1; x++) {
+                    int n = 0;
+                    for (int sy = 0; sy < 4; sy++) {
+                        int32_t dy = 8 * y + 2 * sy + 1 - c8;
+                        for (int sx = 0; sx < 4; sx++) {
+                            int32_t dx = 8 * x + 2 * sx + 1 - c8;
+                            int32_t t = dx * m.s + dy * m.c, u = dy * m.s - dx * m.c;
+                            if (t >= m.t0 * 1024 && t <= m.t1 * 1024 && abs(u) <= m.hw * 1024) n++;
+                        }
+                    }
+                    cov[x] = min(16, cov[x] + n);
+                }
+            }
+            for (int x = 0; x < w; x++) {
+                int v = 255 - (cov[x] * 255 + 8) / 16;
+                uint16_t r5 = (v * 31 + 127) / 255, g6 = (v * 63 + 127) / 255;
+                out[x] = (r5 << 11) | (g6 << 5) | r5;
+            }
+        }
+    };
+
+    // Zeichnet das Standard-Zifferblatt nach 'dest' (CLOCK_WIDTH x CLOCK_HEIGHT) - Notloesung, falls
+    // face_default.bmp nicht gespeichert werden kann (Dateisystem voll).
+
+    // Draws the default clock face into 'dest' (CLOCK_WIDTH x CLOCK_HEIGHT) - fallback in case
+    // face_default.bmp cannot be stored (file system full).
+
+    void drawDefaultFace(uint16_t* dest) {
         if (!dest) return;
-        rleDecode565(displayGeom->face.data, displayGeom->face.size, dest, displayGeom->face.pixels);
+        DefaultFaceGen gen;
+        gen.init();
+        for (int y = 0; y < gen.w; y++) gen.row(y, dest + (size_t)y * gen.w);
     }
 
-    // Wie decodeDefaultFace(), legt den Puffer aber selbst an (PSRAM bevorzugt) -
-    // der Aufrufer gibt ihn mit free() frei. nullptr bei Speichermangel.
+    // Legt face_default.bmp an, falls es fehlt (nach dem ersten Flashen, Werksreset oder Loeschen): RLEB wie
+    // hochgeladene Zifferblaetter, zeilenweise kodiert - erst Groesse zaehlen, dann schreiben.
 
-    // Like decodeDefaultFace(), but allocates the buffer itself (PSRAM
-    // preferred) - the caller frees it with free(). nullptr when out of memory.
+    // Creates face_default.bmp if it is missing (after the first flash, a factory reset or deletion): RLEB like
+    // uploaded clock faces, encoded row by row - count the size first, then write.
 
-    uint16_t* allocDefaultFace() {
-        uint16_t* buf = (uint16_t*)preferPsramMalloc((size_t)displayGeom->face.pixels * sizeof(uint16_t));
-        if (!buf) {
-            DEBUG_PRINTLN("[Display] Error: couldnt allocate buffer for the default clock face");
-            return nullptr;
+    bool ensureDefaultFace() {
+        const char* path = "/face_default.bmp";
+        if (LittleFS.exists(path)) return true;
+        DefaultFaceGen gen;
+        gen.init();
+        uint16_t row[CLOCK_MAX];
+        uint8_t enc[CLOCK_MAX * 2 + 8]; // >= rleMaxEncodedSize(CLOCK_MAX)
+                                        // >= rleMaxEncodedSize(CLOCK_MAX)
+        uint32_t compressed = 0;
+        for (int y = 0; y < gen.w; y++) {
+            gen.row(y, row);
+            compressed += rleEncode565(row, gen.w, enc);
         }
-        decodeDefaultFace(buf);
-        return buf;
+        File f = LittleFS.open(path, "w");
+        if (!f) {
+            DEBUG_PRINTLN("[BG] Error: couldnt create " + String(path));
+            return false;
+        }
+        uint8_t header[20];
+        header[0] = 'R'; header[1] = 'L'; header[2] = 'E'; header[3] = 'B';
+        *(int32_t*)&header[4] = gen.w;
+        *(int32_t*)&header[8] = gen.w;
+        *(uint32_t*)&header[12] = compressed;
+        *(uint32_t*)&header[16] = (uint32_t)gen.w * gen.w * 2;
+        bool ok = f.write(header, sizeof(header)) == sizeof(header);
+        for (int y = 0; ok && y < gen.w; y++) {
+            if (y % 20 == 0) yield();
+            gen.row(y, row);
+            size_t n = rleEncode565(row, gen.w, enc);
+            ok = f.write(enc, n) == n;
+        }
+        f.close();
+        if (!ok) {
+            LittleFS.remove(path);
+            DEBUG_PRINTLN("[BG] Error: couldnt write " + String(path) + " (file system full?)");
+            return false;
+        }
+        DEBUG_PRINTLN("[BG] Default clock face created: " + String(path) + " (" + String(compressed + 20) + " bytes)");
+        return true;
+    }
+
+    // Laedt ein Zifferblatt nach 'dest'; fehlt es oder ist es unlesbar, das Standard-Zifferblatt (bei Bedarf
+    // erzeugt, notfalls nur gezeichnet).
+
+    // Loads a clock face into 'dest'; if it is missing or unreadable, the default clock face (created if needed,
+    // drawn only as a last resort).
+
+    void loadFaceOrDefault(const String& path, uint16_t* dest) {
+        if (LittleFS.exists(path) && loadFaceBmpInto(path, dest, CLOCK_WIDTH, CLOCK_HEIGHT)) return;
+        if (ensureDefaultFace() && loadFaceBmpInto("/face_default.bmp", dest, CLOCK_WIDTH, CLOCK_HEIGHT)) return;
+        drawDefaultFace(dest);
     }
 
     // Liest eine face_*.bmp-Datei (Standard-BMP oder RLEB-komprimiert) direkt in
@@ -1299,23 +1453,10 @@
 
             if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
 
-            // Bild aus Datei laden und dekodieren (Standard-BMP oder RLEB-komprimiert)
-            // Load and decode the image from file (standard BMP or RLEB-compressed)
+            // Bild aus Datei laden (Standard-BMP oder RLEB), sonst das Standard-Zifferblatt
+            // Load the image from file (standard BMP or RLEB), otherwise the default clock face
 
-            bool loaded = false;
-            if (LittleFS.exists(selectedBackground)) {
-                loaded = loadFaceBmpInto(selectedBackground, clockFaceBuffer, CLOCK_WIDTH, CLOCK_HEIGHT);
-            }
-            if (!loaded) {
-
-                // Fallback: Standard-Zifferblatt aus dem Array kopieren (auch bei Lesefehler oder falschen
-                // Dimensionen).
-
-                // Fallback: copy the built-in default clock face from the array (also on read errors or wrong
-                // dimensions).
-
-                decodeDefaultFace(clockFaceBuffer);
-            }
+            loadFaceOrDefault(selectedBackground, clockFaceBuffer);
             forceRecompute = true;
         }
 
@@ -5135,21 +5276,15 @@
 
         if (stripOk) drawStripThumb(canvas, stripBeforeClock ? 0 : PREVIEW_SIZE, PREVIEW_SIZE, stripPrevH);
 
-        // 1) Zifferblatt laden und auf Vorschaugroesse verkleinern (Datei, sonst das eingebaute
-        // Standard-Zifferblatt - wie /preview_defaultface).
-
-        // 1) Load the clock face and scale it down to preview size (file, otherwise the built-in default face
-        // - like /preview_defaultface).
+        // 1) Zifferblatt laden und auf Vorschaugroesse verkleinern (Datei, sonst das Standard-Zifferblatt)
+        // 1) Load the clock face and scale it down to preview size (file, otherwise the default clock face)
 
         float faceScaleX = (float)CLOCK_WIDTH / PREVIEW_SIZE;
         float faceScaleY = (float)CLOCK_HEIGHT / PREVIEW_SIZE;
-        bool isDefaultFace = (faceFile == "/face_default.bmp") || !LittleFS.exists(faceFile);
 
         uint16_t* faceBuf = (uint16_t*)preferPsramMalloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2);
         if (!faceBuf) return false;
-        if (isDefaultFace || !loadFaceBmpInto(faceFile, faceBuf, CLOCK_WIDTH, CLOCK_HEIGHT)) {
-            decodeDefaultFace(faceBuf);
-        }
+        loadFaceOrDefault(faceFile, faceBuf);
         for (int y = 0; y < PREVIEW_SIZE; y++) {
             int sy = (int)(y * faceScaleY);
             for (int x = 0; x < PREVIEW_SIZE; x++) {

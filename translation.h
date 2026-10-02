@@ -247,7 +247,7 @@
         { "Resets WiFi, all settings and deletes all files - the clock restarts afterwards", "Setzt WLAN, alle Einstellungen zur&uuml;ck und l&ouml;scht alle Dateien - die Uhr startet danach neu" },
         { "Deletes all saved WiFi networks - other settings remain unchanged", "L&ouml;scht alle gespeicherten WLAN-Netzwerke - andere Einstellungen bleiben unver&auml;ndert" },
         { "Delete Clock Faces (except default)", "Zifferbl&auml;tter l&ouml;schen (au&szlig;er Standard)" },
-        { "Deletes all uploaded clock faces - the built-in default remains", "L&ouml;scht alle hochgeladenen Zifferbl&auml;tter - der eingebaute Standard bleibt erhalten" },
+        { "Deletes all clock faces - the default clock face is created again", "L&ouml;scht alle Zifferbl&auml;tter - das Standard-Zifferblatt wird neu erzeugt" },
         { "Delete Hand Sets (except default)", "Zeigers&auml;tze l&ouml;schen (au&szlig;er Standard)" },
         { "Deletes all uploaded hand sets - the built-in default remains", "L&ouml;scht alle hochgeladenen Zeigers&auml;tze - der eingebaute Standard bleibt erhalten" },
         { "Delete Presets", "Uhren Sets l&ouml;schen" },

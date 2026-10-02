@@ -11,7 +11,7 @@
   var DEF = '/face_default.bmp';
 
   var TX = {
-    de: { base: 'Basis:', builtin: 'Standard (eingebaut)', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
+    de: { base: 'Basis:', active: 'aktiv', reset: '\u00c4nderungen verwerfen',
       saveBtn: 'Als neues Zifferblatt speichern', name: 'Name:',
       saveCurBtn: 'Aktuelles Zifferblatt speichern und anwenden', tools: 'Werkzeug', bw: 'Stiftbreite:',
       pen: 'Stift', line: 'Linie', rect: 'Rahmen', rectf: 'Rechteck', ell: 'Ellipse', ellf: 'Ellipse gef\u00fcllt', circ: 'Kreis', circf: 'Kreis gef\u00fcllt', radius: 'Radius',
@@ -30,7 +30,6 @@
       saving: 'Speichere...', saved: 'Als neues Zifferblatt "{0}" gespeichert', activated: ' und aktiviert',
       savedCur: '"{0}" gespeichert und angewendet', loading: 'Lade...', loaded: 'Aktives Zifferblatt geladen',
       failed: 'Fehler: ', missing: 'Aktives Zifferblatt nicht lesbar - Standard verwendet',
-      builtinRO: 'Das eingebaute Standard-Zifferblatt kann nicht \u00fcberschrieben werden - bitte als neues Zifferblatt speichern.',
       badName: 'Name: nur Buchstaben, Ziffern, _ und -, h\u00f6chstens 20 Zeichen.',
       confirmExists: 'Das Zifferblatt "{0}" gibt es schon - \u00fcberschreiben?',
       confirmReset: 'Alle \u00c4nderungen verwerfen und das aktive Zifferblatt neu laden?',
@@ -68,7 +67,7 @@
       tf1: '12 Stunden mit AM/PM', tf2: '12 Stunden', df0: 'T.MM.JJJJ', df1: 'TT.MM.JJJJ', df2: 'TT.MM.JJ', df3: 'MM/TT/JJJJ',
       df4: 'JJJJ-MM-TT', df5: 'TT.MM.', vlwCur: ' (auf der Uhr)', vlwErr: 'Schrift f\u00fcr den Streifen konnte nicht erzeugt werden.',
       pos: 'Pixel', center: 'Mitte' },
-    en: { base: 'Based on:', builtin: 'Default (built-in)', active: 'active', reset: 'Discard changes',
+    en: { base: 'Based on:', active: 'active', reset: 'Discard changes',
       saveBtn: 'Save as new clock face', name: 'Name:',
       saveCurBtn: 'Save and apply current clock face', tools: 'Tool', bw: 'Pen width:',
       pen: 'Pen', line: 'Line', rect: 'Frame', rectf: 'Rectangle', ell: 'Ellipse', ellf: 'Filled ellipse', circ: 'Circle', circf: 'Filled circle', radius: 'Radius',
@@ -87,7 +86,6 @@
       saving: 'Saving...', saved: 'Saved as new clock face "{0}"', activated: ' and activated',
       savedCur: '"{0}" saved and applied', loading: 'Loading...', loaded: 'Active clock face loaded',
       failed: 'Error: ', missing: 'Active clock face not readable - default used',
-      builtinRO: 'The built-in default clock face cannot be overwritten - please save as a new clock face.',
       badName: 'Name: letters, digits, _ and - only, at most 20 characters.',
       confirmExists: 'The clock face "{0}" already exists - overwrite?',
       confirmReset: 'Discard all changes and reload the active clock face?',
@@ -142,15 +140,13 @@
   // Ueberschreiben nur fuer Dateien, deren Name /upload auch annimmt
   // Overwriting only for files whose name /upload accepts as well
 
-  function canOverwrite() { return base !== DEF && /^\/face_[A-Za-z0-9_.-]+\.bmp$/.test(base); }
-  // Beide Knoepfe sind immer bedienbar (auch ohne Aenderung), nur das eingebaute Zifferblatt ist nicht ueberschreibbar
-  // Both buttons are always usable (even without a change), only the built-in clock face cannot be overwritten
+  function canOverwrite() { return /^\/face_[A-Za-z0-9_.-]+\.bmp$/.test(base); }
+  // Beide Knoepfe sind immer bedienbar, auch ohne Aenderung
+  // Both buttons are always usable, even without a change
 
   function setDirty(v) {
     dirty = v; $('saveBtn').disabled = false;
-    var ok = canOverwrite();
-    $('saveCurBtn').disabled = !ok;
-    $('saveCurBtn').title = ok ? '' : t('builtinRO');
+    $('saveCurBtn').disabled = !canOverwrite();
   }
 
   // Farben (RGB565) - im Zifferblatt ist jede Farbe erlaubt, auch Weiss
@@ -904,7 +900,7 @@
   // Strip graphic of the clock face (strip_<name>.bmp), null if there is none
 
   function fetchStrip(facePath) {
-    if (!SH || !facePath || facePath === DEF) return Promise.resolve(null);
+    if (!SH || !facePath) return Promise.resolve(null);
     var sp = '/strip_' + facePath.replace(/^\/?face_/, '');
     return fetch('/file?name=' + encodeURIComponent(sp), { cache: 'no-store' }).then(function (r) {
       if (!r.ok) return null;
@@ -917,7 +913,7 @@
 
   function faceLabel(path) { return path.replace(/^\/?face_/, '').replace(/\.bmp$/, ''); }
   function showBase() {
-    $('baseInfo').textContent = t('base') + ' ' + (base === DEF ? t('builtin') : faceLabel(base)) + ' (' + t('active') + ')';
+    $('baseInfo').textContent = t('base') + ' ' + faceLabel(base) + ' (' + t('active') + ')';
   }
   function nextName() {
     var max = 0;
@@ -931,14 +927,12 @@
     }).then(decodeFace);
   }
   function loadActive() {
-    var isDef = !FD.active || FD.active === DEF, note = '';
+    var note = '';
     showMsg(t('loading'));
-    fetchFace(isDef ? '/api/defaultface' : '/file?name=' + encodeURIComponent(FD.active)).then(function (b) {
-      base = isDef ? DEF : FD.active;
-      return b;
-    }, function () {
+    base = FD.active || DEF;
+    fetchFace('/file?name=' + encodeURIComponent(base)).then(null, function () {
       note = t('missing'); base = DEF;
-      return fetchFace('/api/defaultface');
+      return fetchFace('/file?name=' + encodeURIComponent(DEF));
     }).then(function (b) {
       return fetchStrip(base).then(function (st) { pix = compose(b, st); });
     }, function () { pix = compose(new Uint16Array(W * FH).fill(0xFFFF), null); base = DEF; }).then(function () {

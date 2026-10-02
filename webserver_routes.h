@@ -4816,116 +4816,6 @@
             }
             });
 
-        webserver.on("/preview_defaultface", HTTP_GET, []() {
-
-            // Kleine Vorschau statt voller Aufloesung (spart ~90% Uebertragungsgroesse
-            // fuer ein 80x80-<img> - siehe sendScaledBmpPreview() fuer den
-            // gleichwertigen Ansatz bei hochgeladenen Zifferblaettern).
-
-            // Small preview instead of full resolution (saves ~90% transfer size
-            // for an 80x80 <img> - see sendScaledBmpPreview() for the equivalent
-            // approach used for uploaded clock faces).
-
-            const int outW = 80;
-            const int outH = 80;
-            const float scaleX = (float)CLOCK_WIDTH / outW;
-            const float scaleY = (float)CLOCK_HEIGHT / outH;
-
-            const int headerSize = 54;
-            const int rowSize = ((outW * 3 + 3) / 4) * 4; // 3 Bytes pro Pixel für RGB888
-                                                          // 3 bytes per pixel for RGB888
-            const int dataSize = rowSize * outH;
-            const int fileSize = headerSize + dataSize;
-
-            // Null-Check: ohne ihn endete eine fehlgeschlagene ~19 KB Allokation
-            // in einem Panic-Reset statt einer sauberen Fehlerantwort.
-
-            // Null check: without it a failed ~19 KB allocation ended in a
-            // panic reset instead of a clean error response.
-
-            uint8_t* bmpData = new (std::nothrow) uint8_t[fileSize];
-            if (!bmpData) {
-                DEBUG_PRINTLN("[Preview] Error: couldnt allocate preview buffer for /preview_defaultface (from " + webserver.client().remoteIP().toString() + ")");
-                webserver.send(500, "text/plain", "Out of memory");
-                return;
-            }
-            memset(bmpData, 0, fileSize);
-
-            // Standard-Zifferblatt liegt RLE-komprimiert in der Firmware -
-            // fuer das Herunterskalieren kurz entpacken (PSRAM bevorzugt).
-
-            // The default clock face is RLE-compressed in the firmware -
-            // briefly unpack it for downscaling (PSRAM preferred).
-
-            uint16_t* defaultFace = allocDefaultFace();
-            if (!defaultFace) {
-                delete[] bmpData;
-                webserver.send(500, "text/plain", "Out of memory");
-                return;
-            }
-
-            // BMP-Header
-            // BMP header
-
-            bmpData[0] = 'B'; bmpData[1] = 'M';
-            *(uint32_t*)&bmpData[2] = fileSize;
-            *(uint32_t*)&bmpData[10] = headerSize;
-            *(uint32_t*)&bmpData[14] = 40;
-            *(int32_t*)&bmpData[18] = outW;
-            *(int32_t*)&bmpData[22] = -outH; // Top-down BMP
-                                             // top-down BMP
-            *(uint16_t*)&bmpData[26] = 1;
-            *(uint16_t*)&bmpData[28] = 24; // 24-Bit Farbtiefe
-                                           // 24-bit color depth
-            *(uint32_t*)&bmpData[34] = dataSize;
-
-            // Pixel-Daten (RGB565 -> RGB888, mit Downscaling)
-            // Pixel data (RGB565 -> RGB888, with downscaling)
-
-            for (int y = 0; y < outH; y++) {
-                int srcY = int(y * scaleY);
-                uint8_t* rowPtr = bmpData + headerSize + y * rowSize;
-                for (int x = 0; x < outW; x++) {
-                    int srcX = int(x * scaleX);
-                    uint16_t px = defaultFace[srcY * CLOCK_WIDTH + srcX];
-
-                    // Transparente Farbe ersetzen
-                    // Replace the transparent color
-
-                    if (px == TRANSPARENT_COLOR) {
-                        rowPtr[x * 3 + 0] = 255; // Blau
-                                                 // blue
-                        rowPtr[x * 3 + 1] = 255; // Grün
-                                                 // green
-                        rowPtr[x * 3 + 2] = 255; // Rot
-                                                 // red
-                        continue;
-                    }
-
-                    // RGB565 ? RGB888
-                    // RGB565 to RGB888
-
-                    uint8_t r = (px >> 8) & 0xF8; // obere 5 Bits
-                                                  // upper 5 bits
-                    uint8_t g = (px >> 3) & 0xFC; // mittlere 6 Bits
-                                                  // middle 6 bits
-                    uint8_t b = (px << 3) & 0xF8; // untere 5 Bits
-                                                  // lower 5 bits
-
-                    rowPtr[x * 3 + 0] = b; // Blau
-                                           // blue
-                    rowPtr[x * 3 + 1] = g; // Grün
-                                           // green
-                    rowPtr[x * 3 + 2] = r; // Rot
-                                           // red
-                }
-            }
-
-            free(defaultFace);
-            webserver.send_P(200, "image/bmp", (const char*)bmpData, fileSize);
-            delete[] bmpData;
-            });
-
         // Uhr-Gesichter verwalten
         // Manage clock faces
 
@@ -4961,36 +4851,18 @@
                 return "<span style='display:inline-block;border:1px solid #ccc;line-height:0;'>" + (stripBefore ? strip + face : face + strip) + "</span>";
             };
 
-            // Eingebautes Standard-Zifferblatt hinzufuegen
-            // Add built-in default face
-
-            chunk += "<div style='text-align:center;width:100px;'>";
-
-            // Relativer Pfad statt "http://" + ipAddress - Links sollen zur aktuell aufgerufenen Adresse
-            // fuehren.
-
-            // Relative path instead of "http://" + ipAddress - links should lead to the currently used
-            // address.
-
-            chunk += "<a href='/setbackground?file=face_default.bmp'>";
-            chunk += faceThumb("/preview_defaultface", "face_default.bmp");
-            chunk += "</a><br>default" + String(activeBackground == "/face_default.bmp" ? " (" + translate("active") + ")" : "");
-            chunk += "<br><a href='/setbackground?file=face_default.bmp&designer=1'>" + translate("Designer") + "</a>";
-            chunk += "</div>";
-
             webserver.sendContent(chunk);
             chunk = "";
 
+            // Das Standard-Zifferblatt fehlt nie in der Liste (z.B. nach dem Loeschen neu erzeugt)
+            // The default clock face is never missing from the list (e.g. recreated after deletion)
+
+            ensureDefaultFace();
             File root = LittleFS.open("/");
             File file = root.openNextFile();
 
             // Erst alle passenden Zifferblatt-Dateinamen sammeln und sortieren
-            // (der eingebaute Standard oben bleibt davon unberuehrt, da er bereits
-            // separat und fest an erster Stelle ausgegeben wurde).
-
-            // First collect and sort all matching clock-face filenames (the built-in
-            // default above is unaffected by this, since it was already output
-            // separately and fixed in first place).
+            // First collect and sort all matching clock-face filenames
 
             std::vector<String> faceNames;
             while (file) {
@@ -6656,6 +6528,11 @@
 
                 path = String(path.c_str());
 
+                // Das Standard-Zifferblatt bei Bedarf erst erzeugen - die Designer laden es von hier
+                // Create the default clock face first if needed - the designers load it from here
+
+                if (path == "/face_default.bmp") ensureDefaultFace();
+
                 // Logdateien nur aus einem privaten Netz einsehbar (koennen IPs, SSIDs u.ae. enthalten);
                 // andere Dateien von ueberall.
 
@@ -7199,73 +7076,6 @@
             delete[] bmp;
             });
 
-        // Eingebautes Standard-Zifferblatt in voller Groesse (Designer): 66-Byte-Header wie
-        // encodeBmpToBytes(), Pixel stueckweise aus dem RLE-Strom entpackt (kleiner Puffer statt 115 KB);
-        // Zeilen ohne Auffuellung.
-
-        // Built-in default clock face at full size (designer): 66-byte header like encodeBmpToBytes(), pixels
-        // unpacked piecewise from the RLE stream (small buffer instead of 115 KB); rows without padding.
-
-        webserver.on("/api/defaultface", HTTP_GET, []() {
-            const uint32_t dataSize = (uint32_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2;
-            uint8_t header[66] = { 0 };
-            header[0] = 'B'; header[1] = 'M';
-            *(uint32_t*)&header[2] = 66 + dataSize;
-            *(uint32_t*)&header[10] = 66;
-            *(uint32_t*)&header[14] = 40;
-            *(int32_t*)&header[18] = CLOCK_WIDTH;
-            *(int32_t*)&header[22] = -CLOCK_HEIGHT; // Top-down
-                                                    // top-down
-            *(uint16_t*)&header[26] = 1;
-            *(uint16_t*)&header[28] = 16;
-            *(uint32_t*)&header[30] = 3; // BI_BITFIELDS
-            *(uint32_t*)&header[34] = dataSize;
-            *(uint32_t*)&header[54] = 0xF800;
-            *(uint32_t*)&header[58] = 0x07E0;
-            *(uint32_t*)&header[62] = 0x001F;
-
-            webserver.sendHeader("Cache-Control", "no-store");
-            webserver.setContentLength(66 + dataSize);
-            webserver.send(200, "image/bmp", "");
-            webserver.sendContent((const char*)header, sizeof(header));
-
-            // RLE-Pakete wie rleDecode565(): 0-127 = Literal (C+1 Pixel),
-            // 129-255 = Wiederholung (257-C Pixel); Pixel little-endian wie im RAM.
-
-            // RLE packets like rleDecode565(): 0-127 = literal (C+1 pixels),
-            // 129-255 = repeat (257-C pixels); pixels little-endian as in RAM.
-
-            const RleImage& face = displayGeom->face;
-            uint16_t chunkPx[256];
-            size_t fill = 0, written = 0, i = 0;
-            while (i < face.size && written < face.pixels) {
-                uint8_t ctrl = face.data[i++];
-                bool literal = ctrl <= 127;
-                size_t len = literal ? (size_t)ctrl + 1 : (size_t)(257 - ctrl);
-                uint16_t repeatPx = 0;
-                if (!literal) {
-                    if (i + 1 >= face.size) break;
-                    repeatPx = face.data[i] | (face.data[i + 1] << 8);
-                    i += 2;
-                }
-                for (size_t k = 0; k < len && written < face.pixels; k++) {
-                    uint16_t px = repeatPx;
-                    if (literal) {
-                        if (i + 1 >= face.size) { written = face.pixels; break; }
-                        px = face.data[i] | (face.data[i + 1] << 8);
-                        i += 2;
-                    }
-                    chunkPx[fill++] = px;
-                    written++;
-                    if (fill == 256) {
-                        webserver.sendContent((const char*)chunkPx, fill * sizeof(uint16_t));
-                        fill = 0;
-                    }
-                }
-            }
-            if (fill > 0) webserver.sendContent((const char*)chunkPx, fill * sizeof(uint16_t));
-            });
-
         // Zifferblatt-Designer: gemeinsamer Seitenkopf + Markup aus dem Flash (FACE_DESIGNER_HTML in
         // face_designer_html.h), das CSS und Skript von /facedesigner.css und .js nachlaedt.
 
@@ -7727,7 +7537,7 @@
             html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Clock Faces (except default)") + "</h3>";
-            html += "<p>" + translate("Deletes all uploaded clock faces - the built-in default remains") + ".</p>";
+            html += "<p>" + translate("Deletes all clock faces - the default clock face is created again") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
             html += "<input type='hidden' name='action' value='faces'>";
             html += "<button type='submit'>" + translate("Delete Clock Faces (except default)") + "</button></form><hr>";
@@ -8040,8 +7850,8 @@
         String faceName = faceValue.startsWith("/") ? faceValue.substring(1) : faceValue;
 
         if (faceName.equalsIgnoreCase("face_default.bmp")) {
-            return true; // eingebautes Standard-Zifferblatt ist immer gueltig
-                         // built-in default face is always valid
+            return true; // Standard-Zifferblatt ist immer gueltig (wird bei Bedarf erzeugt)
+                         // default face is always valid (created when needed)
         }
 
         for (const String& existing : existingFaces) {

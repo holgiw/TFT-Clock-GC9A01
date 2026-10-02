@@ -142,8 +142,9 @@
     size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) ;
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
     void rleDecode565ToBmpRows(const uint8_t* in, size_t inSize, uint8_t* pixelArea, int width, int height, int rowStride) ;
-    void decodeDefaultFace(uint16_t* dest) ;
-    uint16_t* allocDefaultFace() ;
+    void drawDefaultFace(uint16_t* dest) ;
+    bool ensureDefaultFace() ;
+    void loadFaceOrDefault(const String& path, uint16_t* dest) ;
     bool loadFaceBmpInto(const String& path, uint16_t* dest, int32_t expectedW, int32_t expectedH) ;
     void loadClockFace(uint8_t rotation = primaryDisplayRotation()) ; // ohne Argument = Rotation des ersten angeschlossenen Displays (Standardverhalten fuer alle Aufrufer ausserhalb von renderClockFrame())
                                                                       // no argument = rotation of the first connected display (default behaviour for every caller outside renderClockFrame())
