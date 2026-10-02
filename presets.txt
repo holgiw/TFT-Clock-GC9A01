@@ -1,1 +1,1 @@
-Antik http://<clock-ip>/api/setMode?face=face_clock_alt1.bmp&handSet=10&stationMode=true&showSecondHand=false&smoothMinute=false&hubSize=3&hubColor=aaaaaa&source=preset
+Antik	http://<clock-ip>/api/setMode?face=face_clock_alt1.bmp&handSet=10&stationMode=true&showSecondHand=false&smoothMinute=false&hubSize=3&hubColor=aaaaaa&source=preset
