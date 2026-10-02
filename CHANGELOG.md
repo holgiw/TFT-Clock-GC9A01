@@ -5,8 +5,8 @@
 ## 2026-10-02
 
 ### Geändert
-- Auswahl der mitgelieferten Zifferblätter, Zeiger und Presets (`graphic/`, `presets.txt`) überarbeitet; die Zips
-  `graphic/faces_handsets_160.zip` und `faces_handsets_240.zip` enthalten genau die Dateien der Ordner.
+- Auswahl der mitgelieferten Zifferblätter, Zeiger und Presets überarbeitet (`graphic/` mit den Zips
+  `faces_handsets_160.zip` und `faces_handsets_240.zip`, `presets.txt`).
 
 ---
 
@@ -15,5 +15,5 @@
 ## 2026-10-02
 
 ### Changed
-- Revised the selection of included clock faces, hands and presets (`graphic/`, `presets.txt`); the zips
-  `graphic/faces_handsets_160.zip` and `faces_handsets_240.zip` contain exactly the files of the folders.
+- Revised the selection of included clock faces, hands and presets (`graphic/` with the zips
+  `faces_handsets_160.zip` and `faces_handsets_240.zip`, `presets.txt`).
