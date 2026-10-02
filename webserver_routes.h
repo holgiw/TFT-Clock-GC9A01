@@ -6553,6 +6553,27 @@
                     }
                     else if (path.endsWith(".bmp")) {
 
+                        // Zeiger mit Weiss statt der internen Transparenzfarbe ausliefern (encodeBmpToBytes()) - in
+                        // der Zeigeruebersicht sonst dunkelgruen; Uhr und Designer werten beides als transparent.
+
+                        // Serve hands with white instead of the internal transparent colour (encodeBmpToBytes()) -
+                        // otherwise dark green in the hand set overview; clock and designers treat both as transparent.
+
+                        int32_t hw = 0, hh = 0;
+                        if (path.startsWith("/hand_set") && readImageSize(path.c_str(), hw, hh) && isValidHandSize(hw, hh)) {
+                            uint16_t* px = (uint16_t*)preferPsramMalloc((size_t)hw * hh * sizeof(uint16_t));
+                            size_t size = 0;
+                            uint8_t* bmp = (px && loadFaceBmpInto(path, px, hw, hh)) ? encodeBmpToBytes(px, hw, hh, &size) : nullptr;
+                            free(px);
+                            if (bmp) {
+                                webserver.sendHeader("Cache-Control", "no-store");
+                                webserver.send_P(200, "image/bmp", (const char*)bmp, size);
+                                delete[] bmp;
+                                setLedOff();
+                                return;
+                            }
+                        }
+
                         // Pruefen, ob RLE-komprimiert - falls ja, vor der Auslieferung zu
                         // einem echten Standard-BMP dekodieren (sonst fuer externe Tools nicht lesbar).
 

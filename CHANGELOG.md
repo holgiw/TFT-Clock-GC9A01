@@ -51,6 +51,8 @@ Neueste Einträge oben.
   Mittelpunkt aus aufgezogen (Abstand = Radius bzw. Halbachsen), Mitte und Radius stehen beim Ziehen unter dem Bild.
 
 ### Behoben
+- Zeigerübersicht: transparente Bereiche der Zeiger erscheinen weiß statt dunkelgrün – die Uhr liefert
+  Zeigerdateien mit Weiß statt ihrer internen Transparenzfarbe aus (auch für ältere oder hochgeladene Dateien).
 - Vorschau: Der Sekundenzeiger sprang beim Zeitabgleich mit der Uhr (alle 15 s) – die Uhr lieferte nur ganze
   Sekunden. Jetzt mit Millisekunden; die Korrektur wird erst in Sekunde 59 übernommen (im Bahnhofsmodus wartet der
   Zeiger dann auf der 12) und langsame Antworten werden verworfen.
@@ -291,6 +293,8 @@ Newest entries on top.
   centre (distance = radius or semi-axes), centre and radius are shown below the image while dragging.
 
 ### Fixed
+- Hand set overview: transparent areas of the hands show white instead of dark green – the clock serves hand
+  files with white instead of its internal transparent colour (also for older or uploaded files).
 - Preview: the second hand jumped when syncing the time with the clock (every 15 s) – the clock only delivered
   whole seconds. Now with milliseconds; the correction is only applied in second 59 (in station mode the hand then
   waits at 12) and slow answers are discarded.
