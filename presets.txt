@@ -1,3 +1,1 @@
-sbb	http://<clock-ip>/api/setMode?face=/face_sbb.bmp&handSet=1&stationMode=true&showSecondHand=true&smoothMinute=true&hubSize=3&hubColor=aaaaaa
-ClocRoc	http://<clock-ip>/api/setMode?face=/face_clocroc.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
 Antik http://<clock-ip>/api/setMode?face=face_clock_alt1.bmp&handSet=10&stationMode=true&showSecondHand=false&smoothMinute=false&hubSize=3&hubColor=aaaaaa&source=preset
