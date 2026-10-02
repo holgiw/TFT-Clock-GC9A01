@@ -14,6 +14,8 @@
   `faces_handsets_160.zip` und `faces_handsets_240.zip`, `presets.txt`).
 
 ### Behoben
+- Selbst gezeichnetes Standard-Zifferblatt: auf runden Displays bleibt alles außerhalb des Kreises weiß wie bei
+  hochgeladenen Zifferblättern – es übersteht Sicherung und Wiederherstellen jetzt Pixel für Pixel unverändert.
 - `presets.txt`: Das Preset „Antik“ wird beim Herunterladen von GitHub wieder übernommen – Name und Adresse
   waren durch ein Leerzeichen statt eines Tabs getrennt, die Zeile wurde deshalb übersprungen.
 
@@ -33,5 +35,7 @@
   `faces_handsets_160.zip` and `faces_handsets_240.zip`, `presets.txt`).
 
 ### Fixed
+- Self-drawn default clock face: on round displays everything outside the circle stays white like with uploaded
+  clock faces – it now survives backup and restore unchanged pixel for pixel.
 - `presets.txt`: the preset "Antik" is taken over again when downloading from GitHub – name and address were
   separated by a space instead of a tab, so the line was skipped.
