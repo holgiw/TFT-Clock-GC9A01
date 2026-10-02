@@ -1845,11 +1845,11 @@
         webserver.onNotFound(captivePortalRedirect);
 
         // API fuer Zifferblatt, Zeiger, Zeitzone, Nabe, Bahnhofsmodus, Rotation und Zeigerstil, z.B.
-        // /api/setMode?face=face_db_uhr.bmp&handSet=0&stationMode=true - Helligkeit optional (minBrightness,
+        // /api/setMode?face=face_default.bmp&handSet=0&stationMode=true - Helligkeit optional (minBrightness,
         // maxBrightness, brightStart, brightEnd, lowThreshold, highThreshold, gamma, autoBrightness).
 
         // API for clock face, hands, time zone, hub, station mode, rotation and hand style, e.g.
-        // /api/setMode?face=face_db_uhr.bmp&handSet=0&stationMode=true - brightness optional (minBrightness,
+        // /api/setMode?face=face_default.bmp&handSet=0&stationMode=true - brightness optional (minBrightness,
         // maxBrightness, brightStart, brightEnd, lowThreshold, highThreshold, gamma, autoBrightness).
 
 

@@ -1,9 +1,3 @@
 sbb	http://<clock-ip>/api/setMode?face=/face_sbb.bmp&handSet=1&stationMode=true&showSecondHand=true&smoothMinute=true&hubSize=3&hubColor=aaaaaa
-DB	http://<clock-ip>/api/setMode?face=face_default.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
-GWR	http://<clock-ip>/api/setMode?face=/face_Reading-Railway-Clock.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
-Arabisch	http://<clock-ip>/api/setMode?face=/face_arabisch.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
-Guinness	http://<clock-ip>/api/setMode?face=/face_guinness.bmp&handSet=default&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=aaaaaa
-Pyramid	http://<clock-ip>/api/setMode?face=/face_pyramid.bmp&handSet=4&stationMode=false&showSecondHand=true&smoothMinute=true&hubSize=3&hubColor=aaaaaa
 ClocRoc	http://<clock-ip>/api/setMode?face=/face_clocroc.bmp&handSet=default&stationMode=true&showSecondHand=true&smoothMinute=false&hubSize=6&hubColor=ec0016
-Irish_pub	http://<clock-ip>/api/setMode?face=/face_irish_pub.bmp&handSet=10&stationMode=false&showSecondHand=false&smoothMinute=true&hubSize=3&hubColor=888888
 Antik http://<clock-ip>/api/setMode?face=face_clock_alt1.bmp&handSet=10&stationMode=true&showSecondHand=false&smoothMinute=false&hubSize=3&hubColor=aaaaaa&source=preset
