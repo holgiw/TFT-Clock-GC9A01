@@ -5,6 +5,8 @@
 ## 2026-10-02
 
 ### Geändert
+- Screenshots (`screenshots/de`, `screenshots/en`) neu aufgenommen; die Seite DCF77 stammt von einer Uhr mit
+  Empfänger.
 - Auswahl der mitgelieferten Zifferblätter, Zeiger und Presets überarbeitet (`graphic/` mit den Zips
   `faces_handsets_160.zip` und `faces_handsets_240.zip`, `presets.txt`).
 
@@ -19,6 +21,8 @@
 ## 2026-10-02
 
 ### Changed
+- Retook the screenshots (`screenshots/de`, `screenshots/en`); the DCF77 page comes from a clock with a
+  receiver.
 - Revised the selection of included clock faces, hands and presets (`graphic/` with the zips
   `faces_handsets_160.zip` and `faces_handsets_240.zip`, `presets.txt`).
 
