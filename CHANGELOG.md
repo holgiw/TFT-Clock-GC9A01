@@ -2,6 +2,12 @@
 
 *English version below.*
 
+## 2026-10-04
+
+### Behoben
+- README: Hinweis auf die englische Fassung direkt unter dem Titel; der Verweis auf das nicht mehr vorhandene
+  Release „Version 3“ ist entfernt.
+
 ## 2026-10-02
 
 ### Geändert
@@ -23,6 +29,12 @@
 ---
 
 # English Version
+
+## 2026-10-04
+
+### Fixed
+- README: note about the English version directly below the title; the link to the no longer existing release
+  "Version 3" is removed.
 
 ## 2026-10-02
 
