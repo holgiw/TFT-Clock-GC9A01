@@ -10,6 +10,9 @@
   des Handys bzw. PCs. Derselbe Knopf steht im Tab „NTP Zeitzone“. Eine vorhandene RTC wird mitgestellt.
 
 ### Geändert
+- Das GitHub-Repository heißt jetzt `holgiw/ESP32-Station-Clock` (vorher `TFT-Clock-GC9A01`, der Name passte
+  nicht mehr zu den verschiedenen Displays und Boards). Alte Links leitet GitHub weiter; Links in Firmware und
+  Doku zeigen auf den neuen Namen.
 - Startpaket einer neuen Uhr: Das Standard-Zifferblatt `face_default.bmp` hat jetzt die Ziffern 12, 3, 6 und 9.
   Ohne Zifferblätter und Zeigersätze erzeugt die Uhr dazu `face_numbers.bmp` (1–12) und `face_roman.bmp`
   (I–XII), die Zeigersätze 1 (Balken, schwarzer Sekundenzeiger) und 2 (geschwungen) und – ohne vorhandene
@@ -122,6 +125,9 @@
   same button is in the "NTP Timezone" tab. An existing RTC is set as well.
 
 ### Changed
+- The GitHub repository is now called `holgiw/ESP32-Station-Clock` (previously `TFT-Clock-GC9A01`, the name no
+  longer fit the different displays and boards). GitHub redirects old links; links in firmware and docs point
+  to the new name.
 - Starter set of a new clock: the default clock face `face_default.bmp` now has the numerals 12, 3, 6 and 9.
   Without clock faces and hand sets the clock also generates `face_numbers.bmp` (1–12) and `face_roman.bmp`
   (I–XII), hand sets 1 (bars, black second hand) and 2 (curved) and – without existing presets – the presets

@@ -4,7 +4,7 @@
 
 uhr4 ist ein digitales Uhrenprojekt auf runden und eckigen Displays: Ein ESP32-S2 (Lolin S2 Pico) oder ESP32-C6 (Waveshare, Display eingebaut) zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem runden TFT-Display (GC9A01 oder GC9D01) oder einem eckigen (ILI9341, ST7789; bei den rechteckigen die Uhr oben, darunter Uhrzeit und Datum). Die Uhrzeit kommt per NTP (WLAN), DCF77 oder RTC; Zifferblätter, Zeiger und alle Einstellungen lassen sich über die Weboberfläche anpassen.
 
-**Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/TFT-Clock-GC9A01/releases/latest) bzw. im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Ein Update von uhr3 (Version 3) auf uhr4 übernimmt den Displaytyp automatisch.
+**Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) bzw. im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Ein Update von uhr3 (Version 3) auf uhr4 übernimmt den Displaytyp automatisch.
 
 ---
 
@@ -139,7 +139,7 @@ FreeSans, Orbitron) stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
 
 uhr4 is a digital clock project on round and square displays: an ESP32-S2 (Lolin S2 Pico) or ESP32-C6 (Waveshare, display built in) shows the time as a clock face with hands on a round TFT display (GC9A01 or GC9D01) or a square one (ILI9341, ST7789; on the rectangular ones the clock on top, time and date below). The time comes via NTP (WiFi), DCF77 or RTC; clock faces, hands and all settings can be customized via the web interface.
 
-**Download:** firmware with flash tool under [Releases](https://github.com/holgiw/TFT-Clock-GC9A01/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). Updating from uhr3 (version 3) to uhr4 takes over the display type automatically.
+**Download:** firmware with flash tool under [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). Updating from uhr3 (version 3) to uhr4 takes over the display type automatically.
 
 ## 1. Support for Multiple TFT Displays
 

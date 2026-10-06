@@ -212,7 +212,7 @@ esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.in
 uhr4 steht unter der GNU General Public License v3.0 (Datei LICENSE). Die Firmware enthält
 Bibliotheken und Schriften mit eigenen Lizenzen (LovyanGFX, RTClib, arduino-esp32, DejaVu,
 FreeSans, Orbitron) - Hinweise und Lizenztexte in THIRD_PARTY_LICENSES.md.
-Quellcode: https://github.com/holgiw/TFT-Clock-GC9A01
+Quellcode: https://github.com/holgiw/ESP32-Station-Clock
 
 
 
@@ -432,4 +432,4 @@ esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.in
 uhr4 is licensed under the GNU General Public License v3.0 (file LICENSE). The firmware contains
 libraries and fonts under their own licenses (LovyanGFX, RTClib, arduino-esp32, DejaVu, FreeSans,
 Orbitron) - notices and license texts in THIRD_PARTY_LICENSES.md.
-Source code: https://github.com/holgiw/TFT-Clock-GC9A01
+Source code: https://github.com/holgiw/ESP32-Station-Clock

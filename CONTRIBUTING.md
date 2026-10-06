@@ -1,4 +1,4 @@
-# Mitwirken / Contributing – TFT-Clock-GC9A01 (uhr4)
+# Mitwirken / Contributing – ESP32-Station-Clock (uhr4)
 
 *English version below.*
 

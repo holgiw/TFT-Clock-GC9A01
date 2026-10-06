@@ -137,10 +137,10 @@
 #else
 
     // Pinbelegung ESP32-S2 (Lolin S2 Pico) <-> TFT: 3.3V->VCC (rot), GND->GND (blau), Rest siehe
-    // PCB-Referenz: https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
+    // PCB-Referenz: https://github.com/holgiw/ESP32-Station-Clock/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
     // Pin mapping ESP32-S2 (Lolin S2 Pico) <-> TFT: 3.3V->VCC (red), GND->GND (blue), rest see PCB reference:
-    // https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
+    // https://github.com/holgiw/ESP32-Station-Clock/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
 
 #define LED_BOARD 15 // BUILTIN LED
@@ -370,7 +370,7 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
     // changing this spot instead of several in webserver_routes.h.
 
 #define GITHUB_REPO_OWNER "holgiw"
-#define GITHUB_REPO_NAME "TFT-Clock-GC9A01"
+#define GITHUB_REPO_NAME "ESP32-Station-Clock"
 #define GITHUB_REPO_URL "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME
 #define GITHUB_API_CONTENTS_BASE "https://api.github.com/repos/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/contents/graphic/"
 
