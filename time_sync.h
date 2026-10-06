@@ -1589,15 +1589,15 @@
     }
 
 
-    // "UHR4 TIME <Unix-Sekunden UTC>[.<Bruchteil>]" per USB (flashESP, setTime): setzt Systemzeit und ggf.
-    // RTC, nur 2024-2099. NTP/DCF77 korrigieren spaeter wie gewohnt. Antwort "UHR4 OK TIME <JJJJ-MM-TT
-    // hh:mm:ss>" (Ortszeit).
+    // Setzt die Uhrzeit aus "<Unix-Sekunden UTC>[.<Bruchteil>]" (USB "UHR4 TIME", Weboberflaeche /api/setTime):
+    // Systemzeit und ggf. RTC, nur 2024-2099. NTP/DCF77 korrigieren spaeter wie gewohnt. localText: gesetzte
+    // Ortszeit "JJJJ-MM-TT hh:mm:ss". false bei ungueltigem Wert.
 
-    // "UHR4 TIME <Unix seconds UTC>[.<fraction>]" via USB (flashESP, setTime): sets the system time and the
-    // RTC if present, 2024-2099 only. NTP/DCF77 correct it later as usual. Reply "UHR4 OK TIME <YYYY-MM-DD
-    // hh:mm:ss>" (local).
+    // Sets the time from "<unix seconds UTC>[.<fraction>]" (USB "UHR4 TIME", web interface /api/setTime): system
+    // time and the RTC if present, 2024-2099 only. NTP/DCF77 correct it later as usual. localText: the set local
+    // time "YYYY-MM-DD hh:mm:ss". false on an invalid value.
 
-    void handleSerialTime(const String& arg) {
+    bool setClockTime(const String& arg, const char* source, String& localText) {
         const time_t TIME_MIN = 1704067200; // 2024-01-01 00:00:00 UTC
         const time_t TIME_MAX = 4102444799; // 2099-12-31 23:59:59 UTC
         const char* text = arg.c_str();
@@ -1614,10 +1614,7 @@
                 scale /= 10;
             }
         }
-        if (end == text || *end != '\0' || sec < TIME_MIN || sec > TIME_MAX) {
-            serialReply("UHR4 ERROR TIME invalid '" + arg + "' (unix seconds UTC, 2024-2099)");
-            return;
-        }
+        if (end == text || *end != '\0' || sec < TIME_MIN || sec > TIME_MAX) return false;
 
         struct timeval oldTime;
         gettimeofday(&oldTime, nullptr);
@@ -1628,7 +1625,7 @@
         struct tm local;
         localtime_r(&tv.tv_sec, &local);
         timeinfo = local;
-        logTimeSyncDifference("[USB]", oldTime, oldTimeMillis);
+        logTimeSyncDifference(source, oldTime, oldTimeMillis);
 
         // RTC mitstellen - auch eine als "ungueltig" markierte (wie NTP/DCF77)
         // Set the RTC too - also one flagged "invalid" (like NTP/DCF77)
@@ -1638,14 +1635,31 @@
                 local.tm_hour, local.tm_min, local.tm_sec));
             rtcOk = RTC_AVAILABLE;
             lastRTCUpdate = millis();
-            DEBUG_PRINTLN("[RTC] RTC updated with USB time");
+            DEBUG_PRINTLN(String("[RTC] RTC updated with time from ") + source);
         }
         serialTimeSet = true;
 
         char buffer[24];
         strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local);
-        DEBUG_PRINTLN(String("[USB] Time set to ") + buffer);
-        serialReply(String("UHR4 OK TIME ") + buffer);
+        localText = buffer;
+        DEBUG_PRINTLN(String(source) + " Time set to " + buffer);
+        return true;
+    }
+
+
+    // "UHR4 TIME <Unix-Sekunden UTC>[.<Bruchteil>]" per USB (flashESP, setTime) - siehe setClockTime(). Antwort
+    // "UHR4 OK TIME <JJJJ-MM-TT hh:mm:ss>" (Ortszeit).
+
+    // "UHR4 TIME <unix seconds UTC>[.<fraction>]" via USB (flashESP, setTime) - see setClockTime(). Reply
+    // "UHR4 OK TIME <YYYY-MM-DD hh:mm:ss>" (local).
+
+    void handleSerialTime(const String& arg) {
+        String localText;
+        if (!setClockTime(arg, "[USB]", localText)) {
+            serialReply("UHR4 ERROR TIME invalid '" + arg + "' (unix seconds UTC, 2024-2099)");
+            return;
+        }
+        serialReply("UHR4 OK TIME " + localText);
     }
 
 

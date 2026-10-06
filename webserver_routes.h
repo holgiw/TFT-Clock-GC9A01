@@ -637,6 +637,18 @@
         }
         html += "</div>";
 
+        // Ohne Uhrzeit (kein WLAN/NTP, keine RTC, kein DCF77): Knopf, der die Uhrzeit dieses Geraets uebernimmt -
+        // auch im Access-Point-Modus. Verschwindet, sobald die Uhr eine Zeit hat (Status-Skript unten).
+
+        // Without a time (no WiFi/NTP, no RTC, no DCF77): button that takes over this device's time - also in
+        // access point mode. Disappears as soon as the clock has a time (status script below).
+
+        if (isPrivateNetworkIp(webserver.client().remoteIP())) {
+            html += "<button type='button' id='topbar-settime' onclick='setClockFromDevice(this)' style='padding:2px 8px;font-size:0.85em;' title='" +
+                    translate("Sets the clock to the time of this device") + "'" + String(timeOk ? " hidden" : "") + ">&#128339; " +
+                    translate("Use device time") + "</button>";
+        }
+
         // Versteckter Hinweis, siehe ".offline-hint" in generateHtmlHeader().
         // Hidden hint, see ".offline-hint" in generateHtmlHeader().
 
@@ -707,7 +719,18 @@
 
         html += "setValue('value-light',s.lightValue);";
         html += "var dt=document.getElementById('topbar-datetime');if(dt)dt.textContent=s.datetime;";
+        html += "var st=document.getElementById('topbar-settime');if(st)st.hidden=(s.time!=='na');";
         html += "}).catch(function(){failCount++;if(failCount>=2)setOnline(false);});}";
+
+        // setClockFromDevice(): Uhrzeit dieses Geraets an die Uhr senden (/api/setTime) - Knopf in der
+        // Statusleiste und im Tab NTP Zeitzone
+        // setClockFromDevice(): send this device's time to the clock (/api/setTime) - button in the status bar
+        // and in the NTP timezone tab
+
+        html += "window.setClockFromDevice=function(b){if(b)b.disabled=true;";
+        html += "fetch('/api/setTime',{method:'POST',body:new URLSearchParams({t:(Date.now()/1000).toFixed(3)})}).then(function(r){return r.json();})";
+        html += ".then(function(j){if(!j.ok)throw 0;alert('" + translate("Time set") + ": '+j.time);poll();})";
+        html += ".catch(function(){alert('" + translate("Time could not be set") + "');}).then(function(){if(b)b.disabled=false;});};";
         html += "var pollTimer=null,paused=false;";
         html += "function startPolling(){if(pollTimer)return;poll();pollTimer=setInterval(poll,5000);}";
         html += "function stopPolling(){if(!pollTimer)return;clearInterval(pollTimer);pollTimer=null;}";
@@ -3599,6 +3622,26 @@
             webserver.send(200, "text/plain", "User-agent: *\nDisallow: /\n");
             });
 
+        // Uhrzeit vom Browser uebernehmen (Knopf in der Statusleiste und im Tab NTP Zeitzone): t = Unix-Sekunden
+        // UTC mit Bruchteil, wie "UHR4 TIME" per USB (setClockTime()). Nur aus dem eigenen Netz.
+
+        // Take over the time from the browser (button in the status bar and in the NTP timezone tab): t = unix
+        // seconds UTC with fraction, like "UHR4 TIME" via USB (setClockTime()). Only from the own network.
+
+        webserver.on("/api/setTime", HTTP_POST, []() {
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(403, "application/json", "{\"ok\":false}");
+                return;
+            }
+            String localText;
+            if (!setClockTime(webserver.arg("t"), "[WEB]", localText)) {
+                webserver.send(400, "application/json", "{\"ok\":false}");
+                return;
+            }
+            DEBUG_PRINTLN("[WEB] Time taken over from the browser on " + webserver.client().remoteIP().toString() + ": " + localText);
+            webserver.send(200, "application/json", "{\"ok\":true,\"time\":\"" + localText + "\"}");
+            });
+
         webserver.on("/api/currentTime", HTTP_GET, []() {
             webserver.sendHeader("Cache-Control", "no-store");
 
@@ -5708,6 +5751,13 @@
                 chunk += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
                 chunk += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
                 chunk += "</form>";
+
+                // Uhrzeit dieses Geraets uebernehmen (setClockFromDevice() im Statusleisten-Skript)
+                // Take over this device's time (setClockFromDevice() in the status bar script)
+
+                chunk += "<h3>" + translate("Use device time") + "</h3>";
+                chunk += "<p><small>" + translate("Sets the clock to the time of this device - useful without WiFi, RTC and DCF77, e.g. in access point mode. The time zone above applies; NTP and DCF77 correct the time later as usual") + ".</small></p>";
+                chunk += "<button type='button' onclick='setClockFromDevice(this)'>&#128339; " + translate("Use device time") + "</button><br><br>";
             }
             chunk += "</div>"; // Ende panel-zeit
                                // end panel-zeit

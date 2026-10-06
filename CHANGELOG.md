@@ -4,6 +4,11 @@
 
 ## 2026-10-06
 
+### Hinzugefügt
+- Uhrzeit vom Gerät übernehmen: Hat die Uhr keine Uhrzeit (kein WLAN/NTP, keine RTC, kein DCF77 – z. B. im
+  Access-Point-Modus), zeigt die Statusleiste den Knopf „Uhrzeit übernehmen“; er stellt die Uhr auf die Zeit
+  des Handys bzw. PCs. Derselbe Knopf steht im Tab „NTP Zeitzone“. Eine vorhandene RTC wird mitgestellt.
+
 ### Geändert
 - Startpaket einer neuen Uhr: Das Standard-Zifferblatt `face_default.bmp` hat jetzt die Ziffern 12, 3, 6 und 9.
   Ohne Zifferblätter und Zeigersätze erzeugt die Uhr dazu `face_numbers.bmp` (1–12) und `face_roman.bmp`
@@ -110,6 +115,11 @@
 # English Version
 
 ## 2026-10-06
+
+### Added
+- Use device time: if the clock has no time (no WiFi/NTP, no RTC, no DCF77 – e.g. in access point mode),
+  the status bar shows the button "Use device time"; it sets the clock to the time of the phone or PC. The
+  same button is in the "NTP Timezone" tab. An existing RTC is set as well.
 
 ### Changed
 - Starter set of a new clock: the default clock face `face_default.bmp` now has the numerals 12, 3, 6 and 9.

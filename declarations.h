@@ -85,6 +85,7 @@
                                       // hard stop before reboot/factory reset - see system_utils.h
     void handleNTPFailure() ;
     void setTimeStruct(const struct tm& timeinfo, String source) ;
+    bool setClockTime(const String& arg, const char* source, String& localText) ;
     void handleSerialTime(const String& arg) ;
     uint16_t i2cScan() ;
     bool startNtpServer() ;
