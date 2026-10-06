@@ -168,22 +168,31 @@ protected:
 
 
     // Ein Geraet fuer BEIDE Displays: CS wird manuell umgeschaltet (setCS1()/setCS2() in display.h), daher
-    // pin_cs = -1. Drei Panel-Treiber, gewaehlt nach dem Displaytyp per selectPanel() VOR tft.init() (setup()).
+    // pin_cs = -1. Fuenf Panel-Treiber, gewaehlt nach dem Displaytyp per selectPanel() VOR tft.init() (setup()).
 
     // One device for BOTH displays: CS is switched manually (setCS1()/setCS2() in display.h), hence
-    // pin_cs = -1. Three panel drivers, chosen by the display type via selectPanel() BEFORE tft.init() (setup()).
+    // pin_cs = -1. Five panel drivers, chosen by the display type via selectPanel() BEFORE tft.init() (setup()).
 
 class UhrLGFX : public lgfx::LGFX_Device {
     Panel_UhrGC9A01 _panel_gc9a01;
     Panel_UhrGC9D01 _panel_gc9d01;
     lgfx::Panel_ILI9341 _panel_ili9341;
+    lgfx::Panel_ST7789 _panel_st7789;
+    lgfx::Panel_ST7789 _panel_st7789_240;
     lgfx::Bus_SPI _bus_instance;
 
-    void configPanel(lgfx::Panel_LCD& panel, uint16_t width, uint16_t height, bool invert, bool rgbOrder) {
+    // memWidth/memHeight/offsetX: sichtbarer Ausschnitt im 240x320-Speicher des ST7789 (172x320: ab Spalte
+    // 34; 240x240: die Hoehe 320 braucht LovyanGFX fuer den Versatz bei 180/270 Grad)
+
+    // memWidth/memHeight/offsetX: visible area in the ST7789's 240x320 memory (172x320: from column 34;
+    // 240x240: LovyanGFX needs the height 320 for the offset at 180/270 degrees)
+
+    void configPanel(lgfx::Panel_LCD& panel, uint16_t width, uint16_t height, bool invert, bool rgbOrder,
+                     uint16_t memWidth = 0, uint16_t memHeight = 0, int16_t offsetX = 0) {
         panel.setBus(&_bus_instance);
         auto cfg = panel.config();
-        cfg.pin_cs = -1;              // manuell, siehe CS_1/CS_2 in config.h
-                                      // manual, see CS_1/CS_2 in config.h
+        cfg.pin_cs = LGFX_CS_PIN;     // -1 = manuell (CS_1/CS_2), ESP32-C6: LovyanGFX, siehe config.h
+                                      // -1 = manual (CS_1/CS_2), ESP32-C6: LovyanGFX, see config.h
 
         // Kein Reset durch LovyanGFX (nur 8 ms Puls, 64 ms Wartezeit). Den
         // Reset macht setup() selbst mit laengeren Zeiten (resetPanels() in
@@ -197,9 +206,9 @@ class UhrLGFX : public lgfx::LGFX_Device {
         cfg.pin_busy = -1;
         cfg.panel_width = width;
         cfg.panel_height = height;
-        cfg.memory_width = width;
-        cfg.memory_height = height;
-        cfg.offset_x = 0;
+        cfg.memory_width = memWidth ? memWidth : width;
+        cfg.memory_height = memHeight ? memHeight : height;
+        cfg.offset_x = offsetX;
         cfg.offset_y = 0;
         cfg.offset_rotation = 0;
         cfg.readable = false;
@@ -214,8 +223,13 @@ public:
     UhrLGFX() {
         {
             auto cfg = _bus_instance.config();
+#if BOARD_WAVESHARE_C6_ST7789
+            cfg.spi_host = SPI2_HOST;     // der ESP32-C6 hat nur diesen frei nutzbaren SPI
+                                          // the only freely usable SPI on the ESP32-C6
+#else
             cfg.spi_host = SPI3_HOST;     // HSPI wie bisher (USE_HSPI_PORT)
                                           // HSPI as before (USE_HSPI_PORT)
+#endif
             cfg.spi_mode = 0;
             cfg.freq_write = TFT_SPI_FREQUENCY;
             cfg.freq_read = 16000000;
@@ -252,6 +266,16 @@ public:
         // ILI9341 (240x320): LovyanGFX default driver, no inversion, BGR as on most modules
 
         configPanel(_panel_ili9341, 240, 320, false, false);
+
+        // ST7789 172x320 (Waveshare ESP32-C6-LCD-1.47): invertiert, Bild ab Spalte 34 des 240er-Speichers
+        // ST7789 172x320 (Waveshare ESP32-C6-LCD-1.47): inverted, image from column 34 of the 240 memory
+
+        configPanel(_panel_st7789, 172, 320, true, false, 240, 320, 34);
+
+        // ST7789 240x240 (Waveshare ESP32-C6-LCD-1.3): invertiert, wie die Beispiele von Waveshare
+        // ST7789 240x240 (Waveshare ESP32-C6-LCD-1.3): inverted, as in the Waveshare examples
+
+        configPanel(_panel_st7789_240, 240, 240, true, false, 240, 320);
         setPanel(&_panel_gc9a01);
     }
 
@@ -261,6 +285,8 @@ public:
     void selectPanel(uint8_t type) {
         if (type == DISPLAY_TYPE_GC9D01) setPanel(&_panel_gc9d01);
         else if (type == DISPLAY_TYPE_ILI9341) setPanel(&_panel_ili9341);
+        else if (type == DISPLAY_TYPE_ST7789) setPanel(&_panel_st7789);
+        else if (type == DISPLAY_TYPE_ST7789_240) setPanel(&_panel_st7789_240);
         else setPanel(&_panel_gc9a01);
     }
 };

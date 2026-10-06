@@ -134,7 +134,7 @@ Im Abschnitt **„Presets sichern / wiederherstellen"**:
 - **„Presets als Datei speichern"** lädt alle Uhren-Sets als Datei herunter (Backup).
 - **„Presets aus Datei laden"** spielt eine zuvor gesicherte Datei wieder ein, um die Sets wiederherzustellen bzw. zu ergänzen.
 
-**Beispiel-Sets:** Über **„Presets von GitHub laden"** lassen sich jederzeit empfohlene Uhren-Sets direkt von GitHub laden; ist die Liste beim ersten Aufruf noch leer, bietet die Uhr das auch von selbst an. Dafür ist eine bestehende Internetverbindung nötig.
+**Start-Sets:** Eine neue Uhr bringt die drei Uhren-Sets „Standard“, „1-12“ und „I-XII“ zu ihren selbst erzeugten Zifferblättern und Zeigersätzen mit.
 
 **Komplettsicherung der ganzen Uhr:** Die Seite **„Sicherung"** (in der Navigation) sichert alle Einstellungen, Uhren-Sets, Zifferblätter und Zeigersätze in **einer** Datei. Diese lässt sich auf derselben oder einer anderen Uhr mit gleichem Displaytyp wiederherstellen. WLAN-Zugangsdaten werden nur auf Wunsch mitgesichert (verschlüsselt, aber mit einem in jeder Firmware gleichen Schlüssel – also nicht sicher).
 
@@ -291,7 +291,7 @@ In the **"Backup / Restore Presets"** section:
 - **"Save Presets to File"** downloads all presets as a file (backup).
 - **"Load Presets from File"** uploads a previously saved file again, to restore or add to the presets.
 
-**Sample presets:** **"Load Presets from GitHub"** loads recommended presets directly from GitHub at any time; if the list is still empty on the first visit, the clock also offers this by itself. This requires an existing internet connection.
+**Starter presets:** A new clock comes with the three presets "Standard", "1-12" and "I-XII" for its self-generated clock faces and hand sets.
 
 **Full backup of the whole clock:** The **"Backup"** page (in the navigation) saves all settings, presets, clock faces and hand sets in **one** file. It can be restored on the same or another clock with the same display type. WiFi credentials are only included on request (encrypted, but with a key that is the same in every firmware - so not secure).
 

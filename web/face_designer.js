@@ -368,14 +368,27 @@
       }
     }
   }
-  function floodOn(buf, x, y, v) {
+
+  // Fuellen bleibt im Bereich des Klickpunkts areaY (Zifferblatt oder Streifen) - beide werden getrennt
+  // gespeichert. Gedrehte Symmetrie-Startpunkte ausserhalb dieses Bereichs fuellen nichts.
+
+  // Filling stays within the area of the click point areaY (clock face or strip) - both are saved separately.
+  // Rotated symmetry start points outside this area fill nothing.
+
+  function floodOn(buf, x, y, v, areaY) {
     if (x < 0 || y < 0 || x >= W || y >= H) return;
+    var y0 = 0, y1 = H;
+    if (SH) {
+      var sy = stripY(), ay = areaY === undefined ? y : areaY;
+      if (ay >= sy && ay < sy + SH) { y0 = sy; y1 = sy + SH; } else { y0 = OY; y1 = OY + FH; }
+      if (y < y0 || y >= y1) return;
+    }
     var target = buf[y * W + x];
     if (target === v) return;
     var stack = [x, y];
     while (stack.length) {
       var py = stack.pop(), px = stack.pop();
-      if (px < 0 || py < 0 || px >= W || py >= H || buf[py * W + px] !== target) continue;
+      if (px < 0 || py < y0 || px >= W || py >= y1 || buf[py * W + px] !== target) continue;
       buf[py * W + px] = v;
       stack.push(px + 1, py, px - 1, py, px, py + 1, px, py - 1);
     }
@@ -468,7 +481,7 @@
     if (tool === 'pick') { setColor(pix[c.y * W + c.x]); pickDone(); return; }
     if (tool === 'fill') {
       var fb = pix.slice();
-      seeds(c.x, c.y).forEach(function (p) { floodOn(fb, p[0], p[1], color); });
+      seeds(c.x, c.y).forEach(function (p) { floodOn(fb, p[0], p[1], color, c.y); });
       commit(fb);
       return;
     }

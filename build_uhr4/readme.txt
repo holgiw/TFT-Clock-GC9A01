@@ -173,11 +173,13 @@ cd build_uhr4/
 # ESP flashen - flashESP.sh sucht die Uhr selbst (USB-Kennung 303a) und nimmt sie
 # ohne Rückfrage, wenn genau eine gefunden wird. Eine laufende Uhr wird automatisch
 # in den Download-Modus gebracht (der ESP32-S2 hat dann eine andere Schnittstelle).
+# Den ESP32-C6 (303a:1001) erkennt es ebenfalls und flasht den Build aus esp32c6.
 # Wird keine Uhr gefunden, gibt es Prüffragen (dmesg/lsusb, Datenkabel statt Ladekabel).
 bash flashESP.sh
 
 # Wie unter Windows: flashESP.sh sucht zuerst die Uhr, fragt dann den Displaytyp ab
-# (1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01, 4 = ILI9341,
+# (ESP32-S2: 1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01,
+# 4 = ILI9341; ESP32-C6: 1 = ST7789 (1,47"), 2 = ST7789_240 (1,3");
 # Enter = unverändert; bei einer laufenden uhr4 ist ihr Typ vorgewählt), danach das WLAN
 # (2,4-GHz-Netze per nmcli, Passwort verdeckt, Enter = überspringen; ist der PC mit einem
 # 2,4-GHz-Netz verbunden, bietet es an, Name und Passwort zu übernehmen). Nach dem Flashen
@@ -198,8 +200,10 @@ bash flashESP.sh 0 GC9D01
 esptool --port /dev/ttyACM0 erase_flash
 
 # hier serielle Schnittstelle anpassen
-# ESP flashen
-esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin
+# ESP flashen - ESP32-S2 (Build im Unterordner esp32s2)
+esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
+# ESP32-C6 (Waveshare, Build im Unterordner esp32c6) - kein Bootmodus noetig
+esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
 
 
 #######################################################################################
@@ -390,11 +394,13 @@ cd build_uhr4/
 # flash the ESP - flashESP.sh finds the clock itself (USB id 303a) and uses it
 # without asking if exactly one is found. A running clock is switched to download
 # mode automatically (the ESP32-S2 then has a different port).
+# It also recognizes the ESP32-C6 (303a:1001) and flashes the build from esp32c6.
 # If no clock is found, it asks troubleshooting questions (dmesg/lsusb, data cable instead of charging cable).
 bash flashESP.sh
 
 # As on Windows: flashESP.sh first finds the clock, then asks for the display type
-# (1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01, 4 = ILI9341,
+# (ESP32-S2: 1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01,
+# 4 = ILI9341; ESP32-C6: 1 = ST7789 (1.47"), 2 = ST7789_240 (1.3");
 # Enter = unchanged; for a running uhr4 its type is preselected), then for the WiFi
 # (2.4 GHz networks via nmcli, password hidden, Enter = skip; if the PC is connected to a
 # 2.4 GHz network, it offers to take over its name and password). After flashing it sends
@@ -415,8 +421,10 @@ bash flashESP.sh 0 GC9D01
 esptool --port /dev/ttyACM0 erase_flash
 
 # adjust the serial port here
-# flash the ESP
-esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin
+# flash the ESP - ESP32-S2 (build in the subfolder esp32s2)
+esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
+# ESP32-C6 (Waveshare, build in the subfolder esp32c6) - no boot mode needed
+esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
 
 #######################################################################################
 # License

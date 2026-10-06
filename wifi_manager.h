@@ -441,7 +441,7 @@
         // Try WPS if possible. The slot is chosen by saveWpsCredentials() after a WPS success.
 
         DRAW_ON_BOTH_DISPLAYS(
-            tft.fillRect(0, 0, CLOCK_WIDTH, CLOCK_HEIGHT, TFT_BLACK);
+            tft.fillRect(0, 0, statusWidth(), CLOCK_HEIGHT, TFT_BLACK);
             tft.fillScreen(TFT_BLACK);
             tft.setTextColor(TFT_YELLOW, TFT_BLACK);
             tft.setTextSize(TFT_TEXT_SIZE);
@@ -495,7 +495,7 @@
                 lastSecondsShown = secondsLeft;
                 DEBUG_PRINTLN("[WPS] waiting... " + String(secondsLeft) + "s left");
                 DRAW_ON_BOTH_DISPLAYS(
-                    tft.fillRect(countdownNumX, countdownY, CLOCK_WIDTH - countdownNumX, CLOCK_HEIGHT / 8, TFT_BLACK);
+                    tft.fillRect(countdownNumX, countdownY, statusWidth() - countdownNumX, CLOCK_HEIGHT / 8, TFT_BLACK);
                     tft.setCursor(countdownNumX, countdownY);
                     tft.print(secondsLeft);
                     tft.println("s");

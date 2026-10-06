@@ -2,7 +2,7 @@
 # Flasht die Uhr unter Linux. Aufruf: ./flashESP.sh 0  (fuer /dev/ttyACM0),
 # auch ./flashESP.sh ttyACM0 oder ./flashESP.sh /dev/ttyACM0.
 # Ohne Parameter werden alle seriellen Schnittstellen aufgelistet und
-# angeschlossene Uhren (ESP32-S2, USB-Kennung 303a) erkannt - bei genau einer
+# angeschlossene Uhren (ESP32-S2 und -C6, USB-Kennung 303a) erkannt - bei genau einer
 # Uhr wird diese ohne Rueckfrage verwendet.
 #
 # Der ESP32-S2 meldet sich mit ZWEI verschiedenen Schnittstellen: laufend
@@ -11,8 +11,14 @@
 # Download-Modus neu gestartet und die dann neu erscheinende Schnittstelle
 # verwendet.
 #
+# ESP32-C6 (Waveshare ESP32-C6-LCD-1.47 / -1.3): eine Schnittstelle fuer Betrieb
+# und Download-Modus (USB-Serial-JTAG, 303a:1001), esptool setzt den Chip selbst
+# zurueck. Das Skript erkennt das Board an der USB-Kennung und flasht den Build
+# aus dem passenden Unterordner (esp32s2 bzw. esp32c6).
+#
 # Optional als zweiter Parameter der Displaytyp: ./flashESP.sh 0 GC9D01
-# (1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341). Ohne Parameter: zuerst die Uhr
+# (ESP32-S2: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341;
+# ESP32-C6: 1/ST7789 (1,47"), 2/ST7789_240 (1,3")). Ohne Parameter: zuerst die Uhr
 # suchen, eine laufende Uhr nach ihrem Displaytyp fragen (Vorwahl), dann
 # Displaytyp und WLAN abfragen, danach flashen und beides per USB an die Uhr senden (siehe
 # handleSerialCommands() in display.h), zuletzt die Uhrzeit des PCs. Das
@@ -24,7 +30,7 @@
 # Flashes the clock on Linux. Usage: ./flashESP.sh 0  (for /dev/ttyACM0),
 # also ./flashESP.sh ttyACM0 or ./flashESP.sh /dev/ttyACM0.
 # Without a parameter all serial ports are listed and connected clocks
-# (ESP32-S2, USB id 303a) are detected - with exactly one clock it is used
+# (ESP32-S2 and -C6, USB id 303a) are detected - with exactly one clock it is used
 # without asking.
 #
 # The ESP32-S2 shows up with TWO different ports: running (Arduino USB-CDC)
@@ -32,8 +38,14 @@
 # restarted into download mode via the 1200 baud signal like the Arduino IDE
 # does, and the port that then appears is used.
 #
+# ESP32-C6 (Waveshare ESP32-C6-LCD-1.47 / -1.3): one port for operation and
+# download mode (USB serial JTAG, 303a:1001), esptool resets the chip itself.
+# The script recognizes the board by the USB id and flashes the build from the
+# matching subfolder (esp32s2 or esp32c6).
+#
 # Optionally the display type as second parameter: ./flashESP.sh 0 GC9D01
-# (1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341). Without a parameter: first
+# (ESP32-S2: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341;
+# ESP32-C6: 1/ST7789 (1.47"), 2/ST7789_240 (1.3")). Without a parameter: first
 # find the clock, ask a running clock for its display type (preselection),
 # then ask for display type and WiFi, afterwards flash and send both to the clock via USB (see handleSerialCommands() in
 # display.h), finally the PC's time. The WiFi password is entered hidden and
@@ -64,18 +76,25 @@ usb_id() {
     [ -n "$vid" ] && echo "${vid,,}:${pid,,}"
 }
 
-# Zustand: download, running, nots2 (303a:1001 = USB-Serial-JTAG von ESP32-S3/C3/C6) oder other
-# State: download, running, nots2 (303a:1001 = USB serial JTAG of ESP32-S3/C3/C6) or other
+# Zustand: download (ESP32-S2 im Download-Modus), running (ESP32-S2 laeuft), c6 (303a:1001 =
+# USB-Serial-JTAG, bei uhr4 der ESP32-C6 - laufend und im Download-Modus dieselbe Schnittstelle) oder other
+# State: download (ESP32-S2 in download mode), running (ESP32-S2 running), c6 (303a:1001 = USB serial
+# JTAG, for uhr4 the ESP32-C6 - the same port running and in download mode) or other
 port_state() {
     local id
     id=$(usb_id "$1")
     case "$id" in
         303a:0002) echo download ;;
-        303a:1001) echo nots2 ;;
+        303a:1001) echo c6 ;;
         303a:*)    echo running ;;
         *)         echo other ;;
     esac
 }
+
+# Board der gewaehlten Uhr (s2/c6, nach der Portauswahl gesetzt) und Ordner seines Builds
+# Board of the selected clock (s2/c6, set after the port selection) and folder of its build
+BOARD=""
+BIN_DIR=esp32s2
 
 list_ports() {
     local dev
@@ -92,10 +111,17 @@ find_download_port() {
     return 1
 }
 
+# Laufende Uhr: ESP32-S2 am laufenden Port, ESP32-C6 an seiner einzigen Schnittstelle; ohne gewaehltes
+# Board (--time) beide
+# Running clock: ESP32-S2 on its running port, ESP32-C6 on its only port; without a selected board
+# (--time) both
 find_running_port() {
-    local dev
+    local dev state
     for dev in $(list_ports); do
-        [ "$(port_state "$dev")" = running ] && { echo "$dev"; return 0; }
+        state=$(port_state "$dev")
+        case "$BOARD:$state" in
+            s2:running|c6:c6|:running|:c6) echo "$dev"; return 0 ;;
+        esac
     done
     return 1
 }
@@ -383,9 +409,16 @@ send_time() {
     return 1
 }
 
-# Displayname aus Nummer oder Name, leer bei ungueltig
-# Display name from number or name, empty if invalid
+# Displayname aus Nummer oder Name (je nach Board), leer bei ungueltig
+# Display name from number or name (depending on the board), empty if invalid
 display_name() {
+    if [ "$BOARD" = c6 ]; then
+        case "${1^^}" in
+            1|ST7789) echo ST7789 ;;
+            2|ST7789_240) echo ST7789_240 ;;
+        esac
+        return
+    fi
     case "${1^^}" in
         1|GC9A01) echo GC9A01 ;;
         2|GC9A01_WITH_BACKLIGHT) echo GC9A01_WITH_BACKLIGHT ;;
@@ -430,9 +463,16 @@ ask_display() {
     local k mark answer choice
     local labels=("" "GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)" "GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3" "GC9D01 (160x160)" "ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock")
     local names=("" GC9A01 GC9A01_WITH_BACKLIGHT GC9D01 ILI9341)
+    local keys="1 2 3 4" hint="1, 2, 3 oder 4 / 1, 2, 3 or 4"
+    if [ "$BOARD" = c6 ]; then
+        labels=("" "ST7789 (172x320, Waveshare ESP32-C6-LCD-1.47) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock" "ST7789 (240x240, Waveshare ESP32-C6-LCD-1.3)")
+        names=("" ST7789 ST7789_240)
+        keys="1 2"
+        hint="1 oder 2 / 1 or 2"
+    fi
     echo
     echo "Welches Display hat die Uhr? / Which display does the clock have?"
-    for k in 1 2 3 4; do
+    for k in $keys; do
         mark=""
         [ "$CLOCK_SET" = 1 ] && [ "${names[$k]}" = "$CLOCK_NAME" ] && mark="   <- eingestellt / configured"
         echo "  $k = ${labels[$k]}$mark"
@@ -462,7 +502,7 @@ ask_display() {
             if [ "$CLOCK_SET" = 1 ] && [ "$choice" = "$CLOCK_NAME" ]; then DISP=""; else DISP="$choice"; fi
             break
         fi
-        echo "Bitte 1, 2, 3 oder 4 eingeben / please enter 1, 2, 3 or 4"
+        echo "Bitte eingeben / please enter: $hint"
     done
     echo
 }
@@ -496,19 +536,6 @@ if [ "$1" = "--time" ]; then
     exit $?
 fi
 
-# Alle Dateien da? Sonst wurde das Zip nicht komplett ausgepackt.
-# All files present? Otherwise the zip was not fully unpacked.
-missing=""
-for f in uhr4.ino.bootloader.bin uhr4.ino.partitions.bin uhr4.ino.bin; do
-    [ -f "$f" ] || missing="$missing $f"
-done
-if [ -n "$missing" ]; then
-    echo "Fehlende Dateien / missing files:$missing"
-    echo "Das Zip zuerst komplett in einen Ordner auspacken und flashESP.sh dort starten."
-    echo "First unpack the whole zip into a folder and start flashESP.sh there."
-    exit 1
-fi
-
 PORT="$1"
 DISP="$2"
 
@@ -520,9 +547,9 @@ if [ -z "$PORT" ]; then
         any=1
         state=$(port_state "$dev")
         case "$state" in
-            download) text="UHR - Download-Modus / download mode"; clocks+=("$dev") ;;
-            running)  text="UHR - laeuft / running"; clocks+=("$dev") ;;
-            nots2)    text="ESP32-S3/C3/C6 - kein ESP32-S2 / not an ESP32-S2" ;;
+            download) text="UHR ESP32-S2 - Download-Modus / download mode"; clocks+=("$dev") ;;
+            running)  text="UHR ESP32-S2 - laeuft / running"; clocks+=("$dev") ;;
+            c6)       text="UHR ESP32-C6 (USB-Serial-JTAG)"; clocks+=("$dev") ;;
             *)        text="-" ;;
         esac
         echo "  $dev  $text  [$(usb_id "$dev")]"
@@ -565,14 +592,28 @@ if [ ! -e "$PORT" ]; then
 fi
 
 state=$(port_state "$PORT")
-if [ "$state" = nots2 ]; then
-    echo "$PORT ist ein ESP32-S3/C3/C6 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico)."
-    echo "$PORT is an ESP32-S3/C3/C6 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico)."
-    exit 1
-fi
 if [ "$state" = other ]; then
-    echo "Hinweis: an $PORT wurde keine Uhr erkannt - es wird trotzdem versucht."
-    echo "Note: no clock detected on $PORT - trying anyway."
+    echo "Hinweis: an $PORT wurde keine Uhr erkannt - es wird trotzdem versucht (als ESP32-S2)."
+    echo "Note: no clock detected on $PORT - trying anyway (as ESP32-S2)."
+fi
+
+# Board am Port erkennen; jeder Build liegt in seinem Unterordner. Alle Dateien da? Sonst wurde das Zip
+# nicht komplett ausgepackt.
+# Recognize the board on the port; every build is in its own subfolder. All files present? Otherwise the
+# zip was not fully unpacked.
+if [ "$state" = c6 ]; then BOARD=c6; BIN_DIR=esp32c6; else BOARD=s2; BIN_DIR=esp32s2; fi
+echo "$([ "$BOARD" = c6 ] && echo ESP32-C6 || echo ESP32-S2) an / on $PORT - Build aus / build from $BIN_DIR"
+missing=""
+bins="uhr4.ino.bootloader.bin uhr4.ino.partitions.bin uhr4.ino.bin"
+[ "$BOARD" = c6 ] && bins="$bins boot_app0.bin"
+for f in $bins; do
+    [ -f "$BIN_DIR/$f" ] || missing="$missing $BIN_DIR/$f"
+done
+if [ -n "$missing" ]; then
+    echo "Fehlende Dateien / missing files:$missing"
+    echo "Das Zip zuerst komplett in einen Ordner auspacken und flashESP.sh dort starten."
+    echo "First unpack the whole zip into a folder and start flashESP.sh there."
+    exit 1
 fi
 
 if [ ! -w "$PORT" ]; then
@@ -593,7 +634,9 @@ WIFI_PASS=""
 if [ -z "$1" ]; then
     CLOCK_NAME=""
     CLOCK_SET=""
-    [ "$state" = running ] && query_clock_info "$PORT"
+    # ESP32-C6: Oeffnen setzt DTR und RTS gemeinsam (cdc_acm) - das startet den Chip nicht neu
+    # ESP32-C6: opening sets DTR and RTS together (cdc_acm) - that does not restart the chip
+    { [ "$state" = running ] || [ "$state" = c6 ]; } && query_clock_info "$PORT"
     ask_display
     ask_wifi
 elif [ -n "$DISP" ]; then
@@ -635,20 +678,31 @@ else
     exit 1
 fi
 
-if ! "$ESPTOOL" --chip esp32s2 -p "$PORT" -b 460800 "$WRITE" \
-    0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin; then
+# ESP32-C6: esptool setzt den Chip ueber USB-Serial-JTAG selbst in den Download-Modus; Bootloader an 0x0,
+# dazu boot_app0.bin an 0xE000 - setzt eine Startauswahl einer vorherigen Firmware (z.B. OTA) zurueck
+# ESP32-C6: esptool puts the chip into download mode itself via USB serial JTAG; bootloader at 0x0, plus
+# boot_app0.bin at 0xE000 - resets a boot selection of a previous firmware (e.g. OTA)
+if [ "$BOARD" = c6 ]; then
+    "$ESPTOOL" --chip esp32c6 -p "$PORT" -b 921600 "$WRITE" \
+        0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin \
+        0x10000 esp32c6/uhr4.ino.bin
+else
+    "$ESPTOOL" --chip esp32s2 -p "$PORT" -b 460800 "$WRITE" \
+        0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
+fi
+if [ $? -ne 0 ]; then
     echo
     echo "Flashen fehlgeschlagen - siehe Meldung von esptool oben. Haeufige Ursachen:"
     echo "  * ESP nicht im Bootmodus: Boot-Taste druecken und halten, erst DANACH den USB anstecken"
     echo "    ODER bei angestecktem USB: Reset und Boot druecken, Reset loslassen, Boot kurz danach loslassen."
-    echo "  * 'Wrong --chip' / 'This chip is ...': kein ESP32-S2 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico)."
+    echo "  * 'Wrong --chip' / 'This chip is ...': falscher Chip - uhr4 gibt es fuer ESP32-S2 (Lolin S2 Pico) und ESP32-C6 (Waveshare)."
     echo "  * 'could not open port' / Permission denied: Port belegt oder keine Rechte (Gruppe dialout)."
     echo "  * USB-Hub oder Frontanschluss: die Uhr direkt an einen USB-Anschluss am PC stecken."
     echo "Danach flashESP.sh erneut starten."
     echo "Flashing failed - see the esptool message above. Common causes:"
     echo "  * ESP not in boot mode: press and hold the Boot button, only THEN plug in USB"
     echo "    OR with USB connected: press Reset and Boot, release Reset, release Boot shortly after."
-    echo "  * 'Wrong --chip' / 'This chip is ...': not an ESP32-S2 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico)."
+    echo "  * 'Wrong --chip' / 'This chip is ...': wrong chip - uhr4 exists for ESP32-S2 (Lolin S2 Pico) and ESP32-C6 (Waveshare)."
     echo "  * 'could not open port' / permission denied: port in use or no rights (group dialout)."
     echo "  * USB hub or front port: plug the clock directly into a USB port of the PC."
     echo "Then run flashESP.sh again."

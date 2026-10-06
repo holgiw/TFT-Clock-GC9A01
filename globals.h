@@ -663,6 +663,19 @@
 
     uint16_t* clockFaceBuffer = nullptr;
 
+    // Ohne PSRAM (ESP32-C6) kein Rohbild: das Zifferblatt als RLE-Daten im RAM (clockFaceRle, nur kleine
+    // Dateien) oder direkt aus der Datei (clockFaceRlePath), "" = erzeugtes Standard-Zifferblatt. Siehe
+    // prepareClockFaceRle() in display.h.
+
+    // Without PSRAM (ESP32-C6) no raw image: the clock face as RLE data in RAM (clockFaceRle, small files only)
+    // or straight from the file (clockFaceRlePath), "" = generated default clock face. See prepareClockFaceRle()
+    // in display.h.
+
+    uint8_t* clockFaceRle = nullptr;
+    size_t clockFaceRleSize = 0;
+    String clockFaceRlePath = "";
+    bool clockFaceRleReady = false;
+
     // Fertiges "Zifferblatt + Stunden-/Minutenzeiger" je Display als Sprite: nur bei Aenderung neu aufgebaut
     // (Zeiger per pushRotatedWithAA()), sonst per pushSprite() kopiert - spart Zeit fuer den Sekundenzeiger.
 

@@ -76,29 +76,44 @@
     }
 
 
-    // Displayname wie bei den uhr3-Builds und in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
-    // "ILI9341") -> Displaytyp + Backlight-Regelung. Das ILI9341 hat wie in uhr3 feste Beleuchtung.
+    // Displaytypen dieses Boards: der S2 alle wechselbaren, das C6 die fest verbauten ST7789 (1.47 / 1.3)
+    // Display types of this board: the S2 all exchangeable ones, the C6 the built-in ST7789 (1.47 / 1.3)
 
-    // Display name as in the uhr3 builds and in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
-    // "ILI9341") -> display type + backlight control. The ILI9341 has a fixed backlight as in uhr3.
-
-    bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) {
-        if (name == "GC9A01") { type = DISPLAY_TYPE_GC9A01; backlight = false; return true; }
-        if (name == "GC9A01_WITH_BACKLIGHT") { type = DISPLAY_TYPE_GC9A01; backlight = true; return true; }
-        if (name == "GC9D01") { type = DISPLAY_TYPE_GC9D01; backlight = true; return true; }
-        if (name == "ILI9341") { type = DISPLAY_TYPE_ILI9341; backlight = false; return true; }
-        return false;
+    bool displayTypeSupported(uint8_t type) {
+        bool c6Type = type == DISPLAY_TYPE_ST7789 || type == DISPLAY_TYPE_ST7789_240;
+        return BOARD_WAVESHARE_C6_ST7789 ? c6Type : type < DISPLAY_TYPE_COUNT && !c6Type;
     }
 
-    // Umkehrung von parseDisplayName(): beim GC9D01 (immer an Pin 3) und ILI9341 (feste Beleuchtung) zaehlt
-    // die Backlight-Einstellung nicht.
+    // Displayname wie bei den uhr3-Builds und in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
+    // "ILI9341", "ST7789", "ST7789_240") -> Displaytyp + Backlight-Regelung; false auch fuer Typen, die
+    // dieses Board nicht kennt. Das ILI9341 hat wie in uhr3 feste Beleuchtung.
 
-    // Inverse of parseDisplayName(): for the GC9D01 (always on pin 3) and the ILI9341 (fixed backlight) the
-    // backlight setting does not matter.
+    // Display name as in the uhr3 builds and in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
+    // "ILI9341", "ST7789", "ST7789_240") -> display type + backlight control; false also for types this
+    // board does not know. The ILI9341 has a fixed backlight as in uhr3.
+
+    bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) {
+        if (name == "GC9A01") { type = DISPLAY_TYPE_GC9A01; backlight = false; }
+        else if (name == "GC9A01_WITH_BACKLIGHT") { type = DISPLAY_TYPE_GC9A01; backlight = true; }
+        else if (name == "GC9D01") { type = DISPLAY_TYPE_GC9D01; backlight = true; }
+        else if (name == "ILI9341") { type = DISPLAY_TYPE_ILI9341; backlight = false; }
+        else if (name == "ST7789") { type = DISPLAY_TYPE_ST7789; backlight = true; }
+        else if (name == "ST7789_240") { type = DISPLAY_TYPE_ST7789_240; backlight = true; }
+        else return false;
+        return displayTypeSupported(type);
+    }
+
+    // Umkehrung von parseDisplayName(): beim GC9D01 und ST7789 (Beleuchtung immer am Pin) und ILI9341 (feste
+    // Beleuchtung) zaehlt die Backlight-Einstellung nicht.
+
+    // Inverse of parseDisplayName(): for the GC9D01 and ST7789 (backlight always on the pin) and the ILI9341
+    // (fixed backlight) the backlight setting does not matter.
 
     const char* displayChoiceName(uint8_t type, bool backlight) {
         if (type == DISPLAY_TYPE_GC9D01) return "GC9D01";
         if (type == DISPLAY_TYPE_ILI9341) return "ILI9341";
+        if (type == DISPLAY_TYPE_ST7789) return "ST7789";
+        if (type == DISPLAY_TYPE_ST7789_240) return "ST7789_240";
         return backlight ? "GC9A01_WITH_BACKLIGHT" : "GC9A01";
     }
 
@@ -142,8 +157,8 @@
     void loadDisplayType() {
         adoptUhr3BuildDisplay();
         uint8_t type = preferences.getUChar(PK_DISPLAY_TYPE, DISPLAY_TYPE_DEFAULT);
-        if (type >= DISPLAY_TYPE_COUNT) type = DISPLAY_TYPE_DEFAULT; // beschaedigter NVS-Wert
-                                                                     // corrupted NVS value
+        if (!displayTypeSupported(type)) type = DISPLAY_TYPE_DEFAULT; // beschaedigter NVS-Wert oder anderes Board
+                                                                      // corrupted NVS value or another board
         displayType = type;
         displayGeom = &DISPLAY_GEOMETRY[type];
         tftType = displayGeom->name;
@@ -188,7 +203,7 @@
     // only after the restart (the caller restarts).
 
     void setDisplayType(uint8_t type, bool backlight) {
-        if (type >= DISPLAY_TYPE_COUNT) return;
+        if (!displayTypeSupported(type)) return;
         const DisplayGeometry& g = DISPLAY_GEOMETRY[type];
         preferences.putUChar(PK_DISPLAY_TYPE, type);
         preferences.putBool(PK_USE_BACKLIGHT, backlight);
@@ -287,7 +302,7 @@
         uint8_t type;
         bool backlight;
         if (!parseDisplayName(name, type, backlight)) {
-            serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01, ILI9341)");
+            serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (" + (BOARD_WAVESHARE_C6_ST7789 ? "ST7789, ST7789_240" : "GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01, ILI9341") + ")");
             return;
         }
 
@@ -485,8 +500,8 @@
     void setCS1(bool state) {
         if (state == LOW) {
             if (tftInitialized) tft.waitDMA();
-            digitalWrite(CS_1, LOW);
-            digitalWrite(CS_2, HIGH);
+            if (LGFX_CS_PIN < 0) digitalWrite(CS_1, LOW); // sonst schaltet LovyanGFX CS / otherwise LovyanGFX drives CS
+            if (HAS_DISPLAY2) digitalWrite(CS_2, HIGH);
             if (tftInitialized) tft.setRotation(hardwareRotation(1));
         }
 
@@ -500,7 +515,7 @@
     // (disables Display 1, see comment on setCS1())
 
     void setCS2(bool state) {
-        if (state == LOW) {
+        if (state == LOW && HAS_DISPLAY2) {
             if (tftInitialized) tft.waitDMA();
             digitalWrite(CS_2, LOW);
             digitalWrite(CS_1, HIGH);
@@ -529,7 +544,25 @@
     // software rotation can't rotate text and always draws unrotated into a
     // persistent sprite instead - rotation happens only in endStatusDraw().
 
+    // Schmales Display mit Streifen (ST7789 172x320): Meldungen quer, 90 Grad weiter gedreht - so passt die doppelt
+    // grosse Schrift in die Zeilen (320 statt 172 px breit), die Hoehe bleibt 172 wie der Uhrbereich.
+
+    // Narrow display with a strip (ST7789 172x320): messages in landscape, rotated 90 degrees further - so the
+    // double-size font fits the lines (320 instead of 172 px wide), the height stays 172 like the clock area.
+
+    bool statusLandscape() {
+        return displayType == DISPLAY_TYPE_ST7789;
+    }
+
+    // Breite des Bereichs fuer Meldungen: quer die Panelhoehe, sonst der Uhrbereich
+    // Width of the area for messages: in landscape the panel height, otherwise the clock area
+
+    int statusWidth() {
+        return statusLandscape() ? TFT_HEIGHT : CLOCK_WIDTH;
+    }
+
     lgfx::LovyanGFX& beginStatusDraw(uint8_t displayNum) {
+        bool clockShown = !clockFrameDirty[displayNum - 1]; // bisher Uhrbild auf dem Display / clock image shown so far
         displayNeedsBlank[displayNum - 1] = true; // Meldung auf dem Display - ein "n.a."-Display muss spaeter wieder schwarz werden
                                                   // message on the display - a "n.a." display has to go black again later
         clockFrameDirty[displayNum - 1] = true;   // Uhrbild ist ueberzeichnet - naechster Frame voll senden
@@ -570,6 +603,17 @@
             int x, y, w, h;
             bool landscape;
             if (stripShown && infoStripRect(displayNum, x, y, w, h, landscape)) tft.fillScreen(TFT_BLACK);
+
+            // Quer: setCS1()/setCS2() setzen beim naechsten Uhrbild wieder die normale Lage. Beim Wechsel vom
+            // Uhrbild ganz loeschen, sonst blieben Teile der hochkant gezeichneten Uhr stehen.
+
+            // Landscape: setCS1()/setCS2() restore the normal orientation with the next clock frame. Clear
+            // completely when switching from the clock image, otherwise parts of the portrait clock would remain.
+
+            if (statusLandscape()) {
+                tft.setRotation((hardwareRotation(displayNum) + 1) % 4);
+                if (clockShown || stripShown) tft.fillScreen(TFT_BLACK);
+            }
             return tft;
         }
 
@@ -786,10 +830,10 @@
     }
 
 
-    // Pin 3 passend zu useBacklight: an = PWM mit aktueller Helligkeit, aus = fest HIGH (volle Beleuchtung).
-    // HIGH auch beim Start - ein offener BL-Eingang bliebe sonst je nach Modul dunkel.
+    // TFT_Backlight passend zu useBacklight: an = PWM mit aktueller Helligkeit, aus = fest HIGH (volle
+    // Beleuchtung). HIGH auch beim Start - ein offener BL-Eingang bliebe sonst je nach Modul dunkel.
 
-    // Pin 3 according to useBacklight: on = PWM with the current brightness, off = HIGH (full backlight).
+    // TFT_Backlight according to useBacklight: on = PWM with the current brightness, off = HIGH (full backlight).
     // HIGH at boot too - a floating BL input would otherwise stay dark on some modules.
 
     void applyBacklightPin() {
@@ -993,13 +1037,18 @@
     }
 
 
-    // Standard-Zifferblatt ohne Ziffern wie der Generator im Zifferblatt-Designer mit dessen Vorgaben: weiss,
-    // schwarzer Rand, Stunden- und Minutenstriche. Je Pixel 4 x 4 Abtastpunkte (Kantenglaettung) in ganzen
-    // Achtelpixeln; zeilenweise, damit nie ein ganzes Bild im RAM liegen muss.
+    // Ziffern der erzeugten Zifferblaetter: nur 12/3/6/9 (face_default), 1-12 und I-XII
+    // Numerals of the generated clock faces: only 12/3/6/9 (face_default), 1-12 and I-XII
 
-    // Default clock face without numerals like the generator in the clock face designer with its defaults:
-    // white, black ring, hour and minute marks. 4 x 4 samples per pixel (anti-aliasing) in whole eighths of a
-    // pixel; row by row, so a whole image never has to be held in RAM.
+    enum : uint8_t { FACE_NUMERALS_QUARTER, FACE_NUMERALS_ARABIC, FACE_NUMERALS_ROMAN };
+
+    // Erzeugtes Zifferblatt wie der Generator im Zifferblatt-Designer mit dessen Vorgaben: weiss, schwarzer
+    // Rand, Stunden- und Minutenstriche, Ziffern. Je Pixel 4 x 4 Abtastpunkte (Kantenglaettung); zeilenweise,
+    // damit nie ein ganzes Bild im RAM liegen muss.
+
+    // Generated clock face like the generator in the clock face designer with its defaults: white, black
+    // ring, hour and minute marks, numerals. 4 x 4 samples per pixel (anti-aliasing); row by row, so a whole
+    // image never has to be held in RAM.
 
     struct DefaultFaceGen {
         struct Mark {
@@ -1010,13 +1059,81 @@
             int16_t t0, t1, hw;     // radial von t0 bis t1, halbe Breite hw (Achtelpixel)
                                     // radially from t0 to t1, half width hw (eighths of a pixel)
         };
+
+        // Ziffer als fertige Deckung je Pixel (0..16 getroffene Abtastpunkte) ab x0/y0
+        // Numeral as finished coverage per pixel (0..16 samples hit) from x0/y0
+
+        struct Numeral {
+            int16_t x0 = 0, y0 = 0, w = 0, h = 0;
+            std::vector<uint8_t> cov;
+        };
         Mark marks[60];
+        Numeral numerals[12];
         int w, c8, ringIn, ringOut; // Mitte und Rand (Achtelpixel)
                                     // centre and ring (eighths of a pixel)
         bool round;                 // rundes Display: ausserhalb des Kreises weiss wie scaleAndSaveBmp()
                                     // round display: white outside the circle like scaleAndSaveBmp()
 
-        void init() {
+        // Setzt eine Ziffer in 4-facher Aufloesung (1-Bit-Sprite, je Sprite-Pixel ein Abtastpunkt) mit der
+        // Mitte ihres Umrisses auf den Winkel a - so weit aussen, dass sie limitQ (Viertelpixel) nicht
+        // ueberschreitet. False, wenn der Sprite keinen Speicher bekommt.
+
+        // Places a numeral at 4x resolution (1-bit sprite, one sample per sprite pixel) with the centre of its
+        // outline at angle a - as far out as possible without exceeding limitQ (quarter pixels). False if the
+        // sprite gets no memory.
+
+        bool addNumeral(Numeral& n, const char* text, const lgfx::GFXfont* font, float scale, float a, float limitQ) {
+            LGFX_Sprite s;
+            s.setColorDepth(1);
+            s.setFont(font);
+            s.setTextSize(scale);
+            int margin = s.fontHeight() / 4 + 2;
+            int sw = s.textWidth(text) + 2 * margin, sh = s.fontHeight() + 2 * margin;
+            if (!s.createSprite(sw, sh)) return false;
+            s.fillSprite(TFT_BLACK);
+            s.setTextColor(TFT_WHITE);
+            s.setTextDatum(lgfx::top_left);
+            s.drawString(text, margin, margin);
+
+            int bx0 = sw, bx1 = -1, by0 = sh, by1 = -1;
+            for (int y = 0; y < sh; y++) {
+                for (int x = 0; x < sw; x++) {
+                    if (!s.readPixelValue(x, y)) continue;
+                    bx0 = min(bx0, x); bx1 = max(bx1, x);
+                    by0 = min(by0, y); by1 = max(by1, y);
+                }
+            }
+            if (bx1 < 0) return true;
+
+            // Mitte so, dass der Umriss in Strahlrichtung genau bis limitQ reicht
+            // Centre placed so that the outline reaches exactly limitQ in the ray direction
+
+            float sn = sinf(a), cs = -cosf(a);
+            float extent = (bx1 - bx0 + 1) / 2.0f * fabsf(sn) + (by1 - by0 + 1) / 2.0f * fabsf(cs);
+            float rq = limitQ - extent;
+            int ox = lroundf(4 * w / 2.0f + sn * rq - (bx0 + bx1 + 1) / 2.0f);
+            int oy = lroundf(4 * w / 2.0f + cs * rq - (by0 + by1 + 1) / 2.0f);
+            n.x0 = max(0, (bx0 + ox) / 4);
+            n.y0 = max(0, (by0 + oy) / 4);
+            n.w = min(w - 1, (bx1 + ox) / 4) - n.x0 + 1;
+            n.h = min(w - 1, (by1 + oy) / 4) - n.y0 + 1;
+            if (n.w <= 0 || n.h <= 0) return true;
+            n.cov.assign((size_t)n.w * n.h, 0);
+            for (int y = by0; y <= by1; y++) {
+                int py = (y + oy) / 4 - n.y0;
+                if (py < 0 || py >= n.h) continue;
+                for (int x = bx0; x <= bx1; x++) {
+                    int px = (x + ox) / 4 - n.x0;
+                    if (px >= 0 && px < n.w && s.readPixelValue(x, y)) n.cov[(size_t)py * n.w + px]++;
+                }
+            }
+            return true;
+        }
+
+        // numerals: FACE_NUMERALS_*. False, wenn eine Ziffer fehlt (zu wenig Speicher) - dann nicht speichern.
+        // numerals: FACE_NUMERALS_*. False if a numeral is missing (too little memory) - then do not save.
+
+        bool init(uint8_t numeralMode) {
             w = CLOCK_WIDTH;
             round = displayGeom->round;
             int r = w / 2;
@@ -1051,6 +1168,27 @@
                 m.x0 = max(0, (int)floorf(minX)); m.x1 = min(w - 1, (int)floorf(maxX));
                 m.y0 = max(0, (int)floorf(minY)); m.y1 = min(w - 1, (int)floorf(maxY));
             }
+
+            // Ziffern: 1-12 in FreeSans Bold, I-XII in FreeSerif Bold, Hoehe wie im Designer (Schriftgroesse 9 %
+            // der Breite); jede endet 5 % der Breite vor den Stundenstrichen.
+
+            // Numerals: 1-12 in FreeSans Bold, I-XII in FreeSerif Bold, height as in the designer (font size 9 %
+            // of the width); each ends 5 % of the width before the hour marks.
+
+            static const char* const romanNumerals[12] = { "XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI" };
+            bool roman = numeralMode == FACE_NUMERALS_ROMAN;
+            const lgfx::GFXfont* font = roman ? &fonts::FreeSerifBold24pt7b : &fonts::FreeSansBold24pt7b;
+            int refHeight = font->glyph[(roman ? 'I' : '1') - font->first].height;
+            float scale = 4 * w * (roman ? 0.06f : 0.065f) / refHeight;
+            float limitQ = 4 * (outer - lroundf(w * 0.08f) - w * 0.05f);
+            bool ok = true;
+            for (int h = 0; h < 12; h++) {
+                if (numeralMode == FACE_NUMERALS_QUARTER && h % 3) continue;
+                char arabic[3];
+                snprintf(arabic, sizeof(arabic), "%d", h ? h : 12);
+                if (!addNumeral(numerals[h], roman ? romanNumerals[h] : arabic, font, scale, h * PI / 6, limitQ)) ok = false;
+            }
+            return ok;
         }
 
         // Eine Zeile (w Pixel, RGB565) - Schwarz deckt Weiss je nach Zahl getroffener Abtastpunkte
@@ -1097,6 +1235,11 @@
                     cov[x] = min(16, cov[x] + n);
                 }
             }
+            for (const Numeral& n : numerals) {
+                if (y < n.y0 || y >= n.y0 + n.h) continue;
+                const uint8_t* src = n.cov.data() + (size_t)(y - n.y0) * n.w;
+                for (int x = 0; x < n.w; x++) cov[n.x0 + x] = min(16, cov[n.x0 + x] + src[x]);
+            }
             for (int x = 0; x < w; x++) {
                 int v = 255 - (cov[x] * 255 + 8) / 16;
                 uint16_t r5 = (v * 31 + 127) / 255, g6 = (v * 63 + 127) / 255;
@@ -1114,7 +1257,7 @@
     void drawDefaultFace(uint16_t* dest) {
         if (!dest) return;
         DefaultFaceGen gen;
-        gen.init();
+        gen.init(FACE_NUMERALS_QUARTER);
         for (int y = 0; y < gen.w; y++) gen.row(y, dest + (size_t)y * gen.w);
     }
 
@@ -1161,14 +1304,45 @@
         return true;
     }
 
-    // Legt face_default.bmp an, falls es fehlt (nach dem ersten Flashen, Werksreset oder Loeschen)
-    // Creates face_default.bmp if it is missing (after the first flash, a factory reset or deletion)
+    // Erzeugt ein Zifferblatt (FACE_NUMERALS_*) und speichert es unter 'path'
+    // Generates a clock face (FACE_NUMERALS_*) and stores it under 'path'
+
+    bool writeGeneratedFace(const char* path, uint8_t numeralMode) {
+        DefaultFaceGen gen;
+        if (!gen.init(numeralMode)) {
+            DEBUG_PRINTLN(String("[FS] Error: not enough memory for the numerals of ") + path);
+            return false;
+        }
+        return writeRleImage(path, gen.w, gen.w, [&gen](int y, uint16_t* row) { gen.row(y, row); });
+    }
+
+    // True, wenn es eine BMP-Datei mit diesem Namensanfang gibt ("face_", "hand_set")
+    // True if there is a BMP file with this name prefix ("face_", "hand_set")
+
+    bool hasBmpWithPrefix(const char* prefix) {
+        bool found = false;
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f && !found; f = root.openNextFile()) {
+            String name = f.name();
+            found = !f.isDirectory() && name.startsWith(prefix) && name.endsWith(".bmp");
+        }
+        root.close();
+        return found;
+    }
+
+    // Legt face_default.bmp (12, 3, 6, 9) an, falls es fehlt. Gibt es gar kein Zifferblatt (neue Uhr,
+    // Werksreset, alle geloescht), dazu face_numbers.bmp (1-12) und face_roman.bmp (I-XII).
+
+    // Creates face_default.bmp (12, 3, 6, 9) if it is missing. If there is no clock face at all (new clock,
+    // factory reset, all deleted), also face_numbers.bmp (1-12) and face_roman.bmp (I-XII).
 
     bool ensureDefaultFace() {
         if (LittleFS.exists("/face_default.bmp")) return true;
-        DefaultFaceGen gen;
-        gen.init();
-        return writeRleImage("/face_default.bmp", gen.w, gen.w, [&gen](int y, uint16_t* row) { gen.row(y, row); });
+        if (!hasBmpWithPrefix("face_")) {
+            writeGeneratedFace("/face_numbers.bmp", FACE_NUMERALS_ARABIC);
+            writeGeneratedFace("/face_roman.bmp", FACE_NUMERALS_ROMAN);
+        }
+        return writeGeneratedFace("/face_default.bmp", FACE_NUMERALS_QUARTER);
     }
 
     // Laedt ein Zifferblatt nach 'dest'; fehlt es oder ist es unlesbar, das Standard-Zifferblatt (bei Bedarf
@@ -1183,42 +1357,105 @@
         drawDefaultFace(dest);
     }
 
-    // Standard-Zeigersatz 0 wie Satz 2: Stunden- und Minutenzeiger als schwarze Balken, Sekundenzeiger als duenne
-    // rote Linie, mittig auf dem Drehpunkt bis zum unteren Bildrand. Hintergrund weiss wie bei hochgeladenen
-    // Zeigern (gilt ueberall als transparent und erscheint so auch in der Zeigeruebersicht).
+    // Halbe Breite eines geschwungenen Zeigers (Satz 2) im Abstand d vom Drehpunkt (Pixel, d > 0 Richtung
+    // Spitze, L = Laenge): Stunden- und Minutenzeiger als Blatt mit eingezogener Spitze auf duennem Stiel,
+    // runde Nabe; Sekundenzeiger spitz zulaufend mit rundem Gegengewicht.
 
-    // Default hand set 0 like set 2: hour and minute hand as black bars, second hand as a thin red line, centred
-    // on the pivot down to the bottom edge. Background white like uploaded hands (counts as transparent
-    // everywhere and also shows as such in the hand set overview).
+    // Half width of a curved hand (set 2) at distance d from the pivot (pixels, d > 0 towards the tip, L =
+    // length): hour and minute hand as a leaf with a drawn-in tip on a thin stem, round boss; second hand
+    // tapering with a round counterweight.
 
-    void defaultHandRow(const char* part, int y, uint16_t* row) {
-        bool second = strcmp(part, "second") == 0;
-        int half = lroundf(CLOCK_WIDTH * (second ? 0.0083f : 0.027f));
+    float curvedHandHalfWidth(const char* part, float L, float d) {
+        float c = CLOCK_WIDTH, w = 0;
+        if (strcmp(part, "second") == 0) {
+            float ws = max(0.6f, 0.0045f * c);
+            if (d >= 0 && d <= L) w = ws * (1 - 0.45f * d / L);
+            float tail = 0.1f * c, rw = 0.022f * c, dw = d + tail - rw;
+            if (d < 0 && d >= -tail) w = ws;
+            if (fabsf(dw) <= rw) w = max(w, sqrtf(rw * rw - dw * dw));
+            return w;
+        }
+        bool hour = strcmp(part, "hour") == 0;
+        float u0 = hour ? 0.3f : 0.45f, leaf = (hour ? 0.036f : 0.026f) * c, k = hour ? 0.6f : 0.55f;
+        if (d >= 0 && d <= L) {
+            float u = d / L;
+            if (u <= u0 + 0.05f) w = max(0.6f, 0.007f * c);
+            if (u >= u0) w = max(w, leaf * powf(sinf(PI * powf((u - u0) / (1 - u0), k)), 1.4f));
+        }
+        float rb = 0.028f * c;
+        if (fabsf(d) <= rb) w = max(w, sqrtf(rb * rb - d * d));
+        return w;
+    }
+
+    // Erzeugte Zeigersaetze, mittig auf dem Drehpunkt, Hintergrund weiss wie bei hochgeladenen Zeigern (gilt
+    // ueberall als transparent). Satz 0 und 1: Stunden- und Minutenzeiger als schwarze Balken bis zum unteren
+    // Bildrand, Sekundenzeiger als duenne rote (0) bzw. schwarze (1) Linie; Satz 2 geschwungen.
+
+    // Generated hand sets, centred on the pivot, background white like uploaded hands (counts as transparent
+    // everywhere). Sets 0 and 1: hour and minute hand as black bars down to the bottom edge, second hand as a
+    // thin red (0) or black (1) line; set 2 curved.
+
+    void generatedHandRow(int set, const char* part, int y, uint16_t* row) {
         int top = strcmp(part, "hour") == 0 ? HAND_PIVOT_Y - lroundf(HAND_LEGACY_PIVOT_Y * 0.56f) : HAND_TOP_PAD;
-        uint16_t color = second ? 0xF800 : 0x0000;
+        bool second = strcmp(part, "second") == 0;
+        if (set == 2) {
+
+            // Je Pixel 4 x 4 Abtastpunkte, gesetzt ab der Haelfte - scharfe Kante, die Uhr glaettet beim Drehen
+            // 4 x 4 samples per pixel, set from half of them - sharp edge, the clock smooths when rotating
+
+            float half[4];
+            for (int sy = 0; sy < 4; sy++) half[sy] = curvedHandHalfWidth(part, HAND_PIVOT_Y - top, HAND_PIVOT_Y + 0.5f - (y + (sy + 0.5f) / 4));
+            for (int x = 0; x < HAND_WIDTH; x++) {
+                int n = 0;
+                for (int sx = 0; sx < 4; sx++) {
+                    float dx = fabsf(x + (sx + 0.5f) / 4 - (HAND_WIDTH / 2 + 0.5f));
+                    for (int sy = 0; sy < 4; sy++) if (dx <= half[sy]) n++;
+                }
+                row[x] = n >= 8 ? 0x0000 : 0xFFFF;
+            }
+            return;
+        }
+        int half = lroundf(CLOCK_WIDTH * (second ? 0.0083f : 0.027f));
+        uint16_t color = (second && set == 0) ? 0xF800 : 0x0000;
         for (int x = 0; x < HAND_WIDTH; x++) {
             row[x] = (y >= top && abs(x - HAND_WIDTH / 2) <= half) ? color : 0xFFFF;
         }
     }
 
-    // Zeichnet einen Standardzeiger nach 'dest' (HAND_WIDTH x HAND_HEIGHT) - Notloesung ohne Datei
-    // Draws a default hand into 'dest' (HAND_WIDTH x HAND_HEIGHT) - fallback without a file
+    // Zeichnet einen Zeiger des Standardsatzes 0 nach 'dest' (HAND_WIDTH x HAND_HEIGHT) - Notloesung ohne Datei
+    // Draws a hand of the default set 0 into 'dest' (HAND_WIDTH x HAND_HEIGHT) - fallback without a file
 
     void drawDefaultHand(const char* part, uint16_t* dest) {
-        for (int y = 0; y < HAND_HEIGHT; y++) defaultHandRow(part, y, dest + y * HAND_WIDTH);
+        for (int y = 0; y < HAND_HEIGHT; y++) generatedHandRow(0, part, y, dest + y * HAND_WIDTH);
     }
 
-    // Legt fehlende Dateien des Standard-Zeigersatzes 0 an (hand_set0_hour/minute/second.bmp)
-    // Creates missing files of the default hand set 0 (hand_set0_hour/minute/second.bmp)
+    // Legt fehlende Dateien eines erzeugten Zeigersatzes an (hand_set<set>_hour/minute/second.bmp)
+    // Creates missing files of a generated hand set (hand_set<set>_hour/minute/second.bmp)
 
-    bool ensureDefaultHands() {
+    bool writeGeneratedHandSet(int set) {
         bool ok = true;
         for (const char* part : { "hour", "minute", "second" }) {
-            String path = String("/hand_set0_") + part + ".bmp";
+            String path = "/hand_set" + String(set) + "_" + part + ".bmp";
             if (LittleFS.exists(path)) continue;
-            ok = writeRleImage(path, HAND_WIDTH, HAND_HEIGHT, [part](int y, uint16_t* row) { defaultHandRow(part, y, row); }) && ok;
+            ok = writeRleImage(path, HAND_WIDTH, HAND_HEIGHT, [set, part](int y, uint16_t* row) { generatedHandRow(set, part, y, row); }) && ok;
         }
         return ok;
+    }
+
+    // Legt fehlende Dateien des Standardsatzes 0 an. Gibt es gar keinen Zeigersatz (neue Uhr, Werksreset,
+    // alle geloescht), dazu Satz 1 (schwarzer Sekundenzeiger) und Satz 2 (geschwungen).
+
+    // Creates missing files of the default set 0. If there is no hand set at all (new clock, factory reset,
+    // all deleted), also set 1 (black second hand) and set 2 (curved).
+
+    bool ensureDefaultHands() {
+        if (LittleFS.exists("/hand_set0_hour.bmp") && LittleFS.exists("/hand_set0_minute.bmp") &&
+            LittleFS.exists("/hand_set0_second.bmp")) return true;
+        if (!hasBmpWithPrefix("hand_set")) {
+            writeGeneratedHandSet(1);
+            writeGeneratedHandSet(2);
+        }
+        return writeGeneratedHandSet(0);
     }
 
     // Satz-ID der Dateien: leer und "default" (alte Einstellungen, Presets) stehen fuer den Standardsatz 0
@@ -1418,15 +1655,181 @@
         return (w == HAND_WIDTH) ? translate("new width") : translate("new length");
     }
 
+    // Liest ein RLEB-Zifferblatt Pixel fuer Pixel - aus dem RAM (clockFaceRle) oder in kleinen Bloecken aus der
+    // Datei. Laeufe duerfen ueber Zeilengrenzen gehen (scaleAndSaveBmp() kodiert das ganze Bild am Stueck).
+
+    // Reads an RLEB clock face pixel by pixel - from RAM (clockFaceRle) or in small blocks from the file. Runs
+    // may cross row boundaries (scaleAndSaveBmp() encodes the whole image in one go).
+
+    struct RleFaceReader {
+        const uint8_t* mem = nullptr;
+        File file;
+        uint8_t buf[256];
+        size_t bufLen = 0, bufPos = 0;
+        size_t remaining = 0;   // noch nicht gelesene komprimierte Bytes
+                                // compressed bytes not read yet
+        int runLeft = 0;
+        bool literal = false;
+        uint16_t runPixel = 0;
+
+        bool nextByte(uint8_t& b) {
+            if (remaining == 0) return false;
+            if (mem) {
+                b = *mem++;
+            }
+            else {
+                if (bufPos >= bufLen) {
+                    bufLen = file.read(buf, min(sizeof(buf), remaining));
+                    bufPos = 0;
+                    if (bufLen == 0) return false;
+                }
+                b = buf[bufPos++];
+            }
+            remaining--;
+            return true;
+        }
+
+        bool nextPixel(uint16_t& px) {
+            uint8_t lo, hi;
+            if (runLeft == 0) {
+                uint8_t ctrl;
+                if (!nextByte(ctrl)) return false;
+                literal = ctrl <= 127;
+                runLeft = literal ? ctrl + 1 : 257 - ctrl;
+                if (!literal) {
+                    if (!nextByte(lo) || !nextByte(hi)) return false;
+                    runPixel = lo | (hi << 8);
+                }
+            }
+            if (literal) {
+                if (!nextByte(lo) || !nextByte(hi)) return false;
+                px = lo | (hi << 8);
+            }
+            else {
+                px = runPixel;
+            }
+            runLeft--;
+            return true;
+        }
+    };
+
+    // Ohne PSRAM: nur mit Rohbild, Helligkeits-Cache und Zwischenbild (je ein Vollbild) bliebe beim 240er-Display
+    // fuer WLAN und Webserver kein Speicher. Dann zeichnet loadClockFace() jedes Bild aus den RLE-Daten neu.
+
+    // Without PSRAM: with raw image, brightness cache and composite (one full frame each) nothing would be left for
+    // WiFi and web server on the 240 display. Then loadClockFace() redraws every frame from the RLE data.
+
+    bool lowMemoryFace() {
+        return !psramFound();
+    }
+
+    // Waehlt die Quelle des Zifferblatts im Sparmodus: die gewaehlte RLEB-Datei in passender Groesse, sonst
+    // face_default.bmp, sonst das erzeugte Zifferblatt. Kleine Dateien kommen ganz in den RAM, solange danach
+    // noch genug fuer WLAN und Webserver frei bleibt.
+
+    // Chooses the clock face source in low-memory mode: the selected RLEB file of the right size, otherwise
+    // face_default.bmp, otherwise the generated clock face. Small files go completely into RAM, as long as
+    // enough stays free for WiFi and web server afterwards.
+
+    void prepareClockFaceRle() {
+        parseBackgroundFilename(selectedBackground, hourHandWidth, minuteHandWidth, secondHandWidth);
+        updateHandWidths(hourHandWidth, minuteHandWidth, secondHandWidth);
+        if (clockFaceRleReady) return;
+        clockFaceRleReady = true;
+        clockFaceRlePath = "";
+
+        if (!selectedBackground.startsWith("/")) selectedBackground = "/" + selectedBackground;
+        int32_t w, h;
+        if (readRleSize(selectedBackground, w, h) && w == CLOCK_WIDTH && h == CLOCK_HEIGHT) {
+            clockFaceRlePath = selectedBackground;
+        }
+        else if (ensureDefaultFace() && readRleSize("/face_default.bmp", w, h) && w == CLOCK_WIDTH && h == CLOCK_HEIGHT) {
+            clockFaceRlePath = "/face_default.bmp";
+        }
+        if (clockFaceRlePath.isEmpty()) {
+            DEBUG_PRINTLN("[Display] No usable clock face file - drawing the generated one");
+            return;
+        }
+
+        const size_t RLE_RAM_MAX = 48 * 1024;      // groessere Dateien (Fotos) bleiben in der Datei
+                                                   // larger files (photos) stay in the file
+        const size_t HEAP_RESERVE = 96 * 1024;     // bleibt fuer WLAN, Webserver und Dateizugriffe frei
+                                                   // stays free for WiFi, web server and file access
+        File f = LittleFS.open(clockFaceRlePath, "r");
+        uint8_t head[20];
+        if (!f || f.read(head, sizeof(head)) != sizeof(head)) {
+            if (f) f.close();
+            return;
+        }
+        size_t size = *(uint32_t*)&head[12];
+        if (size <= RLE_RAM_MAX && ESP.getMaxAllocHeap() >= size + HEAP_RESERVE) {
+            clockFaceRle = (uint8_t*)malloc(size);
+            if (clockFaceRle && f.read(clockFaceRle, size) == size) {
+                clockFaceRleSize = size;
+            }
+            else if (clockFaceRle) {
+                free(clockFaceRle);
+                clockFaceRle = nullptr;
+            }
+        }
+        f.close();
+        DEBUG_PRINTLN("[Display] Low-memory clock face: " + clockFaceRlePath + " (" + String(size) + " bytes, " +
+                      (clockFaceRle ? "in RAM" : "read from file") + ")");
+    }
+
+    // Zeichnet das Zifferblatt im Sparmodus zeilenweise in 'dest', mit Helligkeit. Software-Rotation gibt es
+    // ohne PSRAM nicht (gc9d01SwRotation), daher immer ungedreht.
+
+    // Draws the clock face row by row into 'dest' in low-memory mode, with brightness. Without PSRAM there is
+    // no software rotation (gc9d01SwRotation), so always unrotated.
+
+    void drawFaceRows(LGFX_Sprite& dest) {
+        const int N = CLOCK_WIDTH;
+        if (clockFaceRlePath.isEmpty()) {
+            DefaultFaceGen gen;
+            gen.init(FACE_NUMERALS_QUARTER);
+            for (int y = 0; y < N; y++) {
+                gen.row(y, rowBuffer);
+                for (int x = 0; x < N; x++) rowBuffer[x] = setPixelBrightness(rowBuffer[x]);
+                dest.pushImage(0, y, N, 1, rowBuffer);
+            }
+            return;
+        }
+        RleFaceReader r;
+        if (clockFaceRle) {
+            r.mem = clockFaceRle;
+            r.remaining = clockFaceRleSize;
+        }
+        else {
+            r.file = LittleFS.open(clockFaceRlePath, "r");
+            uint8_t head[20];
+            if (r.file && r.file.read(head, sizeof(head)) == sizeof(head)) r.remaining = *(uint32_t*)&head[12];
+        }
+        for (int y = 0; y < CLOCK_HEIGHT; y++) {
+            for (int x = 0; x < N; x++) {
+                uint16_t px = 0xFFFF;   // weiss, falls die Daten zu kurz sind / white if the data is too short
+                r.nextPixel(px);
+                rowBuffer[x] = setPixelBrightness(px);
+            }
+            dest.pushImage(0, y, N, 1, rowBuffer);
+        }
+        if (r.file) r.file.close();
+    }
+
     // Laedt das gewaehlte Zifferblatt (BMP/RLEB, sonst Standard) in clockFaceBuffer, wendet die Helligkeit an
     // (clockFaceBrightBuffer) und zeichnet in backgroundSprite. Rueckgabe: 2 = beide Puffer ok, 1 = nur
-    // Rohbild, 0 = nichts.
+    // Rohbild, 0 = nichts, 3 = Sparmodus ohne PSRAM (drawFaceRows()).
 
     // Loads the selected clock face (BMP/RLEB, else default) into clockFaceBuffer, applies brightness
     // (clockFaceBrightBuffer) and draws into backgroundSprite. Returns: 2 = both buffers ok, 1 = raw only, 0
-    // = neither.
+    // = neither, 3 = low-memory mode without PSRAM (drawFaceRows()).
 
     int prepareClockFaceCache() {
+        if (lowMemoryFace()) {
+            prepareClockFaceRle();
+            return 3;
+        }
+
         bool forceRecompute = false; // Neues Zifferblatt geladen -> Cache muss neu berechnet werden
                                      // New clock face loaded -> cache must be recalculated
 
@@ -1586,6 +1989,10 @@
     void loadClockFace(uint8_t rotation) {
         int cacheState = prepareClockFaceCache();
         if (cacheState == 0) return;
+        if (cacheState == 3) {
+            drawFaceRows(backgroundSprite);
+            return;
+        }
 
         if (cacheState == 1) {
 
@@ -1680,14 +2087,20 @@
             free(clockFaceBrightBuffer);
             clockFaceBrightBuffer = nullptr;
         }
+        if (clockFaceRle) {
+            free(clockFaceRle);
+            clockFaceRle = nullptr;
+        }
+        clockFaceRleSize = 0;
+        clockFaceRleReady = false;
     }
 
 
-    // Loescht alle Zifferblaetter (face_*.bmp) - das Standard-Zifferblatt wird danach neu erzeugt. Raeumt
-    // verwaiste Presets auf und schaltet auf den Standard zurueck.
+    // Loescht alle Zifferblaetter (face_*.bmp) - die drei erzeugten Zifferblaetter entstehen danach neu
+    // (ensureDefaultFace()). Raeumt verwaiste Presets auf und schaltet auf den Standard zurueck.
 
-    // Deletes all clock faces (face_*.bmp) - the default clock face is created again afterwards. Cleans up
-    // orphaned presets and falls back to the default.
+    // Deletes all clock faces (face_*.bmp) - the three generated clock faces are created again afterwards
+    // (ensureDefaultFace()). Cleans up orphaned presets and falls back to the default.
 
     void resetFacesToDefault() {
         std::vector<String> toDelete;
@@ -2964,6 +3377,39 @@
     }
 
 
+    // Ohne PSRAM: Streifen-Grafik zeilenweise aus der RLEB-Datei direkt ins Streifen-Sprite - fuer eine Kopie im
+    // RAM (stripImage, 51 KB bei 172 x 148) reichte der Speicher nicht, der Streifen blieb einfarbig. Quer wird
+    // jede Quellzeile zu einer Spalte (90 Grad im Uhrzeigersinn wie in renderInfoStrip()). false ohne Grafik.
+
+    // Without PSRAM: strip graphic row by row from the RLEB file straight into the strip sprite - there was not
+    // enough memory for a copy in RAM (stripImage, 51 KB at 172 x 148), the strip stayed plain. In landscape each
+    // source row becomes a column (90 degrees clockwise as in renderInfoStrip()). false without a graphic.
+
+    bool drawStripImageStreamed(LGFX_Sprite& s, bool landscape, bool push) {
+        String path = stripPathForFace(selectedBackground);
+        const int sw = TFT_WIDTH, sh = TFT_HEIGHT - CLOCK_HEIGHT;
+        int32_t w, h;
+        if (path.length() == 0 || sh <= 0 || sw > 320 || !readRleSize(path, w, h) || w != sw || h != sh) return false;
+        RleFaceReader r;
+        r.file = LittleFS.open(path, "r");
+        uint8_t head[20];
+        if (!r.file || r.file.read(head, sizeof(head)) != sizeof(head)) return false;
+        r.remaining = *(uint32_t*)&head[12];
+        static uint16_t line[320];
+        for (int y = 0; y < sh; y++) {
+            for (int x = 0; x < sw; x++) {
+                uint16_t px = 0xFFFF;   // weiss, falls die Daten zu kurz sind / white if the data is too short
+                r.nextPixel(px);
+                line[x] = push ? setPixelBrightness(px) : px;
+            }
+            if (landscape) s.pushImage(sh - 1 - y, 0, 1, sw, line);
+            else s.pushImage(0, y, sw, 1, line);
+        }
+        r.file.close();
+        return true;
+    }
+
+
     // Lage des Streifens umschalten: beide Displays einmal loeschen, danach Uhr und Streifen komplett neu senden
     // Switch the strip placement: clear both displays once, then resend the clock and the strip completely
 
@@ -3124,19 +3570,24 @@
 
         const int sw = TFT_WIDTH, sh = TFT_HEIGHT - CLOCK_HEIGHT;
         bool imageFits = landscape ? (w == sh && h == sw) : (w == sw && h == sh);
-        if (useImage && useSprite && imageFits && ensureStripImage()) {
-            static uint16_t row[320];
-            for (int yy = 0; yy < h; yy++) {
-                for (int xx = 0; xx < w && xx < 320; xx++) {
-                    uint16_t px = landscape ? stripImage[(sh - 1 - xx) * sw + yy] : stripImage[yy * sw + xx];
-                    row[xx] = push ? setPixelBrightness(px) : px;
+        bool imageDrawn = false;
+        if (useImage && useSprite && imageFits) {
+            if (lowMemoryFace()) {
+                imageDrawn = drawStripImageStreamed(s, landscape, push);
+            }
+            else if (ensureStripImage()) {
+                static uint16_t row[320];
+                for (int yy = 0; yy < h; yy++) {
+                    for (int xx = 0; xx < w && xx < 320; xx++) {
+                        uint16_t px = landscape ? stripImage[(sh - 1 - xx) * sw + yy] : stripImage[yy * sw + xx];
+                        row[xx] = push ? setPixelBrightness(px) : px;
+                    }
+                    s.pushImage(0, yy, w, 1, row);
                 }
-                s.pushImage(0, yy, w, 1, row);
+                imageDrawn = true;
             }
         }
-        else {
-            g.fillRect(ox, oy, w, h, bg);
-        }
+        if (!imageDrawn) g.fillRect(ox, oy, w, h, bg);
 
         // Nur Schriftfarbe setzen: ohne Hintergrundfarbe mischt LovyanGFX die Kanten mit dem Sprite-Inhalt
         // Only set the text color: without a background color LovyanGFX blends the edges with the sprite content
@@ -3856,118 +4307,102 @@
     }
 
 
-    // Adler32 - fuer den zlib-Trailer im PNG-IDAT-Chunk
-    // Adler32 - for the zlib trailer in the PNG IDAT chunk
+    // Sendet einen Zeiger als PNG (RGBA, unkomprimierte "stored"-Deflate-Bloecke, Adler32 laufend mitgerechnet)
+    // Zeile fuer Zeile - ohne das Bild im RAM. Breite w schneidet mittig zu wie auf dem Display; Weiss und
+    // TRANSPARENT_COLOR werden durchsichtig.
 
-    uint32_t adler32(const uint8_t* data, size_t len) {
-        uint32_t a = 1, b = 0;
-        const uint32_t MOD_ADLER = 65521;
-        for (size_t i = 0; i < len; i++) {
-            a = (a + data[i]) % MOD_ADLER;
-            b = (b + a) % MOD_ADLER;
-        }
-        return (b << 16) | a;
-    }
+    // Sends a hand as PNG (RGBA, uncompressed "stored" deflate blocks, Adler32 computed on the fly) row by row -
+    // without the image in RAM. Width w crops in the centre as on the display; white and TRANSPARENT_COLOR
+    // become transparent.
 
+    void streamHandPng(const uint16_t* src, int srcW, int w, int h) {
+        const size_t rawRow = 1 + (size_t)w * 4, rawSize = rawRow * h;
+        const size_t blocks = (rawSize + 65534) / 65535;
+        const size_t zlibLen = 2 + 5 * blocks + rawSize + 4;
+        webserver.setContentLength(8 + 25 + 12 + zlibLen + 12);
+        webserver.sendHeader("Cache-Control", "no-store");
+        webserver.send(200, "image/png", "");
 
-    // Haengt einen PNG-Chunk (Typ + Daten + CRC32) an einen dynamischen Puffer an.
-    // Appends a PNG chunk (type + data + CRC32) to a dynamic buffer.
+        uint8_t buf[512];
+        size_t fill = 0;
+        uint32_t crc = 0;
+        auto flush = [&]() {
+            if (fill) webserver.sendContent((const char*)buf, fill);
+            fill = 0;
+        };
+        auto put = [&](const uint8_t* data, size_t n, bool inCrc) {
+            if (inCrc) crc = crc32Update(crc, data, n);
+            while (n) {
+                size_t k = min(n, sizeof(buf) - fill);
+                memcpy(buf + fill, data, k);
+                fill += k; data += k; n -= k;
+                if (fill == sizeof(buf)) flush();
+            }
+        };
+        auto putBE = [&](uint32_t v, bool inCrc) {
+            uint8_t b[4] = { (uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v };
+            put(b, 4, inCrc);
+        };
 
-    void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) {
-        uint8_t lenBytes[4] = { (uint8_t)(len >> 24), (uint8_t)(len >> 16), (uint8_t)(len >> 8), (uint8_t)len };
-        out.insert(out.end(), lenBytes, lenBytes + 4);
-        size_t typeStart = out.size();
-        out.insert(out.end(), type, type + 4);
-        if (len > 0) out.insert(out.end(), data, data + len);
-        uint32_t crc = crc32Update(0, &out[typeStart], 4 + len);
-        uint8_t crcBytes[4] = { (uint8_t)(crc >> 24), (uint8_t)(crc >> 16), (uint8_t)(crc >> 8), (uint8_t)crc };
-        out.insert(out.end(), crcBytes, crcBytes + 4);
-    }
+        static const uint8_t sig[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+        put(sig, 8, false);
+        uint8_t ihdr[13] = { 0, 0, (uint8_t)(w >> 8), (uint8_t)w, 0, 0, (uint8_t)(h >> 8), (uint8_t)h, 8, 6, 0, 0, 0 };
+        putBE(13, false);
+        crc = 0;
+        put((const uint8_t*)"IHDR", 4, true);
+        put(ihdr, 13, true);
+        putBE(crc, false);
 
+        putBE(zlibLen, false);
+        crc = 0;
+        put((const uint8_t*)"IDAT", 4, true);
+        static const uint8_t zlibHead[2] = { 0x78, 0x01 };
+        put(zlibHead, 2, true);
+        uint32_t adlerA = 1, adlerB = 0;
+        size_t done = 0, blockLeft = 0;
+        int off = (w < srcW) ? (srcW - w) / 2 : 0;
+        uint8_t row[1 + CLOCK_MAX * 4];
+        for (int y = 0; y < h; y++) {
+            row[0] = 0; // Filter-Byte: keine Filterung / filter byte: no filtering
+            for (int x = 0; x < w; x++) {
+                int sx = x + off;
+                uint16_t px = (sx < srcW) ? src[y * srcW + sx] : TRANSPARENT_COLOR;
+                uint8_t* p = row + 1 + x * 4;
+                p[0] = ((px >> 11) & 0x1F) * 255 / 31;
+                p[1] = ((px >> 5) & 0x3F) * 255 / 63;
+                p[2] = (px & 0x1F) * 255 / 31;
+                p[3] = (px == TRANSPARENT_COLOR || px == 0xFFFF) ? 0 : 255;
+            }
 
-    // Kodiert ein RGB565-Bild als PNG (echte Alpha-Transparenz) und liefert
-    // Base64. TRANSPARENT_COLOR und Weiss (0xFFFF) werden zu Alpha=0.
+            // In Deflate-Bloecke zu hoechstens 65535 Byte aufteilen
+            // Split into deflate blocks of at most 65535 bytes
 
-    // Encodes an RGB565 image as PNG (true alpha transparency) and returns
-    // base64. TRANSPARENT_COLOR and white (0xFFFF) become alpha=0.
-
-    String encodePngToBase64(const uint16_t* data, int width, int height) {
-
-        // Rohe Bilddaten: pro Zeile 1 Filter-Byte (0 = "None") + width*4 Byte RGBA
-        // Raw image data: 1 filter byte per row (0 = "None") + width*4 bytes RGBA
-
-        size_t rawRowSize = 1 + (size_t)width * 4;
-        size_t rawSize = rawRowSize * height;
-        uint8_t* raw = (uint8_t*)preferPsramMalloc(rawSize);
-        if (!raw) return "";
-
-        for (int y = 0; y < height; y++) {
-            uint8_t* rowPtr = raw + y * rawRowSize;
-            rowPtr[0] = 0; // Filter-Byte: keine Filterung
-                           // filter byte: no filtering
-            for (int x = 0; x < width; x++) {
-                uint16_t px = data[y * width + x];
-                uint8_t r = ((px >> 11) & 0x1F) * 255 / 31;
-                uint8_t g = ((px >> 5) & 0x3F) * 255 / 63;
-                uint8_t b = (px & 0x1F) * 255 / 31;
-                uint8_t a = (px == TRANSPARENT_COLOR || px == 0xFFFF) ? 0 : 255;
-                uint8_t* px_out = rowPtr + 1 + x * 4;
-                px_out[0] = r; px_out[1] = g; px_out[2] = b; px_out[3] = a;
+            size_t pos = 0;
+            while (pos < rawRow) {
+                if (blockLeft == 0) {
+                    size_t len = min((size_t)65535, rawSize - done);
+                    uint8_t blockHead[5] = { (uint8_t)(done + len >= rawSize ? 1 : 0), (uint8_t)len, (uint8_t)(len >> 8),
+                                             (uint8_t)~len, (uint8_t)(~len >> 8) };
+                    put(blockHead, 5, true);
+                    blockLeft = len;
+                }
+                size_t k = min(blockLeft, rawRow - pos);
+                put(row + pos, k, true);
+                for (size_t i = 0; i < k; i++) {
+                    adlerA = (adlerA + row[pos + i]) % 65521;
+                    adlerB = (adlerB + adlerA) % 65521;
+                }
+                pos += k; done += k; blockLeft -= k;
             }
         }
+        putBE((adlerB << 16) | adlerA, true);
+        putBE(crc, false);
 
-        // zlib-Stream mit unkomprimierten ("stored") Deflate-Bloecken - vermeidet
-        // eine vollstaendige Deflate-Implementierung, bleibt aber gueltiges PNG.
-
-        // zlib stream with uncompressed ("stored") deflate blocks - avoids
-        // a full deflate implementation while staying valid PNG.
-
-        std::vector<uint8_t> zlibStream;
-        zlibStream.push_back(0x78); zlibStream.push_back(0x01); // zlib-Header (keine Kompression)
-                                                                // zlib header (no compression)
-
-        size_t offset = 0;
-        const size_t maxBlock = 65535;
-        while (offset < rawSize) {
-            size_t blockLen = min(maxBlock, rawSize - offset);
-            bool isFinal = (offset + blockLen >= rawSize);
-            zlibStream.push_back(isFinal ? 0x01 : 0x00);
-            uint16_t len16 = (uint16_t)blockLen;
-            uint16_t nlen16 = ~len16;
-            zlibStream.push_back(len16 & 0xFF); zlibStream.push_back(len16 >> 8);
-            zlibStream.push_back(nlen16 & 0xFF); zlibStream.push_back(nlen16 >> 8);
-            zlibStream.insert(zlibStream.end(), raw + offset, raw + offset + blockLen);
-            offset += blockLen;
-        }
-        uint32_t adler = adler32(raw, rawSize);
-        zlibStream.push_back((adler >> 24) & 0xFF);
-        zlibStream.push_back((adler >> 16) & 0xFF);
-        zlibStream.push_back((adler >> 8) & 0xFF);
-        zlibStream.push_back(adler & 0xFF);
-        free(raw);
-
-        // PNG zusammenbauen: Signatur + IHDR + IDAT + IEND
-        // Assemble the PNG: signature + IHDR + IDAT + IEND
-
-        std::vector<uint8_t> png;
-        const uint8_t pngSig[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
-        png.insert(png.end(), pngSig, pngSig + 8);
-
-        uint8_t ihdr[13];
-        ihdr[0] = (width >> 24) & 0xFF; ihdr[1] = (width >> 16) & 0xFF; ihdr[2] = (width >> 8) & 0xFF; ihdr[3] = width & 0xFF;
-        ihdr[4] = (height >> 24) & 0xFF; ihdr[5] = (height >> 16) & 0xFF; ihdr[6] = (height >> 8) & 0xFF; ihdr[7] = height & 0xFF;
-        ihdr[8] = 8;  // Bittiefe
-                      // bit depth
-        ihdr[9] = 6;  // Farbtyp: RGBA
-                      // color type: RGBA
-        ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-        appendPngChunk(png, "IHDR", ihdr, 13);
-        appendPngChunk(png, "IDAT", zlibStream.data(), zlibStream.size());
-        appendPngChunk(png, "IEND", nullptr, 0);
-
-        String result = base64::encode(png.data(), png.size());
-        result.replace("\n", "");
-        return result;
+        putBE(0, false);
+        crc = 0;
+        put((const uint8_t*)"IEND", 4, true);
+        putBE(crc, false);
+        flush();
     }
 
 
@@ -4183,11 +4618,180 @@
     }
 
 
+    // Wie scaleAndSaveBmp(), aber ohne Vollbild im RAM (ohne PSRAM): jede Zielzeile entsteht aus der passenden
+    // Quellzeile und geht ueber writeRleImage() bzw. direkt als BMP in eine Zwischendatei, die danach das Ziel
+    // ersetzt - Quelle und Ziel duerfen gleich sein. Braucht dafuer kurz Platz fuer beide Dateien.
+
+    // Like scaleAndSaveBmp(), but without a full frame in RAM (without PSRAM): every target row comes from the
+    // matching source row and goes via writeRleImage() or directly as BMP into a temporary file, which then
+    // replaces the target - source and target may be the same. Briefly needs room for both files.
+
+    bool scaleAndSaveBmpLowMem(const char* sourcePath, const char* targetPath, int outW, int outH) {
+        const char* TMP_PATH = "/scale_tmp.bmp";
+        if (outW <= 0 || outH <= 0 || outW > CLOCK_MAX) return false;
+        File src = LittleFS.open(sourcePath, "r");
+        if (!src) return false;
+
+        uint8_t head[54];
+        int inW = 0, inH = 0;     // int statt int32_t: auf dem ESP32-C6 ist int32_t ein long (min())
+                                  // int instead of int32_t: on the ESP32-C6 int32_t is a long (min())
+        uint16_t bpp = 16;
+        bool rle = false, flip = false, rgb555 = false;
+        uint32_t offset = 0, rleSize = 0;
+        size_t inRowSize = 0;
+        if (src.read(head, 20) == 20 && isRleFace(head)) {
+            rle = true;
+            inW = *(int32_t*)&head[4];
+            inH = *(int32_t*)&head[8];
+            rleSize = *(uint32_t*)&head[12];
+            if (inW <= 0 || inH <= 0 || *(uint32_t*)&head[16] != (uint32_t)inW * inH * 2) {
+                src.close();
+                DEBUG_PRINTLN("[BMP Scale] Invalid RLEB header");
+                return false;
+            }
+        }
+        else {
+            src.seek(0);
+            if (src.read(head, 54) != 54 || head[0] != 'B' || head[1] != 'M') {
+                src.close();
+                DEBUG_PRINTLN("[BMP Scale] Invalid BMP header");
+                return false;
+            }
+            inW = *(int32_t*)&head[18];
+            inH = *(int32_t*)&head[22];
+            bpp = *(uint16_t*)&head[28];
+            offset = *(uint32_t*)&head[10];
+            uint32_t compression = *(uint32_t*)&head[30];
+            if (inW <= 0 || inH == 0 || (bpp != 16 && bpp != 24 && bpp != 32) || (compression != 0 && compression != 3)) {
+                src.close();
+                DEBUG_PRINTLN("[BMP Scale] Unsupported BMP format: " + String(bpp) + " bpp, compression " + String(compression));
+                return false;
+            }
+            if (bpp == 16) {
+                uint32_t redMask = 0;
+                if (compression == 3) {
+                    src.seek(54);
+                    src.read((uint8_t*)&redMask, 4);
+                }
+                rgb555 = compression == 0 || redMask == 0x7C00;
+            }
+            flip = inH > 0;
+            inH = abs(inH);
+            inRowSize = ((inW * (bpp / 8) + 3) / 4) * 4;
+        }
+
+        // Eine Quellzeile: roh (BMP) bzw. dekodiert (RLEB)
+        // One source row: raw (BMP) or decoded (RLEB)
+
+        uint8_t* srcRow = (uint8_t*)malloc(rle ? (size_t)inW * 2 : inRowSize);
+        if (!srcRow) {
+            src.close();
+            DEBUG_PRINTLN("[BMP Scale] Memory allocation failed (source row)");
+            return false;
+        }
+
+        String target = String(targetPath);
+        if (!target.startsWith("/")) target = "/" + target;
+        bool isFace = target.startsWith("/face_");
+        bool storeAsRle = isFace || target.startsWith("/hand_set") || target.startsWith("/strip_");
+        float scaleX = (float)inW / outW, scaleY = (float)inH / outH;
+        float cx = outW / 2.0f, cy = outH / 2.0f, radius = min(outW, outH) / 2.0f;
+        bool readError = false;
+        RleFaceReader reader;
+        int decodedRow = -1;
+
+        auto rowFn = [&](int y, uint16_t* out) {
+            int srcY = min(inH - 1, (int)(y * scaleY));
+            uint16_t* row16 = (uint16_t*)srcRow;
+            if (rle) {
+
+                // Zeilen laufen nur vorwaerts - je Durchgang von writeRleImage() von vorn
+                // Rows only advance - from the start for every pass of writeRleImage()
+
+                if (y == 0) {
+                    src.seek(20);
+                    reader = RleFaceReader();
+                    reader.file = src;
+                    reader.remaining = rleSize;
+                    decodedRow = -1;
+                }
+                while (decodedRow < srcY) {
+                    for (int x = 0; x < inW; x++) {
+                        uint16_t px = 0xFFFF;
+                        if (!reader.nextPixel(px)) readError = true;
+                        row16[x] = px;
+                    }
+                    decodedRow++;
+                }
+            }
+            else {
+                src.seek(offset + inRowSize * (flip ? inH - 1 - srcY : srcY));
+                if (src.read(srcRow, inRowSize) != inRowSize) readError = true;
+            }
+            for (int x = 0; x < outW; x++) {
+                int srcX = min(inW - 1, (int)(x * scaleX));
+                uint16_t pixel;
+                if (rle) pixel = row16[srcX];
+                else if (bpp == 16) {
+                    pixel = row16[srcX];
+                    if (rgb555) pixel = ((pixel & 0x7FE0) << 1) | ((pixel >> 4) & 0x20) | (pixel & 0x1F);
+                }
+                else {
+                    const uint8_t* p = srcRow + srcX * (bpp / 8);
+                    pixel = ((p[2] & 0xF8) << 8) | ((p[1] & 0xFC) << 3) | (p[0] >> 3);
+                }
+
+                // Runde Displays: ausserhalb des Kreises weiss (wie scaleAndSaveBmp())
+                // Round displays: white outside the circle (like scaleAndSaveBmp())
+
+                if (isFace && displayGeom->round) {
+                    float dx = (x + 0.5f) - cx, dy = (y + 0.5f) - cy;
+                    if (dx * dx + dy * dy > radius * radius) pixel = 0xFFFF;
+                }
+                out[x] = pixel;
+            }
+        };
+
+        LittleFS.remove(TMP_PATH);
+        bool ok;
+        if (storeAsRle) {
+            ok = writeRleImage(TMP_PATH, outW, outH, rowFn);
+        }
+        else {
+            uint8_t bmpHeader[66];
+            buildBmpHeader565(bmpHeader, outW, outH);
+            File out = LittleFS.open(TMP_PATH, "w");
+            ok = out && out.write(bmpHeader, 66) == 66;
+            const int rowSize = ((outW * 2 + 3) / 4) * 4;
+            uint16_t row[CLOCK_MAX + 2] = { 0 };
+            for (int y = 0; ok && y < outH; y++) {
+                rowFn(y, row);
+                ok = out.write((uint8_t*)row, rowSize) == (size_t)rowSize;
+            }
+            if (out) out.close();
+        }
+        src.close();
+        free(srcRow);
+        if (!ok || readError) {
+            LittleFS.remove(TMP_PATH);
+            DEBUG_PRINTLN("[BMP Scale] Low-memory scaling failed for " + target);
+            return false;
+        }
+        LittleFS.remove(target);
+        if (!LittleFS.rename(TMP_PATH, target)) {
+            LittleFS.remove(TMP_PATH);
+            return false;
+        }
+        DEBUG_PRINTLN("[BMP Scale] Saved " + target + " (low-memory, " + String(outW) + "x" + String(outH) + ")");
+        return true;
+    }
+
     // Skaliert eine BMP-Datei auf die gewünschte Größe und speichert sie
     // Scales a BMP file to the desired size and saves it
 
     bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) {
         DEBUG_PRINTLN("[BMP Scale] Scaling BMP: " + String(sourcePath) + " to " + String(targetPath));
+        if (lowMemoryFace()) return scaleAndSaveBmpLowMem(sourcePath, targetPath, outW, outH);
         File bmp = LittleFS.open(sourcePath, "r");
         if (!bmp) {
             DEBUG_PRINTLN("[BMP Scale] Failed to open source file");
@@ -4206,6 +4810,8 @@
 
         int32_t inW = 0, inH = 0;
         uint16_t bpp = 16;
+        bool rgb555 = false;         // 16-Bit-BMP mit 5 statt 6 Bit Gruen
+                                     // 16-bit BMP with 5 instead of 6 green bits
         bool flip = false;
         uint32_t offset = 0;
         int inRowSize = 0;
@@ -4271,11 +4877,36 @@
             inH = *(int32_t*)&header[22];
             bpp = *(uint16_t*)&header[28];
             offset = *(uint32_t*)&header[10];
+            uint32_t compression = *(uint32_t*)&header[30];
 
             if (inW <= 0 || abs(inH) <= 0) {
                 bmp.close();
                 DEBUG_PRINTLN("[BMP Scale] Invalid BMP dimensions");
                 return false;
+            }
+
+            // Nur unkomprimiert (BI_RGB) oder mit Bitmasken (BI_BITFIELDS) in 16, 24 oder 32 Bit - andere Formate
+            // (Palette, RLE) wuerden sonst still als schwarzes Bild gespeichert.
+
+            // Only uncompressed (BI_RGB) or with bit masks (BI_BITFIELDS) in 16, 24 or 32 bit - other formats
+            // (palette, RLE) would otherwise be stored silently as a black image.
+
+            if ((bpp != 16 && bpp != 24 && bpp != 32) || (compression != 0 && compression != 3)) {
+                bmp.close();
+                DEBUG_PRINTLN("[BMP Scale] Unsupported BMP format: " + String(bpp) + " bpp, compression " + String(compression));
+                return false;
+            }
+
+            // 16 Bit ohne Bitmasken ist laut BMP-Standard RGB555, mit Bitmasken zeigt die Rotmaske das Format
+            // 16 bit without bit masks is RGB555 per the BMP standard, with bit masks the red mask shows the format
+
+            if (bpp == 16) {
+                uint32_t redMask = 0;
+                if (compression == 3) {
+                    bmp.seek(54);
+                    bmp.read((uint8_t*)&redMask, 4);
+                }
+                rgb555 = compression == 0 || redMask == 0x7C00;
             }
 
             flip = inH > 0;
@@ -4351,6 +4982,7 @@
 
                     uint16_t* r16 = (uint16_t*)rowSource;
                     pixel = r16[srcX];
+                    if (rgb555) pixel = ((pixel & 0x7FE0) << 1) | ((pixel >> 4) & 0x20) | (pixel & 0x1F);
                 }
                 else if (bpp == 24) {
 
@@ -5201,19 +5833,56 @@
     }
 
 
+    // Zifferblatt verkleinert in 'canvas' ab Zeile oy, ohne Rohbild im RAM (ohne PSRAM): die RLEB-Datei wird
+    // zeilenweise gelesen, je Zielzeile die passende Quellzeile. Fehlt die Datei, face_default.bmp.
+
+    // Clock face scaled down into 'canvas' from row oy, without a raw image in RAM (without PSRAM): the RLEB
+    // file is read row by row, the matching source row for every target row. If the file is missing, face_default.bmp.
+
+    bool drawFaceThumbStreamed(const String& faceFile, LGFX_Sprite& canvas, int oy, int size) {
+        String path = faceFile.startsWith("/") ? faceFile : "/" + faceFile;
+        int32_t w, h;
+        if (!(readRleSize(path, w, h) && w == CLOCK_WIDTH && h == CLOCK_HEIGHT)) {
+            path = "/face_default.bmp";
+            if (!(ensureDefaultFace() && readRleSize(path, w, h) && w == CLOCK_WIDTH && h == CLOCK_HEIGHT)) return false;
+        }
+        RleFaceReader r;
+        r.file = LittleFS.open(path, "r");
+        uint8_t head[20];
+        if (!r.file || r.file.read(head, sizeof(head)) != sizeof(head)) return false;
+        r.remaining = *(uint32_t*)&head[12];
+        uint16_t line[CLOCK_MAX];
+        int decoded = -1;
+        for (int y = 0; y < size; y++) {
+            int sy = y * CLOCK_HEIGHT / size;
+            while (decoded < sy) {
+                for (int x = 0; x < CLOCK_WIDTH; x++) {
+                    uint16_t px = 0xFFFF;
+                    r.nextPixel(px);
+                    line[x] = px;
+                }
+                decoded++;
+            }
+            for (int x = 0; x < size; x++) rowBuffer[x] = line[x * CLOCK_WIDTH / size];
+            canvas.pushImage(0, oy + y, size, 1, rowBuffer);
+        }
+        r.file.close();
+        return true;
+    }
+
+
     // Erzeugt ein Vorschaubild fuer die Preset-Verwaltung: Komposition aus Zifferblatt,
     // Zeigern (Demo-Zeit 10:10:30) und Mittelpunkt in angegebener Farbe/Groesse.
-    // Liefert ein Standard-BMP im RAM zurueck (Aufrufer muss outBytes freigeben).
+    // Sendet es als Standard-BMP an die laufende Web-Anfrage; false = nichts gesendet (kein Speicher).
 
     // Generates a preview image for preset management: composed of clock face,
     // hands (demo time 10:10:30), and center hub in the given color/size.
-    // Returns a standard BMP in RAM (caller must free outBytes).
+    // Sends it as a standard BMP to the current web request; false = nothing sent (no memory).
 
-    bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName,
-        uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond,
-        uint8_t** outBytes, size_t& outSize, const String& presetUrl) {
+    bool sendPresetPreviewBmp(const String& faceFile, const String& handSetName,
+        uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, const String& presetUrl) {
 
-        checkHeapWarning("generatePresetPreviewBmp Start (" + faceFile + ")");
+        checkHeapWarning("sendPresetPreviewBmp Start (" + faceFile + ")");
 
         // Vorschau als LovyanGFX-Sprite: Zeiger werden wie auf der Uhr mit
         // pushRotateZoomWithAA() gedreht und kantengeglaettet - gleicher Drehpunkt
@@ -5249,18 +5918,25 @@
         float faceScaleX = (float)CLOCK_WIDTH / PREVIEW_SIZE;
         float faceScaleY = (float)CLOCK_HEIGHT / PREVIEW_SIZE;
 
-        uint16_t* faceBuf = (uint16_t*)preferPsramMalloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2);
-        if (!faceBuf) return false;
-        loadFaceOrDefault(faceFile, faceBuf);
-        for (int y = 0; y < PREVIEW_SIZE; y++) {
-            int sy = (int)(y * faceScaleY);
-            for (int x = 0; x < PREVIEW_SIZE; x++) {
-                int sx = (int)(x * faceScaleX);
-                rowBuffer[x] = faceBuf[sy * CLOCK_WIDTH + sx];
+        // Ohne PSRAM passt kein Rohbild in den Speicher - dann zeilenweise aus der Datei
+        // Without PSRAM no raw image fits into memory - then row by row from the file
+
+        uint16_t* faceBuf = lowMemoryFace() ? nullptr : (uint16_t*)preferPsramMalloc((size_t)CLOCK_WIDTH * CLOCK_HEIGHT * 2);
+        if (faceBuf) {
+            loadFaceOrDefault(faceFile, faceBuf);
+            for (int y = 0; y < PREVIEW_SIZE; y++) {
+                int sy = (int)(y * faceScaleY);
+                for (int x = 0; x < PREVIEW_SIZE; x++) {
+                    int sx = (int)(x * faceScaleX);
+                    rowBuffer[x] = faceBuf[sy * CLOCK_WIDTH + sx];
+                }
+                canvas.pushImage(0, oy + y, PREVIEW_SIZE, 1, rowBuffer);
             }
-            canvas.pushImage(0, oy + y, PREVIEW_SIZE, 1, rowBuffer);
+            free(faceBuf);
         }
-        free(faceBuf);
+        else if (!drawFaceThumbStreamed(faceFile, canvas, oy, PREVIEW_SIZE)) {
+            return false;
+        }
 
         // 2) Zeiger laden (aus Datei, sonst Standardsatz 0)
         // 2) Load hands (from file, otherwise default set 0)
@@ -5319,32 +5995,40 @@
         if (hubRadius < 1) hubRadius = 1;
         canvas.fillSmoothCircle(PREVIEW_SIZE / 2, oy + PREVIEW_SIZE / 2, hubRadius, hubColorRgb565);
 
-        // 5) Als Standard-BMP (mit BI_BITFIELDS-Header) verpacken
-        // 5) Package as standard BMP (with BI_BITFIELDS header)
+        // 5) Als Standard-BMP (mit BI_BITFIELDS-Header) senden - in Bloecken zu 8 Zeilen statt als ganze Kopie
+        // im RAM (37 KB bei 100 x 186), die bei mehreren Anfragen kurz nacheinander oft nicht mehr frei waren.
+
+        // 5) Send as a standard BMP (with BI_BITFIELDS header) - in blocks of 8 rows instead of a full copy in
+        // RAM (37 KB at 100 x 186), which often was no longer free with several requests in quick succession.
 
         const int rowSize = ((PREVIEW_SIZE * 2 + 3) / 4) * 4;
         const int dataSize = rowSize * PREVIEW_H;
         const int fileSize = 66 + dataSize;
+        const int BLOCK_ROWS = 8;
 
-        uint8_t* bmpData = new (std::nothrow) uint8_t[fileSize];
-        if (!bmpData) return false;
-        memset(bmpData, 0, fileSize);
+        uint8_t* block = new (std::nothrow) uint8_t[rowSize * BLOCK_ROWS];
+        if (!block) return false;
 
-        bmpData[0] = 'B'; bmpData[1] = 'M';
-        *(uint32_t*)&bmpData[2] = fileSize;
-        *(uint32_t*)&bmpData[10] = 66;
-        *(uint32_t*)&bmpData[14] = 40;
-        *(int32_t*)&bmpData[18] = PREVIEW_SIZE;
-        *(int32_t*)&bmpData[22] = -PREVIEW_H; // Top-down-BMP
-                                                 // Top-down BMP
-        *(uint16_t*)&bmpData[26] = 1;
-        *(uint16_t*)&bmpData[28] = 16;
-        *(uint32_t*)&bmpData[30] = 3; // BI_BITFIELDS
-                                      // BI_BITFIELDS
-        *(uint32_t*)&bmpData[34] = dataSize;
-        *(uint32_t*)&bmpData[54] = 0xF800;
-        *(uint32_t*)&bmpData[58] = 0x07E0;
-        *(uint32_t*)&bmpData[62] = 0x001F;
+        uint8_t header[66] = {};
+        header[0] = 'B'; header[1] = 'M';
+        *(uint32_t*)&header[2] = fileSize;
+        *(uint32_t*)&header[10] = 66;
+        *(uint32_t*)&header[14] = 40;
+        *(int32_t*)&header[18] = PREVIEW_SIZE;
+        *(int32_t*)&header[22] = -PREVIEW_H; // Top-down-BMP
+                                             // Top-down BMP
+        *(uint16_t*)&header[26] = 1;
+        *(uint16_t*)&header[28] = 16;
+        *(uint32_t*)&header[30] = 3; // BI_BITFIELDS
+                                     // BI_BITFIELDS
+        *(uint32_t*)&header[34] = dataSize;
+        *(uint32_t*)&header[54] = 0xF800;
+        *(uint32_t*)&header[58] = 0x07E0;
+        *(uint32_t*)&header[62] = 0x001F;
+
+        webserver.setContentLength(fileSize);
+        webserver.send(200, "image/bmp", "");
+        webserver.sendContent((const char*)header, sizeof(header));
 
         // readPixel() liefert RGB565 in RAM-Reihenfolge - das Sprite selbst
         // speichert in Display-Reihenfolge, daher nicht direkt kopieren.
@@ -5352,13 +6036,16 @@
         // readPixel() returns RGB565 in RAM byte order - the sprite itself
         // stores display byte order, so don't copy it directly.
 
-        for (int y = 0; y < PREVIEW_H; y++) {
-            uint16_t* row = (uint16_t*)(bmpData + 66 + y * rowSize);
-            for (int x = 0; x < PREVIEW_SIZE; x++) row[x] = canvas.readPixel(x, y);
+        memset(block, 0, rowSize * BLOCK_ROWS);
+        for (int y0 = 0; y0 < PREVIEW_H; y0 += BLOCK_ROWS) {
+            int rows = min(BLOCK_ROWS, PREVIEW_H - y0);
+            for (int r = 0; r < rows; r++) {
+                uint16_t* row = (uint16_t*)(block + r * rowSize);
+                for (int x = 0; x < PREVIEW_SIZE; x++) row[x] = canvas.readPixel(x, y0 + r);
+            }
+            webserver.sendContent((const char*)block, rows * rowSize);
         }
-
-        *outBytes = bmpData;
-        outSize = (size_t)fileSize;
+        delete[] block;
         return true;
     }
 

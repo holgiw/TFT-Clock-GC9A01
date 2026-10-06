@@ -160,6 +160,89 @@
     }
 
 
+    // Preset-URL: Zifferblatt, Zeiger, Modi und Nabe wie uebergeben, Zeitzone, Rocrail, WLAN neu verbinden,
+    // Helligkeit und Streifen aus den aktuellen Einstellungen - gemeinsam fuer createPresetFromPreferences() und
+    // addStarterPresets().
+
+    // Preset URL: clock face, hands, modes and hub as passed, time zone, Rocrail, reconnect WiFi, brightness
+    // and strip from the current settings - shared by createPresetFromPreferences() and addStarterPresets().
+
+    String buildPresetUrl(const String& face, const String& handSet, bool stationMode, bool showSecondHand,
+                          bool smoothMinute, bool smoothSecond, uint8_t hubSize, uint32_t hubColor) {
+
+        // URL bewusst OHNE "rotation": geraeteweite HW-Einstellung, bleibt beim Laden unveraendert.
+        // Build URL deliberately WITHOUT "rotation": device-wide HW setting, stays unchanged when loading.
+
+        String url = "http://" + ipAddress + "/api/setMode?";
+        url += "face=" + (face.startsWith("/") ? face.substring(1) : face);
+        url += "&handSet=" + handSet;
+
+        url += "&stationMode=" + String(stationMode ? "true" : "false");
+        url += "&showSecondHand=" + String(showSecondHand ? "true" : "false");
+        url += "&smoothMinute=" + String(smoothMinute ? "true" : "false");
+        url += "&smoothSecond=" + String(smoothSecond ? "true" : "false");
+        url += "&hubSize=" + String(hubSize);
+        url += "&hubColor=" + String(hubColor, HEX);
+
+        // Zeitzone - z.B. fuer Weltzeit-Presets (eigenes Zifferblatt + eigene
+        // Zone). Kodiert, da POSIX-Zonen '+', '<', '>' enthalten koennen.
+
+        // Time zone - e.g. for world-time presets (own clock face + own zone).
+        // Encoded, since POSIX zones may contain '+', '<', '>'.
+
+        url += "&timeZone=" + presetUrlEncode(preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT));
+
+        // Rocrail-Modellzeit und "WLAN neu verbinden" wie gerade eingestellt - ohne Serveradressen und
+        // WLAN-Daten (Geraeteeinstellungen)
+
+        // Rocrail model time and "Reconnect WiFi" as currently set - without server addresses and WiFi
+        // credentials (device settings)
+
+        url += "&rocrail=" + String(rocrailEnabled ? "true" : "false");
+        url += "&wifiReconnect=" + String(wifiActive ? "true" : "false");
+
+        // Helligkeit (siehe applyBrightnessPresetValue() in display.h) - bewusst OHNE useBacklight, das
+        // haengt an der Verdrahtung. Aeltere Presets ohne diese Werte lassen die Helligkeit unveraendert.
+
+        // Brightness (see applyBrightnessPresetValue() in display.h) - deliberately WITHOUT useBacklight,
+        // that depends on the wiring. Older presets without these values leave brightness unchanged.
+
+        url += "&minBrightness=" + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100));
+        url += "&maxBrightness=" + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255));
+        url += "&brightStart=" + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 7));
+        url += "&brightEnd=" + String(preferences.getUChar(PK_BRIGHT_END_HOUR, 21));
+        url += "&lowThreshold=" + String(preferences.getInt(PK_LOW_THRESHOLD, 40));
+        url += "&highThreshold=" + String(preferences.getInt(PK_HIGH_THRESHOLD, 60));
+        url += "&gamma=" + String(preferences.getFloat(PK_GAMMA_BRIGHTNESS, 2.2f), 1);
+        url += "&autoBrightness=" + String(useAdc ? "true" : "false");
+
+        // Streifen fuer Uhrzeit/Datum (nur Displays mit Streifen, ILI9341) - Lage, Farben, Schrift (auch die
+        // VLW-Schrift mit Groessen), Formate und Positionen. Die Streifen-Grafik haengt am Zifferblatt.
+
+        // Time/date strip (only displays with a strip, ILI9341) - placement, colors, font (also the VLW font with
+        // sizes), formats and positions. The strip graphic belongs to the clock face.
+
+        if (TFT_HEIGHT > CLOCK_HEIGHT) {
+            url += "&stripBefore=" + String(preferences.getBool(PK_STRIP_BEFORE, false) ? "true" : "false");
+            url += "&stripBg=" + String(preferences.getULong(PK_STRIP_BG, 0x000000), HEX);
+            url += "&stripFg=" + String(preferences.getULong(PK_STRIP_FG, 0xFFFFFF), HEX);
+            url += "&stripFont=" + String(preferences.getUChar(PK_STRIP_FONT, 0));
+            url += "&stripVlw=" + presetUrlEncode(preferences.getString(PK_STRIP_VLW_NAME, ""));
+            url += "&stripVt=" + String(preferences.getUChar(PK_STRIP_VLW_TSIZE, 44));
+            url += "&stripVd=" + String(preferences.getUChar(PK_STRIP_VLW_DSIZE, 22));
+            url += "&stripTfmt=" + String(preferences.getUChar(PK_STRIP_TIME_FMT, 0));
+            url += "&stripSec=" + String(preferences.getUChar(PK_STRIP_SECONDS, 0));
+            url += "&stripDfmt=" + String(preferences.getUChar(PK_STRIP_DATE_FMT, 0));
+            url += "&stripBlink=" + String(preferences.getBool(PK_STRIP_BLINK, true) ? "true" : "false");
+            url += "&stripTx=" + String(preferences.getShort(PK_STRIP_TIME_X, -1));
+            url += "&stripTy=" + String(preferences.getShort(PK_STRIP_TIME_Y, -1));
+            url += "&stripDx=" + String(preferences.getShort(PK_STRIP_DATE_X, -1));
+            url += "&stripDy=" + String(preferences.getShort(PK_STRIP_DATE_Y, -1));
+        }
+        return url;
+    }
+
+
     // Erstellt ein neues Preset basierend auf den aktuellen Einstellungen in den Preferences
     // Creates a new preset based on the current settings in the preferences
 
@@ -204,70 +287,7 @@
         uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
         uint32_t hubColor = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
 
-        // URL bewusst OHNE "rotation": geraeteweite HW-Einstellung, bleibt beim Laden unveraendert.
-        // Build URL deliberately WITHOUT "rotation": device-wide HW setting, stays unchanged when loading.
-
-        String url = "http://" + ipAddress + "/api/setMode?";
-        if (background.startsWith("/")) {
-            background = background.substring(1); // Entferne führenden Slash
-                                                  // Remove leading slash
-        }
-        url += "face=" + background;
-        url += "&handSet=" + handset;
-
-        url += "&stationMode=" + String(stationMode ? "true" : "false");
-        url += "&showSecondHand=" + String(showSecondHand ? "true" : "false");
-        url += "&smoothMinute=" + String(smoothMinute ? "true" : "false");
-        url += "&smoothSecond=" + String(smoothSecond ? "true" : "false");
-        url += "&hubSize=" + String(hubSize);
-        url += "&hubColor=" + String(hubColor, HEX);
-
-        // Zeitzone - z.B. fuer Weltzeit-Presets (eigenes Zifferblatt + eigene
-        // Zone). Kodiert, da POSIX-Zonen '+', '<', '>' enthalten koennen.
-
-        // Time zone - e.g. for world-time presets (own clock face + own zone).
-        // Encoded, since POSIX zones may contain '+', '<', '>'.
-
-        url += "&timeZone=" + presetUrlEncode(preferences.getString(PK_TIMEZONE, TIMEZONE_DEFAULT));
-
-        // Helligkeit (siehe applyBrightnessPresetValue() in display.h) - bewusst OHNE useBacklight, das
-        // haengt an der Verdrahtung. Aeltere Presets ohne diese Werte lassen die Helligkeit unveraendert.
-
-        // Brightness (see applyBrightnessPresetValue() in display.h) - deliberately WITHOUT useBacklight,
-        // that depends on the wiring. Older presets without these values leave brightness unchanged.
-
-        url += "&minBrightness=" + String(preferences.getUChar(PK_MIN_BRIGHTNESS, 100));
-        url += "&maxBrightness=" + String(preferences.getUChar(PK_MAX_BRIGHTNESS, 255));
-        url += "&brightStart=" + String(preferences.getUChar(PK_BRIGHT_START_HOUR, 7));
-        url += "&brightEnd=" + String(preferences.getUChar(PK_BRIGHT_END_HOUR, 21));
-        url += "&lowThreshold=" + String(preferences.getInt(PK_LOW_THRESHOLD, 40));
-        url += "&highThreshold=" + String(preferences.getInt(PK_HIGH_THRESHOLD, 60));
-        url += "&gamma=" + String(preferences.getFloat(PK_GAMMA_BRIGHTNESS, 2.2f), 1);
-        url += "&autoBrightness=" + String(useAdc ? "true" : "false");
-
-        // Streifen fuer Uhrzeit/Datum (nur Displays mit Streifen, ILI9341) - Lage, Farben, Schrift (auch die
-        // VLW-Schrift mit Groessen), Formate und Positionen. Die Streifen-Grafik haengt am Zifferblatt.
-
-        // Time/date strip (only displays with a strip, ILI9341) - placement, colors, font (also the VLW font with
-        // sizes), formats and positions. The strip graphic belongs to the clock face.
-
-        if (TFT_HEIGHT > CLOCK_HEIGHT) {
-            url += "&stripBefore=" + String(preferences.getBool(PK_STRIP_BEFORE, false) ? "true" : "false");
-            url += "&stripBg=" + String(preferences.getULong(PK_STRIP_BG, 0x000000), HEX);
-            url += "&stripFg=" + String(preferences.getULong(PK_STRIP_FG, 0xFFFFFF), HEX);
-            url += "&stripFont=" + String(preferences.getUChar(PK_STRIP_FONT, 0));
-            url += "&stripVlw=" + presetUrlEncode(preferences.getString(PK_STRIP_VLW_NAME, ""));
-            url += "&stripVt=" + String(preferences.getUChar(PK_STRIP_VLW_TSIZE, 44));
-            url += "&stripVd=" + String(preferences.getUChar(PK_STRIP_VLW_DSIZE, 22));
-            url += "&stripTfmt=" + String(preferences.getUChar(PK_STRIP_TIME_FMT, 0));
-            url += "&stripSec=" + String(preferences.getUChar(PK_STRIP_SECONDS, 0));
-            url += "&stripDfmt=" + String(preferences.getUChar(PK_STRIP_DATE_FMT, 0));
-            url += "&stripBlink=" + String(preferences.getBool(PK_STRIP_BLINK, true) ? "true" : "false");
-            url += "&stripTx=" + String(preferences.getShort(PK_STRIP_TIME_X, -1));
-            url += "&stripTy=" + String(preferences.getShort(PK_STRIP_TIME_Y, -1));
-            url += "&stripDx=" + String(preferences.getShort(PK_STRIP_DATE_X, -1));
-            url += "&stripDy=" + String(preferences.getShort(PK_STRIP_DATE_Y, -1));
-        }
+        String url = buildPresetUrl(background, handset, stationMode, showSecondHand, smoothMinute, smoothSecond, hubSize, hubColor);
 
         // Speichere das Preset
         // Save the preset
@@ -420,4 +440,168 @@
     }
 
 
+    // Setzt in einer Preset-URL den Wert eines Parameters (haengt ihn an, falls er fehlt)
+    // Sets a parameter's value in a preset URL (appends it if missing)
 
+    String setPresetUrlParam(const String& url, const String& key, const String& value) {
+        int q = url.indexOf('?');
+        if (q < 0) return url + "?" + key + "=" + value;
+        int pos = url.indexOf("?" + key + "=", q);
+        if (pos < 0) pos = url.indexOf("&" + key + "=", q);
+        if (pos < 0) return url + "&" + key + "=" + value;
+        int start = pos + 1 + key.length() + 1;
+        int end = url.indexOf('&', start);
+        return url.substring(0, start) + value + (end < 0 ? String("") : url.substring(end));
+    }
+
+    // Standard-Streifen wie das Set "Standard" - weisser Streifen, schwarze Schrift, FreeSans Bold - als aktuelle
+    // Einstellung (nur Displays mit Streifen): fuer eine neue Uhr und nach einer Sicherung einer Uhr ohne Streifen.
+
+    // Standard strip like the set "Standard" - white strip, black text, FreeSans Bold - as the current setting
+    // (displays with a strip only): for a new clock and after a backup of a clock without a strip.
+
+    void applyStandardStrip() {
+        if (TFT_HEIGHT <= CLOCK_HEIGHT) return;
+        applyStripPresetValue("stripBg", "ffffff", true);
+        applyStripPresetValue("stripFg", "0", true);
+        for (uint8_t f = 0; f < STRIP_FONT_COUNT; f++) {
+            if (strcmp(STRIP_FONTS[f].name, "FreeSans Bold") == 0) applyStripPresetValue("stripFont", String(f), true);
+        }
+    }
+
+    // Kleinste und groesste vorhandene Groesse einer Streifen-Schrift aus dem Designer (stripfont_<Name>_<Groesse>.vlw)
+    // Smallest and largest available size of a strip font from the designer (stripfont_<name>_<size>.vlw)
+
+    bool stripVlwSizes(const char* name, int& minSize, int& maxSize) {
+        String prefix = "stripfont_" + String(name) + "_";
+        minSize = 0;
+        maxSize = 0;
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+            String n = f.name();
+            if (f.isDirectory() || !n.startsWith(prefix) || !n.endsWith(".vlw")) continue;
+            int size = n.substring(prefix.length(), n.length() - 4).toInt();
+            if (size <= 0) continue;
+            if (!minSize || size < minSize) minSize = size;
+            if (size > maxSize) maxSize = size;
+        }
+        root.close();
+        return maxSize > 0;
+    }
+
+    // Legt die drei Start-Presets zu den erzeugten Zifferblaettern und Zeigersaetzen an - jedes nur, wenn seine
+    // Dateien da sind und kein Preset gleichen Namens existiert. Bahnhofsmodus, Nabe rot bzw. schwarz, roemisch
+    // ohne Sekundenzeiger, mit Streifen weiss/schwarz in eigener Schrift; sonst wie die Einstellungen.
+
+    // Creates the three starter presets for the generated clock faces and hand sets - each only if its files
+    // exist and there is no preset with the same name. Station mode, hub red or black, roman without a second
+    // hand, with a strip white/black in its own font; otherwise as the current settings.
+
+    void addStarterPresets() {
+        struct { const char* name; const char* face; int handSet; bool second; uint32_t hubColor; const char* stripFont; const char* vlw; } starter[] = {
+            { "Standard", "face_default.bmp", 0, true, 0xEC0016, "FreeSans Bold", nullptr },
+            { "1-12", "face_numbers.bmp", 1, true, 0xEC0016, "DejaVu", nullptr },
+            { "I-XII", "face_roman.bmp", 2, false, 0x000000, "GLCD", "Sans" },
+        };
+        bool changed = false;
+        for (const auto& s : starter) {
+            if (!LittleFS.exists("/" + String(s.face)) || !LittleFS.exists("/hand_set" + String(s.handSet) + "_hour.bmp")) continue;
+            int freeSlot = -1;
+            bool exists = false;
+            for (int i = 0; i < MAX_PRESETS && !exists; i++) {
+                exists = presets[i].name == s.name;
+                if (freeSlot < 0 && presets[i].name.isEmpty() && presets[i].url.isEmpty()) freeSlot = i;
+            }
+            if (exists || freeSlot < 0) continue;
+            presets[freeSlot].name = s.name;
+            String url = buildPresetUrl(s.face, String(s.handSet), true, s.second, false, true, displayGeom->centerSize, s.hubColor);
+
+            // Displays mit Streifen (ILI9341, ST7789 172x320): weisser Streifen, schwarze Schrift, je Preset eine
+            // eingebaute Schrift
+            // Displays with a strip (ILI9341, ST7789 172x320): white strip, black text, one built-in font per preset
+
+            if (TFT_HEIGHT > CLOCK_HEIGHT) {
+                url = setPresetUrlParam(url, "stripBg", "ffffff");
+                url = setPresetUrlParam(url, "stripFg", "0");
+                for (uint8_t f = 0; f < STRIP_FONT_COUNT; f++) {
+                    if (strcmp(STRIP_FONTS[f].name, s.stripFont) == 0) url = setPresetUrlParam(url, "stripFont", String(f));
+                }
+
+                // Eigene Designer-Schrift (VLW), falls auf der Uhr vorhanden: groesste Datei fuer die Uhrzeit,
+                // kleinste fuers Datum - sonst bleibt die eingebaute Schrift
+                // Own designer font (VLW) if present on the clock: largest file for the time, smallest for the
+                // date - otherwise the built-in font stays
+
+                int vlwMin = 0, vlwMax = 0;
+                if (s.vlw && stripVlwSizes(s.vlw, vlwMin, vlwMax)) {
+                    url = setPresetUrlParam(url, "stripFont", String(STRIP_FONT_VLW));
+                    url = setPresetUrlParam(url, "stripVlw", s.vlw);
+                    url = setPresetUrlParam(url, "stripVt", String(vlwMax));
+                    url = setPresetUrlParam(url, "stripVd", String(vlwMin));
+                }
+            }
+            presets[freeSlot].url = url;
+            changed = true;
+        }
+        if (changed) savePresets();
+    }
+
+
+    // Startpaket einer neuen Uhr: gibt es weder Zifferblatt noch Zeigersatz, die drei erzeugten Zifferblaetter
+    // und Zeigersaetze und - ohne vorhandene Presets - die Start-Presets. Laeuft in setup() VOR loadClockFace()
+    // (laedt die Presets dafuer schon einmal, setup() laedt sie spaeter mit der IP neu).
+
+    // Starter kit of a new clock: if there is neither a clock face nor a hand set, the three generated clock
+    // faces and hand sets and - without existing presets - the starter presets. Runs in setup() BEFORE
+    // loadClockFace() (loads the presets once for this, setup() reloads them later with the IP).
+
+    void ensureStarterSet() {
+        if (hasBmpWithPrefix("face_") || hasBmpWithPrefix("hand_set")) return;
+        DEBUG_PRINTLN("[Starter] No clock faces and hand sets - generating the starter set");
+        ensureDefaultFace();
+        ensureDefaultHands();
+
+        applyStandardStrip();
+        loadPresets();
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            if (!presets[i].name.isEmpty()) return;
+        }
+        addStarterPresets();
+    }
+
+
+    // Erzeugte Zifferblaetter und Zeigersaetze im Mass eines anderen Displaytyps neu erzeugen (z.B. erster Start
+    // als 1,47" und danach auf 1,3" umgestellt) - in falscher Groesse kann die Uhr sie nicht anzeigen und zeichnet
+    // sonst ersatzweise Satz 0. Dateien in passender Groesse bleiben unangetastet.
+
+    // Regenerate generated clock faces and hand sets in the size of another display type (e.g. first start as
+    // 1.47" and then switched to 1.3") - in the wrong size the clock cannot show them and otherwise draws set 0
+    // as a substitute. Files of the right size stay untouched.
+
+    void refreshGeneratedAssets() {
+        struct { const char* path; uint8_t numerals; } faces[] = {
+            { "/face_default.bmp", FACE_NUMERALS_QUARTER },
+            { "/face_numbers.bmp", FACE_NUMERALS_ARABIC },
+            { "/face_roman.bmp", FACE_NUMERALS_ROMAN },
+        };
+        for (const auto& f : faces) {
+            int32_t w, h;
+            if (!LittleFS.exists(f.path)) continue;
+            if (readImageSize(f.path, w, h) && w == CLOCK_WIDTH && h == CLOCK_HEIGHT) continue;
+            DEBUG_PRINTLN(String("[Starter] Wrong size, regenerating ") + f.path);
+            LittleFS.remove(f.path);
+            writeGeneratedFace(f.path, f.numerals);
+        }
+        for (int set = 0; set <= 2; set++) {
+            bool wrongSize = false;
+            for (const char* part : { "hour", "minute", "second" }) {
+                String path = "/hand_set" + String(set) + "_" + part + ".bmp";
+                int32_t w, h;
+                if (LittleFS.exists(path) && !(readImageSize(path.c_str(), w, h) && isValidHandSize(w, h))) wrongSize = true;
+            }
+            if (!wrongSize) continue;
+            DEBUG_PRINTLN("[Starter] Wrong size, regenerating hand set " + String(set));
+            for (const char* part : { "hour", "minute", "second" }) LittleFS.remove("/hand_set" + String(set) + "_" + part + ".bmp");
+            writeGeneratedHandSet(set);
+        }
+    }

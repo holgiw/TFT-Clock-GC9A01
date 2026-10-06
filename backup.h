@@ -96,6 +96,18 @@
     }
 
 
+    // Werte, die vom Displaytyp abhaengen - bei einer Sicherung mit anderem Displaytyp behaelt die Uhr ihre
+    // eigenen: Nabengroesse (je Typ in DISPLAY_GEOMETRY) und die ganze Helligkeit.
+
+    // Values depending on the display type - with a backup of another display type the clock keeps its own:
+    // hub size (per type in DISPLAY_GEOMETRY) and all brightness values.
+
+    bool isBackupDisplayDependentKey(const String& key) {
+        return key == PK_CENTER_SIZE || key == PK_MAX_BRIGHTNESS || key == PK_GAMMA_BRIGHTNESS ||
+               key == PK_BRIGHT_START_HOUR || key == PK_BRIGHT_END_HOUR || isBackupBacklightDependentKey(key);
+    }
+
+
     // Text-Escaping fuer settings.txt (Tab-getrennt, eine Zeile pro Schluessel)
     // Text escaping for settings.txt (tab-separated, one line per key)
 
@@ -362,6 +374,14 @@
         }
         nvs_release_iterator(it);
 
+        // Displaytyp immer mitgeben - ist er nie gespeichert (Werkseinstellung, flashESP sendet ihn dann nicht),
+        // nahme die Zieluhr sonst IHRE Werkseinstellung an (S2: GC9A01, C6: ST7789) und pruefte falsch.
+
+        // Always include the display type - if it was never stored (factory default, flashESP then doesn't send
+        // it), the target clock would otherwise assume ITS factory default (S2: GC9A01, C6: ST7789) and check wrongly.
+
+        if (!preferences.isKey(PK_DISPLAY_TYPE)) out += "u8\t" + String(PK_DISPLAY_TYPE) + "\t" + String(displayType) + "\n";
+
         if (includeWifi) {
             String encrypted = backupEncrypt(wifiPlain);
             backupWipe(wifiPlain);
@@ -582,11 +602,11 @@
         total += 512 + status.length() + tarPadding(status.length());
         for (size_t i = 0; i < logNames.size(); i++) total += 512 + logSizes[i] + tarPadding(logSizes[i]);
 
-        // Dateiname mit Hostname, Displaytyp (wie in flashESP, z.B. GC9A01_WITH_BACKLIGHT) und Datum
-        // File name with host name, display type (as in flashESP, e.g. GC9A01_WITH_BACKLIGHT) and date
+        // Dateiname mit Hostname, Displaytyp (wie in flashESP, z.B. GC9A01_WITH_BACKLIGHT), Datum und Uhrzeit
+        // File name with host name, display type (as in flashESP, e.g. GC9A01_WITH_BACKLIGHT), date and time
 
-        char date[16] = "";
-        if (timeinfo.tm_year >= 100) strftime(date, sizeof(date), "-%Y%m%d", &timeinfo);
+        char date[24] = "";
+        if (timeinfo.tm_year >= 100) strftime(date, sizeof(date), "-%Y%m%d-%H%M%S", &timeinfo);
         String fileName = "uhr4-backup-" + String(hostname) + "-" + displayChoiceName(displayType, useBacklight) + date + ".tar";
 
         webserver.sendHeader("Content-Disposition", "attachment; filename=" + fileName);
@@ -658,23 +678,28 @@
     // backlight mode (differing: keepBrightness) and optionally the WiFi data (format 2 encrypted, format 1
     // plain text). Returns what applyBackupSettings() writes later.
 
-    bool checkBackupSettings(const String& settings, bool restoreWifi, bool& applyWifi, bool& keepBrightness, String& wifiPlain, String& backupDisplay, String& error) {
+    bool checkBackupSettings(const String& settings, bool restoreWifi, bool& applyWifi, bool& keepBrightness, bool& otherType,
+                             int& backupTypeOut, String& wifiPlain, String& backupDisplay, String& error) {
         applyWifi = false;
         keepBrightness = false;
+        otherType = false;
         wifiPlain = "";
         if (!settings.startsWith(BACKUP_SETTINGS_MAGIC)) {
             error = "settings.txt is not an uhr4 backup";
             return false;
         }
 
-        // Fehlt ein Schluessel in der Sicherung, galt dort der Standardwert
-        // If a key is missing in the backup, the default applied there
+        // Fehlt ein Schluessel in der Sicherung, galt dort der Standardwert. Fehlt der Displaytyp, stammt sie von
+        // einer aelteren Firmware auf einem ESP32-S2 mit Werkseinstellung GC9A01 - nicht vom Standard DIESER Uhr.
+
+        // If a key is missing in the backup, the default applied there. If the display type is missing, it comes
+        // from an older firmware on an ESP32-S2 with the factory default GC9A01 - not from THIS clock's default.
 
         const String typePrefix = "u8\t" + String(PK_DISPLAY_TYPE) + "\t";
         const String backlightPrefix = "u8\t" + String(PK_USE_BACKLIGHT) + "\t";
         int format = 0;
         bool backupHasWifi = false;
-        int backupType = DISPLAY_TYPE_DEFAULT;
+        int backupType = DISPLAY_TYPE_GC9A01;
         int backupBacklight = -1;
         String wifiEnc;
         forEachBackupLine(settings, [&](const String& line) {
@@ -688,21 +713,26 @@
             error = "unsupported backup format " + String(format);
             return false;
         }
-        if (backupType < 0 || backupType >= DISPLAY_TYPE_COUNT) backupType = DISPLAY_TYPE_DEFAULT;
+        if (backupType < 0 || backupType >= DISPLAY_TYPE_COUNT) backupType = DISPLAY_TYPE_GC9A01;
         if (backupBacklight < 0) backupBacklight = DISPLAY_GEOMETRY[backupType].backlightDefault ? 1 : 0;
         backupDisplay = displayChoiceName(backupType, backupBacklight == 1);
 
-        // Nur die Uhrgroesse muss passen - GC9A01 und ILI9341 teilen sich die 240er Zifferblaetter und Zeiger.
-        // Only the clock size has to match - GC9A01 and ILI9341 share the 240 clock faces and hands.
+        // Anderer Displaytyp: nur aus einer Sicherung mit 240x240-Zifferblaettern (die Uhr skaliert sie auf ihre
+        // Groesse), sonst bleibt alles, wie es ist. Displaytyp-abhaengige Werte behaelt die Uhr dann.
+
+        // Another display type: only from a backup with 240x240 clock faces (the clock scales them to its size),
+        // otherwise everything stays as it is. The clock then keeps values depending on the display type.
 
         const DisplayGeometry& from = DISPLAY_GEOMETRY[backupType];
-        if (from.clock != displayGeom->clock) {
-            error = "the backup is from a " + String(from.name) + " clock (" + String(from.clock) + "x" + String(from.clock) +
-                    "), this clock is set to " + String(displayGeom->name) + " (" + String(displayGeom->clock) + "x" +
-                    String(displayGeom->clock) + ") - clock faces and hands would not fit";
+        backupTypeOut = backupType;
+        otherType = backupType != displayType;
+        if (otherType && from.clock != 240) {
+            error = "the backup is from a " + String(from.name) + " clock - its clock faces are " + String(from.clock) + "x" +
+                    String(from.clock) + ", not 240x240, so nothing is taken over onto a clock with another display type (" +
+                    String(displayGeom->name) + ")";
             return false;
         }
-        keepBrightness = (backupBacklight == 1) != useBacklight;
+        keepBrightness = otherType || (backupBacklight == 1) != useBacklight;
 
         if (!restoreWifi) return true;
 
@@ -728,10 +758,11 @@
     // never backed up, hardware, WiFi without applyWifi, backlight-dependent
     // brightness with keepBrightness.
 
-    bool isBackupKeptKey(const String& key, bool applyWifi, bool keepBrightness) {
+    bool isBackupKeptKey(const String& key, bool applyWifi, bool keepBrightness, bool otherType) {
         return isBackupExcludedKey(key) || isBackupHardwareKey(key) ||
                (!applyWifi && isBackupWifiKey(key)) ||
-               (keepBrightness && isBackupBacklightDependentKey(key));
+               (keepBrightness && isBackupBacklightDependentKey(key)) ||
+               (otherType && isBackupDisplayDependentKey(key));
     }
 
 
@@ -807,7 +838,7 @@
     // isBackupKeptKey(); with onlyWifi exclusively WiFi keys (lines from the
     // decrypted block).
 
-    bool writeBackupLine(const String& line, bool allowWifi, bool keepBrightness, bool onlyWifi, const std::vector<BackupKeyType>& targetTypes) {
+    bool writeBackupLine(const String& line, bool allowWifi, bool keepBrightness, bool otherType, bool onlyWifi, const std::vector<BackupKeyType>& targetTypes) {
         int t1 = line.indexOf('\t');
         int t2 = (t1 < 0) ? -1 : line.indexOf('\t', t1 + 1);
         if (t1 < 0 || t2 < 0) return false; // Kopfzeilen (format, build, wifi, wifienc) / header lines
@@ -816,7 +847,7 @@
         String value = line.substring(t2 + 1);
         if (key.length() == 0 || key.length() > 15) return false; // NVS-Schluessel max. 15 Zeichen
                                                                    // NVS keys max. 15 chars
-        if (isBackupKeptKey(key, allowWifi, keepBrightness)) return false;
+        if (isBackupKeptKey(key, allowWifi, keepBrightness, otherType)) return false;
         bool wifiKey = isBackupWifiKey(key);
         if (!wifiKey && onlyWifi) return false;
         const char* k = key.c_str();
@@ -865,7 +896,7 @@
     // disappear too), then write the values with their type. isBackupKeptKey() (hardware, without applyWifi
     // also WiFi/hostname) stays untouched.
 
-    void applyBackupSettings(const String& settings, bool applyWifi, bool keepBrightness, const String& wifiPlain) {
+    void applyBackupSettings(const String& settings, bool applyWifi, bool keepBrightness, bool otherType, const String& wifiPlain) {
 
         // 1) Zu ersetzende Schluessel entfernen (Liste erst sammeln - waehrend
         // der Aufzaehlung zu loeschen wuerde den Iterator ungueltig machen)
@@ -889,7 +920,7 @@
         }
         nvs_release_iterator(it);
         for (size_t i = 0; i < targetTypes.size(); i++) {
-            if (!isBackupKeptKey(targetTypes[i].key, applyWifi, keepBrightness)) preferences.remove(targetTypes[i].key);
+            if (!isBackupKeptKey(targetTypes[i].key, applyWifi, keepBrightness, otherType)) preferences.remove(targetTypes[i].key);
             if ((i & 15) == 0) yield();
         }
 
@@ -901,11 +932,11 @@
 
         int restored = 0;
         forEachBackupLine(settings, [&](const String& line) {
-            if (writeBackupLine(line, applyWifi, keepBrightness, false, targetTypes)) restored++;
+            if (writeBackupLine(line, applyWifi, keepBrightness, otherType, false, targetTypes)) restored++;
         });
         if (applyWifi) {
             forEachBackupLine(wifiPlain, [&](const String& line) {
-                if (writeBackupLine(line, true, keepBrightness, true, targetTypes)) restored++;
+                if (writeBackupLine(line, true, keepBrightness, otherType, true, targetTypes)) restored++;
             });
         }
 
@@ -918,7 +949,7 @@
         preferences.remove(PK_MIGRATIONS_DONE);
 
         DEBUG_PRINTLN("[Backup] Restored " + String(restored) + " settings" + (applyWifi ? " (incl. WiFi)" : " (WiFi kept)") +
-                      (keepBrightness ? ", brightness kept (other backlight mode)" : ""));
+                      (otherType ? ", other display type: display dependent values kept" : keepBrightness ? ", brightness kept (other backlight mode)" : ""));
     }
 
 
@@ -952,6 +983,8 @@
                                       // from here on something was changed on the clock
         bool applyWifi = false;
         bool keepBrightness = false;  // anderer Backlight-Modus / other backlight mode
+        bool otherType = false;       // Sicherung mit anderem Displaytyp / backup of another display type
+        int backupType = 0;           // Displaytyp der Sicherung / display type of the backup
         String backupDisplay;         // Displaytyp der Sicherung wie im Dateinamen / backup's display type as in the file name
         String wifiPlain;             // entschluesselte WLAN-Zeilen / decrypted WiFi lines
 
@@ -996,7 +1029,8 @@
         BackupRestoreState& s = *backupRestore;
         s.toSettings = false;
         String error;
-        bool ok = checkBackupSettings(s.settings, s.restoreWifi, s.applyWifi, s.keepBrightness, s.wifiPlain, s.backupDisplay, error);
+        bool ok = checkBackupSettings(s.settings, s.restoreWifi, s.applyWifi, s.keepBrightness, s.otherType, s.backupType, s.wifiPlain,
+                                      s.backupDisplay, error);
         if (!ok) {
             backupRestoreFail(error);
             return false;
@@ -1018,10 +1052,37 @@
         String target = "/" + s.bmpTarget;
         s.bmpTarget = "";
         int32_t w = 0, h = 0;
-        LittleFS.remove(target);
-        bool ok = readRleSize(BACKUP_TMP_PATH, w, h)
+        bool ok;
+        if (s.otherType) {
+
+            // Anderer Displaytyp: Zifferblaetter auf diese Uhrgroesse, Zeiger neues auf neues bzw. altes auf altes
+            // Format (Drehpunkt bleibt relativ gleich). Streifen-Grafiken nicht - die Streifen haben andere
+            // Seitenverhaeltnisse (ILI9341 240x80, ST7789 172x148).
+
+            // Another display type: clock faces to this clock size, hands new to new or old to old format (the
+            // pivot stays relatively the same). No strip graphics - the strips have other aspect ratios (ILI9341
+            // 240x80, ST7789 172x148).
+
+            if (target.startsWith("/strip_")) {
+                LittleFS.remove(BACKUP_TMP_PATH);
+                if (!s.restoredFiles.empty()) s.restoredFiles.pop_back();
+                return;
+            }
+            int outW = CLOCK_WIDTH, outH = CLOCK_HEIGHT;
+            if (target.startsWith("/hand_set")) {
+                bool legacy = readImageSize(BACKUP_TMP_PATH, w, h) && h == DISPLAY_GEOMETRY[s.backupType].handLegacyHeight;
+                outW = legacy ? HAND_LEGACY_WIDTH : HAND_WIDTH;
+                outH = legacy ? HAND_LEGACY_HEIGHT : HAND_HEIGHT;
+            }
+            LittleFS.remove(target);
+            ok = scaleAndSaveBmp(BACKUP_TMP_PATH, target.c_str(), outW, outH);
+        }
+        else {
+            LittleFS.remove(target);
+            ok = readRleSize(BACKUP_TMP_PATH, w, h)
                 ? LittleFS.rename(BACKUP_TMP_PATH, target)
                 : readImageSize(BACKUP_TMP_PATH, w, h) && scaleAndSaveBmp(BACKUP_TMP_PATH, target.c_str(), w, h);
+        }
         LittleFS.remove(BACKUP_TMP_PATH);
         if (!ok) backupRestoreFail("cannot store " + target.substring(1));
     }
@@ -1171,7 +1232,16 @@
                 backupRestoreFail("backup contains no settings");
                 return;
             }
-            applyBackupSettings(backupRestore->settings, backupRestore->applyWifi, backupRestore->keepBrightness, backupRestore->wifiPlain);
+            applyBackupSettings(backupRestore->settings, backupRestore->applyWifi, backupRestore->keepBrightness, backupRestore->otherType,
+                                backupRestore->wifiPlain);
+
+            // Sicherung einer Uhr ohne Streifen auf einer Uhr mit Streifen: ihr fehlen die Streifen-Einstellungen -
+            // dann der Standard-Streifen statt der Werkswerte (schwarz/weiss)
+            // Backup of a clock without a strip onto a clock with a strip: it lacks the strip settings - then the
+            // standard strip instead of the factory values (black/white)
+
+            const DisplayGeometry& from = DISPLAY_GEOMETRY[backupRestore->backupType];
+            if (backupRestore->otherType && from.panelHeight <= from.clock) applyStandardStrip();
             backupWipe(backupRestore->wifiPlain);
             backupRestore->phase = BackupRestoreState::END;
             DEBUG_PRINTLN("[Backup] Restore complete: " + String(backupRestore->restoredFiles.size()) + " files");

@@ -263,12 +263,12 @@
             String displayCode = "_" + factoryResetCode + "_";
 
             // Textgroesse: groesstes ganzzahliges Vielfaches der 6x8-Schrift, bei dem der Code (5 Zeichen) in
-            // 75 % von CLOCK_WIDTH passt - skaliert so auch auf dem 160x160-Display passend.
+            // 75 % der Meldungsbreite (statusWidth()) passt - skaliert so auch auf dem 160x160-Display passend.
 
             // Text size: the largest integer multiple of the 6x8 font at which the code (5 characters) fits
-            // into 75 % of CLOCK_WIDTH - so it also scales correctly on the 160x160 display.
+            // into 75 % of the message width (statusWidth()) - so it also scales correctly on the 160x160 display.
 
-            int codeTextSize = (int)((CLOCK_WIDTH * 0.75f) / (displayCode.length() * 6));
+            int codeTextSize = (int)((statusWidth() * 0.75f) / (displayCode.length() * 6));
             if (codeTextSize < 1) codeTextSize = 1;
 
             DRAW_ON_BOTH_DISPLAYS(
@@ -278,7 +278,7 @@
                 int codeWidth = tft.textWidth(displayCode);
                 int codeHeight = codeTextSize * 8; // Zeilenhoehe der Basisschrift bei Groesse 1 ist 8px
                                                    // base font's line height at size 1 is 8px
-                tft.setCursor((CLOCK_WIDTH - codeWidth) / 2, (CLOCK_HEIGHT - codeHeight) / 2);
+                tft.setCursor((statusWidth() - codeWidth) / 2, (CLOCK_HEIGHT - codeHeight) / 2);
                 tft.println(displayCode);
             );
         }

@@ -708,10 +708,18 @@
         html += "setValue('value-light',s.lightValue);";
         html += "var dt=document.getElementById('topbar-datetime');if(dt)dt.textContent=s.datetime;";
         html += "}).catch(function(){failCount++;if(failCount>=2)setOnline(false);});}";
-        html += "var pollTimer=null;";
+        html += "var pollTimer=null,paused=false;";
         html += "function startPolling(){if(pollTimer)return;poll();pollTimer=setInterval(poll,5000);}";
         html += "function stopPolling(){if(!pollTimer)return;clearInterval(pollTimer);pollTimer=null;}";
-        html += "document.addEventListener('visibilitychange',function(){if(document.hidden){stopPolling();}else{startPolling();}});";
+        html += "document.addEventListener('visibilitychange',function(){if(document.hidden||paused){stopPolling();}else{startPolling();}});";
+
+        // topbarPolling(false): Pause, solange die Uhr mit einer langen Anfrage beschaeftigt ist (Sichern,
+        // Wiederherstellen) - die Abfragen kaemen nicht durch und meldeten "Verbindung verloren".
+
+        // topbarPolling(false): pause while the clock is busy with a long request (backup, restore) - the
+        // polls would not get through and report "Connection lost".
+
+        html += "window.topbarPolling=function(on){paused=!on;failCount=0;if(paused)stopPolling();else if(!document.hidden)startPolling();};";
         html += "if(!document.hidden)startPolling();";
         html += "})();</script>";
 
@@ -906,6 +914,14 @@
         return nav;
     }
 
+
+    // Setzt den Pin der Hintergrundbeleuchtung in einen uebersetzten Text ein ("{pin}", je Board verschieden)
+    // Inserts the backlight pin into a translated text ("{pin}", different per board)
+
+    String withBacklightPin(String text) {
+        text.replace("{pin}", String(TFT_Backlight));
+        return text;
+    }
 
     // ⓘ-Hinweis mit Erklaerung als Tooltip (title) - der Punkt am Satzende kommt hier dazu
     // ⓘ note with an explanation as tooltip (title) - the full stop at the end is added here
@@ -1269,14 +1285,17 @@
         }
         else if (action == "faces") {
             resetFacesToDefault();
+            addStarterPresets(); // der Reset raeumt sie als verwaist mit ab / the reset removes them as orphaned
             redirectTo("/factoryReset?msg=Clock%20faces%20deleted");
         }
         else if (action == "hands") {
             resetHandsToDefault();
+            addStarterPresets();
             redirectTo("/factoryReset?msg=Hand%20sets%20deleted");
         }
         else if (action == "presets") {
             resetAllPresets();
+            addStarterPresets();
             redirectTo("/factoryReset?msg=Presets%20deleted");
         }
         else if (action == "wlanDeleteActive") {
@@ -1434,11 +1453,12 @@
         // Backlight checkbox only with a controllable backlight (GC9D01 or GC9A01 with BL); the hidden field
         // tells /save_brightness it was in the form. All checkboxes in one table, lined up below each other.
 
-        bool showBacklight = displayType == DISPLAY_TYPE_GC9D01 || useBacklight;
+        bool showBacklight = displayType == DISPLAY_TYPE_GC9D01 || displayType == DISPLAY_TYPE_ST7789 ||
+                             displayType == DISPLAY_TYPE_ST7789_240 || useBacklight;
         if (showBacklight || photoresistorFound) {
             html += "<table style='margin:auto;text-align:left;'>";
             if (showBacklight) {
-                html += "<tr><td colspan='2'><input type='hidden' name='useBacklightField' value='1'><label><input type='checkbox' name='useBacklight' value='1' " + String(useBacklight ? "checked" : "") + "> " + translate("Backlight control (pin 3)") + "</label> " + infoTip(translate("Dims the display via the backlight PWM on pin 3 instead of darkening the pixels - only if the backlight is wired to pin 3 (always on GC9D01). Switching resets min. brightness and thresholds to the matching defaults")) + "</td></tr>";
+                html += "<tr><td colspan='2'><input type='hidden' name='useBacklightField' value='1'><label><input type='checkbox' name='useBacklight' value='1' " + String(useBacklight ? "checked" : "") + "> " + withBacklightPin(translate("Backlight control (pin {pin})")) + "</label> " + infoTip(withBacklightPin(translate("Dims the display via the backlight PWM on pin {pin} instead of darkening the pixels - only if the backlight is wired to pin {pin} (always on GC9D01). Switching resets min. brightness and thresholds to the matching defaults"))) + "</td></tr>";
             }
             if (photoresistorFound) {
                 html += "<tr><td><label><input type='checkbox' name='use_adc' value='1' " + String(useAdc ? "checked" : "") + "> " + translate("Enable Auto Brightness") + "</label> " + infoTip(translate("Automatically adjusts brightness based on ambient light measured by the photoresistor")) + "</td>";
@@ -1657,7 +1677,7 @@
         chunk += "<li>TFT_MOSI GPIO: " + String(TFT_MOSI) + "</li>";
         chunk += "<li>TFT_CS1 GPIO: " + String(CS_1) + " (Display 1)</li>"; // CS_1 = Display 1 (vormals TFT_CS, jetzt manuell angesteuert, siehe config.h)
                                                                  // CS_1 = display 1 (formerly TFT_CS, now driven manually, see config.h)
-        chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
+        if (HAS_DISPLAY2) chunk += "<li>TFT_CS2 GPIO: " + String(CS_2) + " (Display 2)</li>";
 
 
         chunk += "<li>TFT_DC GPIO: " + String(TFT_DC) + "</li>";
@@ -1700,7 +1720,7 @@
         chunk += "<li>BUTTON GPIO: " + String(BUTTON1) + "</li>";
         chunk += "<li>BUTTON_BOOT GPIO: " + String(BOOT_BUTTON) + "</li>";
 
-        chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD) + "</li>";
+        chunk += "<li>LED_BOARD GPIO: " + String(LED_BOARD_GPIO) + "</li>";
         chunk += "<li>ADC_VCC GPIO: " + String(ADC_3V) + "</li>";
         chunk += "<li>ADC (photoresistor) GPIO: " + String(ADC_PIN) + "</li>";
         chunk += "<li>ADC_GND GPIO: " + String(ADC_GND) + "</li>";
@@ -2044,6 +2064,27 @@
                 preferences.putBool(PK_STATION_MODE, stationMode);
             }
 
+            // Rocrail-Modellzeit an/aus (nur bei Aenderung) - die Serveradressen bleiben Geraeteeinstellung
+            // Rocrail model time on/off (only on a change) - the server addresses stay a device setting
+
+            if (webserver.hasArg("rocrail")) {
+                String rocrailArg = webserver.arg("rocrail");
+                bool on = (rocrailArg == "1" || rocrailArg.equalsIgnoreCase("true"));
+                if (on != rocrailEnabled) setRocrailEnabled(on);
+            }
+
+            // "WLAN neu verbinden" (wifiActive) - loop() prueft es bei jedem Durchlauf
+            // "Reconnect WiFi" (wifiActive) - loop() checks it on every pass
+
+            if (webserver.hasArg("wifiReconnect")) {
+                String wifiArg = webserver.arg("wifiReconnect");
+                bool on = (wifiArg == "1" || wifiArg.equalsIgnoreCase("true"));
+                if (on != wifiActive) {
+                    wifiActive = on;
+                    preferences.putBool(PK_WIFI_ACTIVE, on);
+                }
+            }
+
             // Rotation NICHT aus Presets (source=preset) - sie ist eine Geraeteeinstellung; alte Preset-URLs
             // enthalten noch "rotation=". Direkte API-Aufrufe duerfen sie weiter setzen.
 
@@ -2254,7 +2295,7 @@
 
                     String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
-                    chunk += "<a href='" + displayUrl + "'><img src='/presetpreview?index=" + String(i) + "' style='width:90px;height:auto;'></a>";
+                    chunk += "<a href='" + displayUrl + "'><img class='pv' data-src='/presetpreview?index=" + String(i) + "' style='width:90px;height:auto;'></a>";
                     chunk += "<br><a href='" + displayUrl + "'>" + safePresetNameText + "</a>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
@@ -2297,167 +2338,19 @@
                 }
             }
             chunk += "</div>";
+
+            // Vorschaubilder nacheinander laden, bei Fehler bis zu 3 Versuche - parallel angefragt fehlte der Uhr
+            // (vor allem ohne PSRAM) der Speicher, viele Bilder blieben leer.
+
+            // Load the preview images one after another, up to 3 tries on error - requested in parallel the clock
+            // (especially without PSRAM) ran out of memory, many images stayed empty.
+
+            chunk += "<script>(function(){var a=document.querySelectorAll('img.pv'),i=0;"
+                     "function next(){if(i>=a.length)return;var m=a[i++],t=0;"
+                     "m.onload=next;m.onerror=function(){if(++t<3)setTimeout(function(){m.src=m.dataset.src+'&try='+t;},700);else next();};"
+                     "m.src=m.dataset.src;}next();})();</script>";
             chunk += "<p>" + translate("Presets used") + ": " + String(rowCount) + " / " + String(MAX_PRESETS) + "</p>";
             chunk += "</div><hr>";
-
-            chunk += "<button type='button' id='ghPresetBtn' onclick='loadPresetsFromGithub()'>" + translate("Load Presets from GitHub") + "</button>";
-            chunk += "<div id='ghPresetStatus'></div>";
-
-            // Fuer den JS-Merge-Abgleich: vorhandene Preset-Namen und Dateien
-            // bereitstellen, damit der GitHub-Download nur Neues hinzufuegt.
-
-            // For the JS merge comparison: provide existing preset names and
-            // files, so the GitHub download only adds what's new.
-
-            std::vector<String> existingPresetNamesForJs;
-            for (int gi = 0; gi < MAX_PRESETS; gi++) {
-                if (!presets[gi].name.isEmpty() && !presets[gi].url.isEmpty()) {
-                    existingPresetNamesForJs.push_back(presets[gi].name);
-                }
-            }
-            std::vector<String> existingFacesForJs;
-            std::vector<String> existingHandsForJs;
-            File ghScanRoot = LittleFS.open("/");
-            File ghScanFile = ghScanRoot.openNextFile();
-            while (ghScanFile) {
-                String n = ghScanFile.name();
-                if (!ghScanFile.isDirectory()) {
-                    if (n.startsWith("face_") && n.endsWith(".bmp")) existingFacesForJs.push_back(n);
-                    else if (n.startsWith("hand_set") && n.endsWith(".bmp")) existingHandsForJs.push_back(n);
-                }
-                ghScanFile = ghScanRoot.openNextFile();
-            }
-
-            chunk += "<script>";
-
-            // escapeForJsStringLiteral(): Preset-/Dateinamen (Nutzereingabe) landen
-            // hier als JS-String-Literal - ohne Escaping gespeichertes XSS moeglich.
-
-            // escapeForJsStringLiteral(): preset/file names (user input) end up
-            // here as a JS string literal - without escaping, stored XSS is possible.
-
-            chunk += "var existingPresetNames = [";
-            for (size_t gi = 0; gi < existingPresetNamesForJs.size(); gi++) {
-                if (gi > 0) chunk += ",";
-                chunk += "\"" + escapeForJsStringLiteral(existingPresetNamesForJs[gi]) + "\"";
-            }
-            chunk += "];";
-            chunk += "var existingFacesForPresets = [";
-            for (size_t gi = 0; gi < existingFacesForJs.size(); gi++) {
-                if (gi > 0) chunk += ",";
-                chunk += "\"" + escapeForJsStringLiteral(existingFacesForJs[gi]) + "\"";
-            }
-            chunk += "];";
-            chunk += "var existingHandsForPresets = [";
-            for (size_t gi = 0; gi < existingHandsForJs.size(); gi++) {
-                if (gi > 0) chunk += ",";
-                chunk += "\"" + escapeForJsStringLiteral(existingHandsForJs[gi]) + "\"";
-            }
-            chunk += "];";
-            chunk += "async function loadPresetsFromGithub() {";
-            chunk += "  var btn = document.getElementById('ghPresetBtn');";
-            chunk += "  var status = document.getElementById('ghPresetStatus');";
-            chunk += "  btn.disabled = true;";
-            chunk += "  try {";
-            chunk += "    status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
-            chunk += "    var text = null;";
-            chunk += "    for (var attempt = 0; attempt < 3 && text === null; attempt++) {";
-            chunk += "      try {";
-            chunk += "        var r = await fetch('" GITHUB_RAW_BASE "presets.txt');";
-            chunk += "        if (r.ok) text = await r.text();";
-            chunk += "      } catch (e) {}";
-            chunk += "      if (text === null && attempt < 2) await new Promise(function(resolve) { setTimeout(resolve, 1500); });";
-            chunk += "    }";
-            chunk += "    if (text === null) throw new Error('unreachable');";
-            chunk += "    var lines = text.split('\\n').map(function(l){return l.trim();}).filter(function(l){return l.length > 0;});";
-            chunk += "    var newLines = [];";
-            chunk += "    var neededFiles = {};";
-            chunk += "    for (var i = 0; i < lines.length; i++) {";
-            chunk += "      var tabIdx = lines[i].indexOf('\\t');";
-            chunk += "      if (tabIdx === -1) continue;";
-            chunk += "      var name = lines[i].substring(0, tabIdx);";
-            chunk += "      var url = lines[i].substring(tabIdx + 1);";
-            chunk += "      if (existingPresetNames.indexOf(name) !== -1) continue;";
-            chunk += "      newLines.push(lines[i]);";
-            chunk += "      var qIdx = url.indexOf('?');";
-            chunk += "      if (qIdx === -1) continue;";
-            chunk += "      var params = new URLSearchParams(url.substring(qIdx + 1));";
-            chunk += "      var face = params.get('face');";
-            chunk += "      if (face) {";
-            chunk += "        var faceName = face.charAt(0) === '/' ? face.substring(1) : face;";
-            chunk += "        if (faceName !== 'face_default.bmp' && existingFacesForPresets.indexOf(faceName) === -1) neededFiles[faceName] = true;";
-            chunk += "      }";
-            chunk += "      var handSet = params.get('handSet');";
-            chunk += "      if (handSet && handSet !== 'default') {";
-            chunk += "        ['hour','minute','second'].forEach(function(part) {";
-            chunk += "          var hn = 'hand_set' + handSet + '_' + part + '.bmp';";
-            chunk += "          if (existingHandsForPresets.indexOf(hn) === -1) neededFiles[hn] = true;";
-            chunk += "        });";
-            chunk += "      }";
-            chunk += "    }";
-            chunk += "    if (newLines.length === 0) { status.innerHTML = '" + translate("All presets already up to date") + ".'; btn.disabled = false; return; }";
-            chunk += "    var missingNames = Object.keys(neededFiles);";
-            chunk += "    if (missingNames.length > 0) {";
-            chunk += "      status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
-            chunk += "      var listResp = await fetch('" GITHUB_API_CONTENTS_BASE + String(CLOCK_WIDTH) + "');";
-            chunk += "      var files = await listResp.json();";
-            chunk += "      var fileMap = {};";
-            chunk += "      files.forEach(function(f) { fileMap[f.name] = f.download_url; });";
-            chunk += "      for (var j = 0; j < missingNames.length; j++) {";
-            chunk += "        var fn = missingNames[j];";
-            chunk += "        if (!fileMap[fn]) continue;";
-            chunk += "        status.innerHTML = '" + translate("Downloading") + " ' + fn + ' (' + (j + 1) + '/' + missingNames.length + ')...';";
-            chunk += "        var blob = await (await fetch(fileMap[fn])).blob();";
-            chunk += "        var fd = new FormData();";
-            chunk += "        fd.append('upload', blob, fn);";
-            chunk += "        status.innerHTML = '" + translate("Converting") + " ' + fn + ' (' + (j + 1) + '/' + missingNames.length + ')...';";
-            chunk += "        var target = fn.indexOf('face_') === 0 ? '/upload' : '/uploadhandset';";
-            chunk += "        await fetch(target, { method: 'POST', body: fd });";
-            chunk += "      }";
-            chunk += "    }";
-            chunk += "    status.innerHTML = '" + translate("Downloading") + " presets.txt...';";
-            chunk += "    var presetBlob = new Blob([newLines.join('\\n')], { type: 'text/plain' });";
-            chunk += "    var presetFd = new FormData();";
-            chunk += "    presetFd.append('presetfile', presetBlob, 'presets.txt');";
-            chunk += "    await fetch('/importpresetsmerge', { method: 'POST', body: presetFd });";
-            chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
-            chunk += "    location.href = location.pathname;";
-            chunk += "  } catch (e) {";
-            chunk += "    status.innerHTML = '" + translate("Failed to reach GitHub - check your internet connection") + ".';";
-            chunk += "    btn.disabled = false;";
-            chunk += "  }";
-            chunk += "}";
-            chunk += "</script>";
-            chunk += "<hr>";
-
-            // Ohne vorhandene Presets automatisch fragen, ob welche von GitHub
-            // geladen werden sollen - prueft Erreichbarkeit vorher mehrfach.
-
-            // Without any presets, automatically ask whether to load some from
-            // GitHub - checks reachability multiple times first.
-
-            if (rowCount == 0) {
-                chunk += "<script>";
-                chunk += "async function checkGithubReachable(retries) {";
-                chunk += "  for (var i = 0; i < retries; i++) {";
-                chunk += "    try {";
-                chunk += "      var r = await fetch('" GITHUB_RAW_BASE "presets.txt');";
-                chunk += "      if (r.ok) return true;";
-                chunk += "    } catch (e) {";
-                chunk += "    }";
-                chunk += "    await new Promise(function(resolve) { setTimeout(resolve, 1500); });";
-                chunk += "  }";
-                chunk += "  return false;";
-                chunk += "}";
-                chunk += "(async function() {";
-                chunk += "  var reachable = await checkGithubReachable(3);";
-                chunk += "  if (!reachable) return;";
-                chunk += "  if (confirm('" + translate("No presets found. Load recommended presets from GitHub?") + "')) {";
-                chunk += "    loadPresetsFromGithub();";
-                chunk += "  }";
-                chunk += "})();";
-                chunk += "</script>";
-            }
 
             chunk += "<h3>" + translate("Create New Preset") + "</h3>";
             chunk += "<form method='POST' action='/api/createPreset'>";
@@ -2529,16 +2422,6 @@
                 redirectTo("/presets?err=Import%20failed%20-%20please%20check%20the%20file");
             }
             }, handlePresetImportUpload);
-
-        // Wie /importpresets, loescht dabei aber keine bestehenden Presets - wird
-        // vom GitHub-Download-Button auf /presets genutzt (siehe handlePresetMergeUpload()).
-
-        // Like /importpresets, but does not delete existing presets - used by the
-        // GitHub download button on /presets (see handlePresetMergeUpload()).
-
-        webserver.on("/importpresetsmerge", HTTP_POST, []() {
-            redirectTo("/presets?msg=Presets%20imported%20successfully");
-            }, handlePresetMergeUpload);
 
         // API zum Neustart des ESP. Diagnose: Teil-Aktualisierung des Displays ein-/ausschalten - nicht
         // gespeichert, nach dem Neustart wieder an.
@@ -3006,43 +2889,7 @@
             // Rocrail tab (see generateSettingsTabNav()). When disabling,
             // immediately close any open connection.
 
-            rocrailEnabled = webserver.hasArg("rocrailEnabled");
-            preferences.putBool(PK_ROCRAIL_ENABLED, rocrailEnabled);
-            if (!rocrailEnabled) {
-                if (rocrailClient.connected()) rocrailClient.stop();
-                rocrailConnected = false;
-
-                // Die R2RNet-Multicast-Diagnose sofort beenden, sonst bliebe der Socket bis zum naechsten
-                // Neustart offen.
-
-                // Stop the R2RNet multicast diagnostics immediately, otherwise the socket would stay open
-                // until the next restart.
-
-                r2rnetDebugUdp.stop();
-                r2rnetDebugListening = false;
-            }
-            else {
-
-                // Sofort versuchen statt bis zum naechsten regulaeren
-                // Zeitfenster zu warten (siehe triggerRocrailConnectNow()) -
-                // no-op, falls z.B. noch keine Serveradresse hinterlegt ist.
-
-                // Try immediately instead of waiting for the next regular
-                // window (see triggerRocrailConnectNow()) - a no-op if e.g.
-                // no server address is configured yet.
-
-                triggerRocrailConnectNow();
-
-                // R2RNet-Multicast-Diagnose sofort mit starten statt erst
-                // beim naechsten Reconnect/Neustart (siehe
-                // startR2rnetDebugListener() in rocrail_client.h).
-
-                // Also start the R2RNet multicast diagnostic listener right
-                // away instead of only at the next reconnect/restart (see
-                // startR2rnetDebugListener() in rocrail_client.h).
-
-                startR2rnetDebugListener();
-            }
+            setRocrailEnabled(webserver.hasArg("rocrailEnabled"));
 
             preferences.putBool(PK_STATION_MODE, stationMode);
             preferences.putBool(PK_SHOW_SECOND_HAND, showSecondHand);
@@ -4085,61 +3932,19 @@
             int previewSize = preferences.getInt(PK_PREVIEW_SIZE, PREVIEW_SIZE_DEFAULT);
             previewSize = constrain(previewSize, PREVIEW_SIZE_MIN, PREVIEW_SIZE_MAX);
 
-            String activeHandSet = preferences.getString(PK_HANDSET, "");
             String previewSig = currentPreviewSignature();
 
-            // Alle drei Zeiger im aktuellen Format: Datei (neu oder alt, sonst Standardsatz 0), alte Hoehe oben
-            // transparent aufgefuellt.
+            // Zeiger als eigene Bilder ueber /previewhand (zeilenweise gestreamt) statt eingebettet - drei
+            // eingebettete PNGs brauchten zusammen mehr Speicher, als ohne PSRAM frei ist. Breite wie auf dem Display.
 
-            // All three hands in the current format: file (new or old, otherwise default set 0), old height padded
-            // transparent at the top.
+            // Hands as separate images via /previewhand (streamed row by row) instead of embedded - three embedded
+            // PNGs together needed more memory than is free without PSRAM. Width as on the display.
 
-            const size_t handPixelCount = (size_t)HAND_WIDTH * HAND_HEIGHT;
-            auto loadPreviewHand = [&](const char* label) -> uint16_t* {
-                uint16_t* buf = (uint16_t*)malloc(handPixelCount * 2);
-                if (buf) loadHandOrDefault(activeHandSet, label, buf);
-                return buf;
-            };
-            uint16_t* previewHour = loadPreviewHand("hour");
-            uint16_t* previewMinute = loadPreviewHand("minute");
-            uint16_t* previewSecond = loadPreviewHand("second");
-
-            // Zeiger wie auf dem Display zuschneiden: das Zifferblatt kann
-            // schmalere Zeiger vorgeben (face_x!h!m!s.bmp), die Uhr schneidet
-            // dann mittig zu (siehe pushHandRowCentered() in display.h).
-
-            // Crop the hands like on the display: the clock face can specify
-            // narrower hands (face_x!h!m!s.bmp), the clock then crops them in
-            // the centre (see pushHandRowCentered() in display.h).
-
-            auto handPng = [](const uint16_t* src, int& w) -> String {
-                if (!src) return String();
-                if (w <= 0 || w > CLOCK_WIDTH) w = HAND_WIDTH;
-                if (w == HAND_WIDTH) return encodePngToBase64(src, HAND_WIDTH, HAND_HEIGHT);
-                uint16_t* cropped = (uint16_t*)malloc((size_t)w * HAND_HEIGHT * sizeof(uint16_t));
-                if (!cropped) {
-                    w = HAND_WIDTH;
-                    return encodePngToBase64(src, HAND_WIDTH, HAND_HEIGHT);
-                }
-                int off = (w < HAND_WIDTH) ? (HAND_WIDTH - w) / 2 : 0;
-                for (int y = 0; y < HAND_HEIGHT; y++) {
-                    for (int x = 0; x < w; x++) {
-                        int sx = x + off;
-                        cropped[y * w + x] = (sx < HAND_WIDTH) ? src[y * HAND_WIDTH + sx] : TRANSPARENT_COLOR;
-                    }
-                }
-                String png = encodePngToBase64(cropped, w, HAND_HEIGHT);
-                free(cropped);
-                return png;
-            };
-            int hourW = hourHandWidth, minuteW = minuteHandWidth, secondW = secondHandWidth;
-            String hourB64 = handPng(previewHour, hourW);
-            String minuteB64 = handPng(previewMinute, minuteW);
-            String secondB64 = handPng(previewSecond, secondW);
-
-            if (previewHour) free(previewHour);
-            if (previewMinute) free(previewMinute);
-            if (previewSecond) free(previewSecond);
+            auto previewHandWidth = [](int w) { return (w <= 0 || w > CLOCK_WIDTH) ? HAND_WIDTH : w; };
+            int hourW = previewHandWidth(hourHandWidth);
+            int minuteW = previewHandWidth(minuteHandWidth);
+            int secondW = previewHandWidth(secondHandWidth);
+            String cacheBuster = String(millis());
 
             uint8_t hubR = ((hubColor >> 11) & 0x1F) * 255 / 31;
             uint8_t hubG = ((hubColor >> 5) & 0x3F) * 255 / 63;
@@ -4178,10 +3983,10 @@
 
             String scaledHandHeight = String(HAND_HEIGHT * scaleFactor, 2);
             String scaledPivotY = String((HAND_PIVOT_Y + 0.5f) * scaleFactor, 2);
-            auto handImg = [&](const char* id, const String& b64, int w) -> String {
+            auto handImg = [&](const char* id, const char* part, int w) -> String {
                 String scaledW = String(w * scaleFactor, 2);
                 String scaledPivotX = String(((w / 2) + 0.5f) * scaleFactor, 2);
-                return "<img id='" + String(id) + "' src='data:image/png;base64," + b64 +
+                return "<img id='" + String(id) + "' src='/previewhand?part=" + String(part) + "&w=" + String(w) + "&v=" + cacheBuster +
                        "' style='position:absolute;left:-" + scaledPivotX + "px;top:-" + scaledPivotY +
                        "px;width:" + scaledW + "px;height:" + scaledHandHeight +
                        "px;transform-origin:" + scaledPivotX + "px " + scaledPivotY + "px;'>";
@@ -4247,10 +4052,10 @@
             if (stripBefore) chunk += stripCanvas;
             chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;" + String(stripPrevH > 0 ? "" : "border:3px solid #333;") + String(displayGeom->round ? "border-radius:50%;" : "") + "background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
-            chunk += handImg("liveHourHandFull", hourB64, hourW);
-            chunk += handImg("liveMinuteHandFull", minuteB64, minuteW);
+            chunk += handImg("liveHourHandFull", "hour", hourW);
+            chunk += handImg("liveMinuteHandFull", "minute", minuteW);
             if (showSecond) {
-                chunk += handImg("liveSecondHandFull", secondB64, secondW);
+                chunk += handImg("liveSecondHandFull", "second", secondW);
             }
             chunk += "<div id='liveHubFull' style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
             chunk += "</div>"; // Ende Zeiger-Drehpunkt
@@ -4732,9 +4537,36 @@
             webserver.sendContent("");
             });
 
+        // Ein Zeiger des aktiven Satzes fuer die Vorschau-Seite als PNG, w = Breite wie auf dem Display
+        // One hand of the active set for the preview page as PNG, w = width as on the display
+
+        webserver.on("/previewhand", HTTP_GET, []() {
+            String part = webserver.arg("part");
+            if (part != "hour" && part != "minute" && part != "second") {
+                webserver.send(400, "text/plain", "part must be hour, minute or second");
+                return;
+            }
+            int w = webserver.arg("w").toInt();
+            if (w <= 0 || w > CLOCK_WIDTH) w = HAND_WIDTH;
+            uint16_t* pix = (uint16_t*)malloc((size_t)HAND_WIDTH * HAND_HEIGHT * sizeof(uint16_t));
+            if (!pix) {
+                webserver.send(500, "text/plain", "out of memory");
+                return;
+            }
+            loadHandOrDefault(preferences.getString(PK_HANDSET, ""), part.c_str(), pix);
+            streamHandPng(pix, HAND_WIDTH, w, HAND_HEIGHT);
+            free(pix);
+            });
+
         webserver.on("/currentfacebg", HTTP_GET, []() {
+
+            // Ohne PSRAM gibt es kein Rohbild - dann die Zifferblatt-Datei selbst als BMP senden
+            // Without PSRAM there is no raw image - then send the clock face file itself as BMP
+
             if (!clockFaceBuffer) {
-                webserver.send(500, "text/plain", "Face not loaded");
+                String path = clockFaceRlePath.length() ? clockFaceRlePath : selectedBackground;
+                webserver.sendHeader("Cache-Control", "no-store");
+                if (!streamRleFaceAsStandardBmp(path, "image/bmp")) webserver.send(500, "text/plain", "Face not loaded");
                 return;
             }
             size_t bmpSize = 0;
@@ -4761,25 +4593,19 @@
             uint8_t b = curHubColor & 0xFF;
             uint16_t hubColorRgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 
-            uint8_t* bmpBytes = nullptr;
-            size_t bmpSize = 0;
-            if (generatePresetPreviewBmp(face, handSet, hubColorRgb565, curHubSize, curShowSecond, &bmpBytes, bmpSize)) {
-                webserver.sendHeader("Cache-Control", "no-store");
-                webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
-                delete[] bmpBytes;
-            }
-            else {
+            webserver.sendHeader("Cache-Control", "no-store");
+            if (!sendPresetPreviewBmp(face, handSet, hubColorRgb565, curHubSize, curShowSecond)) {
                 webserver.send(500, "text/plain", "Failed to generate preview (out of memory?)");
             }
             });
 
         // Vorschaubild fuer die Preset-Verwaltung: Zifferblatt + Zeiger (feste Demo-
         // Zeit) + Mittelpunkt-Farbe/-Groesse, komponiert aus den im Preset gespeicherten
-        // Einstellungen (siehe parsePresetForPreview() und generatePresetPreviewBmp()).
+        // Einstellungen (siehe parsePresetForPreview() und sendPresetPreviewBmp()).
 
         // Preview image for preset management: clock face + hands (fixed demo
         // time) + hub color/size, composed from the settings stored in the
-        // preset (see parsePresetForPreview() and generatePresetPreviewBmp()).
+        // preset (see parsePresetForPreview() and sendPresetPreviewBmp()).
 
         webserver.on("/presetpreview", HTTP_GET, []() {
             if (!webserver.hasArg("index")) {
@@ -4798,13 +4624,7 @@
             bool showSecond;
             parsePresetForPreview(presets[index].url, face, handSet, hubColorRgb565, hubSize, showSecond);
 
-            uint8_t* bmpBytes = nullptr;
-            size_t bmpSize = 0;
-            if (generatePresetPreviewBmp(face, handSet, hubColorRgb565, hubSize, showSecond, &bmpBytes, bmpSize, presets[index].url)) {
-                webserver.send_P(200, "image/bmp", (const char*)bmpBytes, bmpSize);
-                delete[] bmpBytes;
-            }
-            else {
+            if (!sendPresetPreviewBmp(face, handSet, hubColorRgb565, hubSize, showSecond, presets[index].url)) {
                 webserver.send(500, "text/plain", "Failed to generate preview (out of memory?)");
             }
             });
@@ -4932,7 +4752,7 @@
             chunk += "  btn.disabled = true;";
             chunk += "  status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
             chunk += "  try {";
-            chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(CLOCK_WIDTH) + "');";
+            chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(GITHUB_GRAPHIC_SIZE) + "');";
             chunk += "    var files = await resp.json();";
             chunk += "    var toGet = files.filter(function(f) { return f.name.indexOf('face_') === 0 && f.name.endsWith('.bmp') && existingFaces.indexOf(f.name) === -1; });";
             chunk += "    if (toGet.length === 0) { status.innerHTML = '" + translate("All files already up to date") + ".'; btn.disabled = false; return; }";
@@ -4953,23 +4773,6 @@
             chunk += "}";
             chunk += "</script><hr>";
 
-            // Hinweis und Download-Link für die ZIP-Datei
-            // Notice and download link for the ZIP file
-
-            if (CLOCK_WIDTH == 240) {
-                chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
-                chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-                chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_240.zip' target='_blank'>Download faces_handsets_240.zip</a>";
-                chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
-            }
-
-            if (CLOCK_WIDTH == 160) {
-                chunk += "<h3>" + translate("Download Additional Clock Faces") + "</h3>";
-                chunk += "<p>" + translate("You can download a ZIP file containing additional clock faces and hand sets from the following link: (use 'view raw')") + "</p>";
-                chunk += "<a href='" GITHUB_ZIP_BASE "faces_handsets_160.zip' target='_blank'>Download faces_handsets_160.zip</a>";
-                chunk += "<br><small>" + translate("After downloading, upload the extracted BMP files using the form below") + ".</small><hr>";
-            }
-
             webserver.sendContent(chunk);
             chunk = "";
 
@@ -4979,7 +4782,10 @@
             else {
 
                 chunk += "<h3>" + translate("Upload New Clock Face") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " " + translate("pixels") + ", 16-bit BMP(RGB565), " + translate("name must start with") + "  <code>face_</code></small><br><br>";
+                // Die Datei liegt beim Hochladen erst ganz im Dateisystem, skaliert wird danach - Grenze ist der freie Speicher
+                // The file is first stored completely in the file system, scaling happens afterwards - the limit is the free space
+
+                chunk += "<small>" + translate("BMP file (16, 24 or 32 bit), at most about") + " " + String((total > used ? total - used : 0) / 1024) + " KB " + translate("(free space of the clock)") + ". " + translate("The clock scales it to") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + " " + translate("pixels") + " " + translate("and converts it to RGB565") + ", " + translate("ideally square") + ".</small><br><br>";
 
                 chunk += "<form method = 'POST' action = '/upload' enctype = 'multipart/form-data' onsubmit = 'showProgress()'>";
                 chunk += "<input type='file' name='upload' accept='.bmp' multiple required><br>";
@@ -5593,28 +5399,31 @@
                 chunk += checkboxRow("dcfSyncLed", dcfSyncLedEnabled, translate("DCF77 Sync LED Blink"), translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal"));
             }
 
-            // Displaytyp mit vier Eintraegen wie in flashESP (Werte = parseDisplayName()), ohne
+            // Displaytyp wie in flashESP (Werte = parseDisplayName(), nur Typen dieses Boards), ohne
             // name-Attribut. Wirkt nach Sicherheitsabfrage sofort per eigenem POST an /save_displaytype; nur
             // ein Wechsel des Displaytyps startet neu (GC9A01 ohne/mit BL nicht).
 
-            // Display type with four entries as in flashESP (values = parseDisplayName()), without a name
-            // attribute. Takes effect after a confirmation via its own POST to /save_displaytype; only a
+            // Display type as in flashESP (values = parseDisplayName(), only types of this board), without a
+            // name attribute. Takes effect after a confirmation via its own POST to /save_displaytype; only a
             // change of the display type restarts (GC9A01 without/with BL does not).
 
             {
                 const char* curChoice = displayChoiceName(displayType, useBacklight);
                 struct { const char* name; uint8_t type; const char* label; } choices[] = {
                     { "GC9A01", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) without backlight (BL)" },
-                    { "GC9A01_WITH_BACKLIGHT", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) with backlight (BL) on pin 3" },
+                    { "GC9A01_WITH_BACKLIGHT", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) with backlight (BL) on pin {pin}" },
                     { "GC9D01", DISPLAY_TYPE_GC9D01, "GC9D01 (160x160)" },
                     { "ILI9341", DISPLAY_TYPE_ILI9341, "ILI9341 (240x320) with time and date below the clock" },
+                    { "ST7789", DISPLAY_TYPE_ST7789, "ST7789 (172x320, ESP32-C6-LCD-1.47) with time and date below the clock" },
+                    { "ST7789_240", DISPLAY_TYPE_ST7789_240, "ST7789 (240x240, ESP32-C6-LCD-1.3)" },
                 };
-                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": " + infoTip(translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin 3 (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching to another display type restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for (GC9A01 and ILI9341 share the 240 size)")) + " ";
+                chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": " + infoTip(withBacklightPin(translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin {pin} (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching to another display type restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for (GC9A01 and ILI9341 share the 240 size)"))) + " ";
                 chunk += "<select data-cur='" + String(curChoice) + "' data-t='" + String(displayType) + "' style='min-width:190px;max-width:100%;' onchange=\"var o=this.options[this.selectedIndex];if(confirm('" + translate("Change the display type to") + ": '+o.text+'?'+(o.dataset.t!=this.dataset.t?'\\n" + translate("The clock restarts to apply the display type") + ".':''))){var f=document.createElement('form');f.method='POST';f.action='/save_displaytype';var i=document.createElement('input');i.type='hidden';i.name='display';i.value=this.value;f.appendChild(i);document.body.appendChild(f);f.submit();}else{this.value=this.dataset.cur;}\">";
                 for (const auto& c : choices) {
+                    if (!displayTypeSupported(c.type)) continue;
                     chunk += "<option value='" + String(c.name) + "' data-t='" + String(c.type) + "'";
                     if (strcmp(c.name, curChoice) == 0) chunk += " selected";
-                    chunk += ">" + translate(c.label) + "</option>";
+                    chunk += ">" + withBacklightPin(translate(c.label)) + "</option>";
                 }
                 chunk += "</select></div>";
             }
@@ -5629,23 +5438,28 @@
             }
             chunk += "</select></div>";
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": " + infoTip(translate("Rotates Display 2's (CS2) clock face independently of Display 1")) + " <select name='rotation2' style='width:190px;'>";
-            for (int i = 0; i <= TFT_ROTATION_NA; i++) {
-                chunk += "<option value='" + String(i) + "'";
-                if (i == tftRotation2) chunk += " selected";
-                chunk += ">" + (i == TFT_ROTATION_NA ? rotationNaLabel : String(rotationLabels[i])) + "</option>";
+            // Display 2 nur auf Boards mit zweitem CS-Pin (HAS_DISPLAY2 in config.h)
+            // Display 2 only on boards with a second CS pin (HAS_DISPLAY2 in config.h)
+
+            if (HAS_DISPLAY2) {
+                chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 2") + ": " + infoTip(translate("Rotates Display 2's (CS2) clock face independently of Display 1")) + " <select name='rotation2' style='width:190px;'>";
+                for (int i = 0; i <= TFT_ROTATION_NA; i++) {
+                    chunk += "<option value='" + String(i) + "'";
+                    if (i == tftRotation2) chunk += " selected";
+                    chunk += ">" + (i == TFT_ROTATION_NA ? rotationNaLabel : String(rotationLabels[i])) + "</option>";
+                }
+                chunk += "</select></div>";
+
+                // Hinweis: ein nicht angeschlossenes Display auf "n.a." stellen - dann
+                // bleibt es schwarz, Zifferblatt/Zeiger werden nicht gezeichnet/berechnet.
+                // Status-/Startmeldungen erscheinen bis zum Uhrstart weiterhin auf beiden.
+
+                // Hint: set a display that is not connected to "n.a." - then it stays
+                // black, face/hands are not drawn/calculated. Status/boot messages still
+                // appear on both until the clock takes over.
+
+                chunk += "<small>" + translate("Set a display that is not physically connected to n.a. - it then stays black and the clock face is neither drawn nor calculated for it. Boot, access point and code messages still appear on both displays until the clock takes over") + ".</small><br><br>";
             }
-            chunk += "</select></div>";
-
-            // Hinweis: ein nicht angeschlossenes Display auf "n.a." stellen - dann
-            // bleibt es schwarz, Zifferblatt/Zeiger werden nicht gezeichnet/berechnet.
-            // Status-/Startmeldungen erscheinen bis zum Uhrstart weiterhin auf beiden.
-
-            // Hint: set a display that is not connected to "n.a." - then it stays
-            // black, face/hands are not drawn/calculated. Status/boot messages still
-            // appear on both until the clock takes over.
-
-            chunk += "<small>" + translate("Set a display that is not physically connected to n.a. - it then stays black and the clock face is neither drawn nor calculated for it. Boot, access point and code messages still appear on both displays until the clock takes over") + ".</small><br><br>";
 
             chunk += "</div>";
             chunk += "<div style='text-align:center;margin-top:15px;'><button type='submit'>" + translate("Save") + "</button></div>";
@@ -6302,7 +6116,7 @@
                 redirectTo("/listfilesFaces?msg=Clock%20face%20uploaded");
             }
             else {
-                String errorHtml = "<p>" + translate("Only .bmp files starting with") + " <code>face_</code> " + translate("or") + " <code>hand_</code> " + translate("are accepted") + ".</p>";
+                String errorHtml = "<p>" + translate("Only BMP files with 16, 24 or 32 bit are accepted") + ".</p>";
                 errorHtml += "<p>" + translate("Please also check the available space") + ".</p>";
                 errorHtml += "<a href='/upload'><button type='button'>" + translate("Try again") + "</button></a>";
                 webserver.send(400, "text/html", simpleMessagePage(translate("Upload failed"), errorHtml));
@@ -6807,7 +6621,7 @@
                 chunk += "  btn.disabled = true;";
                 chunk += "  status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
                 chunk += "  try {";
-                chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(CLOCK_WIDTH) + "');";
+                chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(GITHUB_GRAPHIC_SIZE) + "');";
                 chunk += "    var files = await resp.json();";
                 chunk += "    var toGet = files.filter(function(f) { return f.name.indexOf('hand_set') === 0 && f.name.endsWith('.bmp') && existingHands.indexOf(f.name) === -1; });";
                 chunk += "    if (toGet.length === 0) { status.innerHTML = '" + translate("All files already up to date") + ".'; btn.disabled = false; return; }";
@@ -6829,7 +6643,7 @@
                 chunk += "</script><hr>";
 
                 chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
-                chunk += "<small>" + translate("Requirements") + ": " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + "), 16-bit BMP(RGB565), <br>" + translate("name must start with") + " <code>hand_set + " + translate("no.") + " + _hour, _minute " + translate("or") + " _second.bmp</code>, " + translate("e.g.") + " <code>hand_set1_second.bmp</code><br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
+                chunk += "<small>" + translate("BMP file (16, 24 or 32 bit), at most about") + " " + String((total > used ? total - used : 0) / 1024) + " KB " + translate("(free space of the clock)") + ". " + translate("The clock scales it to") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + ") " + translate("and converts it to RGB565") + ".<br>" + translate("Name") + ": " + translate("no.") + " + _hour, _minute " + translate("or") + " _second.bmp, " + translate("e.g.") + " <code>1_second.bmp</code> (" + translate("stored as") + " <code>hand_set1_second.bmp</code>)<br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
                 chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
 
                 chunk += translate("File") + ": <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
@@ -6870,17 +6684,20 @@
         // Process hand-set file upload
 
         webserver.on("/uploadhandset", HTTP_POST, []() {
+
+            // Sicherheitspruefung auf Dateinamenmuster - auch wenn handleFileUpload() schon abgelehnt hat, damit
+            // die Meldung die Namensregel nennt
+
+            // Security check on the filename pattern - also when handleFileUpload() has already rejected, so the
+            // message states the naming rule
+
+            if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
+                String errorHtml = "<p>" + translate("Only .bmp files starting with") + " <code>hand_</code> " + translate("are accepted for handset upload") + ".</p>";
+                errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>";
+                webserver.send(400, "text/html", simpleMessagePage(translate("Upload failed"), errorHtml));
+                return;
+            }
             if (uploadSuccess) {
-
-                // Sicherheitsprüfung auf Dateinamenmuster
-                // Security check on the filename pattern
-
-                if (!uploadFilePath.endsWith(".bmp") || !uploadFilePath.startsWith("/hand_set")) {
-                    String errorHtml = "<p>" + translate("Only .bmp files starting with") + " <code>hand_</code> " + translate("are accepted for handset upload") + ".</p>";
-                    errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>";
-                    webserver.send(400, "text/html", simpleMessagePage(translate("Upload failed"), errorHtml));
-                    return;
-                }
                 String setId = webserver.arg("set");
 
                 //  String target = server.arg("target");
@@ -6897,7 +6714,10 @@
                 redirectTo("/handsets?msg=Hand%20set%20uploaded");
             }
             else {
-                webserver.send(500, "text/html", simpleMessagePage(translate("Upload failed"), "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>"));
+                String errorHtml = "<p>" + translate("Only BMP files with 16, 24 or 32 bit are accepted") + ".</p>";
+                errorHtml += "<p>" + translate("Please also check the available space") + ".</p>";
+                errorHtml += "<a href='/handsets'><button type='button'>" + translate("Try again") + "</button></a>";
+                webserver.send(400, "text/html", simpleMessagePage(translate("Upload failed"), errorHtml));
             }
             }, handleFileUpload);
 
@@ -7381,10 +7201,11 @@
             // prefetch. The warning appears with the WiFi box - the data is only
             // encrypted with the internal firmware key (BACKUP_WIFI_KEY).
 
-            html += "<form method='POST' action='/backup/download'>";
+            html += "<form method='POST' action='/backup/download' id='backupForm'>";
             html += "<label><input type='checkbox' name='wifi' value='1' style='width:auto;margin:0 6px 0 0;' onchange=\"document.getElementById('bkWifiWarn').hidden=!this.checked;\">" + translate("Include WiFi credentials (network names, passwords, hostname)") + "</label>";
             html += "<div id='bkWifiWarn' class='msg warn' hidden>" + translate("Saving the WiFi credentials is not secure: they are encrypted in the file, but with a key that is the same in every uhr4 firmware - anyone with the firmware or its source code can decrypt them. Keep the file safe and do not pass it on") + ".</div>";
-            html += "<button type='submit'>" + translate("Download Backup") + "</button></form><hr>";
+            html += "<button type='submit'>" + translate("Download Backup") + "</button></form>";
+            html += "<div id='backupFormP' hidden><progress max='100' style='width:100%;'></progress><small></small></div><hr>";
 
             // Reihenfolge wichtig: die WLAN-Option VOR dem Dateifeld - nur so
             // liegt sie beim Upload-Start vor und wird geprueft, bevor
@@ -7396,12 +7217,13 @@
 
             html += "<h3>" + translate("Restore Backup") + "</h3>";
             html += "<p>" + translate("Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards") + ".</p>";
-            html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. The backup must come from a clock with the same clock size") + " (" + String(displayGeom->name) + ").</small></p>";
+            html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. From a clock with another display type only clock faces, hands, presets and general settings are restored, scaled to this clock - its clock faces must be 240x240") + ". " + translate("This clock") + ": " + String(displayChoiceName(displayType, useBacklight)) + ".</small></p>";
             html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' id='restoreForm' data-ask='" + translate("Replace all current settings, clock faces and hand sets with the backup?") + "'>";
             html += "<label><input type='checkbox' name='restoreWifi' value='1' style='width:auto;margin:0 6px 0 0;'>" + translate("Restore WiFi credentials (network names, passwords, hostname)") + "</label>";
             html += "<p><small>" + translate("Without this option the clock keeps its own WiFi and hostname - recommended when transferring the settings to another clock") + ".</small></p>";
             html += "<input type='file' name='backupfile' accept='.tar' required> ";
             html += "<button type='submit'>" + translate("Restore Backup") + "</button></form>";
+            html += "<div id='restoreFormP' hidden><progress max='100' style='width:100%;'></progress><small></small></div>";
 
             // Vor dem Hochladen den Displaytyp der Sicherung pruefen: aus settings.txt (erster Eintrag im TAR) und aus
             // dem Dateinamen. Weicht er ab, warnt die Seite - passt die Uhrgroesse nicht, lehnt die Uhr ohnehin ab.
@@ -7418,9 +7240,16 @@
                 blDefaults += sep + String(DISPLAY_GEOMETRY[i].backlightDefault ? 1 : 0);
             }
             html += "<div id='restoreTexts' hidden data-from='" + translate("This backup is from a {b} clock, this clock is a {c}") +
-                    "' data-fits='" + translate("Clock faces and hands fit (same clock size); display type, rotation and backlight of this clock stay unchanged") +
-                    "' data-size='" + translate("The clock size differs - the clock will reject the backup") +
-                    "' data-fname='" + translate("The file name says {n}") + "' data-anyway='" + translate("Restore anyway?") + "'></div>";
+                    "' data-fits='" + translate("Clock faces, hands, presets and general settings are restored (scaled to this clock); display type, rotation, backlight, brightness and hub size of this clock stay unchanged") +
+                    "' data-size='" + translate("Its clock faces are not 240x240 - the clock will not restore anything") +
+                    "' data-fname='" + translate("The file name says {n}") + "' data-anyway='" + translate("Restore anyway?") +
+                    "' data-dl='" + translate("Creating backup - the clock is busy, please wait") +
+                    "' data-dldone='" + translate("Backup saved") +
+                    "' data-up='" + translate("Sending backup - the clock restores it while receiving, keep this page open") +
+                    "' data-busy='" + translate("Applying settings") +
+                    "' data-wait='" + translate("Backup restored - waiting for the clock to restart") +
+                    "' data-timeout='" + translate("The clock does not respond yet - refresh the page later") +
+                    "' data-err='" + translate("Connection to the clock interrupted") + "'></div>";
             html += "<script>(function(){";
             html += "var names=[" + names + "],namesBl=[" + namesBl + "],clocks=[" + clocks + "],blDef=[" + blDefaults + "];";
             html += "var myType=" + String(displayType) + ",myName='" + String(displayChoiceName(displayType, useBacklight)) + "';";
@@ -7431,13 +7260,44 @@
             html += "return new TextDecoder().decode(b.subarray(512,512+Math.min(size,b.length-512)));}).catch(function(){return null;});}";
             html += "f.addEventListener('submit',function(ev){ev.preventDefault();var file=f.backupfile.files[0];if(!file)return;";
             html += "readSettings(file).then(function(txt){var warn=[];";
-            html += "var m=/(GC9A01_WITH_BACKLIGHT|GC9A01|GC9D01|ILI9341)\\d{8}\\.tar$/i.exec(file.name),fromName=m?m[1].toUpperCase():null;";
+            html += "var all=names.concat(namesBl).filter(function(n,i,a){return a.indexOf(n)===i;}).sort(function(a,b){return b.length-a.length;});";
+            html += "var m=new RegExp('-('+all.join('|')+')(-\\\\d{8}(-\\\\d{6})?)?(\\\\s*\\\\(\\\\d+\\\\))?\\\\.tar$','i').exec(file.name),fromName=m?m[1].toUpperCase():null;";
             html += "if(txt){var t=/^u8\\tdisplayType\\t(\\d+)/m.exec(txt),bl=/^u8\\tuseBacklight\\t(\\d+)/m.exec(txt);";
             html += "var type=t?+t[1]:0;if(!(type>=0&&type<names.length))type=0;var useBl=bl?+bl[1]!==0:blDef[type]===1;var bName=useBl?namesBl[type]:names[type];";
-            html += "if(bName!==myName){warn.push(T.from.replace('{b}',bName).replace('{c}',myName)+'.');warn.push((clocks[type]===clocks[myType]?T.fits:T.size)+'.');}";
+            html += "if(type!==myType){warn.push(T.from.replace('{b}',bName).replace('{c}',myName)+'.');warn.push((clocks[type]===240?T.fits:T.size)+'.');}";
             html += "if(fromName&&fromName!==bName)warn.push(T.fname.replace('{n}',fromName)+'.');}";
             html += "else if(fromName&&fromName!==myName)warn.push(T.from.replace('{b}',fromName).replace('{c}',myName)+'.');";
-            html += "if(confirm(warn.length?warn.join('\\n')+'\\n\\n'+T.anyway:f.dataset.ask))f.submit();});});";
+            html += "if(confirm(warn.length?warn.join('\\n')+'\\n\\n'+T.anyway:f.dataset.ask))upload();});});";
+
+            // Fortschritt statt stummer Wartezeit: Sichern per fetch (Laenge bekannt), Wiederherstellen per
+            // XMLHttpRequest (Upload-Fortschritt, die Uhr verarbeitet beim Empfang), danach warten, bis die Uhr
+            // nach dem Neustart wieder antwortet. Die Statusleiste pausiert solange.
+
+            // Progress instead of a silent wait: backup via fetch (length known), restore via XMLHttpRequest
+            // (upload progress, the clock processes while receiving), then wait until the clock answers again
+            // after the restart. The status bar pauses meanwhile.
+
+            html += "function pause(p){if(window.topbarPolling)window.topbarPolling(!p);}";
+            html += "function kb(n){return Math.round(n/1024)+' KB';}";
+            html += "function show(id,txt,pct){var b=document.getElementById(id),p=b.querySelector('progress');b.hidden=false;b.querySelector('small').textContent=txt;if(pct==null)p.removeAttribute('value');else p.value=pct;}";
+            html += "var d=document.getElementById('backupForm');";
+            html += "d.addEventListener('submit',function(ev){ev.preventDefault();var btn=d.querySelector('button');btn.disabled=true;pause(true);show('backupFormP',T.dl,null);";
+            html += "fetch('/backup/download',{method:'POST',body:new URLSearchParams(new FormData(d))}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);";
+            html += "var total=+r.headers.get('Content-Length')||0,got=0,parts=[],rd=r.body.getReader();";
+            html += "var cd=/filename=\"?([^\";]+)/.exec(r.headers.get('Content-Disposition')||''),name=cd?cd[1]:'uhr4-backup.tar';";
+            html += "function step(){return rd.read().then(function(x){if(x.done)return;parts.push(x.value);got+=x.value.length;show('backupFormP',T.dl+' ('+kb(got)+(total?' / '+kb(total):'')+')',total?100*got/total:null);return step();});}";
+            html += "return step().then(function(){if(total&&got<total)throw new Error(kb(got)+' / '+kb(total));";
+            html += "var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(parts,{type:'application/x-tar'}));a.download=name;document.body.appendChild(a);a.click();";
+            html += "setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},2000);show('backupFormP',T.dldone+': '+name,100);});";
+            html += "}).catch(function(e){show('backupFormP',T.err+' ('+e.message+')',0);}).then(function(){btn.disabled=false;pause(false);});});";
+            html += "function waitRestart(){var t0=Date.now();function tryIt(){fetch('/api/topbarStatus',{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;location.href='/';})";
+            html += ".catch(function(){if(Date.now()-t0>120000){show('restoreFormP',T.timeout,0);}else{setTimeout(tryIt,2000);}});}setTimeout(tryIt,3000);}";
+            html += "function upload(){var btn=f.querySelector('button');btn.disabled=true;pause(true);show('restoreFormP',T.up,0);var x=new XMLHttpRequest();x.open('POST','/backup/restore');";
+            html += "x.upload.onprogress=function(e){if(e.lengthComputable)show('restoreFormP',T.up+' ('+kb(e.loaded)+' / '+kb(e.total)+')',100*e.loaded/e.total);};";
+            html += "x.upload.onload=function(){show('restoreFormP',T.busy,null);};";
+            html += "x.onload=function(){if(x.status!==200){document.open();document.write(x.responseText);document.close();return;}show('restoreFormP',T.wait,null);waitRestart();};";
+            html += "x.onerror=function(){show('restoreFormP',T.err,0);btn.disabled=false;pause(false);};";
+            html += "x.send(new FormData(f));}";
             html += "})();</script>";
             html += "</body></html>";
             webserver.send(200, "text/html", html);
@@ -7457,6 +7317,7 @@
             String error = backupRestore ? backupRestore->error : String("no upload received");
             size_t files = backupRestore ? backupRestore->restoredFiles.size() : 0;
             String backupDisplay = backupRestore ? backupRestore->backupDisplay : String("");
+            bool otherType = backupRestore && backupRestore->otherType;
             delete backupRestore;
             backupRestore = nullptr;
 
@@ -7469,8 +7330,8 @@
             }
             String myDisplay = displayChoiceName(displayType, useBacklight);
             String note = "";
-            if (backupDisplay.length() && backupDisplay != myDisplay) {
-                note = "<div class='msg warn'>" + translate("The backup is from a {b} clock - the display type of this clock ({c}) was kept") + ".</div>";
+            if (otherType) {
+                note = "<div class='msg warn'>" + translate("The backup is from a {b} clock: clock faces and hands (scaled to this clock), presets and general settings were restored; display type, rotation, backlight, brightness and hub size of this clock ({c}) were kept") + ".</div>";
                 note.replace("{b}", backupDisplay);
                 note.replace("{c}", myDisplay);
             }
@@ -7507,19 +7368,19 @@
             html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Clock Faces (except default)") + "</h3>";
-            html += "<p>" + translate("Deletes all clock faces - the default clock face is created again") + ".</p>";
+            html += "<p>" + translate("Deletes all clock faces - the three generated clock faces are created again") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
             html += "<input type='hidden' name='action' value='faces'>";
             html += "<button type='submit'>" + translate("Delete Clock Faces (except default)") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Hand Sets (except default)") + "</h3>";
-            html += "<p>" + translate("Deletes all hand sets - the default hand set is created again") + ".</p>";
+            html += "<p>" + translate("Deletes all hand sets - the three generated hand sets are created again") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all hand sets except the default one?") + "');\">";
             html += "<input type='hidden' name='action' value='hands'>";
             html += "<button type='submit'>" + translate("Delete Hand Sets (except default)") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Presets") + "</h3>";
-            html += "<p>" + translate("Deletes all saved presets") + ".</p>";
+            html += "<p>" + translate("Deletes all saved presets - the three starter presets are created again") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all presets?") + "');\">";
             html += "<input type='hidden' name='action' value='presets'>";
             html += "<button type='submit'>" + translate("Delete Presets") + "</button></form><hr>";
@@ -7662,6 +7523,33 @@
     }
 
 
+    // Ergaenzt beim Hochladen ein fehlendes Praefix: Zifferblaetter (/upload) "face_", Zeiger (/uploadhandset)
+    // "hand_set" - aus "set3_hour.bmp", "hand3_hour.bmp" oder "3_hour.bmp" wird "hand_set3_hour.bmp". Die
+    // Endung ".BMP" wird klein geschrieben; andere Dateien (Schriften, Streifen) bleiben unveraendert.
+
+    // Adds a missing prefix on upload: clock faces (/upload) "face_", hands (/uploadhandset) "hand_set" -
+    // "set3_hour.bmp", "hand3_hour.bmp" or "3_hour.bmp" becomes "hand_set3_hour.bmp". The extension ".BMP" is
+    // lowercased; other files (fonts, strips) stay unchanged.
+
+    String completeUploadName(const String& path, const String& uri) {
+        String name = path;
+        while (name.startsWith("/")) name = name.substring(1);
+        String lower = name;
+        lower.toLowerCase();
+        if (!lower.endsWith(".bmp")) return "/" + name;
+        name = name.substring(0, name.length() - 4) + ".bmp";
+        if (uri == "/uploadhandset" && !name.startsWith("hand_set") && !name.startsWith("face_") && !name.startsWith("strip_")) {
+            if (name.startsWith("hand_")) name = name.substring(5);
+            else if (name.startsWith("hand")) name = name.substring(4);
+            if (name.startsWith("set")) name = name.substring(3);
+            name = "hand_set" + name;
+        }
+        else if (uri == "/upload" && !name.startsWith("face_") && !name.startsWith("hand_set") && !name.startsWith("strip_")) {
+            name = "face_" + name;
+        }
+        return "/" + name;
+    }
+
     // Handhabt den Datei-Upload
     // Handles the file upload
 
@@ -7669,8 +7557,10 @@
         HTTPUpload& upload = webserver.upload();
 
         if (upload.status == UPLOAD_FILE_START) {
-            uploadFilePath = upload.filename;
-            if (!uploadFilePath.startsWith("/")) uploadFilePath = "/" + uploadFilePath;
+            uploadFilePath = completeUploadName("/" + upload.filename, webserver.uri());
+            if (uploadFilePath != "/" + upload.filename) {
+                DEBUG_PRINTLN("[UPLOAD] Renamed " + upload.filename + " -> " + uploadFilePath.substring(1));
+            }
 
             // Nur aus einem privaten Netz - HIER pruefen, da dieser Rueckruf schon je Datenblock laeuft, der
             // Request-Handler erst nach dem Upload; sonst stuenden die Daten bereits auf LittleFS.
@@ -7698,6 +7588,18 @@
                 !(uploadFilePath.startsWith("/face_") || uploadFilePath.startsWith("/hand_set") ||
                   (uploadFilePath.startsWith("/strip_") && TFT_HEIGHT > CLOCK_HEIGHT)))) {
                 DEBUG_PRINTLN("[UPLOAD] Invalid filename: must start with 'face_', 'hand_set' or 'strip_' (display with strip) and end with '.bmp' : " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                uploadSuccess = false;
+                return;
+            }
+
+            // Die Zeiger-Route nimmt nur Zeiger an - sonst laege z.B. ein dort hochgeladenes Zifferblatt trotz
+            // Fehlermeldung schon auf der Uhr (/uploadhandset prueft den Namen erst nach dem Upload).
+
+            // The hand route only accepts hands - otherwise e.g. a clock face uploaded there would already be on
+            // the clock despite the error message (/uploadhandset checks the name only after the upload).
+
+            if (webserver.uri() == "/uploadhandset" && !uploadFilePath.startsWith("/hand_set")) {
+                DEBUG_PRINTLN("[UPLOAD] Invalid filename for a hand set: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
                 uploadSuccess = false;
                 return;
             }
@@ -7754,6 +7656,8 @@
 
                             if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), CLOCK_WIDTH, CLOCK_HEIGHT)) {
                                 DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                                LittleFS.remove(uploadFilePath); // unbrauchbare Originaldatei nicht liegen lassen
+                                                                 // do not leave the unusable original file behind
                                 uploadSuccess = false;
                                 return;
                             }
@@ -7767,6 +7671,8 @@
                             DEBUG_PRINTLN("[UPLOAD] Detected strip upload (from " + webserver.client().remoteIP().toString() + ")");
                             if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), TFT_WIDTH, TFT_HEIGHT - CLOCK_HEIGHT)) {
                                 DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                                LittleFS.remove(uploadFilePath); // unbrauchbare Originaldatei nicht liegen lassen
+                                                                 // do not leave the unusable original file behind
                                 uploadSuccess = false;
                                 return;
                             }
@@ -7780,6 +7686,8 @@
                             handTargetSize(uploadFilePath.c_str(), targetW, targetH);
                             if (!scaleAndSaveBmp(uploadFilePath.c_str(), uploadFilePath.c_str(), targetW, targetH)) {
                                 DEBUG_PRINTLN("[UPLOAD] Scaling failed for " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                                LittleFS.remove(uploadFilePath); // unbrauchbare Originaldatei nicht liegen lassen
+                                                                 // do not leave the unusable original file behind
                                 uploadSuccess = false;
                                 return;
                             }
@@ -7843,13 +7751,12 @@
     }
 
 
-    // Upload fuer /importpresets und /importpresetsmerge: liest "Name<TAB>URL"-Zeilen und fuegt die Presets in freie
-    // Slots ein. skipExisting (Import): Namen, die es schon gibt, ueberspringen - bestehende bleiben unangetastet;
-    // beim Zusammenfuehren filtert das aufrufende Skript sie schon vorher heraus. tag steht vor den Logzeilen.
+    // Upload fuer /importpresets: liest "Name<TAB>URL"-Zeilen und fuegt die Presets in freie Slots ein.
+    // skipExisting: Namen, die es schon gibt, ueberspringen - bestehende bleiben unangetastet. tag steht vor den
+    // Logzeilen.
 
-    // Upload for /importpresets and /importpresetsmerge: reads "Name<TAB>URL" lines and inserts the presets into
-    // free slots. skipExisting (import): skip names that already exist - existing ones stay untouched; when merging,
-    // the calling script already filters them out beforehand. tag precedes the log lines.
+    // Upload for /importpresets: reads "Name<TAB>URL" lines and inserts the presets into free slots.
+    // skipExisting: skip names that already exist - existing ones stay untouched. tag precedes the log lines.
 
     void handlePresetUpload(bool skipExisting, const char* tag) {
         HTTPUpload& upload = webserver.upload();
@@ -7979,14 +7886,10 @@
     }
 
 
-    // Upload-Rueckrufe der beiden Routen (WebServer erwartet Funktionen ohne Parameter)
-    // Upload callbacks of the two routes (WebServer expects functions without parameters)
+    // Upload-Rueckruf der Route (WebServer erwartet Funktionen ohne Parameter)
+    // Upload callback of the route (WebServer expects functions without parameters)
 
     void handlePresetImportUpload() {
         handlePresetUpload(true, "[PRESET-IMPORT]");
-    }
-
-    void handlePresetMergeUpload() {
-        handlePresetUpload(false, "[PRESET-MERGE]");
     }
 

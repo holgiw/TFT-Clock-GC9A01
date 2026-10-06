@@ -101,6 +101,7 @@
     bool infoStripRect(uint8_t displayNum, int& x, int& y, int& w, int& h, bool& landscape) ;
     bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) ;
     const char* displayChoiceName(uint8_t type, bool backlight) ;
+    bool displayTypeSupported(uint8_t type) ;
     void adoptUhr3BuildDisplay() ;
     bool hexToText(const String& hex, String& out, size_t maxLen) ;
     void serialReply(const String& reply) ;
@@ -129,6 +130,8 @@
     void applyDisplayRotation(uint8_t displayNum, uint8_t newRotation) ;
     void setCS1(bool state) ;
     void setCS2(bool state) ;
+    bool statusLandscape() ;
+    int statusWidth() ;
     lgfx::LovyanGFX& beginStatusDraw(uint8_t displayNum) ;
     void endStatusDraw(uint8_t displayNum) ;
     void setAutoBrightness(bool enabled) ;
@@ -142,11 +145,15 @@
     size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) ;
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
     void drawDefaultFace(uint16_t* dest) ;
+    bool hasBmpWithPrefix(const char* prefix) ;
+    bool writeGeneratedFace(const char* path, uint8_t numeralMode) ;
     bool ensureDefaultFace() ;
     void loadFaceOrDefault(const String& path, uint16_t* dest) ;
     bool writeRleImage(const String& path, int w, int h, const std::function<void(int, uint16_t*)>& rowFn) ;
-    void defaultHandRow(const char* part, int y, uint16_t* row) ;
+    float curvedHandHalfWidth(const char* part, float L, float d) ;
+    void generatedHandRow(int set, const char* part, int y, uint16_t* row) ;
     void drawDefaultHand(const char* part, uint16_t* dest) ;
+    bool writeGeneratedHandSet(int set) ;
     bool ensureDefaultHands() ;
     String handSetFileId(const String& setId) ;
     void loadHandOrDefault(const String& setId, const char* part, uint16_t* dest) ;
@@ -165,6 +172,9 @@
     bool isValidHandSize(int32_t w, int32_t h) ;
     String handFormatLabel(const String& path) ;
     float shortestAngleDiff(float from, float to) ;
+    bool lowMemoryFace() ;
+    void prepareClockFaceRle() ;
+    void drawFaceRows(LGFX_Sprite& dest) ;
     int prepareClockFaceCache() ;
     int faceOrientationFor(uint8_t rotation) ;
     bool blitFaceIntoSprite(LGFX_Sprite& dest, uint8_t rotation) ;
@@ -181,6 +191,7 @@
     void drawStripTime(lgfx::LovyanGFX& g, const String& text, bool colon, int cx, int y) ;
     String stripPathForFace(const String& facePath) ;
     bool ensureStripImage() ;
+    bool drawStripImageStreamed(LGFX_Sprite& s, bool landscape, bool push) ;
     void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon, const String& suffix, uint16_t bg, uint16_t fg, bool push, bool useImage) ;
     void stripDateText(const struct tm& t, String& full, String& a, String& b) ;
     void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix, const struct tm* fixedTime = nullptr) ;
@@ -196,14 +207,13 @@
     uint16_t getAdjustedAdcValue(int rawValue) ;
     float easeInOutSine(float t) ;
     uint32_t crc32Update(uint32_t crc, const uint8_t* buf, size_t len) ;
-    uint32_t adler32(const uint8_t* data, size_t len) ;
-    void appendPngChunk(std::vector<uint8_t>& out, const char* type, const uint8_t* data, uint32_t len) ;
-    String encodePngToBase64(const uint16_t* data, int width, int height) ;
+    void streamHandPng(const uint16_t* src, int srcW, int w, int h) ;
     uint8_t* encodeBmpToBytes(const uint16_t* data, int width, int height, size_t* outSize) ;
     void clearTFT() ;
     float rotatedAngle(float angle, int orientation) ;
     bool checkBmpFormat(const String& filename, int expectedWidth = CLOCK_WIDTH, int expectedHeight = CLOCK_HEIGHT) ;
     String getBmpInfo(const String& filename) ;
+    bool scaleAndSaveBmpLowMem(const char* sourcePath, const char* targetPath, int outW, int outH) ;
     bool scaleAndSaveBmp(const char* sourcePath, const char* targetPath, int outW, int outH) ;
     void migrateFaceBmpsToRLE() ;
     void migrateHandBmpsToRLE() ;
@@ -215,7 +225,8 @@
     void buildBmpHeader565(uint8_t* hdr, int32_t w, int32_t h) ;
     bool writeRleAsBmp(const String& path, const std::function<void(const uint8_t*, size_t)>& out) ;
     bool streamRleFaceAsStandardBmp(const String& path, const char* contentType = "image/bmp") ;
-    bool generatePresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, uint8_t** outBytes, size_t& outSize, const String& presetUrl = "") ;
+    bool drawFaceThumbStreamed(const String& faceFile, LGFX_Sprite& canvas, int oy, int size) ;
+    bool sendPresetPreviewBmp(const String& faceFile, const String& handSetName, uint16_t hubColorRgb565, uint8_t hubSize, bool showSecond, const String& presetUrl = "") ;
     void setLedOff() ;
     void setLedOn() ;
     static void validateSelectedBackground() ;
@@ -234,6 +245,7 @@
     void pollRocrailClient() ;
     void connectRocrailClient() ;
     void triggerRocrailConnectNow() ;
+    void setRocrailEnabled(bool on) ;
     void startRocrailConnectTask() ;
     void loadRocrailServerList() ;
     void rocrailConnectTaskFunc(void* param) ;
@@ -274,6 +286,13 @@
 
     void savePresets() ;
     String presetUrlEncode(const String& value) ;
+    String buildPresetUrl(const String& face, const String& handSet, bool stationMode, bool showSecondHand, bool smoothMinute, bool smoothSecond, uint8_t hubSize, uint32_t hubColor) ;
+    String setPresetUrlParam(const String& url, const String& key, const String& value) ;
+    bool stripVlwSizes(const char* name, int& minSize, int& maxSize) ;
+    void applyStandardStrip() ;
+    void addStarterPresets() ;
+    void ensureStarterSet() ;
+    void refreshGeneratedAssets() ;
     String presetUrlDecode(const String& value) ;
     bool createPresetFromPreferences(const String& customName = "") ;
     void parsePresetForPreview(const String& url, String& faceOut, String& handSetOut, uint16_t& hubColorOut, uint8_t& hubSizeOut, bool& showSecondOut) ;
@@ -318,6 +337,7 @@
     String escapeJsonText(const String& text) ;
     String dayWindowText() ;
     String generateStorageInfo(size_t used, size_t total, bool forceEnglish = false) ;
+    String withBacklightPin(String text) ;
     String infoTip(const String& text) ;
     String checkboxRow(const char* name, bool checked, const String& label, const String& tip, const char* id = "") ;
     String generateFlashMessage() ;
@@ -336,11 +356,11 @@
     void updateNtpServersFromRequest() ;
     String sanitizeHostname(String input) ;
     void setupWebServer() ;
+    String completeUploadName(const String& path, const String& uri) ;
     void handleFileUpload() ;
     bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) ;
     void handlePresetUpload(bool skipExisting, const char* tag) ;
     void handlePresetImportUpload() ;
-    void handlePresetMergeUpload() ;
 
 
     // system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen

@@ -18,20 +18,43 @@
 #define DISPLAY_TYPE_GC9A01  0
 #define DISPLAY_TYPE_GC9D01  1
 #define DISPLAY_TYPE_ILI9341 2
-#define DISPLAY_TYPE_COUNT   3
+#define DISPLAY_TYPE_ST7789  3   // Waveshare ESP32-C6-LCD-1.47 (172x320)
+#define DISPLAY_TYPE_ST7789_240 4 // Waveshare ESP32-C6-LCD-1.3 (240x240)
+#define DISPLAY_TYPE_COUNT   5
+
+    // Board, erkannt am Chip: ESP32-S2 (Lolin S2 Pico) mit wechselbarem Display oder Waveshare ESP32-C6-LCD
+    // mit fest verbautem ST7789 - 1.47 (172x320) oder 1.3 (240x240), welches waehlt der Displaytyp.
+    // Pinbelegung weiter unten.
+
+    // Board, recognized by the chip: ESP32-S2 (Lolin S2 Pico) with an exchangeable display or Waveshare
+    // ESP32-C6-LCD with a built-in ST7789 - 1.47 (172x320) or 1.3 (240x240), chosen by the display type.
+    // Pin mapping further below.
+
+#if CONFIG_IDF_TARGET_ESP32C6
+#define BOARD_WAVESHARE_C6_ST7789 1
+#define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_ST7789
+#else
+#define BOARD_WAVESHARE_C6_ST7789 0
 #define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_GC9A01
+#endif
 
 #if defined(GC9A01) || defined(GC9D01) || defined(GC9A01_WITH_BACKLIGHT) || defined(ILI9341)
 #error "Displaytyp wird nicht mehr per #define gewaehlt - Einstellung im Zifferblatt-Tab / display type is no longer chosen via #define - setting in the clock face tab"
 #endif
 
     // Build-Kennung - steht auf den Info-Seiten und damit in jeder .bin (Suche nach "UHR4_BUILD_DISPLAY=").
-    // Jedes Build enthaelt alle Displaytypen.
+    // Der S2-Build enthaelt alle wechselbaren Displaytypen, der C6-Build die beiden ST7789 der
+    // Waveshare-Boards.
 
     // Build marker - shown on the info pages and therefore in every .bin (search for "UHR4_BUILD_DISPLAY=").
-    // Every build contains all display types.
+    // The S2 build contains all exchangeable display types, the C6 build the two ST7789 of the Waveshare
+    // boards.
 
+#if BOARD_WAVESHARE_C6_ST7789
+#define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=ST7789+ST7789_240"
+#else
 #define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01+GC9D01+ILI9341"
+#endif
 
     // Interner Schluessel (AES-256, 64 Hex-Zeichen) fuer die WLAN-Daten in Sicherungen. Muss in allen
     // uhr4-Firmwares gleich sein (Wiederherstellen auf anderer Uhr); Aendern macht aeltere Sicherungen
@@ -53,6 +76,66 @@
 
 #define WIFI_STORE_KEY "06c92514eb89bb624df9f3f7b291777edd2b44adf583e3ac403d916992664bdd"
 
+#if BOARD_WAVESHARE_C6_ST7789
+
+    // Ohne "USB CDC On Boot: Enabled" laeuft Serial ueber UART0 (GPIO 16/17 = RTC) statt ueber USB - flashESP
+    // koennte weder WLAN noch Displaytyp senden. Beim "ESP32C6 Dev Module" steht die Option sonst auf Disabled.
+
+    // Without "USB CDC On Boot: Enabled" Serial runs over UART0 (GPIO 16/17 = RTC) instead of USB - flashESP
+    // could send neither WiFi nor display type. On the "ESP32C6 Dev Module" the option is Disabled otherwise.
+
+#if !ARDUINO_USB_CDC_ON_BOOT
+#error "ESP32-C6: Board-Option USB CDC On Boot auf Enabled stellen / set the board option USB CDC On Boot to Enabled"
+#endif
+
+    // Waveshare ESP32-C6-LCD-1.47 und -1.3 gleich belegt: Display (6, 7, 14, 15, 21, BL 22) und RGB-LED (8,
+    // per digitalWrite(LED_BUILTIN)) fest verbaut. Lichtsensor, RTC, DCF77 und Taster an GPIO 1, 2, 3, 16,
+    // 17, 20, 23 - die einzigen Pins beider Stiftleisten, dieselbe Verdrahtung passt an beide Boards.
+
+    // Waveshare ESP32-C6-LCD-1.47 and -1.3 mapped alike: display (6, 7, 14, 15, 21, BL 22) and RGB LED (8,
+    // via digitalWrite(LED_BUILTIN)) built in. Light sensor, RTC, DCF77 and buttons on GPIO 1, 2, 3, 16, 17,
+    // 20, 23 - the only pins on both pin headers, the same wiring fits both boards.
+
+#define LED_BOARD      LED_BUILTIN
+#define LED_BOARD_GPIO 8
+
+#define ADC_3V 1
+#define ADC_PIN 2
+#define ADC_GND 3
+
+#define BUTTON1 23
+#define BOOT_BUTTON 9
+
+    // RTC an TX/RX (UART0) - die serielle Ausgabe laeuft ueber USB, nur der Boot-Code sendet kurz auf TX
+    // RTC on TX/RX (UART0) - serial output goes via USB, only the boot code briefly sends on TX
+
+#define SDA_PIN 16
+#define SCL_PIN 17
+
+#define TFT_SCLK  7
+#define TFT_MOSI  6
+#define TFT_DC    15
+#define TFT_RST   21
+
+#define CS_1    14
+#define CS_2    -1   // kein zweites Display moeglich (Displayleitungen nicht an der Stiftleiste)
+                     // no second display possible (display lines not on the pin header)
+
+    // CS schaltet hier LovyanGFX: liegt CS dauerhaft LOW, verschiebt ein Taktimpuls beim Bus-Init nach einem
+    // Software-Neustart die Bits und das ST7789 bleibt schwarz. Mit CS HIGH beim Init und je Uebertragung
+    // einer neuen Flanke faengt sich das Panel.
+
+    // LovyanGFX drives CS here: with CS held LOW, a clock pulse during bus init after a software restart
+    // shifts the bits and the ST7789 stays black. With CS HIGH during init and a fresh edge per transfer
+    // the panel resyncs.
+
+#define LGFX_CS_PIN CS_1
+
+#define DCF77_DATAPIN 20
+#define TFT_Backlight 22
+
+#else
+
     // Pinbelegung ESP32-S2 (Lolin S2 Pico) <-> TFT: 3.3V->VCC (rot), GND->GND (blau), Rest siehe
     // PCB-Referenz: https://github.com/holgiw/TFT-Clock-GC9A01/blob/master/PCB/ESP32-S2%20GC9A01.jpg
 
@@ -61,6 +144,7 @@
 
 
 #define LED_BOARD 15 // BUILTIN LED
+#define LED_BOARD_GPIO LED_BOARD
 
 #define ADC_3V 1
 #define ADC_PIN 2
@@ -87,8 +171,6 @@
 #define TFT_MOSI  11
 #define TFT_DC    33  // Data/Command
 #define TFT_RST   5   // Reset
-#define TFT_SPI_FREQUENCY 40000000 // hoechster ganzzahliger Teiler von 80 MHz unter den frueheren 60 MHz
-                                   // highest integer divider of 80 MHz below the former 60 MHz
 
     // SPI-CS Display 1 - manuell gesteuert (setCS1()/setCS2() in display.h),
     // LovyanGFX bekommt pin_cs = -1 (lgfx_config.h). Beide Displays haengen
@@ -99,11 +181,29 @@
     // hang off one device, switching CS only selects the chip.
 
 #define CS_1    12
+#define LGFX_CS_PIN -1   // CS manuell, siehe oben / CS manual, see above
 
     // SPI-CS Display 2 (baugleich) - bei der Uhranzeige nur bedient, solange die Rotation von Display 2 nicht "n.a." ist.
     // SPI CS for display 2 (identical) - for the clock display only driven while display 2's rotation is not "n.a.".
 
 #define CS_2    18
+
+    // DCF77
+
+#define DCF77_DATAPIN 35
+
+    // Hintergrundbeleuchtung - ob der Pin per PWM geregelt wird, entscheidet die Einstellung useBacklight
+    // (globals.h).
+
+    // Backlight - whether the pin is PWM-controlled is decided by the useBacklight setting (globals.h).
+
+#define TFT_Backlight 3  // Hintergrundbeleuchtung
+                         // Backlight
+#endif
+
+#define HAS_DISPLAY2 (CS_2 >= 0)
+#define TFT_SPI_FREQUENCY 40000000 // hoechster ganzzahliger Teiler von 80 MHz unter den frueheren 60 MHz
+                                   // highest integer divider of 80 MHz below the former 60 MHz
 
     // Rotationswert "nicht angeschlossen (n.a.)": fuer die Uhranzeige wird das Display
     // dann weder angesteuert noch berechnet (Zifferblatt/Zeiger entfallen). Status- und
@@ -121,17 +221,6 @@
 #define TFT_ROTATION1_DEFAULT 0
 #define TFT_ROTATION2_DEFAULT TFT_ROTATION_NA
 
-    // DCF77
-
-#define DCF77_DATAPIN 35
-
-    // Hintergrundbeleuchtung - ob Pin 3 per PWM geregelt wird, entscheidet die Einstellung useBacklight
-    // (globals.h).
-
-    // Backlight - whether pin 3 is PWM-controlled is decided by the useBacklight setting (globals.h).
-
-#define TFT_Backlight 3  // Hintergrundbeleuchtung
-                         // Backlight
 #define BACKLIGHT_FREQ 5000
 #define BACKLIGHT_RESOLUTION 8
 
@@ -179,6 +268,9 @@ constexpr DisplayGeometry DISPLAY_GEOMETRY[DISPLAY_TYPE_COUNT] = {
     { "GC9A01",   240,  21,  25, 131, 100,  120,  2,  6,  false, false, 240,   240,   true },
     { "GC9D01",   160,  13,  15,  86,  66,   80,  1,  3,  true,  true,  160,   160,   true },
     { "ILI9341",  240,  21,  25, 131, 100,  120,  2,  6,  false, false, 240,   320,   false },
+    { "ST7789",   172,  15,  17,  94,  72,   86,  2,  4,  true,  false, 172,   320,   false }, // Meldungen quer (statusLandscape())
+                                                                                        // messages in landscape (statusLandscape())
+    { "ST7789_240", 240, 21, 25, 131, 100,  120,  2,  6,  true,  false, 240,   240,   false },
 };
 
     // Obergrenzen ueber alle Typen - fuer fest dimensionierte Puffer
@@ -197,7 +289,9 @@ constexpr bool displayGeometryValid(const DisplayGeometry& g) {
 }
 static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
               displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9D01]) &&
-              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_ILI9341]),
+              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_ILI9341]) &&
+              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_ST7789]) &&
+              displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_ST7789_240]),
               "DISPLAY_GEOMETRY: hand pivot/width/clock size inconsistent");
 
     // Diese Namen zeigen auf den zur Laufzeit gewaehlten Typ (displayGeom, globals.h) - daher NICHT in
@@ -251,17 +345,21 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 #define PREVIEW_SIZE_DEFAULT 400
 
     // Fuehrt einen Zeichenblock fuer Display 1 und 2 aus, korrekt rotiert (beginStatusDraw()/endStatusDraw())
-    // - immer fuer BEIDE Displays, auch bei "n.a.". Makro, da schon vor display.h benutzt (wifi_manager.h).
+    // - fuer BEIDE Displays, auch bei "n.a.", ausser das Board hat kein zweites. Makro, da schon vor display.h
+    // benutzt (wifi_manager.h).
 
-    // Runs a drawing block for display 1 and 2, correctly rotated (beginStatusDraw()/endStatusDraw()) -
-    // always for BOTH displays, even with "n.a.". Macro since it is used before display.h (wifi_manager.h).
+    // Runs a drawing block for display 1 and 2, correctly rotated (beginStatusDraw()/endStatusDraw()) - for
+    // BOTH displays, even with "n.a.", unless the board has no second one. Macro since it is used before
+    // display.h (wifi_manager.h).
 
 #define DRAW_ON_BOTH_DISPLAYS(...) \
     do { \
         { lgfx::LovyanGFX& tft = beginStatusDraw(1); __VA_ARGS__ } \
         endStatusDraw(1); \
-        { lgfx::LovyanGFX& tft = beginStatusDraw(2); __VA_ARGS__ } \
-        endStatusDraw(2); \
+        if (HAS_DISPLAY2) { \
+            { lgfx::LovyanGFX& tft = beginStatusDraw(2); __VA_ARGS__ } \
+            endStatusDraw(2); \
+        } \
         setCSIdle(); \
     } while (0)
 
@@ -275,8 +373,14 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 #define GITHUB_REPO_NAME "TFT-Clock-GC9A01"
 #define GITHUB_REPO_URL "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME
 #define GITHUB_API_CONTENTS_BASE "https://api.github.com/repos/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/contents/graphic/"
-#define GITHUB_ZIP_BASE "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/blob/master/graphic/"
-#define GITHUB_RAW_BASE "https://raw.githubusercontent.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/master/"
+
+    // Ordner der Zifferblaetter auf GitHub (graphic/240, graphic/160) - das ST7789 (172) nimmt die 240er,
+    // /upload verkleinert sie auf seine Groesse.
+
+    // Folder of the clock faces on GitHub (graphic/240, graphic/160) - the ST7789 (172) takes the 240 ones,
+    // /upload scales them down to its size.
+
+#define GITHUB_GRAPHIC_SIZE (CLOCK_WIDTH == 160 ? 160 : 240)
 
     // Zeit / NTP-Standardwerte & Timing-Makros
     // Time / NTP defaults & timing macros

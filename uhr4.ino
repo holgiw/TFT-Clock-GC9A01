@@ -1,5 +1,5 @@
     // howl-clock@gmx.de - Stationsuhr uhr4: ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT
-    // GC9A01/GC9D01/ILI9341. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // GC9A01/GC9D01/ILI9341, oder ESP32-C6 mit ST7789. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
     // Bibliotheken (Bibliotheksverwalter): LovyanGFX 1.2.31, RTClib 2.1.4 mit Adafruit BusIO 1.17.4. WiFi,
     // WebServer, LittleFS, Preferences, DNSServer, ESPmDNS und Wire bringt der Core "esp32" 3.3.12 von
@@ -8,12 +8,19 @@
     // Board: "LOLIN S2 PICO", Partition Scheme "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"
     // (Vorgabe); PSRAM ist bei diesem Board immer an.
 
-    // Linker braucht -mtext-section-literals (sonst "dangerous relocation: l32r"). Visual Micro liest
-    // board.txt. Arduino IDE: platform.local.txt aus dem Projektordner nach
+    // Waveshare ESP32-C6-LCD-1.47 / -1.3 (eigenes Build): Board "ESP32C6 Dev Module", Partition Scheme "No OTA
+    // (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled". Pins stellt config.h ein (BOARD_WAVESHARE_C6_ST7789),
+    // das Display der Displaytyp (ST7789 / ST7789_240).
+
+    // build_opt.h (nur "-g0", Kommentare darf die Datei nicht enthalten): ohne Debug-Infos - schnelleres
+    // Uebersetzen und Linken, gleiche Firmware; ein Absturz-Backtrace zeigt dann nur Funktionsnamen.
+
+    // ESP32-S2 braucht beim Linken -mtext-section-literals (sonst "dangerous relocation: l32r"). Visual Micro
+    // liest board.txt. Arduino IDE: platform.local.txt aus dem Projektordner nach
     // %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\ kopieren (Linux/macOS: siehe Datei).
 
     // howl-clock@gmx.de - station clock uhr4: ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT
-    // GC9A01/GC9D01/ILI9341. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // GC9A01/GC9D01/ILI9341, or ESP32-C6 with ST7789. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
     // Libraries (Library Manager): LovyanGFX 1.2.31, RTClib 2.1.4 with Adafruit BusIO 1.17.4. WiFi,
     // WebServer, LittleFS, Preferences, DNSServer, ESPmDNS and Wire come with the "esp32" core 3.3.12 by
@@ -22,8 +29,15 @@
     // Board: "LOLIN S2 PICO", Partition Scheme "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"
     // (default); PSRAM is always on for this board.
 
-    // The linker needs -mtext-section-literals (else "dangerous relocation: l32r"). Visual Micro reads
-    // board.txt. Arduino IDE: copy platform.local.txt from the project folder to
+    // Waveshare ESP32-C6-LCD-1.47 / -1.3 (separate build): board "ESP32C6 Dev Module", Partition Scheme "No
+    // OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled". config.h sets the pins
+    // (BOARD_WAVESHARE_C6_ST7789), the display type the display (ST7789 / ST7789_240).
+
+    // build_opt.h (only "-g0", the file must not contain comments): without debug info - faster compiling
+    // and linking, same firmware; a crash backtrace then only shows function names.
+
+    // The ESP32-S2 needs -mtext-section-literals when linking (else "dangerous relocation: l32r"). Visual
+    // Micro reads board.txt. Arduino IDE: copy platform.local.txt from the project folder to
     // %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\ (Linux/macOS: see the file).
 
     
@@ -39,7 +53,6 @@
 #include <Preferences.h>
 #include <LittleFS.h>
 #include <set>
-#include <base64.h>
 #include "nvs_flash.h"
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -409,15 +422,15 @@ void setup() {
         logBufferMutex = xSemaphoreCreateMutex();
 
         // CS_1 (Display-1-Chip-Select) manuell auf Output/LOW setzen - LovyanGFX
-        // steuert keinen CS-Pin (pin_cs = -1, siehe lgfx_config.h).
-        // Muss VOR tft.init() weiter unten passieren.
+        // steuert keinen CS-Pin (pin_cs = -1, siehe lgfx_config.h). Muss VOR tft.init() weiter unten passieren.
+        // ESP32-C6: LovyanGFX schaltet CS, bis dahin HIGH (nicht ausgewaehlt), siehe LGFX_CS_PIN in config.h.
 
         // Manually set CS_1 (display 1's chip select) to output/LOW - LovyanGFX
-        // drives no CS pin (pin_cs = -1, see lgfx_config.h).
-        // Must happen BEFORE tft.init() further below.
+        // drives no CS pin (pin_cs = -1, see lgfx_config.h). Must happen BEFORE tft.init() further below.
+        // ESP32-C6: LovyanGFX drives CS, HIGH (deselected) until then, see LGFX_CS_PIN in config.h.
 
         pinMode(CS_1, OUTPUT);
-        digitalWrite(CS_1, LOW);
+        digitalWrite(CS_1, LGFX_CS_PIN < 0 ? LOW : HIGH);
 
         // CS2-Pin folgt erst nach preferences.begin() (Display 2 haengt an seiner Rotation, "n.a." = aus).
         // Asynchronen WLAN-Scan starten, damit die Netze beim ersten Oeffnen der WLAN-Einstellungen schon
@@ -784,6 +797,8 @@ void setup() {
             else tftRotation2 = TFT_ROTATION2_DEFAULT;
             preferences.putUChar(PK_TFT_ROTATION2, tftRotation2);
         }
+        if (!HAS_DISPLAY2) tftRotation2 = TFT_ROTATION_NA; // Board ohne zweites Display (config.h)
+                                                           // board without a second display (config.h)
 
 
         loadLanguage(); // liest currentLanguage aus den Preferences (siehe translation.h)
@@ -818,7 +833,7 @@ void setup() {
         // serve both displays, and display 2 can be enabled at runtime
         // (rotation from "n.a." to an angle) without a reboot.
 
-        pinMode(CS_2, OUTPUT);
+        if (HAS_DISPLAY2) pinMode(CS_2, OUTPUT);
 
         // Startzustand: erstes angeschlossenes Display ausgewaehlt, das andere
         // abgewaehlt (siehe setCSIdle() in display.h).
@@ -941,8 +956,8 @@ void setup() {
         // is initialized as well (boot messages run on both) and can be
         // enabled later without a reboot.
 
-        digitalWrite(CS_1, LOW);
-        digitalWrite(CS_2, LOW);
+        if (LGFX_CS_PIN < 0) digitalWrite(CS_1, LOW); // sonst schaltet LovyanGFX CS / otherwise LovyanGFX drives CS
+        if (HAS_DISPLAY2) digitalWrite(CS_2, LOW);
 
         tft.selectPanel(displayType); // Panel-Treiber je Displaytyp (lgfx_config.h)
                                       // panel driver per display type (lgfx_config.h)
@@ -1018,6 +1033,10 @@ void setup() {
         createSprite16(secondHandSprite, HAND_WIDTH, HAND_HEIGHT);
         secondHandSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
+        ensureStarterSet(); // neue Uhr: Zifferblaetter, Zeigersaetze und Presets erzeugen (presets_manager.h)
+                            // new clock: generate clock faces, hand sets and presets (presets_manager.h)
+        refreshGeneratedAssets(); // erzeugte Dateien im Mass eines anderen Displaytyps neu erzeugen
+                                  // regenerate generated files in the size of another display type
         loadClockFace();
         loadHandSprites();
 

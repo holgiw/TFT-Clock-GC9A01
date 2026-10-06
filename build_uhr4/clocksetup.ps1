@@ -13,7 +13,10 @@
 # Gesendet wird "UHR4 WIFI <Name-Hex> <Passwort-Hex>", "UHR4 DISPLAY <Name>",
 # bei Bedarf "UHR4 RESTART", danach "UHR4 TIME <Unix-Sekunden>" (siehe
 # handleSerialCommands() in display.h).
-# Displaytyp: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341, 0 = unveraendert.
+# Displaytyp ESP32-S2: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341;
+# ESP32-C6 (Waveshare): 1/ST7789 (1,47"), 2/ST7789_240 (1,3"); 0 = unveraendert.
+# Das Board erkennt das Skript am USB-Port (303A:1001 = ESP32-C6) und flasht den
+# Build aus dem passenden Unterordner (esp32s2 bzw. esp32c6).
 # Das WLAN-Passwort wird verdeckt eingegeben, bleibt nur im Speicher dieses
 # Skripts (keine Datei, keine Umgebungsvariable) und geht nur per USB an die Uhr.
 #
@@ -32,17 +35,66 @@
 # Sent are "UHR4 WIFI <name hex> <password hex>", "UHR4 DISPLAY <name>",
 # "UHR4 RESTART" if needed, then "UHR4 TIME <unix seconds>" (see
 # handleSerialCommands() in display.h).
-# Display type: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341, 0 = unchanged.
+# Display type ESP32-S2: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341;
+# ESP32-C6 (Waveshare): 1/ST7789 (1.47"), 2/ST7789_240 (1.3"); 0 = unchanged.
+# The script recognizes the board by the USB port (303A:1001 = ESP32-C6) and
+# flashes the build from the matching subfolder (esp32s2 or esp32c6).
 # The WiFi password is entered hidden, stays only in this script's memory (no
 # file, no environment variable) and only goes to the clock via USB.
 param([switch]$Flash, [string]$Port, [string]$Display, [string]$Send, [switch]$Time)
 
-$names = @{ 1 = 'GC9A01'; 2 = 'GC9A01_WITH_BACKLIGHT'; 3 = 'GC9D01'; 4 = 'ILI9341' }
+# Board und Displaytypen: 's2' (Lolin S2 Pico, wechselbares Display) oder 'c6' (Waveshare ESP32-C6-LCD
+# mit fest verbautem ST7789). Set-Board stellt Namen und Beschriftungen um.
+# Board and display types: 's2' (Lolin S2 Pico, exchangeable display) or 'c6' (Waveshare ESP32-C6-LCD with
+# a built-in ST7789). Set-Board switches names and labels.
+$board = 's2'
+$names = @{}
+$labels = @{}
+function Set-Board([string]$b) {
+    $script:board = $b
+    if ($b -eq 'c6') {
+        $script:names = @{ 1 = 'ST7789'; 2 = 'ST7789_240' }
+        $script:labels = @{ 1 = 'ST7789 (172x320, Waveshare ESP32-C6-LCD-1.47) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock'; 2 = 'ST7789 (240x240, Waveshare ESP32-C6-LCD-1.3)' }
+    } else {
+        $script:names = @{ 1 = 'GC9A01'; 2 = 'GC9A01_WITH_BACKLIGHT'; 3 = 'GC9D01'; 4 = 'ILI9341' }
+        $script:labels = @{ 1 = 'GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)'; 2 = 'GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3'; 3 = 'GC9D01 (160x160)'; 4 = 'ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock' }
+    }
+}
+Set-Board 's2'
 
-# Auswahl als Zahl 1-4 oder Name, sonst 0 / choice as number 1-4 or name, else 0
+# Board am COM-Port: USB-Serial-JTAG (303A:1001) = ESP32-C6, sonst ESP32-S2
+# Board on the COM port: USB serial JTAG (303A:1001) = ESP32-C6, otherwise ESP32-S2
+function Get-PortBoard([int]$num) {
+    $dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match "\(COM$num\)" } | Select-Object -First 1
+    if ($dev -and $dev.DeviceID -match 'VID_303A&PID_1001') { return 'c6' }
+    return 's2'
+}
+
+# Serielle Schnittstelle zur laufenden Uhr. ESP32-S2 (USB-CDC): DTR und RTS an - erst mit DTR sendet die
+# Uhr ihre Antworten. ESP32-C6 (USB-Serial-JTAG): beide aus - ein Umschalten setzt den Chip sonst zurueck.
+# Serial port to the running clock. ESP32-S2 (USB CDC): DTR and RTS on - the clock only sends its replies
+# with DTR. ESP32-C6 (USB serial JTAG): both off - switching them would otherwise reset the chip.
+function Open-ClockPort([int]$num) {
+    $sp = New-Object System.IO.Ports.SerialPort ("COM$num", 115200)
+    $sp.DtrEnable = ($board -ne 'c6')
+    $sp.RtsEnable = ($board -ne 'c6')
+    $sp.ReadTimeout = 500
+
+    # Zeitlimit auch beim Schreiben - nimmt die Uhr nichts ab (z.B. Firmware ohne USB-Seriell), haengt
+    # Write() sonst endlos
+    # Timeout for writing too - if the clock accepts nothing (e.g. firmware without USB serial), Write()
+    # would otherwise hang forever
+
+    $sp.WriteTimeout = 1000
+    $sp.NewLine = "`n"
+    $sp.Open()
+    return $sp
+}
+
+# Auswahl als Zahl oder Name, sonst 0 / choice as number or name, else 0
 function Get-Choice([string]$value) {
     $v = $value.Trim().ToUpper()
-    if ($v -match '^[1-4]$') { return [int]$v }
+    if ($v -match '^\d+$' -and $names.ContainsKey([int]$v)) { return [int]$v }
     foreach ($k in $names.Keys) { if ($names[$k] -eq $v) { return $k } }
     return 0
 }
@@ -59,8 +111,7 @@ function Read-DisplayChoice($info) {
     $current = if ($info) { Get-Choice $info.Name } else { 0 }
     Write-Host ''
     Write-Host 'Welches Display hat die Uhr? / Which display does the clock have?'
-    $labels = @{ 1 = 'GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)'; 2 = 'GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3'; 3 = 'GC9D01 (160x160)'; 4 = 'ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock' }
-    foreach ($k in 1, 2, 3, 4) {
+    foreach ($k in ($names.Keys | Sort-Object)) {
         $mark = if ($info -and $info.Set -and $k -eq $current) { '   <- eingestellt / configured' } else { '' }
         Write-Host ("  {0} = {1}{2}" -f $k, $labels[$k], $mark)
     }
@@ -89,7 +140,8 @@ function Read-DisplayChoice($info) {
             if ($info -and $info.Set -and $choice -eq $current) { return 0 }
             return $choice
         }
-        Write-Host 'Bitte 1, 2, 3 oder 4 eingeben / please enter 1, 2, 3 or 4'
+        $list = ($names.Keys | Sort-Object) -join ', '
+        Write-Host "Bitte eine dieser Nummern eingeben / please enter one of these numbers: $list"
     }
 }
 
@@ -249,9 +301,15 @@ function Read-Wifi {
     }
 }
 
+# Laufende Uhr des eingestellten Boards: ESP32-S2 mit Arduino-USB-CDC (nicht der Download-Port 303A:0002),
+# ESP32-C6 am USB-Serial-JTAG (303A:1001)
+# Running clock of the selected board: ESP32-S2 with Arduino USB CDC (not the download port 303A:0002),
+# ESP32-C6 on the USB serial JTAG (303A:1001)
 function Get-RunningClockPort {
-    Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\(COM(\d+)\)' -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002|PID_1001' } |
-        ForEach-Object { [int]([regex]::Match($_.Name, '\(COM(\d+)\)').Groups[1].Value) } | Select-Object -First 1
+    Get-CimInstance Win32_PnPEntity | Where-Object {
+        $_.Name -match '\(COM(\d+)\)' -and $_.DeviceID -match 'VID_303A' -and
+        $(if ($board -eq 'c6') { $_.DeviceID -match 'PID_1001' } else { $_.DeviceID -notmatch 'PID_0002|PID_1001' })
+    } | ForEach-Object { [int]([regex]::Match($_.Name, '\(COM(\d+)\)').Groups[1].Value) } | Select-Object -First 1
 }
 
 # Sendet einen Befehl und wartet bis 3 s auf "UHR4 OK ..." bzw. "UHR4 ERROR ..."
@@ -279,12 +337,7 @@ function Get-ClockInfo([int]$num = 0) {
     Write-Host "Frage die Uhr auf COM$num nach ihrem Displaytyp ... / asking the clock on COM$num for its display type ..."
     $sp = $null
     try {
-        $sp = New-Object System.IO.Ports.SerialPort ("COM$num", 115200)
-        $sp.DtrEnable = $true
-        $sp.RtsEnable = $true
-        $sp.ReadTimeout = 500
-        $sp.NewLine = "`n"
-        $sp.Open()
+        $sp = Open-ClockPort $num
         $reply = Send-Command $sp 'UHR4 INFO'
         $sp.Close()
         if ($reply -match '^UHR4 OK INFO (\S+) ([01])') {
@@ -328,14 +381,9 @@ function Send-ClockTime([int]$num = 0, [int]$waitSec = 60) {
 
         $sp = $null
         try {
-            # DTR/RTS an - siehe Einstellungen senden weiter unten
-            # DTR/RTS on - see sending the settings further below
-            $sp = New-Object System.IO.Ports.SerialPort ("COM$n", 115200)
-            $sp.DtrEnable = $true
-            $sp.RtsEnable = $true
-            $sp.ReadTimeout = 500
-            $sp.NewLine = "`n"
-            $sp.Open()
+            # DTR/RTS je nach Board - siehe Open-ClockPort
+            # DTR/RTS depending on the board - see Open-ClockPort
+            $sp = Open-ClockPort $n
             $ms = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
             $cmd = 'UHR4 TIME {0}.{1:D3}' -f [math]::Floor($ms / 1000), [int]($ms % 1000)
             $reply = Send-Command $sp $cmd
@@ -388,8 +436,14 @@ if ($Time) {
     $num = 0
     if ($Port) {
         $num = [int]($Port -replace '\D', '')
+        Set-Board (Get-PortBoard $num)
     }
     elseif (-not (Get-RunningClockPort)) {
+        # Keine laufende ESP32-S2-Uhr: nach einer ESP32-C6-Uhr suchen
+        # No running ESP32-S2 clock: look for an ESP32-C6 clock
+        Set-Board 'c6'
+    }
+    if (-not $Port -and -not (Get-RunningClockPort)) {
         Write-Host 'Keine laufende Uhr gefunden (USB-Kabel? Uhr im Download-Modus: Reset druecken).'
         Write-Host 'No running clock found (USB cable? clock in download mode: press Reset).'
         exit 1
@@ -404,12 +458,11 @@ elseif ($Send) {
 elseif ($Flash) {
     $interactive = -not $Port
 
-    # Alle Dateien da? Fehlen sie, wurde meist direkt aus dem Zip gestartet oder der Virenscanner hat
+    # Werkzeuge da? Fehlen sie, wurde meist direkt aus dem Zip gestartet oder der Virenscanner hat
     # esptool.exe entfernt.
-    # All files present? If not, it was usually started directly from the zip or the virus scanner
+    # Tools present? If not, it was usually started directly from the zip or the virus scanner
     # removed esptool.exe.
-    $missing = @('esptool.exe', 'port.ps1', 'uhr4.ino.bootloader.bin', 'uhr4.ino.partitions.bin', 'uhr4.ino.bin') |
-        Where-Object { -not (Test-Path (Join-Path $PSScriptRoot $_)) }
+    $missing = @('esptool.exe', 'port.ps1') | Where-Object { -not (Test-Path (Join-Path $PSScriptRoot $_)) }
     if ($missing) {
         Write-Host "Fehlende Dateien / missing files: $($missing -join ', ')"
         Write-Host 'Das Zip zuerst komplett in einen Ordner auspacken und flashESP.bat dort starten. Fehlt nur'
@@ -428,12 +481,33 @@ elseif ($Flash) {
     $selPort = $LASTEXITCODE
     if ($selPort -le 0) { exit 1 }
 
+    # Board am Port erkennen; jeder Build liegt in seinem Unterordner (esp32s2, esp32c6)
+    # Recognize the board on the port; every build is in its own subfolder (esp32s2, esp32c6)
+    Set-Board (Get-PortBoard $selPort)
+    $binDir = Join-Path $PSScriptRoot $(if ($board -eq 'c6') { 'esp32c6' } else { 'esp32s2' })
+    $bins = @('uhr4.ino.bootloader.bin', 'uhr4.ino.partitions.bin', 'uhr4.ino.bin')
+    if ($board -eq 'c6') {
+        $bins += 'boot_app0.bin'
+    }
+    Write-Host "$(if ($board -eq 'c6') { 'ESP32-C6' } else { 'ESP32-S2' }) an / on COM$selPort - Build aus / build from $(Split-Path $binDir -Leaf)"
+    $missing = $bins | Where-Object { -not (Test-Path (Join-Path $binDir $_)) }
+    if ($missing) {
+        Write-Host "Fehlende Dateien in / missing files in ${binDir}: $($missing -join ', ')"
+        Write-Host 'Das Zip zuerst komplett in einen Ordner auspacken und flashESP.bat dort starten.'
+        Write-Host 'First unpack the whole zip into a folder and start flashESP.bat there.'
+        exit 1
+    }
+
     # 2) Fragen (Displaytyp mit Vorwahl aus der Uhr, WLAN) - danach laufen
     #    Flashen und Einrichten ohne Eingriff
     # 2) Questions (display type preselected from the clock, WiFi) - flashing
     #    and setup then run without intervention
     if ($interactive) {
-        $running = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match "\(COM$selPort\)" -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002|PID_1001' }
+        # ESP32-S2: nur der laufende Port antwortet; ESP32-C6: einfach fragen - eine fremde oder leere Firmware
+        # antwortet nicht, dann bleibt es bei $null
+        # ESP32-S2: only the running port replies; ESP32-C6: just ask - a foreign or empty firmware does not
+        # reply, then it stays $null
+        $running = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match "\(COM$selPort\)" -and $_.DeviceID -match 'VID_303A' -and $_.DeviceID -notmatch 'PID_0002' }
         $info = if ($running) { Get-ClockInfo $selPort } else { $null }
         $c = Read-DisplayChoice $info
         Read-Wifi
@@ -453,14 +527,26 @@ elseif ($Flash) {
     if ($comPort -le 0) { $script:wifiPass = $null; exit 1 }
 
     # 4) Flashen / flash
-    Push-Location $PSScriptRoot
+    Push-Location $binDir
 
     # Vorbelegen: startet esptool.exe gar nicht (z.B. vom Virenscanner blockiert), bliebe sonst der
     # Exit-Code von port.ps1 stehen.
     # Preset: if esptool.exe does not start at all (e.g. blocked by the virus scanner), the exit code
     # of port.ps1 would remain otherwise.
     $global:LASTEXITCODE = 1
-    try { & .\esptool.exe --chip esp32-S2 --port "COM$comPort" --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode keep --flash_freq keep --flash_size keep 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin }
+    $esptool = Join-Path $PSScriptRoot 'esptool.exe'
+
+    # ESP32-C6: Bootloader an 0x0, dazu boot_app0.bin an 0xE000 - setzt eine Startauswahl einer vorherigen
+    # Firmware (z.B. Waveshare-Demo) zurueck. ESP32-S2: Bootloader an 0x1000.
+    # ESP32-C6: bootloader at 0x0, plus boot_app0.bin at 0xE000 - resets a boot selection of a previous
+    # firmware (e.g. Waveshare demo). ESP32-S2: bootloader at 0x1000.
+    try {
+        if ($board -eq 'c6') {
+            & $esptool --chip esp32c6 --port "COM$comPort" --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode keep --flash_freq keep --flash_size keep 0x0 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0xe000 boot_app0.bin 0x10000 uhr4.ino.bin
+        } else {
+            & $esptool --chip esp32-S2 --port "COM$comPort" --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode keep --flash_freq keep --flash_size keep 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin
+        }
+    }
     catch { Write-Host "esptool.exe: $($_.Exception.Message)" }
     $flashOk = ($LASTEXITCODE -eq 0)
     Pop-Location
@@ -470,7 +556,7 @@ elseif ($Flash) {
         Write-Host 'Flashen fehlgeschlagen - siehe Meldung von esptool oben. Haeufige Ursachen:'
         Write-Host '  * ESP nicht im Bootmodus: Boot-Taste druecken und halten, erst DANACH den USB anstecken'
         Write-Host '    ODER bei angestecktem USB: Reset und Boot druecken, Reset loslassen, Boot kurz danach loslassen.'
-        Write-Host '  * "Wrong --chip" / "This chip is ...": kein ESP32-S2 - uhr4 laeuft nur auf dem ESP32-S2 (Lolin S2 Pico).'
+        Write-Host '  * "Wrong --chip" / "This chip is ...": falscher Chip - uhr4 gibt es fuer ESP32-S2 (Lolin S2 Pico) und ESP32-C6 (Waveshare).'
         Write-Host '  * "could not open port" / Zugriff verweigert: Port belegt - seriellen Monitor schliessen.'
         Write-Host '  * USB-Hub oder Frontanschluss: die Uhr direkt an einen USB-Anschluss am PC stecken.'
         Write-Host '  * esptool.exe startet nicht: vom Virenscanner blockiert - Ausnahme fuer diesen Ordner einrichten.'
@@ -478,7 +564,7 @@ elseif ($Flash) {
         Write-Host 'Flashing failed - see the esptool message above. Common causes:'
         Write-Host '  * ESP not in boot mode: press and hold the Boot button, only THEN plug in USB'
         Write-Host '    OR with USB connected: press Reset and Boot, release Reset, release Boot shortly after.'
-        Write-Host '  * "Wrong --chip" / "This chip is ...": not an ESP32-S2 - uhr4 only runs on the ESP32-S2 (Lolin S2 Pico).'
+        Write-Host '  * "Wrong --chip" / "This chip is ...": wrong chip - uhr4 exists for ESP32-S2 (Lolin S2 Pico) and ESP32-C6 (Waveshare).'
         Write-Host '  * "could not open port" / access denied: port in use - close the serial monitor.'
         Write-Host '  * USB hub or front port: plug the clock directly into a USB port of the PC.'
         Write-Host '  * esptool.exe does not start: blocked by the virus scanner - add an exception for this folder.'
@@ -526,22 +612,13 @@ if ($displayName -or $wifiSsid) {
 
         $sp = $null
         try {
-            # DTR an: erst dann sendet die Uhr (USB-CDC) ihre Antworten. RTS ebenfalls
-            # an: .NET setzt die Leitungen beim Oeffnen nacheinander, mit RTS aus
-            # entstand dabei die esptool-Folge (DTR/RTS), auf die der ESP32-S2 in den
-            # Download-Modus springt. Die Firmware ignoriert diese Folge inzwischen
-            # ohnehin (Serial.enableReboot(false) in uhr4.ino).
-            # DTR on: only then does the clock (USB CDC) send its replies. RTS on as
-            # well: .NET sets the lines one after another when opening, with RTS off
-            # this produced the esptool sequence (DTR/RTS) on which the ESP32-S2
-            # jumps into download mode. The firmware ignores that sequence by now
-            # anyway (Serial.enableReboot(false) in uhr4.ino).
-            $sp = New-Object System.IO.Ports.SerialPort ("COM$num", 115200)
-            $sp.DtrEnable = $true
-            $sp.RtsEnable = $true
-            $sp.ReadTimeout = 500
-            $sp.NewLine = "`n"
-            $sp.Open()
+            # ESP32-S2: DTR an, erst dann sendet die Uhr (USB-CDC) ihre Antworten. RTS ebenfalls an: .NET
+            # setzt die Leitungen beim Oeffnen nacheinander, mit RTS aus entstand dabei die esptool-Folge,
+            # auf die der ESP32-S2 in den Download-Modus springt. ESP32-C6: beide aus (Open-ClockPort).
+            # ESP32-S2: DTR on, only then does the clock (USB CDC) send its replies. RTS on as well: .NET
+            # sets the lines one after another when opening, with RTS off this produced the esptool
+            # sequence on which the ESP32-S2 jumps into download mode. ESP32-C6: both off (Open-ClockPort).
+            $sp = Open-ClockPort $num
 
             if (-not $wifiDone) {
                 $reply = Send-Command $sp ("UHR4 WIFI {0} {1}" -f (ConvertTo-Hex $wifiSsid), (ConvertTo-Hex $wifiPass))

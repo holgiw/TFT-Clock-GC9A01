@@ -633,3 +633,26 @@
         }
     }
 
+
+    // Rocrail-Modellzeit ein-/ausschalten und speichern (Einstellungsseite, /api/setMode, Presets). Aus:
+    // Verbindung und R2RNet-Diagnose sofort beenden; an: sofort verbinden statt auf das naechste Zeitfenster
+    // zu warten (no-op ohne Serveradresse) und die Diagnose mit starten.
+
+    // Switch the Rocrail model time on/off and store it (settings page, /api/setMode, presets). Off: close
+    // the connection and the R2RNet diagnostics right away; on: connect immediately instead of waiting for
+    // the next window (no-op without a server address) and start the diagnostics too.
+
+    void setRocrailEnabled(bool on) {
+        rocrailEnabled = on;
+        preferences.putBool(PK_ROCRAIL_ENABLED, on);
+        if (!on) {
+            if (rocrailClient.connected()) rocrailClient.stop();
+            rocrailConnected = false;
+            r2rnetDebugUdp.stop();
+            r2rnetDebugListening = false;
+        }
+        else {
+            triggerRocrailConnectNow();
+            startR2rnetDebugListener();
+        }
+    }

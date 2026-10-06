@@ -13,4 +13,11 @@
 # Arduino IDE / arduino-cli don't read this file: there, copy platform.local.txt from the project folder
 # next to the ESP32 core's platform.txt (paths see there), or use --build-property.
 
-compiler.cpp.extra_flags=-mtext-section-literals
+# Nur der ESP32-S2 (Xtensa) kennt den Schalter, der ESP32-C6 (RISC-V) bricht damit ab - {build.mcu} waehlt
+# den passenden Eintrag (wie build.extra_flags.<mcu> in der platform.txt des Cores).
+# Only the ESP32-S2 (Xtensa) knows the switch, the ESP32-C6 (RISC-V) aborts with it - {build.mcu} picks the
+# matching entry (like build.extra_flags.<mcu> in the core's platform.txt).
+
+compiler.cpp.extra_flags={uhr4.cpp_flags.{build.mcu}}
+uhr4.cpp_flags.esp32s2=-mtext-section-literals
+uhr4.cpp_flags.esp32c6=
