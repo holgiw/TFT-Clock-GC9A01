@@ -97,10 +97,10 @@
 
 
     // Werte, die vom Displaytyp abhaengen - bei einer Sicherung mit anderem Displaytyp behaelt die Uhr ihre
-    // eigenen: Nabengroesse (je Typ in DISPLAY_GEOMETRY) und die ganze Helligkeit.
+    // eigene Helligkeit; die Nabengroesse rechnet scaleBackupHubSizes() danach auf diese Uhr um.
 
-    // Values depending on the display type - with a backup of another display type the clock keeps its own:
-    // hub size (per type in DISPLAY_GEOMETRY) and all brightness values.
+    // Values depending on the display type - with a backup of another display type the clock keeps its own
+    // brightness; scaleBackupHubSizes() converts the hub size to this clock afterwards.
 
     bool isBackupDisplayDependentKey(const String& key) {
         return key == PK_CENTER_SIZE || key == PK_MAX_BRIGHTNESS || key == PK_GAMMA_BRIGHTNESS ||
@@ -953,6 +953,45 @@
     }
 
 
+    // Sicherung mit anderem Displaytyp (nach applyBackupSettings()): Nabengroesse der Sicherung und hubSize der
+    // Uhren Sets im Verhaeltnis der Uhrgroessen umrechnen (z.B. 240 -> 172). Ohne Nabengroesse in der Sicherung
+    // bleibt die eigene. Die Nabenfarbe kommt unveraendert mit.
+
+    // Backup of another display type (after applyBackupSettings()): convert the backup's hub size and the hubSize
+    // of the presets in the ratio of the clock sizes (e.g. 240 -> 172). Without a hub size in the backup the own
+    // one stays. The hub colour comes along unchanged.
+
+    void scaleBackupHubSizes(const String& settings, int fromClock) {
+        if (fromClock <= 0 || fromClock == CLOCK_WIDTH) return;
+        auto scale = [&](long v) -> long {
+            if (v <= 0) return 0;
+            return constrain((v * CLOCK_WIDTH + fromClock / 2) / fromClock, 1L, 100L);
+        };
+        String key = String("\t") + PK_CENTER_SIZE + "\t";
+        forEachBackupLine(settings, [&](const String& line) {
+            int p = line.indexOf(key);
+            if (p > 0 && line.indexOf('\t') == p) {
+                long v = line.substring(p + key.length()).toInt();
+                preferences.putUInt(PK_CENTER_SIZE, (uint32_t)scale(v));
+                DEBUG_PRINTLN("[Backup] Hub size " + String(v) + " -> " + String(scale(v)));
+            }
+        });
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            String urlKey = pkPresetUrl(i);
+            String url = preferences.getString(urlKey.c_str(), "");
+            int q = url.indexOf('?');
+            if (q < 0) continue;
+            int pos = url.indexOf("?hubSize=", q);
+            if (pos < 0) pos = url.indexOf("&hubSize=", q);
+            if (pos < 0) continue;
+            int start = pos + 9;
+            int end = url.indexOf('&', start);
+            long v = url.substring(start, end < 0 ? url.length() : end).toInt();
+            preferences.putString(urlKey.c_str(), setPresetUrlParam(url, "hubSize", String(scale(v))));
+        }
+    }
+
+
     // Wiederherstellen: Zustand ueber die Upload-Stuecke hinweg
     // Restore: state across the upload chunks
 
@@ -1242,6 +1281,7 @@
 
             const DisplayGeometry& from = DISPLAY_GEOMETRY[backupRestore->backupType];
             if (backupRestore->otherType && from.panelHeight <= from.clock) applyStandardStrip();
+            if (backupRestore->otherType) scaleBackupHubSizes(backupRestore->settings, from.clock);
             backupWipe(backupRestore->wifiPlain);
             backupRestore->phase = BackupRestoreState::END;
             DEBUG_PRINTLN("[Backup] Restore complete: " + String(backupRestore->restoredFiles.size()) + " files");

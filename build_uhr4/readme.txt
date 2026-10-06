@@ -110,7 +110,7 @@ Siehe unbedingt auch den Schaltplan und den Platinenentwurf, die TFTs sind nicht
 Unbedingt auf die Beschriftung achten (VCC, GND usw.)
 
 
-Pinbelegung ESP32
+Pinbelegung ESP32-S2 (Lolin S2 Pico)
 
 TFT (Display 1, Pflicht):
 	TFT_SCLK: 7
@@ -331,7 +331,7 @@ Be sure to also check the circuit diagram and PCB layout - the TFTs are not pin-
 Be sure to pay close attention to the labeling (VCC, GND, etc.)
 
 
-ESP32 Pin Assignment
+ESP32-S2 (Lolin S2 Pico) Pin Assignment
 
 TFT (Display 1, required):
 	TFT_SCLK: 7

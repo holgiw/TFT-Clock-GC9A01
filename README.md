@@ -1,8 +1,8 @@
-# uhr4 (Version 4) – Uhr auf rundem Display
+# uhr4 (Version 4) – Uhr auf runden und eckigen Displays
 
 *English version below.*
 
-uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 Pico) zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem runden TFT-Display (GC9A01 oder GC9D01) oder einem rechteckigen ILI9341 (Uhr oben, darunter Uhrzeit und Datum). Die Uhrzeit kommt per NTP (WLAN), DCF77 oder RTC; Zifferblätter, Zeiger und alle Einstellungen lassen sich über die Weboberfläche anpassen.
+uhr4 ist ein digitales Uhrenprojekt auf runden und eckigen Displays: Ein ESP32-S2 (Lolin S2 Pico) oder ESP32-C6 (Waveshare, Display eingebaut) zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem runden TFT-Display (GC9A01 oder GC9D01) oder einem eckigen (ILI9341, ST7789; bei den rechteckigen die Uhr oben, darunter Uhrzeit und Datum). Die Uhrzeit kommt per NTP (WLAN), DCF77 oder RTC; Zifferblätter, Zeiger und alle Einstellungen lassen sich über die Weboberfläche anpassen.
 
 **Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/TFT-Clock-GC9A01/releases/latest) bzw. im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Ein Update von uhr3 (Version 3) auf uhr4 übernimmt den Displaytyp automatisch.
 
@@ -10,8 +10,16 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 1. Unterstützung mehrerer TFT-Displays
 
-- Unterstützte Displays: GC9A01 (240 × 240), GC9D01 (160 × 160) und ILI9341 (240 × 320, Zifferblätter und Zeiger wie beim GC9A01) – eine Firmware für alle, der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“: GC9A01 ohne / mit Hintergrundbeleuchtung (BL) an Pin 3, GC9D01, ILI9341 – wie in `flashESP`; beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Dazu mit eigenem Build für den ESP32-C6: ST7789 (172 × 320, Uhr 172 × 172 mit Uhrzeit und Datum darunter) und ST7789_240 (240 × 240), siehe Abschnitt 9. Grafikbibliothek: LovyanGFX.
-- Zweites, baugleiches Display optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
+Eine Firmware je ESP; der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“, beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
+
+- **ESP32-S2** (Lolin S2 Pico, Build `build_uhr4/esp32s2`):
+  - GC9A01 – rund, 240 × 240; ohne oder mit geregelter Hintergrundbeleuchtung (BL)
+  - GC9D01 – rund, 160 × 160; BL geregelt
+  - ILI9341 – rechteckig, 240 × 320; oben die Uhr (240 × 240, Zifferblätter und Zeiger wie beim GC9A01), darunter Uhrzeit und Datum; feste Beleuchtung
+- **ESP32-C6** (Waveshare, Display fest verbaut, Build `build_uhr4/esp32c6`, ohne PSRAM; BL geregelt):
+  - ESP32-C6-LCD-1.47: ST7789 – rechteckig, 172 × 320; oben die Uhr (172 × 172), darunter Uhrzeit und Datum
+  - ESP32-C6-LCD-1.3: ST7789_240 – quadratisch, 240 × 240
+- Zweites, baugleiches Display (nur ESP32-S2) optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
 
 ---
 
@@ -78,10 +86,16 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 
 ## 9. Hardware-Integration
 
-- ESP32-S2 (Lolin S2 Pico) mit rundem TFT-Display (GC9A01 oder GC9D01); Pinbelegung siehe `build_uhr4/readme.txt`, Platine im Ordner `PCB`.
-- Alternativ: Waveshare ESP32-C6-LCD-1.47 mit fest verbautem ST7789 (172 × 320) – oben die Uhr (172 × 172), darunter Uhrzeit und Datum wie beim ILI9341 – oder Waveshare ESP32-C6-LCD-1.3 mit ST7789 (240 × 240). Ein gemeinsames Build (Board „ESP32C6 Dev Module“, Partition „No OTA (2MB APP/2MB SPIFFS)“, USB CDC On Boot „Enabled“), das Board wählt der Displaytyp (ST7789 bzw. ST7789_240). Extras an der Stiftleiste: Lichtsensor GPIO 2 (Versorgung 1, Masse 3), RTC SDA 16 (TX) / SCL 17 (RX), DCF77 GPIO 20, Taster GPIO 23, Boot-Taster GPIO 9 – bei beiden Boards gleich; kein zweites Display. Schaltpläne und Pinbelegung bei Waveshare: [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents), [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents).
+- **ESP32-S2** (Lolin S2 Pico):
+  - GC9A01 (rund, 240 × 240)
+  - GC9D01 (rund, 160 × 160)
+  - ILI9341 (rechteckig, 240 × 320)
+  - Verdrahtung siehe `build_uhr4/readme.txt`, Platine im Ordner `PCB`
+- **ESP32-C6** (Waveshare, Display fest verbaut):
+  - [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents) mit ST7789 (172 × 320)
+  - [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents) mit ST7789 (240 × 240)
 - Fotowiderstand zur Helligkeitsmessung (wird beim Start automatisch erkannt).
-- Optional: zweites, baugleiches Display (eigener Chip-Select), RTC DS3231 (hält die Uhrzeit auch ohne WLAN über Stromausfälle hinweg), DCF77-Empfänger (Funkuhr-Zeit ohne Internet).
+- Optional: zweites, baugleiches Display (nur ESP32-S2, eigener Chip-Select), RTC DS3231 (hält die Uhrzeit auch ohne WLAN über Stromausfälle hinweg), DCF77-Empfänger (Funkuhr-Zeit ohne Internet).
 - Taster (zusätzlich auch der eingebaute Boot-Taster): kurz gedrückt zeigt die Uhr das verbundene WLAN, länger als 15 Sekunden gehalten löst er einen vollständigen Werksreset aus (ab 10 Sekunden erscheint ein Countdown, Loslassen bricht ab).
 
 ---
@@ -93,7 +107,7 @@ uhr4 ist ein digitales Uhrenprojekt auf rundem Display: Ein ESP32-S2 (Lolin S2 P
 - BMP-Skalierung: hochgeladene BMP-Dateien können auf die Displaygröße skaliert werden.
 - API-Schnittstelle
 - Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe/-größe, Sekundenzeiger sichtbar und Stil, Bahnhofsmodus, sanfter Minutenzeiger, Zeitzone und Helligkeitseinstellungen) - einzeln umbenenn- und löschbar, alphabetisch sortiert in der Liste; alle Presets lassen sich in eine Datei sichern und später wiederherstellen; sind alle 50 Plätze belegt, erscheint eine Warnung.
-- Komplettsicherung (Seite „Sicherung“): alle Einstellungen, Presets, Zifferblätter, Zeigersätze und Schriften in einer Datei (TAR; Zifferblätter und Zeiger darin als normale BMP-Bilder, mit jedem Bildprogramm zu öffnen; Dateiname mit Hostname, Displaytyp, Datum und Uhrzeit), wiederherstellbar auf dieser oder einer anderen Uhr; Sichern und Wiederherstellen zeigen einen Fortschrittsbalken. WLAN-Zugangsdaten nur auf Wunsch und dann verschlüsselt – mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist, also nicht sicher. Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben unverändert; eine falsche oder beschädigte Datei ändert nichts. Stammt die Sicherung von einem anderen Displaytyp, weist die Uhr darauf hin und übernimmt nur Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen – Helligkeit und Nabengröße bleiben; das geht nur mit Zifferblättern in 240 × 240, sonst übernimmt sie nichts. Eine Uhr mit Streifen bekommt dabei den Standard-Streifen, wenn die Sicherung keinen hat.
+- Komplettsicherung (Seite „Sicherung“): alle Einstellungen, Presets, Zifferblätter, Zeigersätze und Schriften in einer Datei (TAR; Zifferblätter und Zeiger darin als normale BMP-Bilder, mit jedem Bildprogramm zu öffnen; Dateiname mit Hostname, Displaytyp, Datum und Uhrzeit), wiederherstellbar auf dieser oder einer anderen Uhr; Sichern und Wiederherstellen zeigen einen Fortschrittsbalken. WLAN-Zugangsdaten nur auf Wunsch und dann verschlüsselt – mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist, also nicht sicher. Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben unverändert; eine falsche oder beschädigte Datei ändert nichts. Stammt die Sicherung von einem anderen Displaytyp, weist die Uhr darauf hin und übernimmt nur Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen – die Nabengröße (auch in den Uhren Sets) rechnet sie auf ihre Größe um, die Helligkeit bleibt; das geht nur mit Zifferblättern in 240 × 240, sonst übernimmt sie nichts. Eine Uhr mit Streifen bekommt dabei den Standard-Streifen, wenn die Sicherung keinen hat.
 - Das Löschen eines Zifferblatts oder Zeigersatzes entfernt automatisch alle Presets, die darauf verwiesen haben; wird der gerade aktive Zeigersatz gelöscht, fällt die Uhr automatisch auf den Standard-Zeigersatz 0 zurück.
 - DCF77 wird unterstützt: robuster Empfang auch bei schwachem oder gestörtem Signal (Impulse werden über ein Sekundenraster statt reiner Zählung platziert, sodass fehlende Impulse nicht die folgenden Bits verschieben), funktioniert unabhängig von der Signalpolarität; ein gestörtes Telegramm kann nie eine falsche Zeit setzen.
 - Live-Seite (/dcf77) zeigt den Bit-Fortschritt des aktuellen Telegramms und das letzte dekodierte Telegramm zur Diagnose.
@@ -123,14 +137,22 @@ FreeSans, Orbitron) stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
 
 # English Version
 
-uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) shows the time as a clock face with hands on a round TFT display (GC9A01 or GC9D01) or a rectangular ILI9341 (clock on top, time and date below). The time comes via NTP (WiFi), DCF77 or RTC; clock faces, hands and all settings can be customized via the web interface.
+uhr4 is a digital clock project on round and square displays: an ESP32-S2 (Lolin S2 Pico) or ESP32-C6 (Waveshare, display built in) shows the time as a clock face with hands on a round TFT display (GC9A01 or GC9D01) or a square one (ILI9341, ST7789; on the rectangular ones the clock on top, time and date below). The time comes via NTP (WiFi), DCF77 or RTC; clock faces, hands and all settings can be customized via the web interface.
 
 **Download:** firmware with flash tool under [Releases](https://github.com/holgiw/TFT-Clock-GC9A01/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). Updating from uhr3 (version 3) to uhr4 takes over the display type automatically.
 
 ## 1. Support for Multiple TFT Displays
 
-- Supported displays: GC9A01 (240 × 240), GC9D01 (160 × 160) and ILI9341 (240 × 320, clock faces and hands as for the GC9A01) – one firmware for all, the display type is a setting ("Clock Setup" tab: GC9A01 without / with backlight (BL) on pin 3, GC9D01, ILI9341 – as in `flashESP`; when flashing via `flashESP`, or automatically when updating from uhr3). Plus, with a separate build for the ESP32-C6: ST7789 (172 × 320, clock 172 × 172 with time and date below) and ST7789_240 (240 × 240), see section 9. Graphics library: LovyanGFX.
-- A second, identical display can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock takes over (the settings page notes this).
+One firmware per ESP; the display type is a setting ("Clock Setup" tab, when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
+
+- **ESP32-S2** (Lolin S2 Pico, build `build_uhr4/esp32s2`):
+  - GC9A01 – round, 240 × 240; without or with controlled backlight (BL)
+  - GC9D01 – round, 160 × 160; BL controlled
+  - ILI9341 – rectangular, 240 × 320; the clock on top (240 × 240, clock faces and hands as for the GC9A01), time and date below; fixed backlight
+- **ESP32-C6** (Waveshare, display built in, build `build_uhr4/esp32c6`, without PSRAM; BL controlled):
+  - ESP32-C6-LCD-1.47: ST7789 – rectangular, 172 × 320; the clock on top (172 × 172), time and date below
+  - ESP32-C6-LCD-1.3: ST7789_240 – square, 240 × 240
+- A second, identical display (ESP32-S2 only) can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock takes over (the settings page notes this).
 
 ---
 
@@ -197,10 +219,16 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 
 ## 9. Hardware Integration
 
-- ESP32-S2 (Lolin S2 Pico) with a round TFT display (GC9A01 or GC9D01); pinout see `build_uhr4/readme.txt`, PCB in the `PCB` folder.
-- Alternatively: Waveshare ESP32-C6-LCD-1.47 with a built-in ST7789 (172 × 320) – the clock on top (172 × 172), time and date below as with the ILI9341 – or Waveshare ESP32-C6-LCD-1.3 with an ST7789 (240 × 240). One shared build (board "ESP32C6 Dev Module", partition "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"), the display type picks the board (ST7789 or ST7789_240). Extras on the pin header: light sensor GPIO 2 (supply 1, ground 3), RTC SDA 16 (TX) / SCL 17 (RX), DCF77 GPIO 20, button GPIO 23, Boot button GPIO 9 – the same on both boards; no second display. Schematics and pinout at Waveshare: [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents), [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents).
+- **ESP32-S2** (Lolin S2 Pico):
+  - GC9A01 (round, 240 × 240)
+  - GC9D01 (round, 160 × 160)
+  - ILI9341 (rectangular, 240 × 320)
+  - Wiring see `build_uhr4/readme.txt`, PCB in the `PCB` folder
+- **ESP32-C6** (Waveshare, display built in):
+  - [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents) with ST7789 (172 × 320)
+  - [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents) with ST7789 (240 × 240)
 - Photoresistor for brightness measurement (detected automatically at startup).
-- Optional: a second, identical display (own chip select), RTC DS3231 (keeps the time across power loss even without WiFi), DCF77 receiver (radio clock time without internet).
+- Optional: a second, identical display (ESP32-S2 only, own chip select), RTC DS3231 (keeps the time across power loss even without WiFi), DCF77 receiver (radio clock time without internet).
 - Button (the built-in Boot button works too): a short press shows the connected WiFi, holding it for more than 15 seconds triggers a full factory reset (a countdown appears from 10 seconds, releasing aborts).
 
 ---
@@ -212,7 +240,7 @@ uhr4 is a digital clock project on a round display: an ESP32-S2 (Lolin S2 Pico) 
 - BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
 - API Interface
 - Up to 50 presets (face, hand set, hub color/size, second hand visibility and style, station mode, smooth minute hand, time zone and brightness settings) - individually renameable and deletable, sorted alphabetically in the list; back up all presets to a file and restore them later; a warning is shown once all 50 slots are full.
-- Full backup (Backup page): all settings, presets, clock faces, hand sets and fonts in one file (TAR; clock faces and hands inside as normal BMP images that any image program opens; file name with host name, display type, date and time), restorable on this or another clock; backup and restore show a progress bar. WiFi credentials only on request and then encrypted – with a key that is the same in every uhr4 firmware, so not secure. Display type, rotation, backlight and light sensor of the target clock stay unchanged; a wrong or damaged file changes nothing. If the backup comes from another display type, the clock points this out and only takes over clock faces, hands (scaled to its size), presets and general settings – brightness and hub size stay; this only works with clock faces in 240 × 240, otherwise it takes over nothing. A clock with a strip then gets the standard strip if the backup has none.
+- Full backup (Backup page): all settings, presets, clock faces, hand sets and fonts in one file (TAR; clock faces and hands inside as normal BMP images that any image program opens; file name with host name, display type, date and time), restorable on this or another clock; backup and restore show a progress bar. WiFi credentials only on request and then encrypted – with a key that is the same in every uhr4 firmware, so not secure. Display type, rotation, backlight and light sensor of the target clock stay unchanged; a wrong or damaged file changes nothing. If the backup comes from another display type, the clock points this out and only takes over clock faces, hands (scaled to its size), presets and general settings – it converts the hub size (also in the presets) to its size, the brightness stays; this only works with clock faces in 240 × 240, otherwise it takes over nothing. A clock with a strip then gets the standard strip if the backup has none.
 - Deleting a clock face or hand set automatically removes any presets that referenced it; deleting the currently active hand set automatically falls back to the default hand set 0.
 - DCF77 supported: robust reception even with a weak or disturbed signal (pulses are placed on a one-second grid instead of relying on pure counting, so missing pulses don't shift the following bits), works regardless of signal polarity; a disturbed telegram can never set a wrong time.
 - Live page (/dcf77) shows the bit progress of the current telegram and the last decoded telegram for diagnostics.

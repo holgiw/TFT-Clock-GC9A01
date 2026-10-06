@@ -15,8 +15,9 @@
   FreeSans Bold, DejaVu bzw. der Designer-Schrift „Sans“ (falls auf der Uhr vorhanden, sonst GLCD); eine neue
   Uhr startet gleich mit dem Streifen wie „Standard“.
 - Wiederherstellen einer Sicherung mit anderem Displaytyp: Die Uhr weist darauf hin und übernimmt nur
-  Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen; Displaytyp,
-  Rotation, Hintergrundbeleuchtung, Helligkeit und Nabengröße bleiben. Sind die Zifferblätter der Sicherung
+  Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen; die Nabengröße
+  (auch die der Uhren Sets) rechnet sie auf ihre Größe um, die Nabenfarbe kommt mit; Displaytyp, Rotation,
+  Hintergrundbeleuchtung und Helligkeit bleiben. Sind die Zifferblätter der Sicherung
   nicht 240 × 240 groß, übernimmt sie nichts und meldet das. Stammt die Sicherung von einer Uhr ohne Streifen,
   bekommt eine Uhr mit Streifen den Standard-Streifen (weiß, schwarze Schrift, FreeSans Bold). Bisher wurde eine andere Uhrgröße abgelehnt und bei
   gleicher Größe (z. B. GC9A01 und ILI9341) alles übernommen.
@@ -120,8 +121,8 @@
   presets have a white strip with black text in FreeSans Bold, DejaVu or the designer font "Sans" (if present
   on the clock, otherwise GLCD); a new clock starts right away with the strip like "Standard".
 - Restoring a backup of another display type: the clock points this out and only takes over clock faces,
-  hands (scaled to its size), presets and general settings; display type, rotation, backlight, brightness and
-  hub size stay. If the backup's clock faces are not 240 × 240, it takes over nothing and says so. If the
+  hands (scaled to its size), presets and general settings; it converts the hub size (also that of the
+  presets) to its size, the hub colour comes along; display type, rotation, backlight and brightness stay. If the backup's clock faces are not 240 × 240, it takes over nothing and says so. If the
   backup comes from a clock without a strip, a clock with a strip gets the standard strip (white, black text,
   FreeSans Bold). Before, a
   different clock size was rejected and with the same size (e.g. GC9A01 and ILI9341) everything was restored.

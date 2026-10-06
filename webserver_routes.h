@@ -7240,7 +7240,7 @@
                 blDefaults += sep + String(DISPLAY_GEOMETRY[i].backlightDefault ? 1 : 0);
             }
             html += "<div id='restoreTexts' hidden data-from='" + translate("This backup is from a {b} clock, this clock is a {c}") +
-                    "' data-fits='" + translate("Clock faces, hands, presets and general settings are restored (scaled to this clock); display type, rotation, backlight, brightness and hub size of this clock stay unchanged") +
+                    "' data-fits='" + translate("Clock faces, hands, presets and general settings are restored (scaled to this clock, also the hub size); display type, rotation, backlight and brightness of this clock stay unchanged") +
                     "' data-size='" + translate("Its clock faces are not 240x240 - the clock will not restore anything") +
                     "' data-fname='" + translate("The file name says {n}") + "' data-anyway='" + translate("Restore anyway?") +
                     "' data-dl='" + translate("Creating backup - the clock is busy, please wait") +
@@ -7331,7 +7331,7 @@
             String myDisplay = displayChoiceName(displayType, useBacklight);
             String note = "";
             if (otherType) {
-                note = "<div class='msg warn'>" + translate("The backup is from a {b} clock: clock faces and hands (scaled to this clock), presets and general settings were restored; display type, rotation, backlight, brightness and hub size of this clock ({c}) were kept") + ".</div>";
+                note = "<div class='msg warn'>" + translate("The backup is from a {b} clock: clock faces, hands and hub size (scaled to this clock), presets and general settings were restored; display type, rotation, backlight and brightness of this clock ({c}) were kept") + ".</div>";
                 note.replace("{b}", backupDisplay);
                 note.replace("{c}", myDisplay);
             }
