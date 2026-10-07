@@ -6613,14 +6613,6 @@
 
             chunk = "</div><hr>";
 
-            uint8_t hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
-            uint32_t hubColorRgb = preferences.getLong(PK_CENTER_COLOR, 0xEC0016);
-
-            chunk += "<h2>" + translate("Centre point") + "</h2><form action = '/setcenter' method = 'POST'>";
-            chunk += "<label>" + translate("Size (pixels)") + ":</label><br><input name='size' type='number' min='0' max='50' value='" + String(hubSize) + "'><br>";
-            chunk += "<label>" + translate("Color (RGB hex, e.g. FF0000 = Red, 000000 = Black, EC0016 = DB red)") + ":</label><br><input name = 'color' value = '" + String(hubColorRgb, HEX) + "'><br>";
-            chunk += "<button type='submit'>" + translate("Apply") + "</button></form><hr>";
-
             // Platz fuer eine unkomprimierte Zeigerdatei im neuen Format - so landet
             // der Upload zuerst auf LittleFS, bevor er RLE-komprimiert wird.
 
@@ -6708,26 +6700,38 @@
                                        // signal the end of the chunked transfer
             });
 
+        // Nabe aus dem Zifferblatt-Designer: size = Radius, color = RGB888 hex; save=0 zeigt nur an,
+        // save=1 speichert zusaetzlich.
+
+        // Hub from the clock face designer: size = radius, color = RGB888 hex; save=0 only displays,
+        // save=1 also stores.
+
         webserver.on("/setcenter", HTTP_POST, []() {
-            if (webserver.hasArg("size") && webserver.hasArg("color")) {
-                hubSize = argToIntClamped("size", hubSize, 0, 100);
-                uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16);
+            if (!isPrivateNetworkIp(webserver.client().remoteIP())) {
+                webserver.send(403, "application/json", "{\"ok\":false}");
+                return;
+            }
+            if (!webserver.hasArg("size") || !webserver.hasArg("color")) {
+                webserver.send(400, "application/json", "{\"ok\":false}");
+                return;
+            }
+            hubSize = argToIntClamped("size", hubSize, 0, 100);
+            uint32_t rgb = (uint32_t)strtoul(webserver.arg("color").c_str(), nullptr, 16) & 0xFFFFFF;
 
-                // 24-Bit RGB888 in RGB565 umwandeln
-                // Convert 24-bit RGB888 to RGB565
+            // 24-Bit RGB888 in RGB565 umwandeln
+            // Convert 24-bit RGB888 to RGB565
 
-                uint8_t r = (rgb >> 16) & 0xFF;
-                uint8_t g = (rgb >> 8) & 0xFF;
-                uint8_t b = rgb & 0xFF;
-                uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            uint8_t r = (rgb >> 16) & 0xFF;
+            uint8_t g = (rgb >> 8) & 0xFF;
+            uint8_t b = rgb & 0xFF;
+            hubColor = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 
+            if (webserver.arg("save") == "1") {
                 preferences.putUInt(PK_CENTER_SIZE, hubSize);
                 preferences.putLong(PK_CENTER_COLOR, rgb);
-
-                hubColor = rgb565;
-
+                DEBUG_PRINTLN("[WEB] Hub saved: radius " + String(hubSize) + ", color " + String(rgb, HEX));
             }
-            redirectTo("/handsets?msg=Settings%20saved");
+            webserver.send(200, "application/json", "{\"ok\":true}");
             });
 
         //  Handsets Datei-Upload verarbeiten
@@ -6955,9 +6959,15 @@
                 file = root.openNextFile();
             }
 
+            // Gespeicherte Nabenfarbe (RGB888), solange sie zur angezeigten passt - sonst aus RGB565 zurueckgerechnet
+            // Stored hub colour (RGB888) as long as it matches the displayed one - otherwise converted back from RGB565
+
+            uint32_t hubRgb = (uint32_t)preferences.getLong(PK_CENTER_COLOR, 0xEC0016) & 0xFFFFFF;
+            if (tft.color565((hubRgb >> 16) & 0xFF, (hubRgb >> 8) & 0xFF, hubRgb & 0xFF) != hubColor) {
+                hubRgb = ((uint32_t)(((hubColor >> 11) & 0x1F) * 255 / 31) << 16) | ((uint32_t)(((hubColor >> 5) & 0x3F) * 255 / 63) << 8) | ((hubColor & 0x1F) * 255 / 31);
+            }
             char hubHex[8];
-            snprintf(hubHex, sizeof(hubHex), "#%02x%02x%02x",
-                     ((hubColor >> 11) & 0x1F) * 255 / 31, ((hubColor >> 5) & 0x3F) * 255 / 63, (hubColor & 0x1F) * 255 / 31);
+            snprintf(hubHex, sizeof(hubHex), "#%06lx", (unsigned long)hubRgb);
 
             const char* roundJs = displayGeom->round ? "true" : "false";
 

@@ -2,6 +2,13 @@
 
 *English version below.*
 
+## 2026-10-07
+
+### Geändert
+- Die Nabe (Mittelpunkt über den Zeigern) wird jetzt im Zifferblatt-Designer gestaltet: Radius und Farbe
+  (Farbwähler) mit Live-Vorschau; die Uhr zeigt Änderungen sofort an, „Nabe speichern“ legt sie ab. Das
+  Formular „Mittelpunkt“ auf der Seite „Zeiger“ entfällt.
+
 ## 2026-10-06
 
 ### Hinzugefügt
@@ -116,6 +123,13 @@
 ---
 
 # English Version
+
+## 2026-10-07
+
+### Changed
+- The hub (centre over the hands) is now designed in the clock face designer: radius and colour (colour
+  picker) with live preview; the clock shows changes right away, "Save hub" stores them. The "Centre point"
+  form on the "Hand Set" page is gone.
 
 ## 2026-10-06
 
