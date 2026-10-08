@@ -2,15 +2,15 @@
 
 *English version below.*
 
-uhr4 ist ein digitales Uhrenprojekt auf runden und eckigen Displays: Ein ESP32-S2 (Lolin S2 Pico) oder ESP32-C6 (Waveshare, Display eingebaut) zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem runden TFT-Display (GC9A01 oder GC9D01) oder einem eckigen (ILI9341, ST7789; bei den rechteckigen die Uhr oben, darunter Uhrzeit und Datum). Die Uhrzeit kommt per NTP (WLAN), DCF77 oder RTC; Zifferblätter, Zeiger und alle Einstellungen lassen sich über die Weboberfläche anpassen.
+uhr4 zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem TFT-Display. Die Hardware ist ein ESP32-S2 (Lolin S2 Pico) mit rundem (GC9A01, GC9D01) oder rechteckigem Display (ILI9341) oder ein ESP32-C6 von Waveshare mit eingebautem ST7789. Auf hochkanten Displays (ILI9341, ST7789 172 × 320) steht die Uhr oben, darunter Uhrzeit und Datum. Die Zeit kommt per NTP (WLAN), DCF77 oder RTC. Zifferblätter, Zeiger und alle Einstellungen werden über die Weboberfläche angepasst.
 
-**Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) bzw. im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Ein Update von uhr3 (Version 3) auf uhr4 übernimmt den Displaytyp automatisch.
+**Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) oder im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Beim Update von uhr3 (Version 3) übernimmt uhr4 den Displaytyp.
 
 ---
 
 ## 1. Unterstützung mehrerer TFT-Displays
 
-Eine Firmware je ESP; der Displaytyp ist eine Einstellung (Tab „Uhr Einstellungen“, beim Flashen per `flashESP` oder automatisch beim Update von uhr3). Grafikbibliothek: LovyanGFX.
+Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ oder beim Flashen mit `flashESP`; beim Update von uhr3 wird er übernommen. Grafikbibliothek: LovyanGFX.
 
 - **ESP32-S2** (Lolin S2 Pico, Build `build_uhr4/esp32s2`):
   - GC9A01 – rund, 240 × 240; ohne oder mit geregelter Hintergrundbeleuchtung (BL)
@@ -19,68 +19,79 @@ Eine Firmware je ESP; der Displaytyp ist eine Einstellung (Tab „Uhr Einstellun
 - **ESP32-C6** (Waveshare, Display fest verbaut, Build `build_uhr4/esp32c6`, ohne PSRAM; BL geregelt):
   - ESP32-C6-LCD-1.47: ST7789 – rechteckig, 172 × 320; oben die Uhr (172 × 172), darunter Uhrzeit und Datum
   - ESP32-C6-LCD-1.3: ST7789_240 – quadratisch, 240 × 240
-- Zweites, baugleiches Display (nur ESP32-S2) optional ansteuerbar, mit eigener Rotationseinstellung (0°, 90°, 180°, 270°) - ein nicht angeschlossenes Display wird auf "nicht angeschlossen (n.a.)" gestellt: dann bleibt es schwarz, Zifferblatt und Zeiger werden dafür weder gezeichnet noch berechnet. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays (Hinweis dazu auf der Einstellungsseite).
+- Zweites, baugleiches Display (nur ESP32-S2) mit eigener Rotation (0°, 90°, 180°, 270°). Steht ein Display auf „nicht angeschlossen (n.a.)“, bleibt es schwarz, und die Uhr zeichnet und berechnet nichts dafür. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays; die Einstellungsseite weist darauf hin.
 
 ---
 
 ## 2. Anpassbare Zeiger und Zifferblätter
 
-- Eigene Stunden-, Minuten- und Sekundenzeiger sowie eigene Zifferblätter lassen sich als BMP-Dateien hochladen. Eine neue Uhr (ohne Zifferblätter und Zeigersätze, z. B. nach dem ersten Flashen oder einem Werksreset) zeichnet sich ein Startpaket selbst und legt es im Dateisystem ab: drei Zifferblätter (weiß mit Rand, Stunden- und Minutenstrichen) – `face_default.bmp` mit 12, 3, 6 und 9, `face_numbers.bmp` mit 1–12 und `face_roman.bmp` mit I–XII –, drei Zeigersätze – Satz 0 mit schwarzen Balken und rotem Sekundenzeiger, Satz 1 ebenso mit schwarzem Sekundenzeiger, Satz 2 geschwungen – und, falls noch keine Presets da sind, die passenden Presets „Standard“, „1-12“ und „I-XII“ (die römische Uhr ohne Sekundenzeiger; auf Displays mit Streifen – ILI9341, ST7789 172 × 320 – mit weißem Streifen und schwarzer Schrift). Die Werksreset-Aktionen „Zifferblätter löschen“, „Zeigersätze löschen“ und „Uhren Sets löschen“ stellen diesen Zustand wieder her. Fehlen später nur `face_default.bmp` oder Satz 0, erzeugt die Uhr nur diese neu; fehlt einem Zeigersatz ein Zeiger, nimmt sie den aus Satz 0.
-- Zifferblätter und Zeiger z. B. im Layout der Deutschen Bahn oder anderer Gesellschaften lassen sich selbst hochladen oder im Zifferblatt- bzw. Zeiger-Designer erstellen.
-- Alle Zeiger werden kantengeglättet dargestellt (LovyanGFX); Stunden- und Minutenzeiger liegen in einem zwischengespeicherten Bild, zum Display wird nur der Bereich um den Sekundenzeiger übertragen – der schwingende Sekundenzeiger läuft dadurch flüssig.
-- Zeiger dürfen vom Drehpunkt bis zum Displayrand reichen und breiter sein: neues Zeigerformat 25 × 151 px mit Drehpunkt 12 / 120 (160er-Display: 15 × 100, Drehpunkt 7 / 80). Zeigersätze im bisherigen Format 21 × 131 (13 × 86) funktionieren unverändert weiter – sie werden beim Laden oben und seitlich transparent aufgefüllt. Gültig sind alle Kombinationen aus alter und neuer Breite bzw. Höhe (21 oder 25 × 131 oder 151); beim Hochladen bleiben genau diese Größen unverändert, alles andere wird wie bisher auf 21 × 131 (13 × 86) skaliert. Der Zeiger-Designer speichert Breite und Höhe im alten Maß, solange ein Zeiger nicht darüber hinausragt – solche Zeigersätze laufen auch auf älterer Firmware.
-- Zeiger-Designer im Browser (Seite „Zeiger“ → Link „Designer“ unter dem gewünschten Zeigersatz; der Satz wird dabei aktiviert): ausgehend vom gerade aktiven Zeigersatz neue Zeiger gestalten; Änderungen werden als neuer Zeigersatz gespeichert (optional gleich aktiviert) oder überschreiben den aktiven Satz und werden sofort angewendet – Pixel-Editor mit Stift, Linie, Rechteck, Ellipse, Polygon, Füllen, Pipette, freier Farbwahl (Farbpalette, Farbwähler, Hex-Eingabe), Spiegelung an der Mittelachse, Rückgängig und Formgenerator (Länge, Breiten, Gegengewicht, Scheibe), dazu eine Live-Vorschau auf dem aktuellen Zifferblatt. Die Uhr übernimmt dabei automatisch die passende Zeigergröße und den Drehpunkt ihres Displays.
-- Zifferblatt-Designer im Browser (Seite „Zifferblatt“ → Link „Designer“ unter dem gewünschten Zifferblatt; es wird dabei aktiviert): ausgehend vom aktiven Zifferblatt ein neues gestalten oder das aktive überschreiben und sofort anwenden – Zifferblatt-Generator (Hintergrund, Rand, Stunden- und Minutenstriche, Ziffern 1–12, 12/3/6/9 oder römisch), Pixel-Werkzeuge mit Stiftbreite, Text (gerade, gedreht oder im Bogen, auch mit installierten oder geladenen Schriften), Logo als Stempel, Spiegel- und Dreh-Symmetrie (4-, 12- oder 60-fach), freie Farbwahl, Bild laden (PNG, JPG, BMP …), Zoom und Live-Vorschau mit den aktiven Zeigern. Bei runden Displays ist der unsichtbare Bereich markiert. Dort wird auch die Nabe (Mittelpunkt über den Zeigern) gestaltet: Radius und Farbe, die Uhr zeigt Änderungen sofort an.
+- Stunden-, Minuten- und Sekundenzeiger und Zifferblätter lassen sich als BMP hochladen, z. B. im Layout der Deutschen Bahn oder anderer Gesellschaften, oder im Designer erstellen.
+- Startpaket: Hat die Uhr keine Zifferblätter und Zeigersätze (nach dem ersten Flashen oder einem Werksreset), zeichnet sie sich selbst
+  - drei Zifferblätter, weiß mit Rand, Stunden- und Minutenstrichen: `face_default.bmp` (12, 3, 6, 9), `face_numbers.bmp` (1–12), `face_roman.bmp` (I–XII),
+  - drei Zeigersätze: Satz 0 mit schwarzen Balken und rotem Sekundenzeiger, Satz 1 ebenso mit schwarzem Sekundenzeiger, Satz 2 geschwungen,
+  - ohne vorhandene Presets die Uhren Sets „Standard“, „1-12“ und „I-XII“ (I-XII ohne Sekundenzeiger; auf Displays mit Streifen – ILI9341, ST7789 172 × 320 – mit weißem Streifen und schwarzer Schrift).
+
+  Die Werksreset-Aktionen „Zifferblätter löschen“, „Zeigersätze löschen“ und „Uhren Sets löschen“ stellen diesen Zustand wieder her. Fehlen nur `face_default.bmp` oder Satz 0, erzeugt die Uhr nur diese neu. Fehlt einem Zeigersatz ein Zeiger, nimmt sie den aus Satz 0.
+- Alle Zeiger sind kantengeglättet (LovyanGFX). Stunden- und Minutenzeiger liegen in einem zwischengespeicherten Bild, zum Display geht nur der Bereich um den Sekundenzeiger. Deshalb läuft der schwingende Sekundenzeiger flüssig.
+- Zeigerformat 25 × 151 px mit Drehpunkt 12 / 120 (160er-Display: 15 × 100, Drehpunkt 7 / 80): Zeiger reichen vom Drehpunkt bis zum Displayrand. Zeigersätze im älteren Format 21 × 131 (13 × 86) funktionieren weiter; die Uhr füllt sie beim Laden oben und seitlich transparent auf. Gültig sind alle Kombinationen aus Breite 21 oder 25 und Höhe 131 oder 151. Diese Größen bleiben beim Hochladen unverändert, alle anderen skaliert die Uhr auf 21 × 131 (13 × 86). Der Zeiger-Designer speichert im alten Maß, solange kein Zeiger darüber hinausragt – solche Sätze laufen auch auf älterer Firmware.
+- Zeiger-Designer im Browser (Seite „Zeiger“ → Link „Designer“ unter dem Zeigersatz; der Satz wird dabei aktiviert): neue Zeiger auf Basis des aktiven Satzes gestalten. Speichern als neuer Zeigersatz (wahlweise gleich aktiviert) oder über den aktiven Satz, der dann sofort gilt. Werkzeuge: Stift, Linie, Rechteck, Ellipse, Polygon, Füllen, Pipette, Farbwahl (Palette, Farbwähler, Hex-Eingabe), Spiegeln an der Mittelachse, Rückgängig, Formgenerator (Länge, Breiten, Gegengewicht, Scheibe) und Live-Vorschau auf dem aktuellen Zifferblatt. Zeigergröße und Drehpunkt passt die Uhr an ihr Display an.
+- Zifferblatt-Designer im Browser (Seite „Zifferblatt“ → Link „Designer“ unter dem Zifferblatt; es wird dabei aktiviert): ein neues Zifferblatt auf Basis des aktiven gestalten oder das aktive überschreiben und sofort anwenden. Werkzeuge: Generator (Hintergrund, Rand, Stunden- und Minutenstriche, Ziffern 1–12, 12/3/6/9 oder römisch), Pixel-Werkzeuge mit Stiftbreite, Text (gerade, gedreht oder im Bogen, mit installierten oder geladenen Schriften), Logo-Stempel, Spiegel- und Dreh-Symmetrie (4-, 12- oder 60-fach), Farbwahl, Bild laden (PNG, JPG, BMP …), Zoom und Live-Vorschau mit den aktiven Zeigern. Auf runden Displays ist der unsichtbare Bereich markiert.
+- Die Nabe (Mittelpunkt über den Zeigern) wird ebenfalls im Zifferblatt-Designer eingestellt: Radius und Farbe; die Uhr zeigt Änderungen sofort.
 
 ---
 
 ## 3. Sanfter Minutenzeiger und Bahnhofsuhr-Modus
 
-- Sanfter Minutenzeiger: bewegt sich gleichmäßig statt in 1-Minuten-Schritten zu springen.
-- Bahnhofsuhr-Modus: der Sekundenzeiger läuft in 58,5 Sekunden um und pausiert kurz oben auf der 12, wie bei einer klassischen Bahnhofsuhr.
-- Zeitsprünge (Start, erste gültige Uhrzeit, Zeitumstellung, Rocrail): die Zeiger laufen in 3 Sekunden sanft auf dem kürzesten Weg zur neuen Zeit, auch rückwärts, statt zu springen.
+- Sanfter Minutenzeiger: läuft gleichmäßig, statt jede Minute zu springen.
+- Bahnhofsuhr-Modus: Der Sekundenzeiger umrundet das Zifferblatt in 58,5 Sekunden und hält kurz auf der 12.
+- Zeitsprünge (Start, erste gültige Uhrzeit, Zeitumstellung, Rocrail): Die Zeiger laufen in 3 Sekunden auf dem kürzesten Weg zur neuen Zeit, auch rückwärts.
 
 ---
 
 ## 4. Helligkeitssteuerung
 
-- Automatische Helligkeit über einen Fotowiderstand mit einstellbaren Schwellwerten, alternativ manuell einstellbar.
-- Optionale Hintergrundbeleuchtung per PWM an Pin 3 (Displaytyp „GC9A01 mit BL“ oder GC9D01; der Haken „Hintergrundbeleuchtung regeln“ im Helligkeits-Tab erscheint nur bei diesen Displays): gedimmt wird dann über die Beleuchtung statt über dunklere Pixel.
-- Während der Einrichtung (noch keine gültige Uhrzeit, Access Point oder WPS aktiv) leuchtet das Display immer mit voller Helligkeit.
-- Bei Rocrail-Verbindung kann die Helligkeit stattdessen vom Server übernommen werden - siehe Abschnitt 11.
+- Automatische Helligkeit über einen Fotowiderstand mit einstellbaren Schwellwerten, oder manuell.
+- Hintergrundbeleuchtung per PWM: Die Uhr dimmt dann die Beleuchtung statt die Pixel. Der Helligkeits-Tab zeigt dafür den Haken „Hintergrundbeleuchtung regeln“ mit der Pinnummer.
+  - ESP32-S2: Pin 3, bei den Displaytypen „GC9A01 mit BL“ und GC9D01 ab Werk an.
+  - ESP32-C6: Pin 22, auf dem Waveshare-Board fest verdrahtet, ab Werk an.
+- Fotowiderstand als Spannungsteiler mit 10 kΩ: ESP32-S2 an GPIO 1 (3 V), 2 (Messung), 4 (GND); ESP32-C6 an GPIO 1 (3 V), 2 (Messung), 3 (GND) der Stiftleiste. Ohne Fotowiderstand gilt die manuelle Helligkeit.
+- Während der Einrichtung (noch keine gültige Uhrzeit, Access Point oder WPS aktiv) leuchtet das Display mit voller Helligkeit.
+- Mit Rocrail kann der Server die Helligkeit vorgeben (Abschnitt 11).
 
 ---
 
 ## 5. WLAN- und NTP-Integration
 
-- Bis zu 15 WLAN-Netzwerke, Einrichtung auch per WPS, automatischer Reconnect, anpassbarer Hostname.
-- Ersteinrichtung direkt beim Flashen: `flashESP.bat`/`flashESP.sh` erkennen ESP32-S2 und ESP32-C6 am USB-Port, fragen Displaytyp und WLAN ab (alle sichtbaren 2,4-GHz-Netze zur Auswahl, Passwort verdeckt) und senden beides per USB an die Uhr, zuletzt die Uhrzeit des PCs. Nur die Uhrzeit setzen (ohne Flashen, z.B. für eine Uhr ohne WLAN, DCF77 und RTC): `setTime.bat`/`setTime.sh` oder in der Weboberfläche der Knopf „Uhrzeit übernehmen“ (Zeit des Handys bzw. PCs, auch im Access-Point-Modus). Alternativ per WPS oder über den Einrichtungs-Access-Point (SSID `clock123`, Passwort `clocksetup`).
-- Hinzufügen, Überschreiben, Wechseln und Löschen von WLAN-Netzwerken wird direkt ausgeführt. Die Weboberfläche unterscheidet nicht zwischen Zugriff aus dem Heimnetz und von außen – die Uhr daher nicht per Port-Weiterleitung/DMZ aus dem Internet erreichbar machen.
-- NTP mit DCF77 als Fallback für die Zeitsynchronisation; die Uhr agiert selbst auch als NTP-Server für andere Geräte im Netzwerk, antwortet dabei, sobald eine gültige Uhrzeit ermittelt wurde.
-- Bis zu 15 eigene NTP-Server hinterlegbar; ist keiner konfiguriert (oder werden alle gelöscht), fällt die Uhr automatisch auf `pool.ntp.org` und `ptbtime1.ptb.de` zurück. Sind die konfigurierten Server nicht erreichbar, werden diese beiden zusätzlich als letzter Fallback versucht.
+- Bis zu 15 WLAN-Netze, Einrichtung auch per WPS, automatischer Reconnect, eigener Hostname.
+- Einrichtung beim Flashen: `flashESP.bat`/`flashESP.sh` erkennen ESP32-S2 und ESP32-C6 am USB-Port, fragen Displaytyp und WLAN ab (Auswahl aus allen sichtbaren 2,4-GHz-Netzen, Passwort verdeckt) und senden beides per USB an die Uhr, zuletzt die Uhrzeit des PCs.
+- Nur die Uhrzeit setzen, z. B. bei einer Uhr ohne WLAN, DCF77 und RTC: `setTime.bat`/`setTime.sh` oder der Knopf „Uhrzeit übernehmen“ in der Weboberfläche (Zeit des Handys bzw. PCs, auch im Access-Point-Modus).
+- Weitere Wege ins WLAN: WPS oder der Einrichtungs-Access-Point (SSID `clock123`, Passwort `clocksetup`).
+- Änderungen an den WLAN-Netzen (hinzufügen, überschreiben, wechseln, löschen) gelten sofort. Die Weboberfläche unterscheidet nicht zwischen Zugriff aus dem Heimnetz und von außen – die Uhr deshalb nicht per Port-Weiterleitung oder DMZ aus dem Internet erreichbar machen.
+- NTP, bei Ausfall DCF77. Sobald die Uhr eine gültige Uhrzeit hat, ist sie selbst NTP-Server für andere Geräte im Netz.
+- Bis zu 15 eigene NTP-Server. Ohne eigenen Server nutzt die Uhr `pool.ntp.org` und `ptbtime1.ptb.de`; sind die eigenen Server nicht erreichbar, versucht sie diese beiden zuletzt.
 
 ---
 
 ## 6. Weboberfläche
 
-- Dunkel gestaltete Einstellungszentrale mit Tabs (WLAN, Uhr Einstellungen, Helligkeit, NTP Zeitzone, Status, Log; Rocrail bei aktivierter Anbindung); weitere Seiten (Vorschau, Uhren Sets, Zifferblatt, Zeiger, Dateimanager, DCF77, Sicherung, Werkseinstellungen) separat über die Navigation erreichbar.
-- Mehrsprachig (Deutsch, Englisch).
-- Zusätzliche Zifferblätter und Zeigersätze lassen sich direkt von GitHub herunterladen.
-- Rocrail-Tab für die Modellzeit-Anbindung - siehe Abschnitt 11.
+- Einstellungen in Tabs mit dunklem Design: WLAN, Uhr Einstellungen, Helligkeit, NTP Zeitzone, Status, Log und Rocrail (bei aktivierter Anbindung). Weitere Seiten über die Navigation: Vorschau, Uhren Sets, Zifferblatt, Zeiger, Dateimanager, DCF77, Sicherung, Werkseinstellungen.
+- Deutsch und Englisch.
+- Weitere Zifferblätter und Zeigersätze lassen sich direkt von GitHub laden.
+- Rocrail-Tab für die Modellzeit (Abschnitt 11).
 
 ---
 
 ## 7. Dateiverwaltung mit LittleFS
 
-- Zifferblätter und Zeiger werden komprimiert gespeichert; Dateien lassen sich über die Weboberfläche hoch-/herunterladen, umbenennen und löschen.
-- Optionales Logging, einsehbar im Log-Tab mit Dateiauswahl (Dropdown zeigt alle vorhandenen Logdateien, neueste vorausgewählt) und Auto-Refresh.
+- Zifferblätter und Zeiger liegen komprimiert im Dateisystem. Dateien lassen sich in der Weboberfläche hoch- und herunterladen, umbenennen und löschen.
+- Logging optional, im Log-Tab mit Auswahl der Logdatei (neueste vorausgewählt) und Auto-Refresh.
 
 ---
 
 ## 8. Zeitzonen-Anpassung
 
-- Automatische Sommerzeitumstellung oder dauerhaft Sommer-/Winterzeit einstellbar.
-- Ist keine Zeitzone hinterlegt (leeres Feld) oder ist der eingetragene Wert kein gültiger POSIX-TZ-String, fällt die Uhr automatisch auf `CET-1CEST,M3.5.0,M10.5.0/3` (Mitteleuropäische Zeit) zurück.
+- Automatische Sommerzeit oder dauerhaft Sommer- bzw. Winterzeit.
+- Ohne Zeitzone (leeres Feld) oder bei einem ungültigen POSIX-TZ-String nutzt die Uhr `CET-1CEST,M3.5.0,M10.5.0/3` (Mitteleuropäische Zeit).
 
 ---
 
@@ -94,34 +105,39 @@ Eine Firmware je ESP; der Displaytyp ist eine Einstellung (Tab „Uhr Einstellun
 - **ESP32-C6** (Waveshare, Display fest verbaut):
   - [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents) mit ST7789 (172 × 320)
   - [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents) mit ST7789 (240 × 240)
-- Fotowiderstand zur Helligkeitsmessung (wird beim Start automatisch erkannt).
-- Optional: zweites, baugleiches Display (nur ESP32-S2, eigener Chip-Select), RTC DS3231 (hält die Uhrzeit auch ohne WLAN über Stromausfälle hinweg), DCF77-Empfänger (Funkuhr-Zeit ohne Internet).
-- Taster (zusätzlich auch der eingebaute Boot-Taster): kurz gedrückt zeigt die Uhr das verbundene WLAN, länger als 15 Sekunden gehalten löst er einen vollständigen Werksreset aus (ab 10 Sekunden erscheint ein Countdown, Loslassen bricht ab).
+- Fotowiderstand für die Helligkeit; die Uhr erkennt ihn beim Start.
+- Optional: zweites, baugleiches Display (nur ESP32-S2, eigener Chip-Select), RTC DS3231 (hält die Uhrzeit über Stromausfälle, auch ohne WLAN), DCF77-Empfänger (Funkzeit ohne Internet).
+- Taster (oder der eingebaute Boot-Taster): Kurz drücken zeigt das verbundene WLAN. Länger als 15 Sekunden halten setzt die Uhr auf Werkseinstellungen zurück; ab 10 Sekunden läuft ein Countdown, Loslassen bricht ab.
 
 ---
 
-## 10. Erweiterte Funktionen
+## 10. Weitere Funktionen
 
-- Laufzeit-Anzeige: zeigt die Laufzeit der Uhr seit dem letzten Neustart.
-- Neustart-Funktion: erlaubt einen Neustart der Uhr über die Weboberfläche.
-- BMP-Skalierung: hochgeladene BMP-Dateien können auf die Displaygröße skaliert werden.
-- API-Schnittstelle
-- Bis zu 50 Presets (Zifferblatt, Zeigersatz, Nabenfarbe/-größe, Sekundenzeiger sichtbar und Stil, Bahnhofsmodus, sanfter Minutenzeiger, Zeitzone und Helligkeitseinstellungen) - einzeln umbenenn- und löschbar, alphabetisch sortiert in der Liste; alle Presets lassen sich in eine Datei sichern und später wiederherstellen; sind alle 50 Plätze belegt, erscheint eine Warnung.
-- Komplettsicherung (Seite „Sicherung“): alle Einstellungen, Presets, Zifferblätter, Zeigersätze und Schriften in einer Datei (TAR; Zifferblätter und Zeiger darin als normale BMP-Bilder, mit jedem Bildprogramm zu öffnen; Dateiname mit Hostname, Displaytyp, Datum und Uhrzeit), wiederherstellbar auf dieser oder einer anderen Uhr; Sichern und Wiederherstellen zeigen einen Fortschrittsbalken. WLAN-Zugangsdaten nur auf Wunsch und dann verschlüsselt – mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist, also nicht sicher. Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben unverändert; eine falsche oder beschädigte Datei ändert nichts. Stammt die Sicherung von einem anderen Displaytyp, weist die Uhr darauf hin und übernimmt nur Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen – die Nabengröße (auch in den Uhren Sets) rechnet sie auf ihre Größe um, die Helligkeit bleibt; das geht nur mit Zifferblättern in 240 × 240, sonst übernimmt sie nichts. Eine Uhr mit Streifen bekommt dabei den Standard-Streifen, wenn die Sicherung keinen hat.
-- Das Löschen eines Zifferblatts oder Zeigersatzes entfernt automatisch alle Presets, die darauf verwiesen haben; wird der gerade aktive Zeigersatz gelöscht, fällt die Uhr automatisch auf den Standard-Zeigersatz 0 zurück.
-- DCF77 wird unterstützt: robuster Empfang auch bei schwachem oder gestörtem Signal (Impulse werden über ein Sekundenraster statt reiner Zählung platziert, sodass fehlende Impulse nicht die folgenden Bits verschieben), funktioniert unabhängig von der Signalpolarität; ein gestörtes Telegramm kann nie eine falsche Zeit setzen.
-- Live-Seite (/dcf77) zeigt den Bit-Fortschritt des aktuellen Telegramms und das letzte dekodierte Telegramm zur Diagnose.
-- Optionales LED-Blinken während der Synchronisation, nur sichtbar, wenn tatsächlich ein DCF77-Empfänger erkannt wurde.
+- Anzeige der Laufzeit seit dem letzten Neustart.
+- Neustart über die Weboberfläche.
+- Hochgeladene BMP-Dateien lassen sich auf die Displaygröße skalieren.
+- HTTP-API, z. B. `/api/setMode` (Zifferblatt, Zeigersatz, Zeigermodus, Nabe); die Uhren Sets sind solche URLs.
+- Bis zu 50 Uhren Sets (Presets) mit Zifferblatt, Zeigersatz, Nabenfarbe und -größe, Sekundenzeiger (sichtbar, Stil), Bahnhofsmodus, sanftem Minutenzeiger, Zeitzone und Helligkeit. Einzeln umbenennen und löschen, alphabetisch sortiert; alle zusammen in eine Datei sichern und wiederherstellen. Sind alle 50 Plätze belegt, erscheint eine Warnung.
+- Komplettsicherung (Seite „Sicherung“):
+  - Eine TAR-Datei mit allen Einstellungen, Uhren Sets, Zifferblättern, Zeigersätzen und Schriften; Zifferblätter und Zeiger darin als normale BMP-Bilder. Der Dateiname enthält Hostname, Displaytyp, Datum und Uhrzeit.
+  - Wiederherstellen auf dieser oder einer anderen Uhr; Sichern und Wiederherstellen zeigen einen Fortschrittsbalken.
+  - WLAN-Zugangsdaten nur auf Wunsch, verschlüsselt mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist – also nicht sicher.
+  - Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben. Eine falsche oder beschädigte Datei ändert nichts.
+  - Sicherung von einem anderen Displaytyp: Die Uhr weist darauf hin und übernimmt nur Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen. Die Nabengröße (auch in den Uhren Sets) rechnet sie um, die Helligkeit bleibt. Das geht nur mit Zifferblättern in 240 × 240, sonst übernimmt sie nichts. Hat die Sicherung keinen Streifen, bekommt eine Uhr mit Streifen den Standard-Streifen.
+- Wird ein Zifferblatt oder Zeigersatz gelöscht, löscht die Uhr auch die Uhren Sets, die darauf verweisen. War der gelöschte Zeigersatz aktiv, schaltet sie auf Satz 0.
+- DCF77: Empfang auch bei schwachem oder gestörtem Signal. Die Uhr ordnet die Impulse einem Sekundenraster zu, ein fehlender Impuls verschiebt also nicht die folgenden Bits. Die Signalpolarität spielt keine Rolle. Ein gestörtes Telegramm setzt nie eine falsche Zeit.
+- Live-Seite `/dcf77`: Bit-Fortschritt des aktuellen und das zuletzt dekodierte Telegramm.
+- Optional blinkt eine LED während der Synchronisation, aber nur, wenn ein DCF77-Empfänger erkannt wurde.
 
 ---
 
 ## 11. Rocrail-Modellzeit
 
-- Optionale Verbindung zu einem [Rocrail](https://wiki.rocrail.net/)-Server (Modelleisenbahn-Steuerungssoftware): die Zeiger können statt der echten Zeit die "Fast Clock" (Modellzeit) des Servers anzeigen, aktiviert über den Haken „Rocrail“ im Tab „Uhr Einstellungen“.
-- Bis zu 15 Serveradressen können hinterlegt werden (wie bei den NTP-Servern erscheint nach dem letzten Eintrag immer automatisch ein neuer, leerer Platz); ein Radio-Button je Zeile legt den aktiven Server fest. Verbindungsversuche starten sofort (beim Speichern, Aktivieren oder Neustart), statt auf das reguläre, einmal pro Minute wiederkehrende Zeitfenster zu warten.
-- Bleiben Updates länger als 2 Minuten aus, läuft die Uhr mit der normalen NTP-/RTC-/DCF77-Zeit weiter, statt bei einer veralteten Modellzeit hängen zu bleiben. Die Modellzeit läuft mit Rocrails eigenem Beschleunigungsfaktor (dem "Divider"); die Bahnhofsuhr-Sekundenzeiger-Animation skaliert entsprechend mit, statt sich abzuschalten (oberhalb eines Schwellwerts wird der Sekundenzeiger ganz ausgeblendet).
-- Der Tab zeigt zu Diagnosezwecken einen Live-Verbindungsstatus, den Divider und die aktuelle Modellzeit; für jeden Server lässt sich zusätzlich ein Anlagenname zur eigenen Orientierung eintragen.
-- Meldet der Server zusätzlich einen Helligkeitswert, übernimmt die Uhr auch die Display-Helligkeit von dort (siehe Abschnitt 4); die Web-Vorschau ("Vorschau") spiegelt Modellzeit und Divider auf dieselbe Weise.
+- Optionale Verbindung zu einem [Rocrail](https://wiki.rocrail.net/)-Server (Modellbahn-Steuerung): Die Zeiger zeigen dann die „Fast Clock“ (Modellzeit) des Servers. Einschalten mit dem Haken „Rocrail“ im Tab „Uhr Einstellungen“.
+- Bis zu 15 Serveradressen; wie bei den NTP-Servern erscheint nach dem letzten Eintrag ein leerer Platz. Ein Radio-Button je Zeile wählt den aktiven Server. Die Uhr verbindet sich sofort beim Speichern, Aktivieren oder Neustart, nicht erst im minütlichen Zeitfenster.
+- Kommen länger als 2 Minuten keine Updates, läuft die Uhr mit der NTP-/RTC-/DCF77-Zeit weiter. Die Modellzeit läuft mit dem Beschleunigungsfaktor von Rocrail („Divider“), die Bahnhofsuhr-Animation des Sekundenzeigers entsprechend schneller. Oberhalb eines Schwellwerts blendet die Uhr den Sekundenzeiger aus.
+- Der Tab zeigt Verbindungsstatus, Divider und Modellzeit live. Zu jedem Server lässt sich ein Anlagenname eintragen.
+- Meldet der Server einen Helligkeitswert, übernimmt die Uhr ihn (Abschnitt 4). Die Seite „Vorschau“ zeigt Modellzeit und Divider ebenso.
 
 ---
 
@@ -137,13 +153,13 @@ FreeSans, Orbitron) stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
 
 # English Version
 
-uhr4 is a digital clock project on round and square displays: an ESP32-S2 (Lolin S2 Pico) or ESP32-C6 (Waveshare, display built in) shows the time as a clock face with hands on a round TFT display (GC9A01 or GC9D01) or a square one (ILI9341, ST7789; on the rectangular ones the clock on top, time and date below). The time comes via NTP (WiFi), DCF77 or RTC; clock faces, hands and all settings can be customized via the web interface.
+uhr4 shows the time as a clock face with hands on a TFT display. The hardware is an ESP32-S2 (Lolin S2 Pico) with a round (GC9A01, GC9D01) or rectangular display (ILI9341), or a Waveshare ESP32-C6 with a built-in ST7789. On portrait displays (ILI9341, ST7789 172 × 320) the clock is on top, with time and date below. The time comes via NTP (WiFi), DCF77 or RTC. Clock faces, hands and all settings are adjusted in the web interface.
 
-**Download:** firmware with flash tool under [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). Updating from uhr3 (version 3) to uhr4 takes over the display type automatically.
+**Download:** firmware with flash tool under [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). When updating from uhr3 (version 3), uhr4 keeps the display type.
 
 ## 1. Support for Multiple TFT Displays
 
-One firmware per ESP; the display type is a setting ("Clock Setup" tab, when flashing via `flashESP`, or automatically when updating from uhr3). Graphics library: LovyanGFX.
+One firmware per ESP. The display type is chosen in the "Clock Setup" tab or when flashing with `flashESP`; an update from uhr3 keeps it. Graphics library: LovyanGFX.
 
 - **ESP32-S2** (Lolin S2 Pico, build `build_uhr4/esp32s2`):
   - GC9A01 – round, 240 × 240; without or with controlled backlight (BL)
@@ -152,68 +168,79 @@ One firmware per ESP; the display type is a setting ("Clock Setup" tab, when fla
 - **ESP32-C6** (Waveshare, display built in, build `build_uhr4/esp32c6`, without PSRAM; BL controlled):
   - ESP32-C6-LCD-1.47: ST7789 – rectangular, 172 × 320; the clock on top (172 × 172), time and date below
   - ESP32-C6-LCD-1.3: ST7789_240 – square, 240 × 240
-- A second, identical display (ESP32-S2 only) can optionally be driven, with its own rotation setting (0°, 90°, 180°, 270°) - a display that is not connected is set to "not connected (n.a.)": it then stays black and face/hands are neither drawn nor calculated for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock takes over (the settings page notes this).
+- A second, identical display (ESP32-S2 only) with its own rotation (0°, 90°, 180°, 270°). A display set to "not connected (n.a.)" stays black, and the clock neither draws nor calculates anything for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock starts; the settings page notes this.
 
 ---
 
 ## 2. Customizable Clock Hands and Faces
 
-- Custom hour, minute, and second hands, as well as custom clock faces, can be uploaded as BMP files. A new clock (without clock faces and hand sets, e.g. after the first flash or a factory reset) draws itself a starter set and stores it in the file system: three clock faces (white with a rim, hour and minute marks) – `face_default.bmp` with 12, 3, 6 and 9, `face_numbers.bmp` with 1–12 and `face_roman.bmp` with I–XII –, three hand sets – set 0 with black bars and a red second hand, set 1 the same with a black second hand, set 2 curved – and, if there are no presets yet, the matching presets "Standard", "1-12" and "I-XII" (the roman clock without a second hand; on displays with a strip – ILI9341, ST7789 172 × 320 – with a white strip and black text). The factory reset actions "Delete Clock Faces", "Delete Hand Sets" and "Delete Presets" restore this state. If only `face_default.bmp` or set 0 go missing later, the clock only recreates those; if a hand set lacks a hand, it uses the one from set 0.
-- Clock faces and hands, e.g. in the layout of Deutsche Bahn or other companies, can be uploaded yourself or created in the clock face or hand designer.
-- All hands are rendered anti-aliased (LovyanGFX); hour and minute hands live in a cached composite image, and only the area around the second hand is sent to the display – so the sweeping second hand runs smoothly.
-- Hands may reach from the pivot to the display edge and be wider: new hand format 25 x 151 px with pivot 12 / 120 (160 display: 15 x 100, pivot 7 / 80). Hand sets in the previous format 21 x 131 (13 x 86) keep working unchanged - they are padded transparent at the top and the sides when loaded. All combinations of old and new width and height are valid (21 or 25 x 131 or 151); on upload exactly these sizes stay unchanged, everything else is scaled to 21 x 131 (13 x 86) as before. The hand designer keeps width and height at the old size as long as a hand does not extend beyond it - such hand sets also run on older firmware.
-- In-browser hand designer ("Hand Set" page → "Designer" link below the desired hand set, which also activates it): design new hands starting from the currently active hand set; changes are saved as a new hand set (optionally activated right away) or overwrite the active set and are applied immediately - pixel editor with pen, line, rectangle, ellipse, polygon, fill, picker, free colour choice (palette, colour picker, hex input), mirroring at the centre axis, undo and a shape generator (length, widths, counterweight, disc), plus a live preview on the current clock face. The clock automatically applies its display's hand size and pivot point.
-- In-browser clock face designer ("Clock Face" page → "Designer" link below the desired clock face, which also activates it): design a new clock face starting from the active one, or overwrite the active one and apply it right away - face generator (background, rim, hour and minute marks, numerals 1-12, 12/3/6/9 or Roman), pixel tools with pen width, text (straight, rotated or on an arc, also with installed or loaded fonts), logo stamp, mirror and rotation symmetry (4, 12 or 60 times), free colour choice, image import (PNG, JPG, BMP ...), zoom and a live preview with the active hands. On round displays the invisible area is marked. The hub (centre over the hands) is designed there as well: radius and colour, the clock shows changes right away.
+- Hour, minute and second hands and clock faces can be uploaded as BMP files, e.g. in the layout of Deutsche Bahn or other companies, or created in the designer.
+- Starter set: if the clock has no clock faces and hand sets (after the first flash or a factory reset), it draws itself
+  - three clock faces, white with a rim, hour and minute marks: `face_default.bmp` (12, 3, 6, 9), `face_numbers.bmp` (1–12), `face_roman.bmp` (I–XII),
+  - three hand sets: set 0 with black bars and a red second hand, set 1 the same with a black second hand, set 2 curved,
+  - if there are no presets yet, the presets "Standard", "1-12" and "I-XII" (I-XII without a second hand; on displays with a strip – ILI9341, ST7789 172 × 320 – with a white strip and black text).
+
+  The factory reset actions "Delete Clock Faces", "Delete Hand Sets" and "Delete Presets" restore this state. If only `face_default.bmp` or set 0 are missing, the clock only recreates those. If a hand set lacks a hand, it uses the one from set 0.
+- All hands are anti-aliased (LovyanGFX). Hour and minute hands live in a cached image, and only the area around the second hand goes to the display. That keeps the sweeping second hand smooth.
+- Hand format 25 × 151 px with pivot 12 / 120 (160 display: 15 × 100, pivot 7 / 80): hands reach from the pivot to the display edge. Hand sets in the older format 21 × 131 (13 × 86) keep working; the clock pads them transparent at the top and the sides when loading. All combinations of width 21 or 25 and height 131 or 151 are valid. These sizes stay unchanged on upload, the clock scales all others to 21 × 131 (13 × 86). The hand designer saves at the old size as long as no hand extends beyond it – such sets also run on older firmware.
+- In-browser hand designer ("Hand Set" page → "Designer" link below the hand set, which also activates it): design new hands based on the active set. Save as a new hand set (optionally activated right away) or over the active set, which then applies immediately. Tools: pen, line, rectangle, ellipse, polygon, fill, picker, colour choice (palette, colour picker, hex input), mirroring at the centre axis, undo, a shape generator (length, widths, counterweight, disc) and a live preview on the current clock face. The clock adapts hand size and pivot to its display.
+- In-browser clock face designer ("Clock Face" page → "Designer" link below the clock face, which also activates it): design a new clock face based on the active one, or overwrite the active one and apply it right away. Tools: generator (background, rim, hour and minute marks, numerals 1-12, 12/3/6/9 or Roman), pixel tools with pen width, text (straight, rotated or on an arc, with installed or loaded fonts), logo stamp, mirror and rotation symmetry (4, 12 or 60 times), colour choice, image import (PNG, JPG, BMP ...), zoom and a live preview with the active hands. On round displays the invisible area is marked.
+- The hub (centre over the hands) is also set in the clock face designer: radius and colour; the clock shows changes right away.
 
 ---
 
 ## 3. Smooth Minute and Train Station Modes
 
-- Smooth Minute Mode: the minute hand moves smoothly instead of jumping in 1-minute increments.
-- Train Station Mode: the second hand completes its round in 58.5 seconds and briefly pauses at the top on the 12, like a classic railway clock.
-- Time jumps (boot, first valid time, DST change, Rocrail): the hands move smoothly within 3 seconds along the shortest path to the new time, backwards too, instead of jumping.
+- Smooth minute hand: moves evenly instead of jumping every minute.
+- Train station mode: the second hand goes round in 58.5 seconds and pauses briefly at the 12.
+- Time jumps (boot, first valid time, DST change, Rocrail): the hands move to the new time in 3 seconds along the shortest path, backwards too.
 
 ---
 
 ## 4. Brightness Control
 
-- Automatic brightness via a photoresistor with configurable thresholds, or manual control.
-- Optional backlight control via PWM on pin 3 (display type "GC9A01 with BL" or GC9D01; the "Backlight control" checkbox in the Brightness tab only appears for these displays): dimming then happens via the backlight instead of darker pixels.
-- During setup (no valid time yet, access point or WPS active) the display always runs at full brightness.
-- When connected to Rocrail, brightness can be taken over from the server instead - see section 11.
+- Automatic brightness via a photoresistor with configurable thresholds, or manual.
+- Backlight via PWM: the clock then dims the backlight instead of the pixels. The Brightness tab shows the "Backlight control" checkbox with the pin number for this.
+  - ESP32-S2: pin 3, on by default for the display types "GC9A01 with BL" and GC9D01.
+  - ESP32-C6: pin 22, hard-wired on the Waveshare board, on by default.
+- Photoresistor as a voltage divider with 10 kΩ: ESP32-S2 on GPIO 1 (3 V), 2 (measurement), 4 (GND); ESP32-C6 on GPIO 1 (3 V), 2 (measurement), 3 (GND) of the pin header. Without a photoresistor the manual brightness applies.
+- During setup (no valid time yet, access point or WPS active) the display runs at full brightness.
+- With Rocrail, the server can set the brightness (section 11).
 
 ---
 
 ## 5. WiFi and NTP Integration
 
-- Up to 15 WiFi networks, WPS setup, automatic reconnect, customizable hostname.
-- First-time setup directly when flashing: `flashESP.bat`/`flashESP.sh` recognize the ESP32-S2 and ESP32-C6 by the USB port, ask for the display type and a WiFi network (all visible 2.4 GHz networks for selection, password entered hidden) and send both to the clock via USB, finally the PC's time. To only set the time (without flashing, e.g. for a clock without WiFi, DCF77 and RTC): `setTime.bat`/`setTime.sh` or the "Use device time" button in the web interface (time of the phone or PC, also in access point mode). Alternatively via WPS or the setup access point (SSID `clock123`, password `clocksetup`).
-- Adding, overwriting, switching and deleting WiFi networks is executed directly. The web interface does not distinguish between access from the home network and from outside - so do not expose the clock to the internet via a port forward/DMZ.
-- NTP with DCF77 as a fallback for time sync; the clock also acts as an NTP server for other devices on the network, answering once a valid time has been determined.
-- Up to 15 custom NTP servers can be stored; if none are configured (or all are deleted), the clock automatically falls back to `pool.ntp.org` and `ptbtime1.ptb.de`. If the configured servers are unreachable, these two are additionally tried as a last-resort fallback.
+- Up to 15 WiFi networks, setup via WPS as well, automatic reconnect, custom hostname.
+- Setup while flashing: `flashESP.bat`/`flashESP.sh` recognize the ESP32-S2 and ESP32-C6 by the USB port, ask for the display type and a WiFi network (choice of all visible 2.4 GHz networks, password hidden) and send both to the clock via USB, finally the PC's time.
+- To only set the time, e.g. on a clock without WiFi, DCF77 and RTC: `setTime.bat`/`setTime.sh` or the "Use device time" button in the web interface (time of the phone or PC, also in access point mode).
+- Other ways into WiFi: WPS or the setup access point (SSID `clock123`, password `clocksetup`).
+- Changes to the WiFi networks (add, overwrite, switch, delete) apply immediately. The web interface does not distinguish between access from the home network and from outside – so do not expose the clock to the internet via a port forward or DMZ.
+- NTP, with DCF77 as a fallback. Once the clock has a valid time, it is an NTP server for other devices on the network.
+- Up to 15 custom NTP servers. Without a custom server the clock uses `pool.ntp.org` and `ptbtime1.ptb.de`; if the custom servers are unreachable, it tries these two last.
 
 ---
 
 ## 6. Web Interface
 
-- Dark-themed settings hub with tabs (WiFi Settings, Clock Setup, Brightness, NTP Timezone, Status, Log; Rocrail when the connection is enabled); further pages (Preview, Presets, Clock Face, Hand Set, File Manager, DCF77, Backup, Factory Reset) reachable separately via the navigation bar.
-- Multi-language (German, English).
+- Settings in tabs with a dark theme: WiFi Settings, Clock Setup, Brightness, NTP Timezone, Status, Log and Rocrail (when the connection is enabled). Further pages via the navigation bar: Preview, Presets, Clock Face, Hand Set, File Manager, DCF77, Backup, Factory Reset.
+- German and English.
 - Additional clock faces and hand sets can be downloaded directly from GitHub.
-- Rocrail tab for the model-time connection - see section 11.
+- Rocrail tab for the model time (section 11).
 
 ---
 
 ## 7. File Management with LittleFS
 
-- Clock faces and hands are stored compressed; files can be uploaded, downloaded, renamed, and deleted via the web interface.
-- Optional logging, viewable in the Log tab with a file selector (dropdown shows all existing log files, newest preselected) and auto-refresh.
+- Clock faces and hands are stored compressed in the file system. Files can be uploaded, downloaded, renamed and deleted in the web interface.
+- Optional logging, in the Log tab with a log file selector (newest preselected) and auto-refresh.
 
 ---
 
 ## 8. Time Zone Customization
 
-- Automatic daylight saving time or permanent summer/winter time can be configured.
-- If no timezone is stored (empty field) or the stored value is not a valid POSIX TZ string, the clock automatically falls back to `CET-1CEST,M3.5.0,M10.5.0/3` (Central European Time).
+- Automatic daylight saving time, or permanent summer or winter time.
+- Without a time zone (empty field) or with an invalid POSIX TZ string the clock uses `CET-1CEST,M3.5.0,M10.5.0/3` (Central European Time).
 
 ---
 
@@ -227,34 +254,39 @@ One firmware per ESP; the display type is a setting ("Clock Setup" tab, when fla
 - **ESP32-C6** (Waveshare, display built in):
   - [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents) with ST7789 (172 × 320)
   - [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents) with ST7789 (240 × 240)
-- Photoresistor for brightness measurement (detected automatically at startup).
-- Optional: a second, identical display (ESP32-S2 only, own chip select), RTC DS3231 (keeps the time across power loss even without WiFi), DCF77 receiver (radio clock time without internet).
-- Button (the built-in Boot button works too): a short press shows the connected WiFi, holding it for more than 15 seconds triggers a full factory reset (a countdown appears from 10 seconds, releasing aborts).
+- Photoresistor for brightness; the clock detects it at startup.
+- Optional: a second, identical display (ESP32-S2 only, own chip select), RTC DS3231 (keeps the time across power loss, also without WiFi), DCF77 receiver (radio time without internet).
+- Button (or the built-in Boot button): a short press shows the connected WiFi. Holding it for more than 15 seconds resets the clock to factory settings; a countdown runs from 10 seconds, releasing aborts.
 
 ---
 
-## 10. Advanced Features
+## 10. More Features
 
-- Uptime Display: Shows the clock's runtime since the last restart.
-- Reboot Function: Allows restarting the clock via the web interface.
-- BMP Scaling: Uploaded BMP files can be scaled to fit the display size.
-- API Interface
-- Up to 50 presets (face, hand set, hub color/size, second hand visibility and style, station mode, smooth minute hand, time zone and brightness settings) - individually renameable and deletable, sorted alphabetically in the list; back up all presets to a file and restore them later; a warning is shown once all 50 slots are full.
-- Full backup (Backup page): all settings, presets, clock faces, hand sets and fonts in one file (TAR; clock faces and hands inside as normal BMP images that any image program opens; file name with host name, display type, date and time), restorable on this or another clock; backup and restore show a progress bar. WiFi credentials only on request and then encrypted – with a key that is the same in every uhr4 firmware, so not secure. Display type, rotation, backlight and light sensor of the target clock stay unchanged; a wrong or damaged file changes nothing. If the backup comes from another display type, the clock points this out and only takes over clock faces, hands (scaled to its size), presets and general settings – it converts the hub size (also in the presets) to its size, the brightness stays; this only works with clock faces in 240 × 240, otherwise it takes over nothing. A clock with a strip then gets the standard strip if the backup has none.
-- Deleting a clock face or hand set automatically removes any presets that referenced it; deleting the currently active hand set automatically falls back to the default hand set 0.
-- DCF77 supported: robust reception even with a weak or disturbed signal (pulses are placed on a one-second grid instead of relying on pure counting, so missing pulses don't shift the following bits), works regardless of signal polarity; a disturbed telegram can never set a wrong time.
-- Live page (/dcf77) shows the bit progress of the current telegram and the last decoded telegram for diagnostics.
-- Optional LED blink during synchronization, only shown once a DCF77 receiver has actually been detected.
+- Uptime since the last restart.
+- Restart via the web interface.
+- Uploaded BMP files can be scaled to the display size.
+- HTTP API, e.g. `/api/setMode` (clock face, hand set, hand mode, hub); presets are such URLs.
+- Up to 50 presets with clock face, hand set, hub colour and size, second hand (visible, style), station mode, smooth minute hand, time zone and brightness. Rename and delete them individually, sorted alphabetically; back up all of them to one file and restore them. A warning appears once all 50 slots are full.
+- Full backup (Backup page):
+  - One TAR file with all settings, presets, clock faces, hand sets and fonts; clock faces and hands inside as normal BMP images. The file name contains host name, display type, date and time.
+  - Restore on this or another clock; backup and restore show a progress bar.
+  - WiFi credentials only on request, encrypted with a key that is the same in every uhr4 firmware – so not secure.
+  - Display type, rotation, backlight and light sensor of the target clock stay. A wrong or damaged file changes nothing.
+  - Backup from another display type: the clock points this out and only takes over clock faces, hands (scaled to its size), presets and general settings. It converts the hub size (also in the presets), the brightness stays. This only works with clock faces in 240 × 240, otherwise it takes over nothing. If the backup has no strip, a clock with a strip gets the standard strip.
+- Deleting a clock face or hand set also deletes the presets that refer to it. If the deleted hand set was active, the clock switches to set 0.
+- DCF77: reception even with a weak or disturbed signal. The clock places the pulses on a one-second grid, so a missing pulse does not shift the following bits. The signal polarity does not matter. A disturbed telegram never sets a wrong time.
+- Live page `/dcf77`: bit progress of the current telegram and the last decoded one.
+- Optional LED blink during synchronization, only if a DCF77 receiver was detected.
 
 ---
 
 ## 11. Rocrail Model Time
 
-- Optional connection to a [Rocrail](https://wiki.rocrail.net/) server (model-railroad control software): the hands can display the server's "fast clock" (model time) instead of the real time, enabled via the "Rocrail" checkbox in the "Clock Setup" tab.
-- Up to 15 server addresses can be stored (like the NTP servers, a new empty slot always appears automatically after the last entry); a radio button per row selects the active server. Connection attempts start immediately (on save, enable, or restart) instead of waiting for the regular once-a-minute retry window.
-- If updates stop coming in for more than 2 minutes, the clock falls back to the normal NTP/RTC/DCF77 time instead of getting stuck on a stale model time. Model time runs at Rocrail's own acceleration factor (the "divider"); the station-clock second-hand animation scales with it instead of switching off (above a threshold the second hand is hidden entirely).
-- The tab shows a live connection status, the divider and the current model time for diagnostics; each server can also be given a layout name for your own reference.
-- If the server also reports a brightness value, the display takes its brightness from there too (see section 4); the web preview (Preview page) mirrors the model time and divider the same way.
+- Optional connection to a [Rocrail](https://wiki.rocrail.net/) server (model railway control): the hands then show the server's "fast clock" (model time). Enable it with the "Rocrail" checkbox in the "Clock Setup" tab.
+- Up to 15 server addresses; as with the NTP servers, an empty slot appears after the last entry. A radio button per row selects the active server. The clock connects right away on save, enable or restart, not only in the once-a-minute window.
+- If no updates arrive for more than 2 minutes, the clock continues with the NTP/RTC/DCF77 time. Model time runs at Rocrail's acceleration factor (the "divider"), the station-clock second-hand animation correspondingly faster. Above a threshold the clock hides the second hand.
+- The tab shows connection status, divider and model time live. Each server can get a layout name.
+- If the server reports a brightness value, the clock takes it over (section 4). The Preview page shows model time and divider the same way.
 
 ---
 

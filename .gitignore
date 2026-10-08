@@ -385,3 +385,4 @@ uhr4.vcxproj.filters
 # Schaltplaene von Waveshare - nur lokal, Urheberrecht beim Hersteller (Links in README.md)
 # Waveshare schematics - local only, copyright with the manufacturer (links in README.md)
 /PCB/Waveshare_*.pdf
+/PCB/*WaveShare Documentation.pdf
