@@ -8,12 +8,12 @@
 
 
     // Displaytyp und Hintergrundbeleuchtung sind Einstellungen (PK_DISPLAY_TYPE, useBacklight) - eine
-    // Firmware fuer GC9A01 (240x240), GC9D01 (160x160) und ILI9341 (240x320, Uhr oben, darunter Uhrzeit und
-    // Datum). Masse je Typ in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT ist nur die Werkseinstellung.
+    // Firmware je Board fuer dessen Displays (GC9A01, GC9D01, ILI9341 bzw. ST7789; rechteckige mit Streifen
+    // fuer Uhrzeit und Datum). Masse je Typ in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT ist die Werkseinstellung.
 
-    // Display type and backlight are settings (PK_DISPLAY_TYPE, useBacklight) - one firmware for GC9A01
-    // (240x240), GC9D01 (160x160) and ILI9341 (240x320, clock on top, time and date below). Dimensions per
-    // type in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT is only the factory default.
+    // Display type and backlight are settings (PK_DISPLAY_TYPE, useBacklight) - one firmware per board for
+    // its displays (GC9A01, GC9D01, ILI9341 or ST7789; rectangular ones with a time and date strip).
+    // Dimensions per type in DISPLAY_GEOMETRY, DISPLAY_TYPE_DEFAULT is the factory default.
 
 #define DISPLAY_TYPE_GC9A01  0
 #define DISPLAY_TYPE_GC9D01  1
@@ -22,19 +22,25 @@
 #define DISPLAY_TYPE_ST7789_240 4 // Waveshare ESP32-C6-LCD-1.3 (240x240)
 #define DISPLAY_TYPE_COUNT   5
 
-    // Board, erkannt am Chip: ESP32-S2 (Lolin S2 Pico) mit wechselbarem Display oder Waveshare ESP32-C6-LCD
-    // mit fest verbautem ST7789 - 1.47 (172x320) oder 1.3 (240x240), welches waehlt der Displaytyp.
-    // Pinbelegung weiter unten.
+    // Board, erkannt am Chip: ESP32-S2 (Lolin S2 Pico) mit wechselbarem Display, Waveshare ESP32-C6-LCD mit
+    // fest verbautem ST7789 (1.47 = 172x320 oder 1.3 = 240x240, welches waehlt der Displaytyp) oder Waveshare
+    // ESP32-S3-LCD-1.28 mit fest verbautem GC9A01. Pinbelegung weiter unten.
 
-    // Board, recognized by the chip: ESP32-S2 (Lolin S2 Pico) with an exchangeable display or Waveshare
-    // ESP32-C6-LCD with a built-in ST7789 - 1.47 (172x320) or 1.3 (240x240), chosen by the display type.
-    // Pin mapping further below.
+    // Board, recognized by the chip: ESP32-S2 (Lolin S2 Pico) with an exchangeable display, Waveshare
+    // ESP32-C6-LCD with a built-in ST7789 (1.47 = 172x320 or 1.3 = 240x240, chosen by the display type) or
+    // Waveshare ESP32-S3-LCD-1.28 with a built-in GC9A01. Pin mapping further below.
 
 #if CONFIG_IDF_TARGET_ESP32C6
 #define BOARD_WAVESHARE_C6_ST7789 1
+#define BOARD_WAVESHARE_S3_GC9A01 0
 #define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_ST7789
+#elif CONFIG_IDF_TARGET_ESP32S3
+#define BOARD_WAVESHARE_C6_ST7789 0
+#define BOARD_WAVESHARE_S3_GC9A01 1
+#define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_GC9A01
 #else
 #define BOARD_WAVESHARE_C6_ST7789 0
+#define BOARD_WAVESHARE_S3_GC9A01 0
 #define DISPLAY_TYPE_DEFAULT DISPLAY_TYPE_GC9A01
 #endif
 
@@ -44,14 +50,16 @@
 
     // Build-Kennung - steht auf den Info-Seiten und damit in jeder .bin (Suche nach "UHR4_BUILD_DISPLAY=").
     // Der S2-Build enthaelt alle wechselbaren Displaytypen, der C6-Build die beiden ST7789 der
-    // Waveshare-Boards.
+    // Waveshare-Boards, der S3-Build das GC9A01 des Waveshare-Boards.
 
     // Build marker - shown on the info pages and therefore in every .bin (search for "UHR4_BUILD_DISPLAY=").
     // The S2 build contains all exchangeable display types, the C6 build the two ST7789 of the Waveshare
-    // boards.
+    // boards, the S3 build the GC9A01 of the Waveshare board.
 
 #if BOARD_WAVESHARE_C6_ST7789
 #define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=ST7789+ST7789_240"
+#elif BOARD_WAVESHARE_S3_GC9A01
+#define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01_S3"
 #else
 #define BUILD_DISPLAY_MARKER "UHR4_BUILD_DISPLAY=GC9A01+GC9D01+ILI9341"
 #endif
@@ -134,6 +142,68 @@
 #define DCF77_DATAPIN 20
 #define TFT_Backlight 22
 
+#elif BOARD_WAVESHARE_S3_GC9A01
+
+    // USB laeuft ueber den CH343P-Wandler an UART0 (GPIO 43/44), nicht ueber das USB des ESP32-S3. Mit "USB
+    // CDC On Boot: Enabled" ginge Serial an die nicht angeschlossenen GPIO 19/20 - flashESP koennte weder WLAN
+    // noch Displaytyp senden.
+
+    // USB runs via the CH343P converter on UART0 (GPIO 43/44), not via the ESP32-S3's USB. With "USB CDC On
+    // Boot: Enabled" Serial would go to the unconnected GPIO 19/20 - flashESP could send neither WiFi nor
+    // display type.
+
+#if ARDUINO_USB_CDC_ON_BOOT
+#error "ESP32-S3-LCD-1.28: Board-Option USB CDC On Boot auf Disabled stellen / set the board option USB CDC On Boot to Disabled"
+#endif
+
+    // LittleFS liegt auf der Partition "ffat" dieses Schemas (LITTLEFS_PARTITION weiter unten)
+    // LittleFS lives on this scheme's "ffat" partition (LITTLEFS_PARTITION further below)
+
+#ifndef ARDUINO_PARTITION_app3M_fat9M_16MB
+#error "ESP32-S3-LCD-1.28: Flash Size 16MB, Partition Scheme '16M Flash (3MB APP/9.9MB FATFS)' waehlen / choose it"
+#endif
+
+    // Waveshare ESP32-S3-LCD-1.28: Display (DC 8, CS 9, SCLK 10, MOSI 11, RST 12, BL 40), Lagesensor QMI8658
+    // an I2C 6/7 (INT 47/48) und Akku-Messung an GPIO 1 fest verbaut, keine Board-LED. Lichtsensor, Taster
+    // und DCF77 an freien Pins der Stiftleiste (ADC1, da ADC2 bei WLAN gesperrt; GPIO 3 ist Strapping-Pin).
+
+    // Waveshare ESP32-S3-LCD-1.28: display (DC 8, CS 9, SCLK 10, MOSI 11, RST 12, BL 40), QMI8658 motion
+    // sensor on I2C 6/7 (INT 47/48) and battery measurement on GPIO 1 built in, no board LED. Light sensor,
+    // button and DCF77 on free header pins (ADC1, as ADC2 is blocked with WiFi; GPIO 3 is a strapping pin).
+
+#define LED_BOARD      -1   // keine LED / no LED
+#define LED_BOARD_GPIO -1
+
+#define ADC_3V 2
+#define ADC_PIN 4
+#define ADC_GND 5
+
+#define BUTTON1 16
+#define BOOT_BUTTON 0
+
+    // RTC DS3231 (0x68) am I2C des Lagesensors (0x6A/0x6B), Pull-ups sind auf dem Board
+    // RTC DS3231 (0x68) on the motion sensor's I2C (0x6A/0x6B), pull-ups are on the board
+
+#define SDA_PIN 6
+#define SCL_PIN 7
+
+#define TFT_SCLK  10
+#define TFT_MOSI  11
+#define TFT_DC    8
+#define TFT_RST   12
+
+#define CS_1    9
+#define CS_2    -1   // zweites Display (noch) nicht vorgesehen
+                     // second display not provided (yet)
+
+    // CS schaltet LovyanGFX wie beim ESP32-C6 - ein Software-Neustart laesst das Panel so nicht schwarz
+    // CS is driven by LovyanGFX as on the ESP32-C6 - so a software restart does not leave the panel black
+
+#define LGFX_CS_PIN CS_1
+
+#define DCF77_DATAPIN 17
+#define TFT_Backlight 40
+
 #else
 
     // Pinbelegung ESP32-S2 (Lolin S2 Pico) <-> TFT: 3.3V->VCC (rot), GND->GND (blau), Rest siehe
@@ -201,6 +271,28 @@
                          // Backlight
 #endif
 
+    // Partition fuer LittleFS: ESP32-S3 mit Schema "16M Flash (3MB APP/9.9MB FATFS)" (zwei App-Partitionen fuer
+    // OTA) - die Datenpartition heisst dort "ffat", LittleFS nutzt sie trotzdem. S2/C6 mit "No OTA": "spiffs".
+
+    // Partition for LittleFS: ESP32-S3 with the scheme "16M Flash (3MB APP/9.9MB FATFS)" (two app partitions
+    // for OTA) - the data partition is called "ffat" there, LittleFS uses it anyway. S2/C6 with "No OTA": "spiffs".
+
+#if BOARD_WAVESHARE_S3_GC9A01
+#define LITTLEFS_PARTITION "ffat"
+#else
+#define LITTLEFS_PARTITION "spiffs"
+#endif
+
+    // Firmware-Update ueber WLAN (ota_update.h) nur mit zwei App-Partitionen, also nur auf dem ESP32-S3.
+    // Haengt ein Update, startet die Uhr nach OTA_TIMEOUT_MS neu, statt stehen zu bleiben.
+
+    // Firmware update over WiFi (ota_update.h) only with two app partitions, so only on the ESP32-S3. If an
+    // update hangs, the clock restarts after OTA_TIMEOUT_MS instead of standing still.
+
+#define HAS_OTA BOARD_WAVESHARE_S3_GC9A01
+#define OTA_TIMEOUT_MS (3 * WAIT_1m)
+#define OTA_PORT 3232 // ArduinoOTA (Visual Micro, Arduino IDE)
+
 #define HAS_DISPLAY2 (CS_2 >= 0)
 #define TFT_SPI_FREQUENCY 40000000 // hoechster ganzzahliger Teiler von 80 MHz unter den frueheren 60 MHz
                                    // highest integer divider of 80 MHz below the former 60 MHz
@@ -215,6 +307,19 @@
 
 #define TFT_ROTATION_NA 4
 
+    // Auswahlwert "automatisch" fuer Display 1 (nur mit Lagesensor, HAS_IMU): gespeichert wird er nicht als
+    // Rotation, sondern als autoRotation (imu_rotation.h). IMU_ROTATION_DIR: Drehsinn des Sensors gegenueber
+    // dem Display (1 oder -1, am Geraet pruefen), IMU_STABLE_MS: so lange muss eine neue Lage anliegen.
+
+    // Selection value "automatic" for display 1 (only with a motion sensor, HAS_IMU): it is not stored as a
+    // rotation but as autoRotation (imu_rotation.h). IMU_ROTATION_DIR: turning direction of the sensor relative
+    // to the display (1 or -1, check on the device), IMU_STABLE_MS: a new position must last this long.
+
+#define TFT_ROTATION_AUTO 5
+#define HAS_IMU BOARD_WAVESHARE_S3_GC9A01
+#define IMU_ROTATION_DIR 1
+#define IMU_STABLE_MS 1500
+
     // Werkseinstellung: Display 1 angeschlossen (0 Grad), Display 2 nicht angeschlossen.
     // Factory default: display 1 connected (0 degrees), display 2 not connected.
 
@@ -223,6 +328,17 @@
 
 #define BACKLIGHT_FREQ 5000
 #define BACKLIGHT_RESOLUTION 8
+
+    // PWM-Helligkeit, solange die Uhr beim Start auf Daten wartet (noch keine Zeit, WPS, Access Point): 50 %.
+    // Auf dem ESP32-C6 warnt die Helligkeitsseite ab einem Maximum ueber BACKLIGHT_C6_MAX_SAFE - Waveshare
+    // weist auf moegliche Ueberhitzung der Beleuchtung hin.
+
+    // PWM brightness while the clock waits for data at boot (no time yet, WPS, access point): 50 %. On the
+    // ESP32-C6 the brightness page warns from a maximum above BACKLIGHT_C6_MAX_SAFE - Waveshare points out
+    // possible overheating of the backlight.
+
+#define BACKLIGHT_SETUP_LEVEL 128
+#define BACKLIGHT_C6_MAX_SAFE 128
 
 
     // Zeigerformat: Drehpunkte und Breiten je Display fest (Dateiformat), Drehpunkt-Spalte = halbe Breite.
@@ -265,7 +381,10 @@ constexpr DisplayGeometry DISPLAY_GEOMETRY[DISPLAY_TYPE_COUNT] = {
 
     // name       clock legW  W  legH legPiv piv text hub   BL     swRot  panelW panelH round
 
-    { "GC9A01",   240,  21,  25, 131, 100,  120,  2,  6,  false, false, 240,   240,   true },
+    // GC9A01: BL nur auf dem Waveshare ESP32-S3-LCD-1.28 ab Werk an (Beleuchtung dort fest an GPIO 40)
+    // GC9A01: BL on by default only on the Waveshare ESP32-S3-LCD-1.28 (backlight hard-wired to GPIO 40 there)
+
+    { "GC9A01",   240,  21,  25, 131, 100,  120,  2,  6,  BOARD_WAVESHARE_S3_GC9A01 != 0, false, 240, 240, true },
     { "GC9D01",   160,  13,  15,  86,  66,   80,  1,  3,  true,  true,  160,   160,   true },
     { "ILI9341",  240,  21,  25, 131, 100,  120,  2,  6,  false, false, 240,   320,   false },
     { "ST7789",   172,  15,  17,  94,  72,   86,  2,  4,  true,  false, 172,   320,   false }, // Meldungen quer (statusLandscape())

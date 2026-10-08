@@ -7,7 +7,9 @@
 # wird sie wie in der Arduino IDE per 1200-Baud-Signal in den Download-Modus
 # neu gestartet und anschliessend der dann neu erscheinende Port verwendet.
 # Der ESP32-C6 hat nur EINEN Port (USB-Serial-JTAG, 303A:1001) - esptool setzt
-# ihn selbst in den Download-Modus, hier ist nichts umzuschalten.
+# ihn selbst in den Download-Modus, hier ist nichts umzuschalten. Ebenso der
+# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28) am USB-Seriell-Wandler CH343P (1A86:55D3),
+# esptool schaltet ihn ueber DTR/RTS um.
 #
 # Determines the COM port for flashing the clock, called from clocksetup.ps1 (first
 # with -NoSwitch only to find it, then to switch into download mode).
@@ -18,7 +20,9 @@
 # running, it is restarted into download mode via the 1200 baud signal like
 # the Arduino IDE does, and the port that then appears is used.
 # The ESP32-C6 has only ONE port (USB serial JTAG, 303A:1001) - esptool puts
-# it into download mode itself, there is nothing to switch here.
+# it into download mode itself, there is nothing to switch here. Likewise the
+# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28) on the CH343P USB serial converter
+# (1A86:55D3), esptool switches it via DTR/RTS.
 # -NoSwitch: nur suchen/auswaehlen, eine laufende Uhr NICHT in den Download-
 # Modus bringen (clocksetup.ps1 fragt sie vorher noch nach ihrem Displaytyp).
 # -NoSwitch: only find/select, do NOT switch a running clock into download
@@ -34,6 +38,11 @@ function Get-ComPorts {
         # 303A:1001 = built-in USB serial JTAG (ESP32-C6, likewise S3/C3) - running and in download mode
         elseif ($_.DeviceID -match 'VID_303A&PID_1001') { $state = 'c6' }
         elseif ($_.DeviceID -match 'VID_303A') { $state = 'running' }
+        # 1A86:55D3 = CH343P (Waveshare ESP32-S3-LCD-1.28) - sitzt auch auf fremden Geraeten, clocksetup.ps1
+        # fragt die Uhr deshalb vorher per "UHR4 INFO"
+        # 1A86:55D3 = CH343P (Waveshare ESP32-S3-LCD-1.28) - also found on other devices, so clocksetup.ps1
+        # asks the clock via "UHR4 INFO" beforehand
+        elseif ($_.DeviceID -match 'VID_1A86&PID_55D3') { $state = 's3' }
         [pscustomobject]@{ Num = $num; State = $state; Name = $_.Name }
     } | Sort-Object Num
 }
@@ -43,6 +52,7 @@ function Get-StateText($state) {
         'download' { 'UHR - Download-Modus / download mode' }
         'running'  { 'UHR - laeuft / running' }
         'c6'       { 'UHR ESP32-C6 (USB-Serial-JTAG)' }
+        's3'       { 'UHR ESP32-S3 (CH343)?' }
         default    { '-' }
     }
 }
@@ -56,7 +66,7 @@ if (-not $PortArg) {
     Write-Host ''
     # Genau eine Uhr: ohne Rueckfrage verwenden. Sonst nach der Nummer fragen.
     # Exactly one clock: use it without asking. Otherwise ask for the number.
-    $clocks = @($ports | Where-Object { $_.State -in 'download', 'running', 'c6' })
+    $clocks = @($ports | Where-Object { $_.State -in 'download', 'running', 'c6', 's3' })
     if ($clocks.Count -eq 1) {
         $PortArg = [string]$clocks[0].Num
         Write-Host "Uhr auf / clock on COM$PortArg"

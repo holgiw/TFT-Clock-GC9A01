@@ -417,12 +417,14 @@
         if (name.startsWith("face_") && name.endsWith(".bmp")) {
             removeOrphanedPresets(path, "");
 
-            // Streifen-Grafik des Zifferblatts gleich mit loeschen
-            // Delete the clock face's strip graphic as well
+            // Streifen-Grafik und -Einstellungen des Zifferblatts gleich mit loeschen
+            // Delete the clock face's strip graphic and settings as well
 
-            String stripPath = stripPathForFace(path);
+            String stripPath = stripPathForFace(path), stripCfg = stripConfigPath(path);
             if (stripPath.length() && LittleFS.exists(stripPath)) LittleFS.remove(stripPath);
+            if (stripCfg.length() && LittleFS.exists(stripCfg)) LittleFS.remove(stripCfg);
             stripImageFor = "?";
+            stripSettingsFor = "?";
             infoStripDirty[0] = infoStripDirty[1] = true;
         }
         else if (name.startsWith("strip_")) {
@@ -1494,15 +1496,26 @@
         html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Full brightness until (hour, 0-23)") + ":</label><input name = 'brightEnd' type = 'number' min = '0' max = '23' value = '" + String(brightEndHour) + "' style='width:70px;'> " + infoTip(translate("End of the daily time window during which the display always uses full brightness, regardless of ambient light")) + "</div><br>";
 
         html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Min Brightness") + " (0 - 255) : </label><input name = 'minBrightness' type = 'number' min = '0' max = '255' value = '" + String(minBrightness) + "' style='width:70px;'> " + infoTip(translate("Display brightness used at or below the low threshold")) + "</div>";
-        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'> " + infoTip(translate("Display brightness used at or above the high threshold")) + "</div><br>";
+        html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Max Brightness") + " (0 - 255) : </label><input name = 'maxBrightness' type = 'number' min = '0' max = '255' value = '" + String(maxBrightness) + "' style='width:70px;'" +
+                (BOARD_WAVESHARE_C6_ST7789 ? String(" oninput=\"document.getElementById('maxBrightWarn').style.display=this.value>" + String(BACKLIGHT_C6_MAX_SAFE) + "?'':'none'\"") : String("")) +
+                "> " + infoTip(translate("Display brightness used at or above the high threshold")) + "</div>";
+
+        // ESP32-C6: Warnung ueber BACKLIGHT_C6_MAX_SAFE (Hinweis von Waveshare zur Ueberhitzung), live beim Tippen
+        // ESP32-C6: warning above BACKLIGHT_C6_MAX_SAFE (Waveshare's note on overheating), live while typing
+
+        if (BOARD_WAVESHARE_C6_ST7789) {
+            html += "<div id='maxBrightWarn' style='color:#e67e22;margin:4px 0;" + String(maxBrightness > BACKLIGHT_C6_MAX_SAFE ? "" : "display:none;") + "'>&#9888; " +
+                    translate("Above 128 the backlight of the ESP32-C6 board can overheat (note from Waveshare) - 128 or less is recommended") + "</div>";
+        }
+        html += "<br>";
 
         if (photoresistorFound) {
             html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Low Threshold") + " (0 - 100 %) : </label><input name = 'lowThreshold' type = 'number' min = '0' max = '100' value = '" + String(lowThreshold) + "' style='width:70px;'> " + infoTip(translate("Below this ambient light percentage, the display uses minimum brightness")) + "</div>";
             html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("High Threshold") + " (0 - 100 %) : </label><input name = 'highThreshold' type = 'number' min = '0' max = '100' value = '" + String(highThreshold) + "' style='width:70px;'> " + infoTip(translate("Above this ambient light percentage, the display uses maximum brightness")) + "</div>";
         }
 
-        if (useBacklight) { // Gamma nur mit Backlight wirksam (stufenlose PWM)
-                            // gamma only effective with a backlight (stepless PWM)
+        if (useBacklight && photoresistorFound) { // Gamma formt die Kurve Lichtsensor -> PWM, gibt es also nur mit beidem
+                                                  // gamma shapes the curve light sensor -> PWM, so only with both
         html += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'><label style='width:280px;display:inline-block;white-space:normal;'>" + translate("Gamma Correction") + " (0.1 - 3.0) : </label><input type='number' name='gamma' step='0.1' min='0.1' max='3.0' value='" + String(gammaBrightness) + "' required style='width:70px;'> " + infoTip(translate("Adjusts how brightness ramps between minimum and maximum - higher values keep the display darker for longer before brightening")) + "</div>";
         }
 
@@ -1801,7 +1814,12 @@
         chunk += "<li><b>centerSize</b>: " + String(preferences.getUInt(PK_CENTER_SIZE, 6)) + "</li>";
 
         uint8_t rotation = preferences.getUChar(PK_TFT_ROTATION1, TFT_ROTATION1_DEFAULT);
-        chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + "</li>";
+        chunk += "<li><b>tftRotation1</b>: " + rotationLabelHtml(rotation) + (autoRotation ? " (auto)" : "") + "</li>";
+        if (imuAvailable()) {
+            int8_t q = imuReadQuadrant();
+            chunk += "<li><b>IMU QMI8658</b>: " + (q < 0 ? String("flat/unclear") : "position " + String(q) + " -> " + rotationLabelHtml(imuRotationFor(q))) +
+                     ", offset " + String(preferences.getUChar(PK_IMU_ROT_OFFSET, 0)) + "</li>";
+        }
         {
             uint8_t rotation2 = preferences.getUChar(PK_TFT_ROTATION2, TFT_ROTATION2_DEFAULT);
             chunk += "<li><b>tftRotation2</b>: " + rotationLabelHtml(rotation2) + "</li>";
@@ -2193,10 +2211,8 @@
                 if (webserver.hasArg(key)) applyBrightnessPresetValue(key, webserver.arg(key));
             }
 
-            // Streifen fuer Uhrzeit/Datum aus Presets (applyStripPresetValue() in display.h)
-            // Time/date strip from presets (applyStripPresetValue() in display.h)
-
-            for (uint8_t i = 0; i < webserver.args(); i++) applyStripPresetValue(webserver.argName(i), webserver.arg(i));
+            // Der Streifen gehoert zum Zifferblatt (stripcfg_*.txt) - Streifen-Werte aelterer Presets bleiben unbeachtet
+            // The strip belongs to the clock face (stripcfg_*.txt) - strip values of older presets are ignored
 
             freeClockFaceBuffer();
             loadClockFace();
@@ -2589,6 +2605,10 @@
 
             applyNtpServerDefaultsIfNoneConfigured();
 
+            // Uhrzeit aus offenen WLANs beim Start (Kaestchen im selben Formular, siehe fetchTimeFromOpenWifi())
+            // Time from open WiFis at boot (checkbox in the same form, see fetchTimeFromOpenWifi())
+
+            preferences.putBool(PK_OPEN_WIFI_TIME, webserver.hasArg("openWifiTime"));
 
             if (webserver.hasArg("timezone")) {
                 String tz = webserver.arg("timezone");
@@ -2712,14 +2732,19 @@
                     }
                     if (LittleFS.rename(oldName, newName)) {
 
-                        // Streifen-Grafik eines Zifferblatts mit umbenennen
-                        // Rename a clock face's strip graphic as well
+                        // Streifen-Grafik und -Einstellungen eines Zifferblatts mit umbenennen
+                        // Rename a clock face's strip graphic and settings as well
 
                         String oldStrip = stripPathForFace(oldName), newStrip = stripPathForFace(newName);
                         if (oldStrip.length() && newStrip.length() && LittleFS.exists(oldStrip) && !LittleFS.exists(newStrip)) {
                             LittleFS.rename(oldStrip, newStrip);
                         }
+                        String oldCfg = stripConfigPath(oldName), newCfg = stripConfigPath(newName);
+                        if (oldCfg.length() && newCfg.length() && LittleFS.exists(oldCfg) && !LittleFS.exists(newCfg)) {
+                            LittleFS.rename(oldCfg, newCfg);
+                        }
                         stripImageFor = "?";
+                        stripSettingsFor = "?";
                         infoStripDirty[0] = infoStripDirty[1] = true;
 
                         // Aktives Zifferblatt: Preference mitziehen, sonst zeigt
@@ -2896,7 +2921,7 @@
             // rendered (hardware present + dcf77Confirmed) - otherwise every
             // save before first sync would silently overwrite it to "off".
 
-            if (dcf77Confirmed) {
+            if (dcf77Confirmed && LED_BOARD >= 0) {
                 dcfSyncLedEnabled = webserver.hasArg("dcfSyncLed");
                 preferences.putBool(PK_DCF_SYNC_LED, dcfSyncLedEnabled);
             }
@@ -2933,7 +2958,22 @@
 
                 if (webserver.hasArg("rotation")) {
                     long requestedRotation = webserver.arg("rotation").toInt();
-                    if (requestedRotation >= 0 && requestedRotation <= TFT_ROTATION_NA) {
+
+                    // "automatisch" (nur mit Lagesensor): Rotation bleibt; beim Einschalten nimmt imuCalibrate()
+                    // die aktuelle Lage als Bezug fuer die gerade eingestellte Rotation
+
+                    // "automatic" (only with a motion sensor): the rotation stays; when switching on,
+                    // imuCalibrate() takes the current position as the reference for the rotation set right now
+
+                    bool wantAuto = requestedRotation == TFT_ROTATION_AUTO && imuAvailable();
+                    if (wantAuto && !autoRotation) imuCalibrate(tftRotation1 < TFT_ROTATION_NA ? tftRotation1 : 0);
+                    if (wantAuto != autoRotation) {
+                        autoRotation = wantAuto;
+                        preferences.putBool(PK_AUTO_ROTATION, autoRotation);
+                        DEBUG_PRINTLN(String("[IMU] Automatic rotation ") + (autoRotation ? "on" : "off"));
+                    }
+                    if (wantAuto && newRotation1 == TFT_ROTATION_NA) newRotation1 = 0;
+                    if (!wantAuto && requestedRotation >= 0 && requestedRotation <= TFT_ROTATION_NA) {
                         newRotation1 = (uint8_t)requestedRotation;
                     }
                 }
@@ -2985,10 +3025,10 @@
             brightStartHour = (uint8_t)argToIntClamped("brightStart", brightStartHour, 0, 23);
             brightEndHour = (uint8_t)argToIntClamped("brightEnd", brightEndHour, 0, 23);
 
-            // Gamma-Feld gibt es nur mit Backlight (brightnessFormFieldsHtml())
-            // The gamma field only exists with a backlight (brightnessFormFieldsHtml())
+            // Gamma-Feld gibt es nur mit Backlight und Lichtsensor (brightnessFormFieldsHtml())
+            // The gamma field only exists with a backlight and a light sensor (brightnessFormFieldsHtml())
 
-            if (useBacklight && webserver.hasArg("gamma")) {
+            if (useBacklight && photoresistorFound && webserver.hasArg("gamma")) {
                 gammaBrightness = constrain(webserver.arg("gamma").toFloat(), 0.1f, 3.0f);
                 preferences.putFloat(PK_GAMMA_BRIGHTNESS, gammaBrightness);
             }
@@ -4063,15 +4103,18 @@
             chunk += "<span id='previewSizeValue'>" + String(previewSize) + "</span>&nbsp;px";
             chunk += "</div>";
 
-            // Streifen fuer Uhrzeit/Datum (ILI9341) ueber oder unter der Uhr, so wie die Uhr ihn zeichnet (/api/stripimg)
-            // Time/date strip (ILI9341) above or below the clock, exactly as the clock draws it (/api/stripimg)
+            // Streifen fuer Uhrzeit/Datum (ILI9341) ueber oder unter der Uhr, so wie die Uhr ihn zeichnet (/api/stripimg).
+            // Der Browser skaliert ihn geglaettet - pixelweise wuerden die Ziffern ungleichmaessig.
+
+            // Time/date strip (ILI9341) above or below the clock, exactly as the clock draws it (/api/stripimg). The
+            // browser scales it smoothed - pixel by pixel the digits would become uneven.
 
             int stripPrevH = (TFT_HEIGHT > CLOCK_HEIGHT) ? previewSize * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH : 0;
             String stripCanvas = "";
             if (stripPrevH > 0) {
                 stripCanvas = "<canvas id='liveStrip' width='" + String(TFT_WIDTH) + "' height='" + String(TFT_HEIGHT - CLOCK_HEIGHT) +
                               "' style='display:block;width:" + String(previewSize) + "px;height:" + String(stripPrevH) +
-                              "px;image-rendering:pixelated;background:#000;'></canvas>";
+                              "px;background:#000;'></canvas>";
             }
 
             // previewSizer traegt die tatsaechliche Boxgroesse, previewInner
@@ -5434,11 +5477,13 @@
 
             // Nur sichtbar mit DCF77-Hardware UND dcf77Confirmed - ohne je
             // erkanntes Signal soll die Option gar nicht erst auftauchen.
+            // Boards ohne LED (LED_BOARD -1) zeigen sie ebenfalls nicht.
 
             // Only visible with DCF77 hardware AND dcf77Confirmed - without a
             // signal ever recognized, the option should not appear at all.
+            // Boards without an LED (LED_BOARD -1) don't show it either.
 
-            if (dcf77Confirmed) {
+            if (dcf77Confirmed && LED_BOARD >= 0) {
                 chunk += checkboxRow("dcfSyncLed", dcfSyncLedEnabled, translate("DCF77 Sync LED Blink"), translate("Flashes the LED for every received DCF77 pulse while the clock is still acquiring the time signal"));
             }
 
@@ -5456,8 +5501,8 @@
                     { "GC9A01", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) without backlight (BL)" },
                     { "GC9A01_WITH_BACKLIGHT", DISPLAY_TYPE_GC9A01, "GC9A01 (240x240) with backlight (BL) on pin {pin}" },
                     { "GC9D01", DISPLAY_TYPE_GC9D01, "GC9D01 (160x160)" },
-                    { "ILI9341", DISPLAY_TYPE_ILI9341, "ILI9341 (240x320) with time and date below the clock" },
-                    { "ST7789", DISPLAY_TYPE_ST7789, "ST7789 (172x320, ESP32-C6-LCD-1.47) with time and date below the clock" },
+                    { "ILI9341", DISPLAY_TYPE_ILI9341, "ILI9341 (240x320) with time and date strip" },
+                    { "ST7789", DISPLAY_TYPE_ST7789, "ST7789 (172x320, ESP32-C6-LCD-1.47) with time and date strip" },
                     { "ST7789_240", DISPLAY_TYPE_ST7789_240, "ST7789 (240x240, ESP32-C6-LCD-1.3)" },
                 };
                 chunk += "<div style='display:flex;flex-wrap:wrap;align-items:center;gap:6px;'>" + translate("Display type") + ": " + infoTip(withBacklightPin(translate("Type of the connected display - applies to both displays. BL = backlight: with BL the brightness is controlled via PWM on pin {pin} (same as the backlight checkbox in the brightness tab), without BL by darkening the pixels. Switching to another display type restarts the clock and resets backlight, brightness and hub size to the defaults of the new type; uploaded clock faces and hands only fit the size they were made for (GC9A01 and ILI9341 share the 240 size)"))) + " ";
@@ -5471,13 +5516,22 @@
                 chunk += "</select></div>";
             }
 
-            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": " + infoTip(translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing")) + " <select name='rotation' style='width:190px;'>";
+            // Mit Lagesensor (nur S3) zusaetzlich "automatisch" - der Hinweis erklaert den Bezug (imuCalibrate())
+            // With a motion sensor (S3 only) additionally "automatic" - the hint explains the reference (imuCalibrate())
+
+            String rotationTip = translate("Rotates the clock face by the selected number of degrees, useful if the display is mounted rotated in its housing");
+            if (imuAvailable()) rotationTip += ". " + translate("Automatic: the built-in motion sensor turns the clock face upright. First select and save the rotation that fits the current position, then switch to automatic - the clock takes this position as its reference");
+            chunk += "<div style='display:flex;align-items:center;gap:6px;white-space:nowrap;'>" + translate("Rotation Display 1") + ": " + infoTip(rotationTip) + " <select name='rotation' style='width:190px;'>";
             const char* rotationLabels[] = { "0&deg;", "90&deg;", "180&deg;", "270&deg;" };
             String rotationNaLabel = translate("not connected (n.a.)");
             for (int i = 0; i <= TFT_ROTATION_NA; i++) {
                 chunk += "<option value='" + String(i) + "'";
-                if (i == tftRotation1) chunk += " selected";
+                if (i == tftRotation1 && !autoRotation) chunk += " selected";
                 chunk += ">" + (i == TFT_ROTATION_NA ? rotationNaLabel : String(rotationLabels[i])) + "</option>";
+            }
+            if (imuAvailable()) {
+                chunk += "<option value='" + String(TFT_ROTATION_AUTO) + "'" + String(autoRotation ? " selected" : "") + ">" +
+                         translate("automatic") + " (" + rotationLabels[tftRotation1 < TFT_ROTATION_NA ? tftRotation1 : 0] + ")</option>";
             }
             chunk += "</select></div>";
 
@@ -5563,8 +5617,8 @@
                 webserver.sendContent(chunk);
                 chunk = "";
 
-                if (useBacklight) { // Gamma-Kurve nur mit Backlight (stufenlose PWM)
-                                    // gamma curve only with a backlight (stepless PWM)
+                if (useBacklight && photoresistorFound) { // Gamma-Kurve nur mit Backlight und Lichtsensor
+                                                          // gamma curve only with a backlight and a light sensor
                 chunk += "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>\n";
 
                 // "adc"/"targetBrightness" bleiben unuebersetzt: das sind die
@@ -5749,6 +5803,8 @@
 
                 chunk += "<input type='text' id='tz_input' name='timezone' style='width: 400px;' value='" + timezone + "'><br><br>";
                 chunk += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
+                chunk += checkboxRow("openWifiTime", preferences.getBool(PK_OPEN_WIFI_TIME, true), translate("Get the time from open WiFis"),
+                                     translate("Only at boot, if the clock cannot connect to any stored WiFi (out of range or no access, e.g. a wrong password) and there is no RTC: the clock briefly connects to up to four open WiFis nearby and gets the time via NTP or from the login page of the hotspot (also via HTTPS), then disconnects again. Every step is written to the log. These are networks of others - only use it if allowed"));
                 chunk += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
                 chunk += "</form>";
 
@@ -6999,6 +7055,7 @@
             }
 
             String stripJs = "null";
+            ensureStripSettings();
             if (TFT_HEIGHT > CLOCK_HEIGHT) {
                 char bgHex[8], fgHex[8];
                 snprintf(bgHex, sizeof(bgHex), "#%06lx", (unsigned long)stripBgRgb);
@@ -7007,6 +7064,12 @@
                           "',fg:'" + String(fgHex) + "',font:" + String(stripFont) + ",before:" + String(stripBefore ? 1 : 0) +
                           ",blink:" + String(stripBlink ? 1 : 0) + ",tfmt:" + String(stripTimeFmt) + ",sec:" + String(stripSeconds) + ",dfmt:" + String(stripDateFmt) +
                           ",vlw:'" + vlwNameJs + "',vt:" + String(stripVlwTimeSize) + ",vd:" + String(stripVlwDateSize) +
+                          ",ts:" + String(stripTimeScale) + ",ds:" + String(stripDateScale) +
+                          ",st:" + String(stripShowTime ? 1 : 0) + ",sd:" + String(stripShowDate ? 1 : 0) +
+                          ",sw:" + String(stripShowWeekday ? 1 : 0) + ",ws:" + String(stripWeekdayScale) +
+                          ",vw:" + String(stripVlwWeekdaySize) + ",wx:" + String(stripWeekdayX) + ",wy:" + String(stripWeekdayY) +
+                          ",awy:" + String(stripAutoWeekdayY) +
+                          ",vwok:" + String(LittleFS.exists(stripVlwPath(stripVlwWeekdaySize, true)) ? 1 : 0) +
                           ",tx:" + String(stripTimeX) +
                           ",ty:" + String(stripTimeY) + ",dx:" + String(stripDateX) + ",dy:" + String(stripDateY) +
                           ",aty:" + String(stripAutoTimeY) + ",ady:" + String(stripAutoDateY) + ",fonts:[";
@@ -7114,6 +7177,7 @@
             };
             int stripW = TFT_WIDTH;
             int stripH = max(0, TFT_HEIGHT - CLOCK_HEIGHT);
+            ensureStripSettings();
             stripBgRgb = colorArg("bg", stripBgRgb);
             stripFgRgb = colorArg("fg", stripFgRgb);
             if (webserver.hasArg("font")) {
@@ -7126,49 +7190,53 @@
             if (webserver.hasArg("vlw")) stripVlwName = webserver.arg("vlw").substring(0, 40);
             if (webserver.hasArg("vt")) stripVlwTimeSize = (uint8_t)constrain(webserver.arg("vt").toInt(), 8L, 120L);
             if (webserver.hasArg("vd")) stripVlwDateSize = (uint8_t)constrain(webserver.arg("vd").toInt(), 8L, 120L);
+            if (webserver.hasArg("ts")) stripTimeScale = (uint8_t)constrain(webserver.arg("ts").toInt(), STRIP_SCALE_MIN, STRIP_SCALE_MAX);
+            if (webserver.hasArg("ds")) stripDateScale = (uint8_t)constrain(webserver.arg("ds").toInt(), STRIP_SCALE_MIN, STRIP_SCALE_MAX);
+            if (webserver.hasArg("st")) stripShowTime = webserver.arg("st") == "1";
+            if (webserver.hasArg("sd")) stripShowDate = webserver.arg("sd") == "1";
+            if (webserver.hasArg("sw")) stripShowWeekday = webserver.arg("sw") == "1";
+            if (webserver.hasArg("ws")) stripWeekdayScale = (uint8_t)constrain(webserver.arg("ws").toInt(), STRIP_SCALE_MIN, STRIP_SCALE_MAX);
+            if (webserver.hasArg("vw")) stripVlwWeekdaySize = (uint8_t)constrain(webserver.arg("vw").toInt(), 8L, 120L);
             stripTimeX = posArg("tx", stripTimeX, stripW);
             stripTimeY = posArg("ty", stripTimeY, stripH);
             stripDateX = posArg("dx", stripDateX, stripW);
             stripDateY = posArg("dy", stripDateY, stripH);
+            stripWeekdayX = posArg("wx", stripWeekdayX, stripW);
+            stripWeekdayY = posArg("wy", stripWeekdayY, stripH);
 
             // Neue Lage: beide Displays einmal loeschen, danach Uhr und Streifen komplett neu senden
             // New placement: clear both displays once, then resend the clock and the strip completely
 
             if (webserver.hasArg("before")) setStripBefore(webserver.arg("before") == "1");
             if (webserver.hasArg("blink")) stripBlink = webserver.arg("blink") == "1";
+
+            // Speichern zum aktiven Zifferblatt oder zu face (der Designer vor dem Aktivieren eines neuen Zifferblatts)
+            // Store for the active clock face or for face (the designer before activating a new clock face)
+
             if (webserver.arg("save") == "1") {
-                preferences.putBool(PK_STRIP_BEFORE, stripBefore);
-                preferences.putBool(PK_STRIP_BLINK, stripBlink);
-                preferences.putUChar(PK_STRIP_TIME_FMT, stripTimeFmt);
-                preferences.putUChar(PK_STRIP_SECONDS, stripSeconds);
-                preferences.putUChar(PK_STRIP_DATE_FMT, stripDateFmt);
-                preferences.putString(PK_STRIP_VLW_NAME, stripVlwName);
-                preferences.putUChar(PK_STRIP_VLW_TSIZE, stripVlwTimeSize);
-                preferences.putUChar(PK_STRIP_VLW_DSIZE, stripVlwDateSize);
-                preferences.putULong(PK_STRIP_BG, stripBgRgb);
-                preferences.putULong(PK_STRIP_FG, stripFgRgb);
-                preferences.putUChar(PK_STRIP_FONT, stripFont);
-                preferences.putShort(PK_STRIP_TIME_X, stripTimeX);
-                preferences.putShort(PK_STRIP_TIME_Y, stripTimeY);
-                preferences.putShort(PK_STRIP_DATE_X, stripDateX);
-                preferences.putShort(PK_STRIP_DATE_Y, stripDateY);
+                String face = webserver.hasArg("face") ? "/" + webserver.arg("face") : selectedBackground;
+                if (!saveStripSettingsForFace(face)) {
+                    webserver.send(400, "application/json", "{\"ok\":false}");
+                    return;
+                }
             }
             infoStripDirty[0] = infoStripDirty[1] = true;
             drawInfoStrips();
             setCSIdle();
-            webserver.send(200, "application/json", "{\"ok\":true,\"aty\":" + String(stripAutoTimeY) + ",\"ady\":" + String(stripAutoDateY) + "}");
+            webserver.send(200, "application/json", "{\"ok\":true,\"aty\":" + String(stripAutoTimeY) + ",\"ady\":" + String(stripAutoDateY) + ",\"awy\":" + String(stripAutoWeekdayY) + "}");
             });
 
         // Vorschau des Streifens: hochkant, ungedimmt, RGB565 big-endian (w x h aus FD.strip) - so wie die Uhr ihn
-        // zeichnet. text=1: nur die Schrift auf TRANSPARENT_COLOR (fuer die Zeichenflaeche des Designers).
+        // zeichnet. text=1: nur die Schrift auf TRANSPARENT_COLOR, text=2: auf Schwarz und Weiss (Designer).
         // h/m/s: feste Uhrzeit wie die Zeiger der Designer-Vorschau ohne Live-Uhrzeit.
 
         // Strip preview: portrait, undimmed, RGB565 big-endian (w x h from FD.strip) - exactly as the clock draws
-        // it. text=1: only the text on TRANSPARENT_COLOR (for the designer's drawing area). h/m/s: fixed time like
+        // it. text=1: only the text on TRANSPARENT_COLOR, text=2: on black and white (designer). h/m/s: fixed time like
         // the hands of the designer preview without live time.
 
         webserver.on("/api/stripimg", HTTP_GET, []() {
             int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
+            ensureStripSettings();
             struct tm fixed = timeinfo;
             bool useFixed = webserver.hasArg("h");
             if (useFixed) {
@@ -7176,14 +7244,27 @@
                 fixed.tm_min = constrain(webserver.arg("m").toInt(), 0, 59);
                 fixed.tm_sec = constrain(webserver.arg("s").toInt(), 0, 59);
             }
-            if (!renderStripPreview(w, h, webserver.arg("text") == "1", useFixed ? &fixed : nullptr)) {
+            // text=2: nur die Schrift, einmal auf Schwarz und einmal auf Weiss hintereinander - aus dem Unterschied
+            // berechnet der Designer die Deckkraft jedes Pixels, kantengeglaettete Schrift liegt so sauber ueber
+            // seiner Zeichnung
+
+            // text=2: only the text, once on black and once on white one after the other - from the difference
+            // the designer computes each pixel's opacity, so anti-aliased text lies cleanly over its drawing
+
+            const bool twoPass = webserver.arg("text") == "2";
+            const bool textOnly = twoPass || webserver.arg("text") == "1";
+            const struct tm* when = useFixed ? &fixed : nullptr;
+            if (!renderStripPreview(w, h, textOnly, when, twoPass ? 0x0000 : TRANSPARENT_COLOR)) {
                 webserver.send(404, "text/plain", "no strip");
                 return;
             }
             size_t n = (size_t)w * h * 2;
-            webserver.setContentLength(n);
+            webserver.setContentLength(twoPass ? 2 * n : n);
             webserver.send(200, "application/octet-stream", "");
             webserver.sendContent((const char*)infoStripSprite.getBuffer(), n);
+            if (twoPass && renderStripPreview(w, h, true, when, 0xFFFF)) {
+                webserver.sendContent((const char*)infoStripSprite.getBuffer(), n);
+            }
             });
 
         // Displaytyp speichern ("display" wie parseDisplayName()) und neu starten, da Puffer und Sprites nur
@@ -7359,6 +7440,42 @@
             html += "x.onerror=function(){show('restoreFormP',T.err,0);btn.disabled=false;pause(false);};";
             html += "x.send(new FormData(f));}";
             html += "})();</script>";
+
+#if HAS_OTA
+
+            // Firmware-Update ueber WLAN (ota_update.h): Upload per XMLHttpRequest mit Fortschritt, danach warten,
+            // bis die Uhr mit der neuen Firmware wieder antwortet. Nur uhr4.ino.bin aus esp32s3.
+
+            // Firmware update over WiFi (ota_update.h): upload via XMLHttpRequest with progress, then wait until
+            // the clock answers again with the new firmware. Only uhr4.ino.bin from esp32s3.
+
+            html += "<hr><h3>" + translate("Firmware Update") + "</h3>";
+            html += "<p>" + translate("Installs a new firmware over WiFi - settings, clock faces and hand sets stay. Use the file uhr4.ino.bin from the folder esp32s3 of the release") + ".</p>";
+            html += "<p><small>" + translate("Installed version") + ": " + String(version) + ". " + translate("The clock checks the file and only starts the new firmware if it is complete") + ".</small></p>";
+            html += "<form id='fwForm' data-ask='" + translate("Install the firmware and restart the clock?") + "'>";
+            html += "<input type='file' name='firmware' accept='.bin' required> ";
+            html += "<button type='submit'>" + translate("Install Firmware") + "</button></form>";
+            html += "<div id='fwFormP' hidden><progress max='100' style='width:100%;'></progress><small></small></div>";
+            html += "<div id='fwTexts' hidden data-up='" + translate("Sending firmware - keep this page open") +
+                    "' data-check='" + translate("Checking firmware") +
+                    "' data-wait='" + translate("Firmware installed - waiting for the clock to restart") +
+                    "' data-timeout='" + translate("The clock does not respond yet - refresh the page later") +
+                    "' data-err='" + translate("Connection to the clock interrupted") + "'></div>";
+            html += "<script>(function(){var f=document.getElementById('fwForm'),T=document.getElementById('fwTexts').dataset;";
+            html += "function show(txt,pct){var b=document.getElementById('fwFormP'),p=b.querySelector('progress');b.hidden=false;b.querySelector('small').textContent=txt;if(pct==null)p.removeAttribute('value');else p.value=pct;}";
+            html += "function kb(n){return Math.round(n/1024)+' KB';}";
+            html += "function done(){f.querySelector('button').disabled=false;if(window.topbarPolling)window.topbarPolling(true);}";
+            html += "function waitRestart(){var t0=Date.now();function tryIt(){fetch('/api/topbarStatus',{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;location.href='/';})";
+            html += ".catch(function(){if(Date.now()-t0>120000){show(T.timeout,0);done();}else{setTimeout(tryIt,2000);}});}setTimeout(tryIt,5000);}";
+            html += "f.addEventListener('submit',function(ev){ev.preventDefault();var file=f.firmware.files[0];if(!file||!confirm(f.dataset.ask))return;";
+            html += "f.querySelector('button').disabled=true;if(window.topbarPolling)window.topbarPolling(false);show(T.up,0);";
+            html += "var fd=new FormData();fd.append('firmware',file,file.name);var x=new XMLHttpRequest();x.open('POST','/firmware/update');";
+            html += "x.upload.onprogress=function(e){if(e.lengthComputable)show(T.up+' ('+kb(e.loaded)+' / '+kb(e.total)+')',100*e.loaded/e.total);};";
+            html += "x.upload.onload=function(){show(T.check,null);};";
+            html += "x.onload=function(){if(x.status!==200){show(x.responseText||('HTTP '+x.status),0);done();return;}show(T.wait,null);waitRestart();};";
+            html += "x.onerror=function(){show(T.err,0);done();};x.send(fd);});})();</script>";
+#endif
+
             html += "</body></html>";
             webserver.send(200, "text/html", html);
             });
@@ -7401,6 +7518,11 @@
                 "<meta http-equiv='refresh' content='10; url=/'>"));
             espReboot();
             }, handleBackupRestoreUpload);
+
+        // Firmware-Update ueber WLAN, nur ESP32-S3 (ota_update.h)
+        // Firmware update over WiFi, ESP32-S3 only (ota_update.h)
+
+        setupOtaRoutes();
 
         webserver.on("/factoryReset", HTTP_GET, []() {
             String html = beginPage();

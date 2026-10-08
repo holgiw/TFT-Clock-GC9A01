@@ -128,25 +128,32 @@
     }
 
 
-    // überpüft die WiFi-Verbindung und versucht, sie alle x Minuten wiederherzustellen, wenn sie getrennt ist.
-    // Checks the WiFi connection and tries to restore it every x minutes if disconnected.
+    // Prueft die WLAN-Verbindung und versucht stuendlich, sie wiederherzustellen (nur mit "WLAN neu verbinden",
+    // siehe loop()). In den AP-Modus geht die Uhr nur beim Start ohne erreichbares WLAN, nie von hier aus.
+
+    // Checks the WiFi connection and tries hourly to restore it (only with "Reconnect WiFi", see loop()). The
+    // clock only enters AP mode at boot without a reachable WiFi, never from here.
 
     bool checkWiFiReconnect() {
         static unsigned long lastAttempt = 0;
-        static bool firstAttempt = true; // siehe Kommentar unten
-                                         // see comment below
+        static unsigned long interval = 0; // 0 = erster Aufruf nach dem Start / first call after boot
 
-        // Ohne firstAttempt gilt die Bedingung in der ersten Stunde nach Boot
-        // immer als "Verbindung OK", ohne je zu verbinden - ein Router-Neustart
-        // direkt nach Stromausfall liess die Uhr so bis zu 60 Min offline.
+        // Erster Versuch 5 Minuten nach dem Start - der Start hat es gerade erst versucht, ein sofortiger Versuch
+        // blockierte Tasten und Weboberflaeche eine weitere Minute. 5 Minuten reichen fuer einen Router, der nach
+        // einem Stromausfall langsamer hochfaehrt als die Uhr. Danach stuendlich, im AP-Modus von Anfang an.
 
-        // Without firstAttempt the condition is always "connection OK" during
-        // the first hour after boot, without ever connecting - a router
-        // restart right after a power cut left the clock offline for 60 min.
+        // First attempt 5 minutes after boot - boot has just tried, an immediate attempt blocked buttons and web
+        // interface for another minute. 5 minutes suffice for a router that comes up more slowly than the clock
+        // after a power cut. Then hourly, in AP mode right from the start.
 
         unsigned long now = millis();
-        if (!firstAttempt && (now - lastAttempt < WAIT_1h)) return true;
-        firstAttempt = false;
+        if (interval == 0) {
+            interval = softAPIP ? WAIT_1h : 5 * WAIT_1m;
+            lastAttempt = now;
+            return true;
+        }
+        if (now - lastAttempt < interval) return true;
+        interval = WAIT_1h;
         lastAttempt = now;
 
         if (WiFi.status() == WL_CONNECTED) {
@@ -158,7 +165,29 @@
         WiFi.disconnect();
         int slot = preferences.getInt(PK_LAST_WLAN, 0);
         connectWiFiWithRetries(slot, wifiSsid[slot], false);
-        return WiFi.status() == WL_CONNECTED;
+        bool connected = WiFi.status() == WL_CONNECTED;
+
+        // AP-Modus nach dem Start: verbunden -> AP-Modus beenden; sonst den AP wieder starten, den
+        // connectWiFi() mit WiFi.mode(WIFI_MODE_NULL) abgeschaltet hat - die Uhr bleibt per Handy erreichbar.
+
+        // AP mode after boot: connected -> leave AP mode; otherwise restart the AP that connectWiFi()
+        // switched off with WiFi.mode(WIFI_MODE_NULL) - the clock stays reachable by phone.
+
+        if (softAPIP) {
+            if (connected) {
+                DEBUG_PRINTLN("[WiFi] Reconnected - leaving access point mode");
+                dnsServer.stop();
+                softAPIP = false;
+            }
+            else if (!(WiFi.getMode() & WIFI_AP)) {
+                WiFi.disconnect(); // keine Verbindungsversuche neben dem AP / no connection attempts beside the AP
+                WiFi.softAP(AP_SSID, apPassword);
+                dnsServer.stop();
+                dnsServer.start(53, "*", WiFi.softAPIP());
+                DEBUG_PRINTLN("[WiFi] Reconnect failed - access point restarted: " + String(AP_SSID));
+            }
+        }
+        return connected;
     }
 
 
@@ -406,25 +435,23 @@
     // again on a short button press (showWlanCredentials()).
 
     void showApInfo() {
+        static const lgfx::IFont* const fontsMain[] = { &fonts::FreeSansBold12pt7b, &fonts::DejaVu18, &fonts::Font0, nullptr };
+        static const lgfx::IFont* const fontsSmall[] = { &fonts::DejaVu18, &fonts::Font0, nullptr };
+        String url = "http://" + WiFi.softAPIP().toString();
+        String pass = String("PW ") + apPassword;
         DRAW_ON_BOTH_DISPLAYS(
             tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8)) ;
-            tft.println("AccessPoint active");
-            tft.setCursor(10, (CLOCK_HEIGHT / 2));
-            tft.println(String(AP_SSID) + " " + apPassword);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2 ) + (CLOCK_HEIGHT / 8));
-
-            tft.print("http://");
-            tft.println(WiFi.softAPIP());
+            drawTextRow(tft, 0.24f, "Access Point", TFT_YELLOW, fontsMain, false);
+            drawTextRow(tft, 0.42f, AP_SSID, TFT_YELLOW, fontsMain, false);
+            drawTextRow(tft, 0.58f, pass, TFT_YELLOW, fontsMain, false);
+            drawTextRow(tft, 0.76f, url, TFT_DARKGREY, fontsSmall, false);
         );
     }
 
 
     void startAP() {
-        if (useBacklight && backlightAttached) ledcWrite(TFT_Backlight, 255); // Einrichtungsmodus: volle Helligkeit
-                                                                              // setup mode: full brightness
+        if (useBacklight && backlightAttached) ledcWrite(TFT_Backlight, BACKLIGHT_SETUP_LEVEL); // Einrichtung: 50 %
+                                                                                                // setup: 50 %
 
 
         // Station-Modus starten, aber NICHT verbinden - ein gleichzeitiger
@@ -440,35 +467,14 @@
         // WPS versuchen, wenn moeglich. Den Slot waehlt saveWpsCredentials() nach einem WPS-Erfolg.
         // Try WPS if possible. The slot is chosen by saveWpsCredentials() after a WPS success.
 
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.fillRect(0, 0, statusWidth(), CLOCK_HEIGHT, TFT_BLACK);
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("check for WPS..");
-        );
-
         startWPS(); // WPS starten
                     // start WPS
 
-        // Statische Beschriftung einmalig zeichnen; nur die Zahl wird danach
-        // pro Sekunde aktualisiert (verhindert Flimmern durch volles Neuzeichnen).
+        // Beschriftung einmalig zeichnen; nur der Countdown wird danach pro Sekunde aktualisiert (ohne Flimmern)
+        // Draw the labels once; only the countdown is updated afterwards each second (without flicker)
 
-        // Draw the static label once; only the number is updated afterwards
-        // each second (prevents flicker from a full redraw).
-
-        int countdownY = CLOCK_HEIGHT / 2;
         int lastSecondsShown = -1;
-
-        int countdownNumX = 0;
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(10, countdownY);
-            tft.print("AP mode in ");
-            countdownNumX = tft.getCursorX();
-        );
+        showButtonMessage(TFT_YELLOW, "WPS", "120 s", "then Access Point", TFT_DARKGREY);
 
         // 30s waren in der Praxis oft zu knapp fuer eine vollstaendige
         // WPS-Aushandlung - auf 2 Minuten verlaengert, wie beim Web-Button-
@@ -493,16 +499,13 @@
             int secondsLeft = (wpsTimeoutMs - (millis() - wpsWaitMillis)) / 1000;
             if (secondsLeft != lastSecondsShown) {
                 lastSecondsShown = secondsLeft;
-                DEBUG_PRINTLN("[WPS] waiting... " + String(secondsLeft) + "s left");
-                DRAW_ON_BOTH_DISPLAYS(
-                    tft.fillRect(countdownNumX, countdownY, statusWidth() - countdownNumX, CLOCK_HEIGHT / 8, TFT_BLACK);
-                    tft.setCursor(countdownNumX, countdownY);
-                    tft.print(secondsLeft);
-                    tft.println("s");
-                );
+                if (secondsLeft % 30 == 0) DEBUG_PRINTLN("[WPS] waiting... " + String(secondsLeft) + "s left");
+                updateButtonLine(TFT_YELLOW, String(secondsLeft) + " s");
             }
             handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
                                     // display type via USB also during this wait (see handleSerialCommands())
+            checkButton();          // Taster/Boot-Taste auch waehrend dieser Wartezeit
+                                    // button/boot button also during this wait
             delay(100);
         }
         DEBUG_PRINTLN("[WPS] wait loop exited, success=" + String(wpsSuccessEvent) + ", failed=" + String(wpsFailedEvent));
@@ -526,13 +529,7 @@
                 int savedSlot = saveWpsCredentials(newSsid, newPass);
                 preferences.putInt(PK_LAST_WLAN, savedSlot);
 
-                DRAW_ON_BOTH_DISPLAYS(
-                    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                    tft.println(tftText(newSsid));
-
-                    tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                    tft.println("found WPS... reboot");
-                );
+                showButtonMessage(TFT_GREEN, "WPS", tftText(newSsid), "restarting", TFT_DARKGREY);
 
                 delay(WAIT_5s);
                 esp_wifi_wps_disable();
@@ -589,13 +586,7 @@
         // blocking - a stuck scan must not hold up the clock permanently,
         // the AP is already running).
 
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("WLAN-Scan..");
-        );
+        showButtonMessage(TFT_YELLOW, "WiFi scan", "...", "", TFT_DARKGREY);
         WiFi.scanNetworks(true);
         int networkCount = WIFI_SCAN_RUNNING;
         unsigned long scanStartMillis = millis();
@@ -633,6 +624,19 @@
     }
 
 
+    // Graue Kopfzeile der WLAN-Anzeigen: "Build" + Version. Auf dem kleinen runden Display (160 px) ist die
+    // oberste Zeile nur ~120 px breit - dort ohne Jahrhundert und Sekunden ("Build 26-10-08 15:27").
+
+    // Grey header row of the WiFi screens: "Build" + version. On the small round display (160 px) the top
+    // row is only ~120 px wide - there without century and seconds ("Build 26-10-08 15:27").
+
+    String buildLabel() {
+        String v = String(version);
+        if (displayGeom->round && CLOCK_HEIGHT < 200 && v.length() >= 16) v = v.substring(2, 16);
+        return "Build " + v;
+    }
+
+
     // Versucht, eine Verbindung zum WLAN herzustellen, basierend auf den gespeicherten SSID- und Passwort-Paaren.
     // Zeigt während des Verbindungsversuchs Informationen auf dem Display an und überprüft die
     // Internet-Konnektivität nach erfolgreicher Verbindung.
@@ -657,7 +661,7 @@
         }
 
         if (verboseMode && useBacklight && backlightAttached) {
-            ledcWrite(TFT_Backlight, 255);
+            ledcWrite(TFT_Backlight, BACKLIGHT_SETUP_LEVEL);
         }
         if (wifiSsid[number] == "") {
            // DEBUG_PRINTLN("[WiFi] SSID " + String(number + 1) + " is empty, skipping");
@@ -675,38 +679,22 @@
         if (verboseMode) {
             clearTFT();
 
-            // Preprocessor-Bedingung vorab in eine Variable aufloesen - #if/#else
-            // duerfen nicht innerhalb der Argumentliste von DRAW_ON_BOTH_DISPLAYS() stehen.
+            // Erst umwandeln, dann kuerzen: ein Zeichen = ein Byte, die Kuerzung trennt so keine UTF-8-Folge
+            // (Umlaut in der SSID). Zeilen wie showWlanCredentials(), darunter dreht sich animateCursor().
 
-            // Resolve the preprocessor condition into a variable beforehand - #if/#else
-            // are not allowed inside DRAW_ON_BOTH_DISPLAYS()'s argument list.
+            // Convert first, then shorten: one character = one byte, so shortening doesn't split a UTF-8
+            // sequence (umlaut in the SSID). Rows like showWlanCredentials(), animateCursor() spins below.
 
-            int versionCursorX = (CLOCK_WIDTH < 240) ? 20 : 60; // kleines Display (GC9D01): weiter links
-                                                                // small display (GC9D01): further left
+            static const lgfx::IFont* const fontsMain[] = { &fonts::FreeSansBold12pt7b, &fonts::DejaVu18, &fonts::Font0, nullptr };
+            static const lgfx::IFont* const fontsSmall[] = { &fonts::DejaVu18, &fonts::Font0, nullptr };
+            String ssidText = tftText(wifiSsid[number]);
+            if (ssidText.length() > 24) ssidText = ssidText.substring(0, 22) + "..";
+            String slotText = "Connect to WiFi " + String(number + 1);
             DRAW_ON_BOTH_DISPLAYS(
-                tft.setTextColor(TFT_GREEN, TFT_BLACK);
-
-                tft.setTextSize(TFT_TEXT_SIZE / 2);
-                tft.setCursor(versionCursorX, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
-
-                tft.println(String(version));
-
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                tft.println("Connect to SSID" + String(number+1));
-                tft.setCursor(20, (CLOCK_HEIGHT / 2));
-
-                // Erst umwandeln, dann kuerzen: ein Zeichen = ein Byte, die
-                // Kuerzung trennt so keine UTF-8-Folge (Umlaut in der SSID).
-
-                // Convert first, then shorten: one character = one byte, so
-                // shortening doesn't split a UTF-8 sequence (umlaut in the SSID).
-
-                String ssidText = tftText(wifiSsid[number]);
-                if (ssidText.length() > 15) {
-                    tft.print(ssidText.substring(0,15));
-                    tft.println("..");
-                } else tft.println(ssidText);
+                tft.fillScreen(TFT_BLACK);
+                drawTextRow(tft, 0.18f, buildLabel(), TFT_DARKGREY, fontsSmall, false);
+                drawTextRow(tft, 0.34f, slotText, TFT_GREEN, fontsSmall, false);
+                drawTextRow(tft, 0.50f, ssidText, TFT_GREEN, fontsMain, false);
             );
         }
 
@@ -748,9 +736,11 @@
         while (WiFi.status() != WL_CONNECTED && millis() - start < waitTime) {
             handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
                                     // display type via USB also during this wait (see handleSerialCommands())
+            checkButton();          // Taster/Boot-Taste auch waehrend dieser Wartezeit
+                                    // button/boot button also during this wait
             if (loggingEnabled) Serial.print("");
             if (verboseMode) {
-                animateCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8), 100);
+                animateCursor(statusWidth() / 2 - 3 * TFT_TEXT_SIZE, (int)(CLOCK_HEIGHT * 0.70f), 100);
             }
             else {
                 updateClock();
@@ -812,6 +802,11 @@
 
             startNtpServer();
 
+            // Firmware-Update ueber WLAN (nur ESP32-S3) ebenso neu starten - siehe ota_update.h
+            // Restart the firmware update over WiFi (ESP32-S3 only) likewise - see ota_update.h
+
+            startArduinoOta();
+
             // R2RNet-Multicast ebenfalls neu beitreten - wie beim NTP-Server ueberlebt der Socket den
             // WLAN-Neuaufbau nicht (siehe rocrail_client.h). Nur, wenn Rocrail aktiviert ist.
 
@@ -868,6 +863,8 @@
         const char* frames[] = { "/", "-", "\\", "-" };
         for (int i = 0; i < 4; i++) {
             DRAW_ON_BOTH_DISPLAYS(
+                tft.setTextSize(TFT_TEXT_SIZE);
+                tft.setTextColor(TFT_GREEN, TFT_BLACK);
                 tft.setCursor(x, y);
                 tft.print(frames[i]);
             );
@@ -889,38 +886,31 @@
             return;
         }
 
-        int versionCursorX = (CLOCK_WIDTH < 240) ? 20 : 60; // kleines Display (GC9D01): weiter links
-                                                            // small display (GC9D01): further left
+        // Zentrierte Zeilen in der jeweils groessten passenden Schrift (drawTextRow() in system_utils.h), gruen;
+        // die Firmware-Version klein und grau. Lange WLAN-Namen gekuerzt (erst umwandeln, dann kuerzen).
+
+        // Centred rows in the largest fitting font each (drawTextRow() in system_utils.h), green; the firmware
+        // version small and grey. Long WiFi names shortened (convert first, then shorten).
+
+        static const lgfx::IFont* const fontsMain[] = { &fonts::FreeSansBold12pt7b, &fonts::DejaVu18, &fonts::Font0, nullptr };
+        static const lgfx::IFont* const fontsSmall[] = { &fonts::DejaVu18, &fonts::Font0, nullptr };
+        bool connected = WiFi.status() == WL_CONNECTED;
+        String wlanText = tftText(wlan);
+        if (wlanText.length() > 24) wlanText = wlanText.substring(0, 22) + "..";
+        String slotText = "WiFi " + String(preferences.getInt(PK_LAST_WLAN, -1) + 1);
+        String ipText = WiFi.localIP().toString();
+        String hostText = String(hostname) + ".local";
         DRAW_ON_BOTH_DISPLAYS(
             tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_GREEN, TFT_BLACK);
-
-            tft.setTextSize(TFT_TEXT_SIZE/2);
-            tft.setCursor(versionCursorX, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 3));
-            tft.println(String(version));
-
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(14, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-            if (WiFi.status() == WL_CONNECTED) {
-                tft.println("Connected to SSID" + String(preferences.getInt(PK_LAST_WLAN, -1) + 1));
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                String wlanText = tftText(wlan); // erst umwandeln, dann kuerzen (siehe oben)
-                                                 // convert first, then shorten (see above)
-                if (wlanText.length() > 15) {
-                    tft.print(wlanText.substring(0, 15));
-                    tft.println("..");
-                }
-                else tft.println(wlanText);
-                tft.setCursor(20, (CLOCK_HEIGHT / 2));
-                tft.println(WiFi.localIP());
-
-                if (pingHostname) {
-                    tft.setCursor(20, (CLOCK_HEIGHT / 2) + (CLOCK_HEIGHT / 8));
-                    tft.println(String(hostname) + ".local");
-                }
+            drawTextRow(tft, 0.18f, buildLabel(), TFT_DARKGREY, fontsSmall, false);
+            if (connected) {
+                drawTextRow(tft, 0.34f, slotText, TFT_GREEN, fontsSmall, false);
+                drawTextRow(tft, 0.50f, wlanText, TFT_GREEN, fontsMain, false);
+                drawTextRow(tft, 0.66f, ipText, TFT_GREEN, fontsMain, false);
+                if (pingHostname) drawTextRow(tft, 0.82f, hostText, TFT_GREEN, fontsSmall, false);
             }
             else {
-                tft.println("Not connected");
+                drawTextRow(tft, 0.50f, "Not connected", TFT_GREEN, fontsMain, false);
             }
         );
     }
@@ -963,10 +953,11 @@
     }
 
 
-    // Startet asynchronen WiFi-Scan
-    // Starts an asynchronous WiFi scan
+    // Startet asynchronen WiFi-Scan - nie waehrend eines Firmware-Updates, die Kanalsuche unterbricht es
+    // Starts an asynchronous WiFi scan - never during a firmware update, the channel search breaks it
 
     void startWiFiScan() {
+        if (otaInProgress) return;
         if (!isScanning) {
 
             isScanning = true;
@@ -1025,18 +1016,13 @@
     }
 
 
-    // Scannt WLANs und cached Ergebnisse
-    // Scans WiFi networks and caches results
+    // Scannt WLANs und cached Ergebnisse - nicht waehrend eines Firmware-Updates (siehe startWiFiScan())
+    // Scans WiFi networks and caches results - not during a firmware update (see startWiFiScan())
 
     void scanAndCacheNetworks() {
+        if (otaInProgress) return;
 
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_GREEN, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(10, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-            tft.println("WLAN-Scan..");
-        );
+        showButtonMessage(TFT_GREEN, "WiFi scan", "...", "", TFT_DARKGREY);
 
         DEBUG_PRINTLN("[WiFi] Scanning for WiFi networks..");
 

@@ -1149,15 +1149,29 @@
 
     String testNtpServer(const String& server) {
         if (WiFi.getMode() != WIFI_STA || !WiFi.isConnected()) return "";
+        time_t epochTime = ntpQueryEpoch(server);
+        if (epochTime == 0) return "";
 
+        struct tm resultTime;
+        gmtime_r(&epochTime, &resultTime);
+        char buf[32];
+        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &resultTime);
+        return String(buf) + " UTC";
+    }
+
+
+    // Eine NTP-Abfrage per UDP (siehe testNtpServer(), fetchTimeFromOpenWifi()): Unix-Sekunden UTC, 0 ohne Antwort
+    // One NTP query via UDP (see testNtpServer(), fetchTimeFromOpenWifi()): unix seconds UTC, 0 without a reply
+
+    time_t ntpQueryEpoch(const String& server) {
         WiFiUDP testUdp;
-        if (!testUdp.begin(0)) return ""; // beliebiger freier lokaler Port
-                                          // any free local port
+        if (!testUdp.begin(0)) return 0; // beliebiger freier lokaler Port
+                                         // any free local port
 
         IPAddress serverIp;
         if (!WiFi.hostByName(server.c_str(), serverIp)) {
             testUdp.stop();
-            return "";
+            return 0;
         }
 
         uint8_t packet[48];
@@ -1179,7 +1193,7 @@
 
         if (received < 48) {
             testUdp.stop();
-            return "";
+            return 0;
         }
 
         testUdp.read(packet, 48);
@@ -1192,14 +1206,8 @@
                                  ((uint32_t)packet[42] << 8) | (uint32_t)packet[43];
         const uint32_t SEVENTY_YEARS = 2208988800UL; // Differenz 1900 -> 1970
                                                      // difference 1900 -> 1970
-        if (secsSince1900 < SEVENTY_YEARS) return "";
-        time_t epochTime = secsSince1900 - SEVENTY_YEARS;
-
-        struct tm resultTime;
-        gmtime_r(&epochTime, &resultTime);
-        char buf[32];
-        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &resultTime);
-        return String(buf) + " UTC";
+        if (secsSince1900 < SEVENTY_YEARS) return 0;
+        return (time_t)(secsSince1900 - SEVENTY_YEARS);
     }
 
 

@@ -410,8 +410,20 @@
             return name.endsWith(".ttf") || name.endsWith(".otf") || name.endsWith(".woff") || name.endsWith(".woff2");
         }
         if (name.startsWith("stripfont_")) return name.endsWith(".vlw");
+        if (name.startsWith("stripcfg_")) return name.endsWith(".txt");
         if (!name.endsWith(".bmp")) return false;
         return name.startsWith("face_") || name.startsWith("hand_set") || name.startsWith("strip_");
+    }
+
+    // Streifen-Dateien beim Wiederherstellen auf Displays ohne Streifen (runde) auslassen. Von einem anderen
+    // Displaytyp fallen nur die Grafiken weg (backupRestoreFinishBmp()), die Einstellungen rechnet
+    // scaleStripConfigFile() um.
+
+    // Skip strip files when restoring on displays without a strip (round ones). From another display type only
+    // the graphics are dropped (backupRestoreFinishBmp()), scaleStripConfigFile() converts the settings.
+
+    bool skipBackupStripFile(const String& name) {
+        return name.startsWith("strip") && TFT_HEIGHT <= CLOCK_HEIGHT;
     }
 
     // Logdateien fuer die Sicherung (nur zur Fehlersuche, isBackupFileName() laesst sie beim Wiederherstellen aus)
@@ -1173,7 +1185,7 @@
             s.toSettings = true;
             s.settings.reserve(size);
         }
-        else if ((type == '0' || type == 0) && isBackupFileName(name) && size > 0) {
+        else if ((type == '0' || type == 0) && isBackupFileName(name) && size > 0 && !skipBackupStripFile(name)) {
             bool bmp = name.endsWith(".bmp");
             s.bmpTarget = bmp ? name : String();
             String path = bmp ? String(BACKUP_TMP_PATH) : String("/" + name);
@@ -1274,13 +1286,22 @@
             applyBackupSettings(backupRestore->settings, backupRestore->applyWifi, backupRestore->keepBrightness, backupRestore->otherType,
                                 backupRestore->wifiPlain);
 
-            // Sicherung einer Uhr ohne Streifen auf einer Uhr mit Streifen: ihr fehlen die Streifen-Einstellungen -
-            // dann der Standard-Streifen statt der Werkswerte (schwarz/weiss)
-            // Backup of a clock without a strip onto a clock with a strip: it lacks the strip settings - then the
-            // standard strip instead of the factory values (black/white)
+            // Streifen-Einstellungen eines anderen Displaytyps auf diesen Streifen umrechnen. Sicherung ohne
+            // stripcfg_*.txt (aelter): ihre Preferences beim naechsten Start einmal zum aktiven Zifferblatt
+            // uebernehmen (migrateStripSettings()).
+
+            // Convert strip settings of another display type to this strip. Backup without stripcfg_*.txt
+            // (older): take over its preferences once at the next start for the active clock face
+            // (migrateStripSettings()).
 
             const DisplayGeometry& from = DISPLAY_GEOMETRY[backupRestore->backupType];
-            if (backupRestore->otherType && from.panelHeight <= from.clock) applyStandardStrip();
+            bool hasStripCfg = false;
+            for (const String& f : backupRestore->restoredFiles) {
+                if (!f.startsWith("stripcfg_")) continue;
+                hasStripCfg = true;
+                if (backupRestore->otherType) scaleStripConfigFile("/" + f, from.panelWidth, from.panelHeight - from.clock);
+            }
+            if (!hasStripCfg) preferences.remove(PK_STRIP_CFG_DONE);
             if (backupRestore->otherType) scaleBackupHubSizes(backupRestore->settings, from.clock);
             backupWipe(backupRestore->wifiPlain);
             backupRestore->phase = BackupRestoreState::END;

@@ -191,8 +191,8 @@ class UhrLGFX : public lgfx::LGFX_Device {
                      uint16_t memWidth = 0, uint16_t memHeight = 0, int16_t offsetX = 0) {
         panel.setBus(&_bus_instance);
         auto cfg = panel.config();
-        cfg.pin_cs = LGFX_CS_PIN;     // -1 = manuell (CS_1/CS_2), ESP32-C6: LovyanGFX, siehe config.h
-                                      // -1 = manual (CS_1/CS_2), ESP32-C6: LovyanGFX, see config.h
+        cfg.pin_cs = LGFX_CS_PIN;     // -1 = manuell (CS_1/CS_2), ESP32-C6/-S3: LovyanGFX, siehe config.h
+                                      // -1 = manual (CS_1/CS_2), ESP32-C6/-S3: LovyanGFX, see config.h
 
         // Kein Reset durch LovyanGFX (nur 8 ms Puls, 64 ms Wartezeit). Den
         // Reset macht setup() selbst mit laengeren Zeiten (resetPanels() in
@@ -226,6 +226,9 @@ public:
 #if BOARD_WAVESHARE_C6_ST7789
             cfg.spi_host = SPI2_HOST;     // der ESP32-C6 hat nur diesen frei nutzbaren SPI
                                           // the only freely usable SPI on the ESP32-C6
+#elif BOARD_WAVESHARE_S3_GC9A01
+            cfg.spi_host = SPI2_HOST;     // FSPI, wie in den Beispielen von Waveshare
+                                          // FSPI, as in the Waveshare examples
 #else
             cfg.spi_host = SPI3_HOST;     // HSPI wie bisher (USE_HSPI_PORT)
                                           // HSPI as before (USE_HSPI_PORT)

@@ -2,7 +2,7 @@
 
 *English version below.*
 
-uhr4 zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem TFT-Display. Die Hardware ist ein ESP32-S2 (Lolin S2 Pico) mit rundem (GC9A01, GC9D01) oder rechteckigem Display (ILI9341) oder ein ESP32-C6 von Waveshare mit eingebautem ST7789. Auf den rechteckigen Displays (ILI9341, ST7789 172 × 320) zeigt ein Streifen neben der Uhr Uhrzeit und Datum, wahlweise über oder unter der Uhr (quer: links oder rechts). Die Zeit kommt per NTP (WLAN), DCF77 oder RTC. Zifferblätter, Zeiger und alle Einstellungen werden über die Weboberfläche angepasst.
+uhr4 zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem TFT-Display. Die Hardware ist ein ESP32-S2 (Lolin S2 Pico) mit rundem (GC9A01, GC9D01) oder rechteckigem Display (ILI9341), ein ESP32-C6 von Waveshare mit eingebautem ST7789 oder ein ESP32-S3 von Waveshare mit eingebautem rundem GC9A01. Auf den rechteckigen Displays (ILI9341, ST7789 172 × 320) zeigt ein Streifen neben der Uhr Uhrzeit und Datum, wahlweise über oder unter der Uhr (quer: links oder rechts). Die Zeit kommt per NTP (WLAN), DCF77 oder RTC. Zifferblätter, Zeiger und alle Einstellungen werden über die Weboberfläche angepasst.
 
 **Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) oder im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Beim Update von uhr3 (Version 3) übernimmt uhr4 den Displaytyp.
 
@@ -19,6 +19,11 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 - **ESP32-C6** (Waveshare, Display fest verbaut, Build `build_uhr4/esp32c6`, ohne PSRAM; BL geregelt):
   - ESP32-C6-LCD-1.47: ST7789 – rechteckig, 172 × 320; Uhr 172 × 172 und Streifen mit Uhrzeit und Datum
   - ESP32-C6-LCD-1.3: ST7789_240 – quadratisch, 240 × 240
+- **ESP32-S3** (Waveshare ESP32-S3-LCD-1.28, Display fest verbaut, Build `build_uhr4/esp32s3`, 16 MB Flash, 2 MB PSRAM; BL geregelt; noch nicht am Gerät erprobt):
+  - GC9A01 – rund, 240 × 240
+  - Flash mit zwei App-Partitionen und 9,9 MB für Zifferblätter, Zeiger und Schriften
+  - Firmware-Update über WLAN (siehe Abschnitt 10)
+  - Rotation von Hand oder „automatisch“ über den eingebauten Lagesensor (QMI8658): Das Zifferblatt steht aufrecht, egal wie die Uhr hängt; liegt sie flach, bleibt die Lage. Vorher die passende Rotation von Hand wählen und speichern, dann auf „automatisch“ stellen – die Uhr nimmt diese Lage als Bezug.
 - Zweites, baugleiches Display (nur ESP32-S2) mit eigener Rotation (0°, 90°, 180°, 270°). Steht ein Display auf „nicht angeschlossen (n.a.)“, bleibt es schwarz, und die Uhr zeichnet und berechnet nichts dafür. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays; die Einstellungsseite weist darauf hin.
 
 ---
@@ -54,8 +59,10 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 - Hintergrundbeleuchtung per PWM: Die Uhr dimmt dann die Beleuchtung statt die Pixel. Der Helligkeits-Tab zeigt dafür den Haken „Hintergrundbeleuchtung regeln“ mit der Pinnummer.
   - ESP32-S2: Pin 3, bei den Displaytypen „GC9A01 mit BL“ und GC9D01 ab Werk an.
   - ESP32-C6: Pin 22, auf dem Waveshare-Board fest verdrahtet, ab Werk an.
-- Fotowiderstand als Spannungsteiler mit 10 kΩ: ESP32-S2 an GPIO 1 (3 V), 2 (Messung), 4 (GND); ESP32-C6 an GPIO 1 (3 V), 2 (Messung), 3 (GND) der Stiftleiste. Ohne Fotowiderstand gilt die manuelle Helligkeit.
-- Während der Einrichtung (noch keine gültige Uhrzeit, Access Point oder WPS aktiv) leuchtet das Display mit voller Helligkeit.
+  - ESP32-S3: Pin 40, auf dem Waveshare-Board fest verdrahtet, ab Werk an.
+- Fotowiderstand als Spannungsteiler mit 10 kΩ: ESP32-S2 an GPIO 1 (3 V), 2 (Messung), 4 (GND); ESP32-C6 an GPIO 1 (3 V), 2 (Messung), 3 (GND) der Stiftleiste; ESP32-S3 an GPIO 2 (3 V), 4 (Messung), 5 (GND) der Stiftleiste. Ohne Fotowiderstand gilt die manuelle Helligkeit.
+- Während der Einrichtung (noch keine gültige Uhrzeit, Access Point oder WPS aktiv) leuchtet das Display mit PWM-Beleuchtung mit 50 %, sonst mit voller Helligkeit.
+- Die Gamma-Korrektur gibt es nur mit Lichtsensor und PWM-Beleuchtung. ESP32-C6: Über 128 warnt die Helligkeitsseite vor Überhitzung der Beleuchtung (Hinweis von Waveshare).
 - Mit Rocrail kann der Server die Helligkeit vorgeben (Abschnitt 11).
 
 ---
@@ -63,11 +70,12 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 ## 5. WLAN- und NTP-Integration
 
 - Bis zu 15 WLAN-Netze, Einrichtung auch per WPS, automatischer Reconnect, eigener Hostname.
-- Einrichtung beim Flashen: `flashESP.bat`/`flashESP.sh` erkennen ESP32-S2 und ESP32-C6 am USB-Port, fragen Displaytyp und WLAN ab (Auswahl aus allen sichtbaren 2,4-GHz-Netzen, Passwort verdeckt) und senden beides per USB an die Uhr, zuletzt die Uhrzeit des PCs.
+- Einrichtung beim Flashen: `flashESP.bat`/`flashESP.sh` erkennen ESP32-S2, ESP32-C6 und ESP32-S3 am USB-Port, fragen Displaytyp (nicht beim ESP32-S3) und WLAN ab (Auswahl aus allen sichtbaren 2,4-GHz-Netzen, Passwort verdeckt) und senden beides per USB an die Uhr, zuletzt die Uhrzeit des PCs.
 - Nur die Uhrzeit setzen, z. B. bei einer Uhr ohne WLAN, DCF77 und RTC: `setTime.bat`/`setTime.sh` oder der Knopf „Uhrzeit übernehmen“ in der Weboberfläche (Zeit des Handys bzw. PCs, auch im Access-Point-Modus).
-- Weitere Wege ins WLAN: WPS oder der Einrichtungs-Access-Point (SSID `clock123`, Passwort `clocksetup`).
+- Weitere Wege ins WLAN: WPS oder der Einrichtungs-Access-Point (SSID `clock123`, Passwort `clocksetup`). Den Access Point startet die Uhr nur beim Start, wenn kein WLAN gespeichert oder keins erreichbar ist (mit RTC oder mit Zeit aus einem offenen WLAN nur ohne gespeichertes WLAN). Bricht das WLAN im Betrieb weg, bleibt die Uhr im WLAN-Modus und versucht es mit „WLAN neu verbinden“ erneut – zuerst 5 Minuten nach dem Start, danach stündlich, im AP-Modus nur stündlich – der AP bleibt dabei erreichbar.
 - Änderungen an den WLAN-Netzen (hinzufügen, überschreiben, wechseln, löschen) gelten sofort. Die Weboberfläche unterscheidet nicht zwischen Zugriff aus dem Heimnetz und von außen – die Uhr deshalb nicht per Port-Weiterleitung oder DMZ aus dem Internet erreichbar machen.
 - NTP, bei Ausfall DCF77. Sobald die Uhr eine gültige Uhrzeit hat, ist sie selbst NTP-Server für andere Geräte im Netz.
+- Uhrzeit aus offenen WLANs (Tab „NTP Zeitzone“, ab Werk an): Kann sich die Uhr beim Start mit keinem gespeicherten WLAN verbinden (außer Reichweite oder kein Zugang, z. B. falsches Passwort) und ist keine RTC eingebaut, verbindet sich die Uhr kurz mit bis zu vier offenen WLANs (gleiche Namen nur einmal, je 15 s) und holt die Zeit per NTP oder aus dem `Date:`-Kopf einer HTTP- bzw. HTTPS-Antwort, auch der Anmeldeseite eines Hotspots. Danach trennt sie wieder und läuft mit dieser Zeit normal weiter, ohne WPS und Access Point. Jeder Schritt steht im Log (Logging einschalten). Das sind fremde Netze – nur nutzen, wenn erlaubt.
 - Bis zu 15 eigene NTP-Server. Ohne eigenen Server nutzt die Uhr `pool.ntp.org` und `ptbtime1.ptb.de`; sind die eigenen Server nicht erreichbar, versucht sie diese beiden zuletzt.
 
 ---
@@ -105,9 +113,15 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 - **ESP32-C6** (Waveshare, Display fest verbaut):
   - [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents) mit ST7789 (172 × 320)
   - [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents) mit ST7789 (240 × 240)
+- **ESP32-S3** (Waveshare, Display fest verbaut):
+  - [ESP32-S3-LCD-1.28](https://docs.waveshare.com/ESP32-S3-LCD-1.28) mit GC9A01 (240 × 240, rund)
 - Fotowiderstand für die Helligkeit; die Uhr erkennt ihn beim Start.
 - Optional: zweites, baugleiches Display (nur ESP32-S2, eigener Chip-Select), RTC DS3231 (hält die Uhrzeit über Stromausfälle, auch ohne WLAN), DCF77-Empfänger (Funkzeit ohne Internet).
-- Taster (oder der eingebaute Boot-Taster): Kurz drücken zeigt das verbundene WLAN. Länger als 15 Sekunden halten setzt die Uhr auf Werkseinstellungen zurück; ab 10 Sekunden läuft ein Countdown, Loslassen bricht ab.
+- Taster (oder der eingebaute Boot-Taster), je nach Haltedauer:
+  - kurz: zeigt das verbundene WLAN,
+  - 10–20 Sekunden: gelber Countdown „WiFi Reset“, Loslassen bricht ab,
+  - 20–30 Sekunden: roter Countdown „Factory Reset“; jetzt loslassen löscht alle gespeicherten WLANs und startet neu – die Uhr geht in WPS/Access Point, alles andere bleibt,
+  - ab 30 Sekunden: vollständiger Werksreset.
 
 ---
 
@@ -115,6 +129,7 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 
 - Anzeige der Laufzeit seit dem letzten Neustart.
 - Neustart über die Weboberfläche.
+- Firmware-Update über WLAN (nur ESP32-S3): auf der Seite „Sicherung“ die Datei `uhr4.ino.bin` aus `esp32s3` hochladen, mit Fortschrittsbalken; oder aus Visual Micro bzw. der Arduino IDE über den Netzwerk-Port der Uhr (ArduinoOTA, Port 3232, ohne Passwort). Die neue Firmware landet in der zweiten App-Partition und startet erst, wenn sie vollständig und für den ESP32-S3 ist; Einstellungen, Zifferblätter und Zeigersätze bleiben. Hängt ein Update, startet die Uhr nach 3 Minuten mit der alten Firmware neu.
 - Hochgeladene BMP-Dateien lassen sich auf die Displaygröße skalieren.
 - HTTP-API, z. B. `/api/setMode` (Zifferblatt, Zeigersatz, Zeigermodus, Nabe); die Uhren Sets sind solche URLs.
 - Bis zu 50 Uhren Sets (Presets) mit Zifferblatt, Zeigersatz, Nabenfarbe und -größe, Sekundenzeiger (sichtbar, Stil), Bahnhofsmodus, sanftem Minutenzeiger, Zeitzone und Helligkeit. Einzeln umbenennen und löschen, alphabetisch sortiert; alle zusammen in eine Datei sichern und wiederherstellen. Sind alle 50 Plätze belegt, erscheint eine Warnung.
@@ -153,7 +168,7 @@ FreeSans, Orbitron) stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
 
 # English Version
 
-uhr4 shows the time as a clock face with hands on a TFT display. The hardware is an ESP32-S2 (Lolin S2 Pico) with a round (GC9A01, GC9D01) or rectangular display (ILI9341), or a Waveshare ESP32-C6 with a built-in ST7789. On the rectangular displays (ILI9341, ST7789 172 × 320) a strip next to the clock shows time and date, either above or below the clock (landscape: left or right). The time comes via NTP (WiFi), DCF77 or RTC. Clock faces, hands and all settings are adjusted in the web interface.
+uhr4 shows the time as a clock face with hands on a TFT display. The hardware is an ESP32-S2 (Lolin S2 Pico) with a round (GC9A01, GC9D01) or rectangular display (ILI9341), a Waveshare ESP32-C6 with a built-in ST7789, or a Waveshare ESP32-S3 with a built-in round GC9A01. On the rectangular displays (ILI9341, ST7789 172 × 320) a strip next to the clock shows time and date, either above or below the clock (landscape: left or right). The time comes via NTP (WiFi), DCF77 or RTC. Clock faces, hands and all settings are adjusted in the web interface.
 
 **Download:** firmware with flash tool under [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). When updating from uhr3 (version 3), uhr4 keeps the display type.
 
@@ -168,6 +183,11 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 - **ESP32-C6** (Waveshare, display built in, build `build_uhr4/esp32c6`, without PSRAM; BL controlled):
   - ESP32-C6-LCD-1.47: ST7789 – rectangular, 172 × 320; clock 172 × 172 and a strip with time and date
   - ESP32-C6-LCD-1.3: ST7789_240 – square, 240 × 240
+- **ESP32-S3** (Waveshare ESP32-S3-LCD-1.28, display built in, build `build_uhr4/esp32s3`, 16 MB flash, 2 MB PSRAM; BL controlled; not yet tried on the device):
+  - GC9A01 – round, 240 × 240
+  - flash with two app partitions and 9.9 MB for clock faces, hands and fonts
+  - firmware update over WiFi (see section 10)
+  - rotation by hand or "automatic" via the built-in motion sensor (QMI8658): the clock face stays upright however the clock hangs; lying flat, the orientation stays. First select and save the fitting rotation by hand, then switch to "automatic" – the clock takes this position as its reference.
 - A second, identical display (ESP32-S2 only) with its own rotation (0°, 90°, 180°, 270°). A display set to "not connected (n.a.)" stays black, and the clock neither draws nor calculates anything for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock starts; the settings page notes this.
 
 ---
@@ -203,8 +223,10 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 - Backlight via PWM: the clock then dims the backlight instead of the pixels. The Brightness tab shows the "Backlight control" checkbox with the pin number for this.
   - ESP32-S2: pin 3, on by default for the display types "GC9A01 with BL" and GC9D01.
   - ESP32-C6: pin 22, hard-wired on the Waveshare board, on by default.
-- Photoresistor as a voltage divider with 10 kΩ: ESP32-S2 on GPIO 1 (3 V), 2 (measurement), 4 (GND); ESP32-C6 on GPIO 1 (3 V), 2 (measurement), 3 (GND) of the pin header. Without a photoresistor the manual brightness applies.
-- During setup (no valid time yet, access point or WPS active) the display runs at full brightness.
+  - ESP32-S3: pin 40, hard-wired on the Waveshare board, on by default.
+- Photoresistor as a voltage divider with 10 kΩ: ESP32-S2 on GPIO 1 (3 V), 2 (measurement), 4 (GND); ESP32-C6 on GPIO 1 (3 V), 2 (measurement), 3 (GND) of the pin header; ESP32-S3 on GPIO 2 (3 V), 4 (measurement), 5 (GND) of the pin header. Without a photoresistor the manual brightness applies.
+- During setup (no valid time yet, access point or WPS active) the display runs at 50 % with PWM backlight, otherwise at full brightness.
+- Gamma correction only exists with a light sensor and PWM backlight. ESP32-C6: above 128 the brightness page warns of the backlight overheating (note from Waveshare).
 - With Rocrail, the server can set the brightness (section 11).
 
 ---
@@ -212,11 +234,12 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 ## 5. WiFi and NTP Integration
 
 - Up to 15 WiFi networks, setup via WPS as well, automatic reconnect, custom hostname.
-- Setup while flashing: `flashESP.bat`/`flashESP.sh` recognize the ESP32-S2 and ESP32-C6 by the USB port, ask for the display type and a WiFi network (choice of all visible 2.4 GHz networks, password hidden) and send both to the clock via USB, finally the PC's time.
+- Setup while flashing: `flashESP.bat`/`flashESP.sh` recognize the ESP32-S2, ESP32-C6 and ESP32-S3 by the USB port, ask for the display type (not on the ESP32-S3) and a WiFi network (choice of all visible 2.4 GHz networks, password hidden) and send both to the clock via USB, finally the PC's time.
 - To only set the time, e.g. on a clock without WiFi, DCF77 and RTC: `setTime.bat`/`setTime.sh` or the "Use device time" button in the web interface (time of the phone or PC, also in access point mode).
-- Other ways into WiFi: WPS or the setup access point (SSID `clock123`, password `clocksetup`).
+- Other ways into WiFi: WPS or the setup access point (SSID `clock123`, password `clocksetup`). The clock only starts the access point at boot when no WiFi is stored or none is reachable (with an RTC or with a time from an open WiFi only without a stored WiFi). If WiFi drops during operation, the clock stays in WiFi mode and retries with "Reconnect WiFi" – first 5 minutes after boot, then hourly, in AP mode only hourly – the AP stays reachable meanwhile.
 - Changes to the WiFi networks (add, overwrite, switch, delete) apply immediately. The web interface does not distinguish between access from the home network and from outside – so do not expose the clock to the internet via a port forward or DMZ.
 - NTP, with DCF77 as a fallback. Once the clock has a valid time, it is an NTP server for other devices on the network.
+- Time from open WiFis ("NTP Timezone" tab, on by default): if the clock cannot connect to any stored WiFi at boot (out of range or no access, e.g. a wrong password) and there is no RTC, the clock briefly connects to up to four open WiFis (each name once, 15 s each) and gets the time via NTP or from the `Date:` header of an HTTP or HTTPS reply, including the login page of a hotspot. Then it disconnects again and runs normally with that time, without WPS and access point. Every step is in the log (enable logging). These are networks of others – only use it if allowed.
 - Up to 15 custom NTP servers. Without a custom server the clock uses `pool.ntp.org` and `ptbtime1.ptb.de`; if the custom servers are unreachable, it tries these two last.
 
 ---
@@ -254,9 +277,15 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 - **ESP32-C6** (Waveshare, display built in):
   - [ESP32-C6-LCD-1.47](https://docs.waveshare.com/ESP32-C6-LCD-1.47/Resources-And-Documents) with ST7789 (172 × 320)
   - [ESP32-C6-LCD-1.3](https://docs.waveshare.com/ESP32-C6-LCD-1.3/Resources-And-Documents) with ST7789 (240 × 240)
+- **ESP32-S3** (Waveshare, display built in):
+  - [ESP32-S3-LCD-1.28](https://docs.waveshare.com/ESP32-S3-LCD-1.28) with GC9A01 (240 × 240, round)
 - Photoresistor for brightness; the clock detects it at startup.
 - Optional: a second, identical display (ESP32-S2 only, own chip select), RTC DS3231 (keeps the time across power loss, also without WiFi), DCF77 receiver (radio time without internet).
-- Button (or the built-in Boot button): a short press shows the connected WiFi. Holding it for more than 15 seconds resets the clock to factory settings; a countdown runs from 10 seconds, releasing aborts.
+- Button (or the built-in Boot button), depending on how long it is held:
+  - short: shows the connected WiFi,
+  - 10–20 seconds: yellow "WiFi Reset" countdown, releasing aborts,
+  - 20–30 seconds: red "Factory Reset" countdown; releasing now deletes all stored WiFi networks and restarts – the clock goes into WPS/access point, everything else stays,
+  - from 30 seconds: full factory reset.
 
 ---
 
@@ -264,6 +293,7 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 
 - Uptime since the last restart.
 - Restart via the web interface.
+- Firmware update over WiFi (ESP32-S3 only): upload the file `uhr4.ino.bin` from `esp32s3` on the "Backup" page, with a progress bar; or from Visual Micro or the Arduino IDE via the clock's network port (ArduinoOTA, port 3232, without password). The new firmware goes to the second app partition and only starts if it is complete and for the ESP32-S3; settings, clock faces and hand sets stay. If an update hangs, the clock restarts with the old firmware after 3 minutes.
 - Uploaded BMP files can be scaled to the display size.
 - HTTP API, e.g. `/api/setMode` (clock face, hand set, hand mode, hub); presets are such URLs.
 - Up to 50 presets with clock face, hand set, hub colour and size, second hand (visible, style), station mode, smooth minute hand, time zone and brightness. Rename and delete them individually, sorted alphabetically; back up all of them to one file and restore them. A warning appears once all 50 slots are full.

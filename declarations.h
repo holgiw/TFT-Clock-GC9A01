@@ -26,6 +26,7 @@
     void onWpsEvent(WiFiEvent_t event) ;
     void restorePreviousWpsConnection() ;
     void startAP() ;
+    String buildLabel() ; // "Build " + Version fuer die WLAN-Anzeigen / "Build " + version for the WiFi screens
     int connectWiFi(int number, bool verboseMode) ;
     int connectWiFiWithRetries(int number, const String& label, bool verboseMode = true) ; // ruft connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal auf (siehe wifi_manager.h)
                                                                                             // calls connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (see wifi_manager.h)
@@ -76,6 +77,12 @@
     void processDcf77Bits() ;
     void checkRtcHealth() ;
     String testNtpServer(const String& server) ;
+    time_t ntpQueryEpoch(const String& server) ;
+
+    // open_wifi_time.h (Uhrzeit aus offenen WLANs beim Start) / (time from open WiFis at boot)
+    time_t httpDateEpoch(const String& target, const String& path, String& note, String& location, bool tls) ;
+    time_t openWifiQueryTime(const String& ssid, String& how) ;
+    bool fetchTimeFromOpenWifi() ;
     boolean setupNTP() ; // blockierender Worker - nicht direkt aufrufen, siehe startNtpSyncTask()
                         // blocking worker - do not call directly, see startNtpSyncTask()
     void ntpSyncTaskFunc(void* param) ;
@@ -103,6 +110,7 @@
     bool parseDisplayName(const String& name, uint8_t& type, bool& backlight) ;
     const char* displayChoiceName(uint8_t type, bool backlight) ;
     bool displayTypeSupported(uint8_t type) ;
+    const char* supportedDisplayNames() ;
     void adoptUhr3BuildDisplay() ;
     bool hexToText(const String& hex, String& out, size_t maxLen) ;
     void serialReply(const String& reply) ;
@@ -183,23 +191,35 @@
     bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
                                                                                                                                                                   // false = frame unchanged, nothing sent
-    void loadInfoStripSettings() ;
+    String stripConfigPath(const String& facePath) ;
+    void resetStripSettings() ;
+    String stripSettingsQuery() ;
+    void applyStripQuery(const String& text) ;
+    bool loadStripSettingsForFace(const String& facePath) ;
+    bool saveStripSettingsForFace(const String& facePath) ;
+    void ensureStripSettings() ;
+    bool loadLegacyStripPrefs() ;
+    uint8_t nearestStripVlwSize(uint8_t target, bool weekday) ;
+    void scaleStripConfigFile(const String& path, int fromW, int fromH) ;
+    void migrateStripSettings() ;
+    void removeOrphanedStrips() ;
     uint8_t* loadFileToPsram(const char* path) ;
-    String stripVlwPath(uint8_t size) ;
+    String stripVlwPath(uint8_t size, bool weekday) ;
     bool ensureStripVlw() ;
     void setStripBefore(bool before) ;
-    bool applyStripPresetValue(const String& key, const String& value, bool persist = true) ;
+    bool applyStripValue(const String& key, const String& value) ;
     void drawStripTime(lgfx::LovyanGFX& g, const String& text, bool colon, int cx, int y) ;
     String stripPathForFace(const String& facePath) ;
     bool ensureStripImage() ;
     bool drawStripImageStreamed(LGFX_Sprite& s, bool landscape, bool push) ;
     void renderInfoStrip(int x, int y, int w, int h, bool landscape, const String* lines, uint8_t count, bool colon, const String& suffix, uint16_t bg, uint16_t fg, bool push, bool useImage) ;
     void stripDateText(const struct tm& t, String& full, String& a, String& b) ;
+    String stripWeekdayText(const struct tm& t) ;
     void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix, const struct tm* fixedTime = nullptr) ;
     uint16_t stripColor565(uint32_t rgb) ;
-    bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime = nullptr) ;
+    bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime = nullptr, uint16_t textBg = TRANSPARENT_COLOR) ;
     bool stripShowsSeconds() ;
-    bool renderPresetStripPreview(const String& presetUrl, const String& faceFile, bool& before) ;
+    bool renderFaceStripPreview(const String& faceFile, bool& before) ;
     void drawStripThumb(LGFX_Sprite& canvas, int y0, int w, int h) ;
     bool generateFaceStripBmp(const String& faceFile, int outW, uint8_t** outBytes, size_t& outSize) ;
     void drawInfoStrips() ;
@@ -290,7 +310,6 @@
     String buildPresetUrl(const String& face, const String& handSet, bool stationMode, bool showSecondHand, bool smoothMinute, bool smoothSecond, uint8_t hubSize, uint32_t hubColor) ;
     String setPresetUrlParam(const String& url, const String& key, const String& value) ;
     bool stripVlwSizes(const char* name, int& minSize, int& maxSize) ;
-    void applyStandardStrip() ;
     void addStarterPresets() ;
     void ensureStarterSet() ;
     void refreshGeneratedAssets() ;
@@ -367,6 +386,9 @@
     // system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
     // system_utils.h: System functions: buttons, logging, reset, restart, helper functions
 
+    void drawTextRow(lgfx::LovyanGFX& g, float yShare, const String& text, uint16_t color, const lgfx::IFont* const* fontList, bool clear) ;
+    void showButtonMessage(uint16_t color, const String& title, const String& line2, const String& hint, uint16_t hintColor) ;
+    void updateButtonLine(uint16_t color, const String& line2) ;
     void checkButton() ;
     String factoryResetActionLabel(const String& action) ; // kurze Beschriftung fuer Display + Web-Eingabeseite (siehe system_utils.h)
                                                             // short label for display + web entry page (see system_utils.h)
@@ -380,6 +402,22 @@
     void eraseAllNVS() ;
     void factoryReset() ;
     void espReboot() ;
+
+    // ota_update.h (Firmware-Update ueber WLAN, nur ESP32-S3) / (firmware update over WiFi, ESP32-S3 only)
+    void showOtaStatus(const String& line2) ;
+    void showOtaProgress(size_t done, size_t total) ;
+    void startArduinoOta() ;
+    bool handleOta() ;
+    void handleFirmwareUpload() ;
+    void setupOtaRoutes() ;
+
+    // imu_rotation.h (automatische Rotation, nur ESP32-S3) / (automatic rotation, ESP32-S3 only)
+    void imuBegin() ;
+    bool imuAvailable() ;
+    int8_t imuReadQuadrant() ;
+    uint8_t imuRotationFor(int8_t quadrant) ;
+    bool imuCalibrate(uint8_t currentRotation) ;
+    void handleAutoRotation() ;
     String getCurrentLogFileName() ;
     void deleteAllLogFiles() ;
     void checkHeapWarning(const String& context) ;

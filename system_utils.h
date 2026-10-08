@@ -6,15 +6,97 @@
     // Requires globals.h, config.h, prefs_keys.h, declarations.h (included before this file)
 
 
-    // Button prüfen und ggf. Anzeige oder Factory Reset auslösen
-    // Check button and trigger display or factory reset if needed
+    // Zeilen der Tastermeldungen: Hoehe der Zeilenmitte als Anteil der Displayhoehe (Titel, Zeile 2, Hinweis) und
+    // Schriften von gross nach klein - je Zeile gilt die erste, in der der Text auf dem Display Platz hat. Nur
+    // Schriften, die ohnehin in der Firmware stecken (Streifen, Zifferblatt-Generator).
+
+    // Rows of the button messages: height of the row centre as a share of the display height (title, line 2,
+    // hint) and fonts from large to small - per row the first one in which the text fits on the display is used.
+    // Only fonts that are in the firmware anyway (strip, clock face generator).
+
+    const float BUTTON_ROW_Y[3] = { 0.30f, 0.53f, 0.76f };
+    const lgfx::IFont* const TEXT_FONTS_BIG[] = { &fonts::FreeSansBold24pt7b, &fonts::FreeSansBold12pt7b, &fonts::DejaVu18, &fonts::Font0, nullptr };
+    const lgfx::IFont* const TEXT_FONTS_TITLE[] = { &fonts::FreeSansBold12pt7b, &fonts::DejaVu18, &fonts::Font0, nullptr };
+    const lgfx::IFont* const TEXT_FONTS_HINT[] = { &fonts::DejaVu18, &fonts::Font0, nullptr };
+
+    // Eine Textzeile zentriert auf Hoehe yShare (Anteil der Displayhoehe) zeichnen, in der ersten Schrift aus
+    // fontList (Ende = nullptr), in der der Text Platz hat: Displaybreite, beim runden Display die Sehne des
+    // Kreises auf dieser Hoehe (mit Rand). clear = Zeile vorher schwarz loeschen (Countdown ohne Flackern).
+
+    // Draw a text row centred at height yShare (share of the display height), in the first font from fontList
+    // (end = nullptr) in which the text fits: display width, on a round display the chord of the circle at that
+    // height (with a margin). clear = blank the row first (countdown without flicker).
+
+    void drawTextRow(lgfx::LovyanGFX& g, float yShare, const String& text, uint16_t color, const lgfx::IFont* const* fontList, bool clear) {
+        int w = statusWidth(), h = CLOCK_HEIGHT;
+        int y = (int)(h * yShare);
+        float usable = w * 0.92f;
+        if (displayGeom->round) {
+            float r = h / 2.0f, dy = fabsf(y - r) + h * 0.06f; // halbe Zeilenhoehe mitrechnen / count half a row height
+            usable = dy < r ? 2.0f * sqrtf(r * r - dy * dy) * 0.9f : 0;
+        }
+        g.setTextSize(1);
+        for (int i = 0; fontList[i]; i++) {
+            g.setFont(fontList[i]);
+            if (g.textWidth(text) <= usable) break;
+        }
+        if (clear) {
+            int fh = g.fontHeight();
+            g.fillRect(0, y - fh / 2 - 2, w, fh + 4, TFT_BLACK);
+        }
+        g.setTextDatum(lgfx::middle_center);
+        g.setTextColor(color, TFT_BLACK);
+        g.drawString(text, w / 2, y);
+
+        // Zustand wie der restliche Code ihn erwartet / state as the rest of the code expects it
+
+        g.setTextDatum(lgfx::top_left);
+        g.setFont(&fonts::Font0);
+    }
+
+    // Meldung der Tasterstufen und des Werksresets: schwarzer Hintergrund, Titel und Zeile 2 zentriert in der
+    // Farbe der Stufe (gelb = WLAN, rot = Werksreset), Zeile 3 kleiner als Hinweis in hintColor.
+
+    // Message of the button stages and the factory reset: black background, title and line 2 centred in the
+    // colour of the stage (yellow = WiFi, red = factory reset), line 3 smaller as a hint in hintColor.
+
+    void showButtonMessage(uint16_t color, const String& title, const String& line2, const String& hint, uint16_t hintColor) {
+        DRAW_ON_BOTH_DISPLAYS(
+            tft.fillScreen(TFT_BLACK);
+            drawTextRow(tft, BUTTON_ROW_Y[0], title, color, TEXT_FONTS_TITLE, false);
+            drawTextRow(tft, BUTTON_ROW_Y[1], line2, color, TEXT_FONTS_BIG, false);
+            if (hint.length()) drawTextRow(tft, BUTTON_ROW_Y[2], hint, hintColor, TEXT_FONTS_HINT, false);
+        );
+    }
+
+    // Nur Zeile 2 neu zeichnen (Countdown) - ohne das ganze Bild zu loeschen, also ohne Flackern
+    // Redraw only line 2 (countdown) - without clearing the whole screen, so without flicker
+
+    void updateButtonLine(uint16_t color, const String& line2) {
+        DRAW_ON_BOTH_DISPLAYS(
+            drawTextRow(tft, BUTTON_ROW_Y[1], line2, color, TEXT_FONTS_BIG, true);
+        );
+    }
+
+
+    // Taster (BUTTON1 oder Boot-Taster) in Stufen nach Haltedauer: unter 10 s WLAN anzeigen (gruen); 10-20 s
+    // gelber Countdown "WiFi Reset", loslassen bricht ab; 20-30 s roter Countdown "Factory Reset", loslassen
+    // loescht alle WLAN-Eintraege und startet neu; ab 30 s vollstaendiger Werksreset.
+
+    // Button (BUTTON1 or boot button) in stages by hold time: below 10 s show the WiFi (green); 10-20 s yellow
+    // countdown "WiFi Reset", releasing aborts; 20-30 s red countdown "Factory Reset", releasing deletes all WiFi
+    // entries and restarts; from 30 s full factory reset.
 
     void checkButton() {
-        bool resetStarted = false;
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
 
-            uint8_t secs = 5;
+            const unsigned long WIFI_RESET_HOLD = 2 * WAIT_10s;
+            const unsigned long FACTORY_RESET_HOLD = 3 * WAIT_10s;
             unsigned long pressStart = millis();
+            int shownStage = 0;   // 0 = WLAN-Anzeige, 1 = WLAN-Countdown, 2 = Werksreset-Countdown
+                                  // 0 = WiFi info, 1 = WiFi countdown, 2 = factory reset countdown
+            int shownSecs = -1;
+            DEBUG_PRINTLN(String("[BUTTON] Pressed (") + (digitalRead(BUTTON1) == HIGH ? "button" : "boot button") + ")");
 
             clearTFT();
 
@@ -27,45 +109,68 @@
             // Blocking loop while button is pressed
 
             while (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
-                if (millis() - pressStart > WAIT_10s && millis() - pressStart < WAIT_15s) {
-                    resetStarted = true;
-                    DRAW_ON_BOTH_DISPLAYS(
-                        tft.fillScreen(TFT_RED);
-                        tft.setTextColor(TFT_WHITE, TFT_RED);
-                        tft.setTextSize(TFT_TEXT_SIZE);
-                        tft.setCursor(20, CLOCK_HEIGHT / 2);
-                        tft.printf("Factory Reset");
+                unsigned long held = millis() - pressStart;
 
-                        tft.setCursor(20, (CLOCK_HEIGHT / 2) + 20);
-                        tft.printf("in %d secs", secs);
-                    );
-                    delay(WAIT_1s);
-                    if (secs > 0) secs--;
-                }
-
-                if (millis() - pressStart > WAIT_15s) {
-
-                    // 15 Sekunden überschritten → Factory Reset
-                    // 15 seconds exceeded → factory reset
-
-                    DRAW_ON_BOTH_DISPLAYS(
-                        tft.fillScreen(TFT_RED);
-                        tft.setTextColor(TFT_WHITE, TFT_RED);
-                        tft.setTextSize(TFT_TEXT_SIZE);
-                        tft.setCursor(20, CLOCK_HEIGHT / 2);
-                        tft.println("Factory Reset..");
-                    );
-                    delay(WAIT_1s);
+                if (held >= FACTORY_RESET_HOLD) {
+                    DEBUG_PRINTLN("[BUTTON] Held for 30 s - factory reset");
                     factoryReset();
                     return;
                 }
+
+                if (held >= WIFI_RESET_HOLD) {
+                    int secs = (int)((FACTORY_RESET_HOLD - held + 999) / 1000);
+                    if (shownStage != 2) {
+                        DEBUG_PRINTLN("[BUTTON] Held for 20 s - WiFi reset armed, factory reset countdown");
+                        shownStage = 2;
+                        shownSecs = secs;
+                        showButtonMessage(TFT_RED, "Factory Reset", "in " + String(secs) + " s", "release: WiFi Reset", TFT_YELLOW);
+                    }
+                    else if (secs != shownSecs) {
+                        shownSecs = secs;
+                        updateButtonLine(TFT_RED, "in " + String(secs) + " s");
+                    }
+                }
+                else if (held >= WAIT_10s) {
+                    int secs = (int)((WIFI_RESET_HOLD - held + 999) / 1000);
+                    if (shownStage != 1) {
+                        DEBUG_PRINTLN("[BUTTON] Held for 10 s - WiFi reset countdown");
+                        shownStage = 1;
+                        shownSecs = secs;
+                        showButtonMessage(TFT_YELLOW, "WiFi Reset", "in " + String(secs) + " s", "release: cancel", TFT_DARKGREY);
+                    }
+                    else if (secs != shownSecs) {
+                        shownSecs = secs;
+                        updateButtonLine(TFT_YELLOW, "in " + String(secs) + " s");
+                    }
+                }
                 delay(10);
+            }
+
+            // Zwischen 20 und 30 s losgelassen: alle WLAN-Eintraege loeschen (wie "Gespeicherte Netzwerke
+            // zuruecksetzen" in der Weboberflaeche), "done" zeigen und neu starten
+
+            // Released between 20 and 30 s: delete all WiFi entries (like "Reset Saved Networks" in the web
+            // interface), show "done" and restart
+
+            if (shownStage == 2) {
+                DEBUG_PRINTLN("[BUTTON] Released - deleting all WiFi entries and restarting");
+                showButtonMessage(TFT_YELLOW, "WiFi Reset", "...", "", TFT_YELLOW);
+                eraseWiFiConfig();
+                showButtonMessage(TFT_YELLOW, "WiFi Reset", "done", "restarting", TFT_DARKGREY);
+                delay(WAIT_3s);
+                espReboot();
+                return;
+            }
+            if (shownStage == 1) {
+                DEBUG_PRINTLN("[BUTTON] Released during the WiFi reset countdown - aborted");
+                showButtonMessage(TFT_YELLOW, "WiFi Reset", "cancelled", "", TFT_YELLOW);
+                delay(WAIT_1s + WAIT_1s / 2);
             }
 
             // Button wurde vor 10secs losgelassen → WLAN-Credentials für 3 Sekunden anzeigen
             // Button released before 10 secs → show WLAN credentials for 3 seconds
 
-            if (!resetStarted) {
+            if (shownStage == 0) {
                 delay(WAIT_3s);
             }
 
@@ -268,19 +373,7 @@
             // Text size: the largest integer multiple of the 6x8 font at which the code (5 characters) fits
             // into 75 % of the message width (statusWidth()) - so it also scales correctly on the 160x160 display.
 
-            int codeTextSize = (int)((statusWidth() * 0.75f) / (displayCode.length() * 6));
-            if (codeTextSize < 1) codeTextSize = 1;
-
-            DRAW_ON_BOTH_DISPLAYS(
-                tft.fillScreen(TFT_BLACK);
-                tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-                tft.setTextSize(codeTextSize);
-                int codeWidth = tft.textWidth(displayCode);
-                int codeHeight = codeTextSize * 8; // Zeilenhoehe der Basisschrift bei Groesse 1 ist 8px
-                                                   // base font's line height at size 1 is 8px
-                tft.setCursor((statusWidth() - codeWidth) / 2, (CLOCK_HEIGHT - codeHeight) / 2);
-                tft.println(displayCode);
-            );
+            showButtonMessage(TFT_YELLOW, "Code", displayCode, "", TFT_DARKGREY);
         }
         return true;
     }
@@ -298,20 +391,19 @@
 
         stopNtpSyncTaskIfRunning();
 
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.fillScreen(TFT_BLACK);
-        );
+        showButtonMessage(TFT_RED, "Factory Reset", "...", "", TFT_RED);
         preferences.begin("clock", false);
         preferences.putInt(PK_FIRST_START, 0);
         preferences.end();
         delay(100);
         DEBUG_PRINTLN(">>> Factory reset started..");
-        LittleFS.begin();
+        LittleFS.begin(false, "/littlefs", 10, LITTLEFS_PARTITION);
         LittleFS.format();
         LittleFS.end();
         eraseWiFiConfig();
         eraseAllNVS();
-        delay(WAIT_5s);
+        showButtonMessage(TFT_RED, "Factory Reset", "done", "restarting", TFT_DARKGREY);
+        delay(WAIT_3s);
         DEBUG_PRINTLN(">>> Restarting..");
         espReboot();
     }
@@ -361,13 +453,7 @@
 
         delay(100);
 
-        DRAW_ON_BOTH_DISPLAYS(
-            tft.fillScreen(TFT_BLACK);
-            tft.setTextColor(TFT_GREEN, TFT_BLACK);
-            tft.setTextSize(TFT_TEXT_SIZE);
-            tft.setCursor(20, (CLOCK_HEIGHT / 2));
-            tft.println("Rebooting..");
-        );
+        showButtonMessage(TFT_GREEN, "Restart", "...", "", TFT_DARKGREY);
         delay(WAIT_3s);
         DRAW_ON_BOTH_DISPLAYS(
             tft.fillScreen(TFT_BLACK);
@@ -514,7 +600,7 @@
 
         if (textToWrite.isEmpty()) return;
 
-        if (!LittleFS.begin()) {
+        if (!LittleFS.begin(false, "/littlefs", 10, LITTLEFS_PARTITION)) {
             if (loggingEnabled) Serial.println("[LOG] LittleFS is not mounted. Log will not be written");
             return;
         }

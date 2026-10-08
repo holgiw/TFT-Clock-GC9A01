@@ -16,6 +16,8 @@
 .hd .num2{width:64px;padding:6px 4px 6px 8px}
 .hd .clr{width:34px;height:28px;padding:0;vertical-align:middle}
 .hd label{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0}
+.hd input.rng{width:150px;margin:2px 0;padding:0;vertical-align:middle}
+.hd .sGrp{grid-column:1/-1;margin-top:8px;padding-top:6px;border-top:1px solid var(--panel-border)}
 .hd .grid2{display:grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center}
 .hd .edcard{flex:0 1 auto;min-width:200px}
 .hd .edwrap{overflow:auto;max-width:100%;max-height:calc(100vh - var(--hdTop,70px) - 110px)}

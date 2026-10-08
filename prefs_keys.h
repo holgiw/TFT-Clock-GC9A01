@@ -30,6 +30,8 @@
     // Time / NTP
 
     constexpr const char* PK_TIMEZONE          = "timezone";
+    constexpr const char* PK_OPEN_WIFI_TIME    = "openWifiTime"; // Uhrzeit beim Start aus offenen WLANs holen (Default true)
+                                                                 // get the time from open WiFis at boot (default true)
     constexpr const char* PK_DCF_SYNC_LED      = "dcfSyncLed"; // LED blitzt pro DCF77-Impuls waehrend der Sync-Phase (Default true)
                                                                // LED flashes per DCF77 pulse during the sync phase (default true)
 
@@ -40,6 +42,10 @@
                                                                  // rotation of Display 1 (0-3, 4 = n.a.) - was called "tftRotation" before Display 2 support (see LEGACY below)
     constexpr const char* PK_TFT_ROTATION_LEGACY = "tftRotation"; // Alter Key-Name - NUR fuer die einmalige Migration in uhr4.ino verwenden
                                                                    // old key name - use ONLY for the one-time migration in uhr4.ino
+    constexpr const char* PK_AUTO_ROTATION     = "autoRotation"; // Display 1 per Lagesensor drehen (nur S3, Default false)
+                                                                 // rotate display 1 via the motion sensor (S3 only, default false)
+    constexpr const char* PK_IMU_ROT_OFFSET    = "imuRotOffset"; // Bezug Lage -> Rotation (imuCalibrate())
+                                                                 // reference position -> rotation (imuCalibrate())
     constexpr const char* PK_TFT_ROTATION2     = "tftRotation2"; // Rotation von Display 2 (CS2), 4 = n.a. (nicht angeschlossen, Standard)
                                                                  // rotation of Display 2 (CS2), 4 = n.a. (not connected, default)
     constexpr const char* PK_HOSTNAME          = "hostname"; // leer = automatisch aus MAC-Adresse generiert
@@ -76,8 +82,12 @@
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
     constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_* (config.h), wirkt nach Neustart
                                                                  // DISPLAY_TYPE_* (config.h), takes effect after a restart
-    constexpr const char* PK_STRIP_BG          = "stripBg";      // Streifen Uhrzeit/Datum (ILI9341): Farben RGB888, Schriftart
-                                                                 // time/date strip (ILI9341): colors RGB888, font
+    constexpr const char* PK_STRIP_CFG_DONE    = "stripCfgDone"; // Streifen-Einstellungen in stripcfg_*.txt uebernommen
+                                                                 // strip settings moved to stripcfg_*.txt
+    constexpr const char* PK_STRIP_BG          = "stripBg";      // Streifen bis 2026-10-08 (gilt jetzt je Zifferblatt,
+                                                                 // stripcfg_*.txt): nur noch fuer die Uebernahme
+                                                                 // strip until 2026-10-08 (now per clock face,
+                                                                 // stripcfg_*.txt): only for taking it over
     constexpr const char* PK_STRIP_FG          = "stripFg";
     constexpr const char* PK_STRIP_FONT        = "stripFont";
     constexpr const char* PK_STRIP_TIME_X      = "stripTimeX";   // Mitte der Zeile im Streifen, -1 = automatisch

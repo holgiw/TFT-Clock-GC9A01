@@ -76,12 +76,24 @@
     }
 
 
-    // Displaytypen dieses Boards: der S2 alle wechselbaren, das C6 die fest verbauten ST7789 (1.47 / 1.3)
-    // Display types of this board: the S2 all exchangeable ones, the C6 the built-in ST7789 (1.47 / 1.3)
+    // Displaytypen dieses Boards: der S2 alle wechselbaren, das C6 die fest verbauten ST7789 (1.47 / 1.3),
+    // das S3 sein fest verbautes GC9A01
+
+    // Display types of this board: the S2 all exchangeable ones, the C6 the built-in ST7789 (1.47 / 1.3),
+    // the S3 its built-in GC9A01
 
     bool displayTypeSupported(uint8_t type) {
         bool c6Type = type == DISPLAY_TYPE_ST7789 || type == DISPLAY_TYPE_ST7789_240;
+        if (BOARD_WAVESHARE_S3_GC9A01) return type == DISPLAY_TYPE_GC9A01;
         return BOARD_WAVESHARE_C6_ST7789 ? c6Type : type < DISPLAY_TYPE_COUNT && !c6Type;
+    }
+
+    // Namen der Displaytypen dieses Boards fuer Fehlermeldungen an flashESP
+    // Names of this board's display types for error messages to flashESP
+
+    const char* supportedDisplayNames() {
+        if (BOARD_WAVESHARE_S3_GC9A01) return "GC9A01, GC9A01_WITH_BACKLIGHT";
+        return BOARD_WAVESHARE_C6_ST7789 ? "ST7789, ST7789_240" : "GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01, ILI9341";
     }
 
     // Displayname wie bei den uhr3-Builds und in flashESP ("GC9A01", "GC9A01_WITH_BACKLIGHT", "GC9D01",
@@ -302,7 +314,7 @@
         uint8_t type;
         bool backlight;
         if (!parseDisplayName(name, type, backlight)) {
-            serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (" + (BOARD_WAVESHARE_C6_ST7789 ? "ST7789, ST7789_240" : "GC9A01, GC9A01_WITH_BACKLIGHT, GC9D01, ILI9341") + ")");
+            serialReply("UHR4 ERROR DISPLAY unknown '" + name + "' (" + supportedDisplayNames() + ")");
             return;
         }
 
@@ -362,6 +374,14 @@
             }
             else if (cmd == "UHR4 INFO") {
                 handleSerialInfo();
+            }
+            else if (cmd == "UHR4 PINS") {
+
+                // Diagnose: Pegel von Taster (gedrueckt = HIGH) und Boot-Taste (gedrueckt = LOW), liest nur
+                // Diagnostics: level of the button (pressed = HIGH) and the boot button (pressed = LOW), read-only
+
+                serialReply("UHR4 OK PINS BUTTON" + String(BUTTON1) + "=" + String(digitalRead(BUTTON1)) +
+                            " BOOT" + String(BOOT_BUTTON) + "=" + String(digitalRead(BOOT_BUTTON)));
             }
             else if (cmd.startsWith("UHR4 TIME ")) {
                 String arg = cmd.substring(10);
@@ -2601,6 +2621,20 @@
 
         unsigned long currentMillis = millis();
 
+        // Noch keine Zeit (nach dem Start ohne NTP, RTC, DCF77 oder Rocrail, Systemzeit 1970): alle Zeiger auf
+        // 12. Mit der ersten Zeit wie beim ersten Bild neu ausrichten - die Zeiger laufen dann zur Uhrzeit.
+
+        // No time yet (after the start without NTP, RTC, DCF77 or Rocrail, system time 1970): all hands at 12.
+        // With the first time realign as on the first frame - the hands then run to the time.
+
+        static bool waitingForTime[2] = { false, false };
+        const bool noTimeYet = !rocrailTimeReady && t.tm_year < 100;
+        if (!noTimeYet && waitingForTime[displayNum - 1]) {
+            waitingForTime[displayNum - 1] = false;
+            firstRunRef = true;
+            forceRender = true;
+        }
+
         if (firstRunRef) {
 
             // Sekundenzeiger dorthin setzen, wo er in der laufenden Minute
@@ -2957,6 +2991,12 @@
         }
         hourAngle = lastHourAngleRef;
 
+        if (noTimeYet) {
+            waitingForTime[displayNum - 1] = true;
+            hourAngle = minAngle = secAngle = rotatedAngle(0.0f, orientation);
+            lastHourAngleRef = lastMinuteAngleRef = lastSecondAngleRef = hourAngle;
+        }
+
         // Grosse Spruenge langsam und auf dem kuerzesten Weg ausfuehren (siehe
         // animateHand()). Bei geaenderter Rotation sofort uebernehmen - dann
         // dreht sich ohnehin das ganze Zifferblatt.
@@ -3166,13 +3206,177 @@
     constexpr uint8_t STRIP_FONT_COUNT = sizeof(STRIP_FONTS) / sizeof(STRIP_FONTS[0]);
     constexpr uint8_t STRIP_FONT_VLW = 255; // VLW-Schriften aus dem Designer (kantengeglaettet)
                                             // VLW fonts from the designer (anti-aliased)
-    constexpr uint8_t STRIP_DATE_FMT_COUNT = 6;
+    constexpr uint8_t STRIP_DATE_FMT_COUNT = 7;
+    constexpr long STRIP_SCALE_MIN = 50;  // Groesse der eingebauten Schrift in % / size of the built-in font in %
+    constexpr long STRIP_SCALE_MAX = 200;
 
 
-    // Einstellungen des Streifens aus den Preferences laden (setup())
-    // Load the strip settings from preferences (setup())
+    // Streifen-Einstellungen gehoeren zum Zifferblatt: /stripcfg_<Name>.txt zu /face_<Name>.bmp, Inhalt wie die
+    // Streifen-Schluessel frueherer Presets ("stripBg=ffffff&stripFont=2&..."). Ohne Datei gilt der Standard.
 
-    void loadInfoStripSettings() {
+    // Strip settings belong to the clock face: /stripcfg_<name>.txt for /face_<name>.bmp, content like the strip
+    // keys of earlier presets ("stripBg=ffffff&stripFont=2&..."). Without a file the default applies.
+
+    String stripConfigPath(const String& facePath) {
+        String name = facePath.startsWith("/") ? facePath.substring(1) : facePath;
+        if (!name.startsWith("face_") || !name.endsWith(".bmp") || name.indexOf('/') >= 0 || name.indexOf("..") >= 0) return "";
+        return "/stripcfg_" + name.substring(5, name.length() - 4) + ".txt";
+    }
+
+    // Standard-Streifen: weiss mit schwarzer Schrift FreeSans Bold, Uhrzeit und Datum automatisch, kein Wochentag
+    // Default strip: white with black text FreeSans Bold, time and date automatic, no weekday
+
+    void resetStripSettings() {
+        stripBgRgb = 0xFFFFFF;
+        stripFgRgb = 0x000000;
+        stripFont = 0;
+        for (uint8_t f = 0; f < STRIP_FONT_COUNT; f++) {
+            if (strcmp(STRIP_FONTS[f].name, "FreeSans Bold") == 0) stripFont = f;
+        }
+        stripTimeFmt = stripSeconds = stripDateFmt = 0;
+        stripVlwName = "";
+        stripVlwTimeSize = 44;
+        stripVlwDateSize = stripVlwWeekdaySize = 22;
+        stripTimeScale = stripDateScale = stripWeekdayScale = 100;
+        stripShowTime = stripShowDate = true;
+        stripShowWeekday = false;
+        stripBlink = true;
+        stripBefore = false;
+        stripTimeX = stripTimeY = stripDateX = stripDateY = stripWeekdayX = stripWeekdayY = -1;
+    }
+
+    // Aktuelle Streifen-Einstellungen als Text (Schluessel wie applyStripValue())
+    // Current strip settings as text (keys as in applyStripValue())
+
+    String stripSettingsQuery() {
+        return "stripBefore=" + String(stripBefore ? 1 : 0) + "&stripBg=" + String(stripBgRgb, HEX) +
+               "&stripFg=" + String(stripFgRgb, HEX) + "&stripFont=" + String(stripFont) +
+               "&stripVlw=" + presetUrlEncode(stripVlwName) + "&stripVt=" + String(stripVlwTimeSize) +
+               "&stripVd=" + String(stripVlwDateSize) + "&stripVw=" + String(stripVlwWeekdaySize) +
+               "&stripTs=" + String(stripTimeScale) + "&stripDs=" + String(stripDateScale) + "&stripWs=" + String(stripWeekdayScale) +
+               "&stripShowT=" + String(stripShowTime ? 1 : 0) + "&stripShowD=" + String(stripShowDate ? 1 : 0) +
+               "&stripShowW=" + String(stripShowWeekday ? 1 : 0) + "&stripTfmt=" + String(stripTimeFmt) +
+               "&stripSec=" + String(stripSeconds) + "&stripDfmt=" + String(stripDateFmt) + "&stripBlink=" + String(stripBlink ? 1 : 0) +
+               "&stripTx=" + String(stripTimeX) + "&stripTy=" + String(stripTimeY) + "&stripDx=" + String(stripDateX) +
+               "&stripDy=" + String(stripDateY) + "&stripWx=" + String(stripWeekdayX) + "&stripWy=" + String(stripWeekdayY);
+    }
+
+    // Schluessel=Wert-Paare (getrennt mit '&', ab einem '?') uebernehmen - fremde Schluessel bleiben unbeachtet
+    // Take over key=value pairs (separated by '&', after a '?') - other keys are ignored
+
+    void applyStripQuery(const String& text) {
+        int q = text.indexOf('?');
+        String query = (q >= 0) ? text.substring(q + 1) : text;
+        query.trim();
+        while (query.length()) {
+            int amp = query.indexOf('&');
+            String param = (amp < 0) ? query : query.substring(0, amp);
+            query = (amp < 0) ? "" : query.substring(amp + 1);
+            int eq = param.indexOf('=');
+            if (eq > 0) applyStripValue(param.substring(0, eq), presetUrlDecode(param.substring(eq + 1)));
+        }
+    }
+
+    // Einstellungen eines Zifferblatts in die globalen Werte laden (ohne Displays zu loeschen); true = Datei da
+    // Load a clock face's settings into the global values (without clearing the displays); true = file present
+
+    bool loadStripSettingsForFace(const String& facePath) {
+        resetStripSettings();
+        String path = stripConfigPath(facePath);
+        if (!path.length() || !LittleFS.exists(path)) return false;
+        File f = LittleFS.open(path, "r");
+        if (!f) return false;
+        String text = f.size() < 2048 ? f.readString() : String("");
+        f.close();
+        applyStripQuery(text);
+        return true;
+    }
+
+    bool saveStripSettingsForFace(const String& facePath) {
+        String path = stripConfigPath(facePath);
+        if (!path.length()) return false;
+        File f = LittleFS.open(path, "w");
+        if (!f) return false;
+        f.print(stripSettingsQuery());
+        f.close();
+        return true;
+    }
+
+    // Einstellungen des aktiven Zifferblatts laden, sobald es wechselt (stripSettingsFor, "?" = neu laden). Eine
+    // andere Lage loescht die Displays einmal (setStripBefore()).
+
+    // Load the active clock face's settings as soon as it changes (stripSettingsFor, "?" = reload). Another
+    // placement clears the displays once (setStripBefore()).
+
+    void ensureStripSettings() {
+        if (TFT_HEIGHT <= CLOCK_HEIGHT || stripSettingsFor == selectedBackground) return;
+        stripSettingsFor = selectedBackground;
+        bool before = stripBefore;
+        loadStripSettingsForFace(selectedBackground);
+        bool wanted = stripBefore;
+        stripBefore = before;
+        setStripBefore(wanted);
+        infoStripDirty[0] = infoStripDirty[1] = true;
+    }
+
+    // Naechstliegende vorhandene Groesse der VLW-Schrift stripVlwName (Datei auf der Uhr), sonst target
+    // Nearest available size of the VLW font stripVlwName (file on the clock), otherwise target
+
+    uint8_t nearestStripVlwSize(uint8_t target, bool weekday) {
+        int best = -1;
+        for (int n = 8; n <= 120; n++) {
+            if (!LittleFS.exists(stripVlwPath(n, weekday))) continue;
+            if (best < 0 || abs(n - target) < abs(best - target)) best = n;
+        }
+        return best < 0 ? target : (uint8_t)best;
+    }
+
+    // Streifen-Einstellungen aus der Sicherung eines anderen Displaytyps auf diesen Streifen umrechnen: Positionen
+    // im Verhaeltnis von Breite bzw. Hoehe, Groessen mit dem kleineren Verhaeltnis (Text laeuft nicht ueber).
+    // VLW-Groessen auf die naechste vorhandene Datei - genau passend erzeugt sie der Designer beim Speichern.
+
+    // Convert strip settings from another display type's backup to this strip: positions by the ratio of width
+    // or height, sizes by the smaller ratio (text does not overflow). VLW sizes to the nearest available file -
+    // the designer creates exactly fitting ones when saving.
+
+    void scaleStripConfigFile(const String& path, int fromW, int fromH) {
+        int toW = TFT_WIDTH, toH = TFT_HEIGHT - CLOCK_HEIGHT;
+        if (fromW <= 0 || fromH <= 0 || toH <= 0) return;
+        File f = LittleFS.open(path, "r");
+        if (!f) return;
+        String text = f.size() < 2048 ? f.readString() : String("");
+        f.close();
+        String saved = stripSettingsQuery();
+        resetStripSettings();
+        applyStripQuery(text);
+        float sx = (float)toW / fromW, sy = (float)toH / fromH, sf = min(sx, sy);
+        auto pos = [](int16_t v, float k) -> int16_t { return v < 0 ? v : (int16_t)lroundf(v * k); };
+        auto pct = [&](uint8_t v) -> uint8_t { return (uint8_t)constrain(lroundf(v * sf), STRIP_SCALE_MIN, STRIP_SCALE_MAX); };
+        auto px = [&](uint8_t v, bool weekday) -> uint8_t {
+            return nearestStripVlwSize((uint8_t)constrain(lroundf(v * sf), 8L, 120L), weekday);
+        };
+        stripTimeX = pos(stripTimeX, sx); stripDateX = pos(stripDateX, sx); stripWeekdayX = pos(stripWeekdayX, sx);
+        stripTimeY = pos(stripTimeY, sy); stripDateY = pos(stripDateY, sy); stripWeekdayY = pos(stripWeekdayY, sy);
+        stripTimeScale = pct(stripTimeScale); stripDateScale = pct(stripDateScale); stripWeekdayScale = pct(stripWeekdayScale);
+        stripVlwTimeSize = px(stripVlwTimeSize, false);
+        stripVlwDateSize = px(stripVlwDateSize, false);
+        stripVlwWeekdaySize = px(stripVlwWeekdaySize, true);
+        f = LittleFS.open(path, "w");
+        if (f) {
+            f.print(stripSettingsQuery());
+            f.close();
+        }
+        resetStripSettings();
+        applyStripQuery(saved);
+        stripSettingsFor = "?";
+    }
+
+    // Einstellungen von vor 2026-10-08 aus den Preferences (galten fuer alle Zifferblaetter); false = keine da
+    // Settings from before 2026-10-08 from the preferences (applied to all clock faces); false = none there
+
+    bool loadLegacyStripPrefs() {
+        resetStripSettings();
+        if (!preferences.isKey(PK_STRIP_BG) && !preferences.isKey(PK_STRIP_FONT)) return false;
         stripBgRgb = preferences.getULong(PK_STRIP_BG, 0x000000) & 0xFFFFFF;
         stripFgRgb = preferences.getULong(PK_STRIP_FG, 0xFFFFFF) & 0xFFFFFF;
         stripFont = preferences.getUChar(PK_STRIP_FONT, 0);
@@ -3189,7 +3393,7 @@
         stripTimeY = preferences.getShort(PK_STRIP_TIME_Y, -1);
         stripDateX = preferences.getShort(PK_STRIP_DATE_X, -1);
         stripDateY = preferences.getShort(PK_STRIP_DATE_Y, -1);
-        infoStripDirty[0] = infoStripDirty[1] = true;
+        return true;
     }
 
 
@@ -3199,7 +3403,7 @@
     struct StripFace {
         const lgfx::IFont* font;
         const uint8_t* vlw;
-        uint8_t size;
+        float size;
     };
 
     void useStripFace(lgfx::LovyanGFX& g, const StripFace& f) {
@@ -3228,40 +3432,47 @@
 
     // VLW-Datei einer Schrift in einer Groesse: stripfont_<Name>_<Groesse>.vlw (Leerzeichen -> '-') - so liegt jede
     // Schrift nur einmal auf der Uhr, und Presets mit verschiedenen Schriften koennen nebeneinander bestehen.
+    // weekday: stripfont_<Name>_<Groesse>_wd.vlw mit den Buchstaben der Wochentage.
 
     // VLW file of a font in one size: stripfont_<name>_<size>.vlw (spaces -> '-') - this way each font exists only
-    // once on the clock, and presets with different fonts can coexist.
+    // once on the clock, and presets with different fonts can coexist. weekday: stripfont_<name>_<size>_wd.vlw
+    // with the letters of the weekdays.
 
-    String stripVlwPath(uint8_t size) {
+    String stripVlwPath(uint8_t size, bool weekday) {
         String id;
         for (size_t i = 0; i < stripVlwName.length(); i++) {
             char c = stripVlwName[i];
             if (isalnum((unsigned char)c) || c == '-' || c == '_') id += c;
             else if (c == ' ') id += '-';
         }
-        return "/stripfont_" + id + "_" + String(size) + ".vlw";
+        return "/stripfont_" + id + "_" + String(size) + (weekday ? "_wd" : "") + ".vlw";
     }
 
 
     // VLW-Schriften des Streifens laden - erneut, wenn sich Schrift oder Groesse aendern oder eine Datei
     // hochgeladen/geloescht wurde (stripVlwStale). Gleiche Groesse fuer Uhrzeit und Datum = ein Puffer. false,
-    // wenn eine fehlt.
+    // wenn Uhrzeit oder Datum fehlt; ohne Wochentag-Datei nimmt der Wochentag eine eingebaute Schrift.
 
     // Load the strip's VLW fonts - again if font or size change or a file was uploaded/deleted (stripVlwStale).
-    // Same size for time and date = one buffer. false if one is missing.
+    // Same size for time and date = one buffer. false if time or date is missing; without a weekday file the
+    // weekday uses a built-in font.
 
     bool ensureStripVlw() {
-        static String loadedTime, loadedDate;
-        String pathTime = stripVlwPath(stripVlwTimeSize), pathDate = stripVlwPath(stripVlwDateSize);
-        if (stripVlwStale || pathTime != loadedTime || pathDate != loadedDate) {
+        static String loadedTime, loadedDate, loadedWeekday;
+        String pathTime = stripVlwPath(stripVlwTimeSize, false), pathDate = stripVlwPath(stripVlwDateSize, false);
+        String pathWeekday = stripShowWeekday ? stripVlwPath(stripVlwWeekdaySize, true) : String("");
+        if (stripVlwStale || pathTime != loadedTime || pathDate != loadedDate || pathWeekday != loadedWeekday) {
             stripVlwStale = false;
             stripVlwGeneration++;
             loadedTime = pathTime;
             loadedDate = pathDate;
+            loadedWeekday = pathWeekday;
             if (stripVlwDate && stripVlwDate != stripVlwTime) free(stripVlwDate);
             if (stripVlwTime) free(stripVlwTime);
+            if (stripVlwWeekday) free(stripVlwWeekday);
             stripVlwTime = loadFileToPsram(pathTime.c_str());
             stripVlwDate = (pathDate == pathTime) ? stripVlwTime : loadFileToPsram(pathDate.c_str());
+            stripVlwWeekday = pathWeekday.length() ? loadFileToPsram(pathWeekday.c_str()) : nullptr;
         }
         return stripVlwTime && stripVlwDate;
     }
@@ -3276,7 +3487,7 @@
     void stripDigitRows(LGFX_Sprite& s, const StripFace& f, int& top, int& bottom) {
         static const void* cachedKey[4] = { nullptr, nullptr, nullptr, nullptr };
         static uint32_t cachedGen[4] = { 0, 0, 0, 0 };
-        static uint8_t cachedSize[4] = { 0, 0, 0, 0 };
+        static float cachedSize[4] = { 0, 0, 0, 0 };
         static int16_t cachedTop[4], cachedBottom[4];
         static uint8_t next = 0;
         const void* key = f.vlw ? (const void*)f.vlw : (const void*)f.font;
@@ -3429,71 +3640,81 @@
     }
 
 
-    // Streifen-Einstellung aus einem Preset (Schluessel wie in createPresetFromPreferences()) setzen - persist:
-    // speichern und anzeigen, sonst nur fuer die Preset-Vorschau. true, wenn der Schluessel zum Streifen gehoert.
+    // Eine Streifen-Einstellung setzen (Schluessel wie stripSettingsQuery()), ohne zu speichern und ohne die Lage
+    // auf den Displays umzuschalten. true, wenn der Schluessel zum Streifen gehoert.
 
-    // Set a strip setting from a preset (keys as in createPresetFromPreferences()) - persist: store and show it,
-    // otherwise only for the preset preview. true if the key belongs to the strip.
+    // Set one strip setting (keys as in stripSettingsQuery()), without storing it and without switching the
+    // placement on the displays. true if the key belongs to the strip.
 
-    bool applyStripPresetValue(const String& key, const String& value, bool persist) {
+    bool applyStripValue(const String& key, const String& value) {
         if (!key.startsWith("strip")) return false;
         long v = value.toInt();
+        bool on = (value == "1" || value.equalsIgnoreCase("true"));
+        int16_t pos = (v < 0) ? -1 : (int16_t)v;
         if (key == "stripBefore") {
-            bool before = value == "1" || value.equalsIgnoreCase("true");
-            if (persist) setStripBefore(before); else stripBefore = before;
-            if (persist) preferences.putBool(PK_STRIP_BEFORE, stripBefore);
+            stripBefore = on;
         }
         else if (key == "stripBg") {
             stripBgRgb = strtoul(value.c_str(), nullptr, 16) & 0xFFFFFF;
-            if (persist) preferences.putULong(PK_STRIP_BG, stripBgRgb);
         }
         else if (key == "stripFg") {
             stripFgRgb = strtoul(value.c_str(), nullptr, 16) & 0xFFFFFF;
-            if (persist) preferences.putULong(PK_STRIP_FG, stripFgRgb);
         }
         else if (key == "stripFont") {
             if ((v >= 0 && v < STRIP_FONT_COUNT) || v == STRIP_FONT_VLW) stripFont = (uint8_t)v;
-            if (persist) preferences.putUChar(PK_STRIP_FONT, stripFont);
         }
         else if (key == "stripVlw") {
             stripVlwName = value.substring(0, 40);
-            if (persist) preferences.putString(PK_STRIP_VLW_NAME, stripVlwName);
         }
         else if (key == "stripVt") {
             stripVlwTimeSize = (uint8_t)constrain(v, 8L, 120L);
-            if (persist) preferences.putUChar(PK_STRIP_VLW_TSIZE, stripVlwTimeSize);
         }
         else if (key == "stripVd") {
             stripVlwDateSize = (uint8_t)constrain(v, 8L, 120L);
-            if (persist) preferences.putUChar(PK_STRIP_VLW_DSIZE, stripVlwDateSize);
+        }
+        else if (key == "stripTs") {
+            stripTimeScale = (uint8_t)constrain(v, STRIP_SCALE_MIN, STRIP_SCALE_MAX);
+        }
+        else if (key == "stripDs") {
+            stripDateScale = (uint8_t)constrain(v, STRIP_SCALE_MIN, STRIP_SCALE_MAX);
+        }
+        else if (key == "stripShowT") {
+            stripShowTime = on;
+        }
+        else if (key == "stripShowD") {
+            stripShowDate = on;
+        }
+        else if (key == "stripShowW") {
+            stripShowWeekday = on;
+        }
+        else if (key == "stripWs") {
+            stripWeekdayScale = (uint8_t)constrain(v, STRIP_SCALE_MIN, STRIP_SCALE_MAX);
+        }
+        else if (key == "stripVw") {
+            stripVlwWeekdaySize = (uint8_t)constrain(v, 8L, 120L);
         }
         else if (key == "stripTfmt") {
             stripTimeFmt = (uint8_t)constrain(v, 0L, 2L);
-            if (persist) preferences.putUChar(PK_STRIP_TIME_FMT, stripTimeFmt);
         }
         else if (key == "stripSec") {
             stripSeconds = (uint8_t)constrain(v, 0L, 2L);
-            if (persist) preferences.putUChar(PK_STRIP_SECONDS, stripSeconds);
         }
         else if (key == "stripDfmt") {
             stripDateFmt = (uint8_t)constrain(v, 0L, (long)STRIP_DATE_FMT_COUNT - 1);
-            if (persist) preferences.putUChar(PK_STRIP_DATE_FMT, stripDateFmt);
         }
         else if (key == "stripBlink") {
-            stripBlink = (value == "1" || value.equalsIgnoreCase("true"));
-            if (persist) preferences.putBool(PK_STRIP_BLINK, stripBlink);
+            stripBlink = on;
         }
-        else if (key == "stripTx" || key == "stripTy" || key == "stripDx" || key == "stripDy") {
-            int16_t pos = (v < 0) ? -1 : (int16_t)v;
-            if (key == "stripTx") { stripTimeX = pos; if (persist) preferences.putShort(PK_STRIP_TIME_X, pos); }
-            else if (key == "stripTy") { stripTimeY = pos; if (persist) preferences.putShort(PK_STRIP_TIME_Y, pos); }
-            else if (key == "stripDx") { stripDateX = pos; if (persist) preferences.putShort(PK_STRIP_DATE_X, pos); }
-            else { stripDateY = pos; if (persist) preferences.putShort(PK_STRIP_DATE_Y, pos); }
-        }
+        else if (key == "stripTx") stripTimeX = pos;
+        else if (key == "stripTy") stripTimeY = pos;
+        else if (key == "stripDx") stripDateX = pos;
+        else if (key == "stripDy") stripDateY = pos;
+        else if (key == "stripWx") stripWeekdayX = pos;
+        else if (key == "stripWy") stripWeekdayY = pos;
         else {
             return false;
         }
-        if (persist) infoStripDirty[0] = infoStripDirty[1] = true;
+        infoStripDirty[0] = infoStripDirty[1] = true;
         return true;
     }
 
@@ -3526,15 +3747,18 @@
         // Fonts: VLW from the designer (sprite only - anti-aliasing needs a readable background) or built-in
 
         const bool vlw = stripFont == STRIP_FONT_VLW && useSprite && ensureStripVlw();
-        StripFace timeFace, dateFace;
+        StripFace timeFace, dateFace, weekdayFace;
         if (vlw) {
             timeFace = { nullptr, stripVlwTime, 1 };
             dateFace = { nullptr, stripVlwDate, 1 };
+            weekdayFace = stripVlwWeekday ? StripFace{ nullptr, stripVlwWeekday, 1 }
+                                          : StripFace{ &fonts::DejaVu18, nullptr, stripWeekdayScale / 100.0f };
         }
         else {
             const StripFont& f = STRIP_FONTS[stripFont < STRIP_FONT_COUNT ? stripFont : 0];
-            timeFace = { f.time, nullptr, f.size };
-            dateFace = { f.date, nullptr, f.size };
+            timeFace = { f.time, nullptr, f.size * stripTimeScale / 100.0f };
+            dateFace = { f.date, nullptr, f.size * stripDateScale / 100.0f };
+            weekdayFace = { f.date, nullptr, f.size * stripWeekdayScale / 100.0f };
         }
 
         // Ziffernhoehe messen (ohne Sprite nur die Schrifthoehe)
@@ -3553,14 +3777,29 @@
         // Automatische Positionen immer fuer hochkant berechnen - der Designer zeigt sie an
         // Always compute the automatic positions for portrait - the designer shows them
 
-        int tTop, tBottom, dTop, dBottom;
+        // Eingeschaltete Zeilen von oben nach unten (Uhrzeit, Wochentag, Datum) mit gleichen Abstaenden
+        // Switched-on lines from top to bottom (time, weekday, date) with equal gaps
+
+        int tTop, tBottom, dTop, dBottom, wTop = 0, wBottom = 0;
         rows(timeFace, tTop, tBottom);
         rows(dateFace, dTop, dBottom);
+        if (stripShowWeekday) rows(weekdayFace, wTop, wBottom);
         int portraitH = TFT_HEIGHT - CLOCK_HEIGHT;
-        int th = tBottom - tTop, dh = dBottom - dTop;
-        int gap = max(0, (portraitH - th - dh) / 3);
-        stripAutoTimeY = gap + th / 2;
-        stripAutoDateY = 2 * gap + th + dh / 2;
+        const bool shown[3] = { stripShowTime, stripShowWeekday, stripShowDate };
+        const int heights[3] = { tBottom - tTop, wBottom - wTop, dBottom - dTop };
+        int16_t* autoY[3] = { &stripAutoTimeY, &stripAutoWeekdayY, &stripAutoDateY };
+        int shownCount = 0, shownHeight = 0;
+        for (int i = 0; i < 3; i++) {
+            if (shown[i]) { shownCount++; shownHeight += heights[i]; }
+        }
+        int gap = max(0, (portraitH - shownHeight) / (shownCount + 1));
+        int cursor = gap;
+        for (int i = 0; i < 3; i++) {
+            *autoY[i] = portraitH / 2;
+            if (!shown[i]) continue;
+            *autoY[i] = cursor + heights[i] / 2;
+            cursor += heights[i] + gap;
+        }
 
         // Hintergrund: Streifen-Grafik des Zifferblatts (quer um 90 Grad im Uhrzeigersinn gedreht), sonst die
         // Farbe. Gedimmt wie das Zifferblatt, nur fuers Display (push), nicht fuer die Vorschau.
@@ -3623,13 +3862,23 @@
                 g.setTextDatum(lgfx::top_center);
                 g.drawString(lines[1], ox + dx, oy + dy - (dTop + dBottom) / 2);
             }
+            if (count > 2 && lines[2].length()) {
+                int wx = (stripWeekdayX >= 0) ? stripWeekdayX : w / 2;
+                int wy = (stripWeekdayX >= 0 && stripWeekdayY >= 0) ? stripWeekdayY : stripAutoWeekdayY;
+                useStripFace(g, weekdayFace);
+                g.setTextDatum(lgfx::top_center);
+                g.drawString(lines[2], ox + wx, oy + wy - (wTop + wBottom) / 2);
+            }
         }
         else {
             for (uint8_t n = 0; n < count; n++) {
-                StripFace face = dateFace;
+                StripFace face = (n == stripWeekdayLine) ? weekdayFace : dateFace;
                 if (!face.vlw && face.font == &fonts::Font0) face.size = 2;
                 useStripFace(g, face);
                 if (g.textWidth(lines[n]) > w - 4) face = { &fonts::Font0, nullptr, 2 };
+                useStripFace(g, face);
+                if (g.textWidth(lines[n]) > w - 4) face.size = 1; // langer Wochentag im schmalen Streifen
+                                                                  // long weekday in a narrow strip
                 int top, bottom;
                 rows(face, top, bottom);
                 useStripFace(g, face);
@@ -3658,10 +3907,10 @@
 
 
     // Datum im eingestellten Format (stripDateFmt): full fuer hochkant, a/b fuer die zwei Zeilen quer.
-    // 0 = T.MM.JJJJ, 1 = TT.MM.JJJJ, 2 = TT.MM.JJ, 3 = MM/TT/JJJJ, 4 = JJJJ-MM-TT, 5 = TT.MM.
+    // 0 = T.MM.JJJJ, 1 = TT.MM.JJJJ, 2 = TT.MM.JJ, 3 = MM/TT/JJJJ, 4 = JJJJ-MM-TT, 5 = TT.MM., 6 = T.MM.JJ
 
     // Date in the set format (stripDateFmt): full for portrait, a/b for the two lines in landscape.
-    // 0 = D.MM.YYYY, 1 = DD.MM.YYYY, 2 = DD.MM.YY, 3 = MM/DD/YYYY, 4 = YYYY-MM-DD, 5 = DD.MM.
+    // 0 = D.MM.YYYY, 1 = DD.MM.YYYY, 2 = DD.MM.YY, 3 = MM/DD/YYYY, 4 = YYYY-MM-DD, 5 = DD.MM., 6 = D.MM.YY
 
     void stripDateText(const struct tm& t, String& full, String& a, String& b) {
         char d[4], dd[4], mm[4], yyyy[6], yy[4];
@@ -3676,6 +3925,7 @@
             case 3:  a = String(mm) + "/" + dd + "/";  b = yyyy;               full = a + b; break;
             case 4:  a = String(yyyy);                 b = String(mm) + "-" + dd; full = a + "-" + b; break;
             case 5:  a = String(dd) + "." + mm + ".";  b = "";                 full = a; break;
+            case 6:  a = String(d) + "." + mm + ".";   b = yy;                 full = a + b; break;
             default: a = String(d) + "." + mm + ".";   b = yyyy;               full = a + b; break;
         }
     }
@@ -3687,6 +3937,16 @@
     // Content of the strip: portrait time and date (AM/PM separately in suffix), landscape one line each for time,
     // seconds, AM/PM and the date parts. Time source as for the hands (renderClockFrame()), the date from the real
     // time.
+
+    // Wochentag ausgeschrieben in der Sprache der Weboberflaeche (Deutsch, sonst Englisch)
+    // Weekday written out in the language of the web interface (German, otherwise English)
+
+    String stripWeekdayText(const struct tm& t) {
+        static const char* const DE[7] = { "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag" };
+        static const char* const EN[7] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+        if (t.tm_wday < 0 || t.tm_wday > 6) return "";
+        return currentLanguage == "de" ? DE[t.tm_wday] : EN[t.tm_wday];
+    }
 
     void stripContent(bool landscape, String* lines, uint8_t& count, bool& colon, String& suffix, const struct tm* fixedTime) {
         bool rocrailTimeReady = rocrailEnabled && rocrailConnected && rocrailLastClockMillis != 0 &&
@@ -3707,23 +3967,50 @@
         // Der Doppelpunkt blinkt nur ohne Sekunden
         // The colon only blinks without seconds
 
+        // Erst mit aktueller Zeit anzeigen: Uhrzeit aus der Vorschau, von Rocrail oder ab dem Jahr 2000 (nach dem
+        // Start steht die Systemzeit auf 1970), Datum und Wochentag nur aus der echten Zeit
+
+        // Only show with a current time: time from the preview, from Rocrail or from the year 2000 on (after the
+        // start the system time is 1970), date and weekday only from the real time
+
+        const bool realTime = timeinfo.tm_year >= 100;
+        const bool showTime = stripShowTime && (fixedTime || rocrailTimeReady || realTime);
+        const bool showDate = stripShowDate && realTime;
         bool withSeconds = stripShowsSeconds();
-        colon = !(stripBlink && !withSeconds && t.tm_sec % 2);
+        colon = !(stripBlink && showTime && !withSeconds && t.tm_sec % 2);
         String dateFull, dateA, dateB;
-        if (timeinfo.tm_year >= 100) stripDateText(timeinfo, dateFull, dateA, dateB); // Jahr 0 = noch keine Zeitquelle
-                                                                                       // year 0 = no time source yet
+        String weekday;
+        if (realTime) {
+            stripDateText(timeinfo, dateFull, dateA, dateB);
+            weekday = stripWeekdayText(timeinfo);
+        }
+        stripWeekdayLine = -1;
+
+        // Ausgeschaltete Zeilen: quer ganz weg, hochkant als leere Zeile
+        // Switched-off lines: gone in landscape, an empty line in portrait
+
         count = 0;
         if (landscape) {
-            lines[count++] = hourMin;
-            if (withSeconds) lines[count++] = seconds;
-            if (suffix.length()) lines[count++] = suffix;
-            lines[count++] = dateA;
-            if (dateB.length()) lines[count++] = dateB;
+            if (showTime) {
+                lines[count++] = hourMin;
+                if (withSeconds) lines[count++] = seconds;
+                if (suffix.length()) lines[count++] = suffix;
+            }
+            if (stripShowWeekday && weekday.length()) {
+                stripWeekdayLine = count;
+                lines[count++] = weekday;
+            }
+            if (showDate) {
+                lines[count++] = dateA;
+                if (dateB.length()) lines[count++] = dateB;
+            }
             suffix = "";
         }
         else {
-            lines[count++] = withSeconds ? String(hourMin) + ":" + seconds : String(hourMin);
-            lines[count++] = dateFull;
+            lines[count++] = !showTime ? String("") : withSeconds ? String(hourMin) + ":" + seconds : String(hourMin);
+            lines[count++] = showDate ? dateFull : String("");
+            lines[count++] = stripShowWeekday ? weekday : String("");
+            if (!showTime) suffix = "";
         }
     }
 
@@ -3754,6 +4041,7 @@
         int x, y, w, h;
         bool landscape;
         if (!infoStripRect(1, x, y, w, h, landscape)) return;
+        ensureStripSettings();
         uint16_t bg = setPixelBrightness(stripColor565(stripBgRgb));
         uint16_t fg = setPixelBrightness(stripColor565(stripFgRgb));
 
@@ -3780,21 +4068,21 @@
 
 
     // Streifen hochkant und ungedimmt nur ins Sprite zeichnen - fuer die Vorschauen (/api/stripimg). textOnly:
-    // Hintergrund in TRANSPARENT_COLOR ohne Grafik, damit der Designer die Schrift ueber seine eigene Zeichnung
-    // legen kann. false ohne Streifen oder Sprite. Das Display zeichnet ihn danach neu (anderes Sprite-Format).
+    // Hintergrund textBg ohne Grafik, damit der Designer die Schrift ueber seine eigene Zeichnung legen kann.
+    // false ohne Streifen oder Sprite. Das Display zeichnet ihn danach neu (anderes Sprite-Format).
 
     // Draw the strip in portrait and undimmed into the sprite only - for the previews (/api/stripimg). textOnly:
-    // background in TRANSPARENT_COLOR without the graphic, so the designer can lay the text over its own drawing.
+    // background textBg without the graphic, so the designer can lay the text over its own drawing.
     // false without a strip or sprite. The display redraws it afterwards (other sprite format).
 
-    bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime) {
+    bool renderStripPreview(int w, int h, bool textOnly, const struct tm* fixedTime, uint16_t textBg) {
         if (h <= 0) return false;
         String lines[6];
         uint8_t count;
         bool colon;
         String suffix;
         stripContent(false, lines, count, colon, suffix, fixedTime);
-        uint16_t bg = textOnly ? (uint16_t)TRANSPARENT_COLOR : stripColor565(stripBgRgb);
+        uint16_t bg = textOnly ? textBg : stripColor565(stripBgRgb);
         renderInfoStrip(0, 0, w, h, false, lines, count, true, suffix, bg, stripColor565(stripFgRgb), false, !textOnly);
         infoStripDirty[0] = infoStripDirty[1] = true;
         return infoStripSpriteCreated && infoStripSprite.width() == w && infoStripSprite.height() == h;
@@ -3850,12 +4138,12 @@
         else {
 
             // Noch nie eine gueltige Zeit: auf die RTC zurueckfallen, ohne RTC ab der Startzeit
-            // (START_TIME_*) weiterlaufen. Jahr 0 = "noch keine Zeit", die Systemzeit bleibt ungesetzt - die
-            // erste echte Zeit uebernimmt sofort.
+            // (START_TIME_*) weiterlaufen. Jahr 0 = "noch keine Zeit": Zeiger auf 12, Streifen leer
+            // (renderClockFrame(), stripContent()) - die erste echte Zeit uebernimmt sofort.
 
             // Never a valid time yet: fall back to the RTC, without an RTC keep running from the start time
-            // (START_TIME_*). Year 0 = "no time yet", the system time stays unset - the first real time takes
-            // over right away.
+            // (START_TIME_*). Year 0 = "no time yet": hands at 12, strip empty (renderClockFrame(),
+            // stripContent()) - the first real time takes over right away.
 
             loadTimeFromRTC();
             if (rtcOk != RTC_AVAILABLE) {
@@ -4135,19 +4423,17 @@
         bool rocrailBrightnessActive = rocrailEnabled && rocrailConnected && rocrailBrightnessKnown &&
                                         (millis() - rocrailLastClockMillis) < ROCRAIL_STALE_TIMEOUT_MS;
 
-        // Einrichtung (noch nie gueltige Zeit, WPS oder Access Point): volle Helligkeit, damit Meldungen und
-        // AP-Passwort lesbar sind - sonst blieb eine neue Uhr ohne hellen Lichtsensor praktisch dunkel
-        // (GC9D01).
+        // Einrichtung (noch nie gueltige Zeit, WPS oder Access Point): mit PWM 50 % (BACKLIGHT_SETUP_LEVEL),
+        // sonst volle Helligkeit - Meldungen und AP-Passwort bleiben lesbar, auch ohne hellen Lichtsensor.
 
-        // Setup (never a valid time, WPS or access point): full brightness so messages and the AP password
-        // are readable - otherwise a new clock without a bright light sensor stayed practically dark
-        // (GC9D01).
+        // Setup (never a valid time, WPS or access point): with PWM 50 % (BACKLIGHT_SETUP_LEVEL), otherwise
+        // full brightness - messages and the AP password stay readable, also without a bright light sensor.
 
         bool setupBrightness = !timeEverValid || softAPIP || wpsPending;
 
         if (setupBrightness) {
-            targetBrightness = maxBrightness;
-            currentBrightness = maxBrightness;
+            targetBrightness = useBacklight ? BACKLIGHT_SETUP_LEVEL : maxBrightness;
+            currentBrightness = targetBrightness;
         }
         else if (rocrailBrightnessActive) {
             targetBrightness = rocrailBrightness;
@@ -5717,47 +6003,28 @@
     }
 
 
-    // Streifen eines Presets hochkant ins Sprite zeichnen (Demo-Zeit 10:10:30, heutiges Datum): die Streifen-Werte
-    // der Preset-URL kurz ohne Speichern uebernehmen, danach die aktuellen wiederherstellen. Presets ohne
-    // Streifen-Werte zeigen die aktuellen Einstellungen - so wirken sie auch beim Aufrufen.
+    // Streifen eines Zifferblatts hochkant ins Sprite zeichnen (Demo-Zeit 10:10:30, heutiges Datum): seine
+    // Einstellungen kurz laden, danach die aktuellen wiederherstellen. before = seine Lage.
 
-    // Draw a preset's strip in portrait into the sprite (demo time 10:10:30, today's date): take over the strip
-    // values of the preset URL briefly without storing them, then restore the current ones. Presets without strip
-    // values show the current settings - that is how they act when applied, too.
+    // Draw a clock face's strip in portrait into the sprite (demo time 10:10:30, today's date): load its settings
+    // briefly, then restore the current ones. before = its placement.
 
-    bool renderPresetStripPreview(const String& presetUrl, const String& faceFile, bool& before) {
+    bool renderFaceStripPreview(const String& faceFile, bool& before) {
         int w = TFT_WIDTH, h = TFT_HEIGHT - CLOCK_HEIGHT;
         if (h <= 0) return false;
-        uint32_t savedBg = stripBgRgb, savedFg = stripFgRgb;
-        uint8_t savedFont = stripFont, savedTimeFmt = stripTimeFmt, savedSeconds = stripSeconds, savedDateFmt = stripDateFmt;
-        uint8_t savedVt = stripVlwTimeSize, savedVd = stripVlwDateSize;
-        bool savedBefore = stripBefore, savedBlink = stripBlink;
-        int16_t savedTx = stripTimeX, savedTy = stripTimeY, savedDx = stripDateX, savedDy = stripDateY;
-        String savedVlw = stripVlwName, savedFace = selectedBackground;
-
-        int q = presetUrl.indexOf('?');
-        String query = (q >= 0) ? presetUrl.substring(q + 1) : "";
-        while (query.length()) {
-            int amp = query.indexOf('&');
-            String param = (amp < 0) ? query : query.substring(0, amp);
-            query = (amp < 0) ? "" : query.substring(amp + 1);
-            int eq = param.indexOf('=');
-            if (eq > 0) applyStripPresetValue(param.substring(0, eq), presetUrlDecode(param.substring(eq + 1)), false);
-        }
-        selectedBackground = faceFile; // Streifen-Grafik des Preset-Zifferblatts
-                                       // strip graphic of the preset's clock face
+        ensureStripSettings();
+        String saved = stripSettingsQuery(), savedFace = selectedBackground;
+        loadStripSettingsForFace(faceFile);
+        selectedBackground = faceFile; // Streifen-Grafik des Zifferblatts
+                                       // strip graphic of the clock face
         struct tm demo = timeinfo;
         demo.tm_hour = 10;
         demo.tm_min = 10;
         demo.tm_sec = 30;
         bool ok = renderStripPreview(w, h, false, &demo);
         before = stripBefore;
-
-        stripBgRgb = savedBg; stripFgRgb = savedFg; stripFont = savedFont;
-        stripTimeFmt = savedTimeFmt; stripSeconds = savedSeconds; stripDateFmt = savedDateFmt;
-        stripVlwTimeSize = savedVt; stripVlwDateSize = savedVd; stripVlwName = savedVlw;
-        stripBefore = savedBefore; stripBlink = savedBlink;
-        stripTimeX = savedTx; stripTimeY = savedTy; stripDateX = savedDx; stripDateY = savedDy;
+        resetStripSettings();
+        applyStripQuery(saved);
         selectedBackground = savedFace;
         return ok;
     }
@@ -5799,7 +6066,7 @@
     bool generateFaceStripBmp(const String& faceFile, int outW, uint8_t** outBytes, size_t& outSize) {
         const int outH = max(1, outW * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH);
         bool before;
-        if (TFT_HEIGHT <= CLOCK_HEIGHT || !renderPresetStripPreview("", faceFile, before)) return false;
+        if (TFT_HEIGHT <= CLOCK_HEIGHT || !renderFaceStripPreview(faceFile, before)) return false;
         LGFX_Sprite canvas(&tft);
         if (!createSprite16(canvas, outW, outH)) return false;
         drawStripThumb(canvas, 0, outW, outH);
@@ -5899,7 +6166,7 @@
 
         const int stripPrevH = (TFT_HEIGHT > CLOCK_HEIGHT) ? PREVIEW_SIZE * (TFT_HEIGHT - CLOCK_HEIGHT) / CLOCK_WIDTH : 0;
         bool stripBeforeClock = false;
-        bool stripOk = stripPrevH > 0 && renderPresetStripPreview(presetUrl, faceFile, stripBeforeClock);
+        bool stripOk = stripPrevH > 0 && renderFaceStripPreview(faceFile, stripBeforeClock);
         const int PREVIEW_H = PREVIEW_SIZE + stripPrevH;
         const int oy = stripBeforeClock ? stripPrevH : 0;
         LGFX_Sprite canvas(&tft);
@@ -6050,19 +6317,21 @@
     }
 
 
-    // Schaltet die LED ein (wenn definiert)
-    // Turns the LED on (if defined)
+    // Schaltet die LED aus - ohne Board-LED (LED_BOARD -1, ESP32-S3-LCD-1.28) nichts
+    // Turns the LED off - nothing without a board LED (LED_BOARD -1, ESP32-S3-LCD-1.28)
 
     void setLedOff() {
+        if (LED_BOARD < 0) return;
         pinMode(LED_BOARD, OUTPUT);
         digitalWrite(LED_BOARD, LOW);
     }
 
 
-    // Schaltet die LED aus (wenn definiert)
-    // Turns the LED off (if defined)
+    // Schaltet die LED ein - ohne Board-LED nichts
+    // Turns the LED on - nothing without a board LED
 
     void setLedOn() {
+        if (LED_BOARD < 0) return;
         pinMode(LED_BOARD, OUTPUT);
         digitalWrite(LED_BOARD, HIGH);
     }

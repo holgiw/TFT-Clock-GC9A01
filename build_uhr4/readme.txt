@@ -3,13 +3,13 @@
 #######################################################################################
 # Flashen unter Windows (10, 11) getestet
 
-Für ESP32-S2 (Lolin S2 Pico) und ESP32-C6 (Waveshare). Windows 7/8 haben keinen passenden
+Für ESP32-S2 (Lolin S2 Pico), ESP32-C6 und ESP32-S3 (Waveshare). Windows 7/8 haben keinen passenden
 USB-Treiber und werden nicht unterstützt. macOS: flashESP.sh läuft dort nicht - von Hand mit esptool
 flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 
 1. Die .zip Datei in ein Verzeichnis auspacken, nicht aus dem Zip heraus starten.
-   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe und die Unterordner esp32s2 und
-   esp32c6 müssen zusammen liegen.
+   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe und die Unterordner esp32s2,
+   esp32c6 und esp32s3 müssen zusammen liegen.
    Meldet der Virenscanner esptool.exe, ist das ein bekannter Fehlalarm (gepacktes Python-Programm):
    für diesen Ordner eine Ausnahme einrichten und das Zip erneut auspacken.
 
@@ -22,12 +22,14 @@ flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 	Uhr suchen: flashESP.bat listet alle COM Schnittstellen und markiert angeschlossene Uhren
 	(Download-Modus bzw. laufend). Bei genau einer Uhr nimmt es deren Schnittstelle ohne Rückfrage,
 	sonst fragt es nach der Nummer. Das Board erkennt es am USB-Port und flasht den Build aus
-	esp32s2 bzw. esp32c6.
+	esp32s2, esp32c6 bzw. esp32s3. Den ESP32-S3 erkennt es am USB-Seriell-Wandler CH343P; den gibt
+	es auch auf fremden Geräten, antwortet dort keine uhr4, fragt flashESP.bat vor dem Flashen nach.
 
 	Displaytyp:
 	  ESP32-S2: 1 = GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3,
 	            3 = GC9D01 (160x160), 4 = ILI9341 (240x320, Uhr mit Streifen für Uhrzeit und Datum)
 	  ESP32-C6: 1 = ST7789 (172x320, ESP32-C6-LCD-1.47), 2 = ST7789_240 (240x240, ESP32-C6-LCD-1.3)
+	  ESP32-S3 (ESP32-S3-LCD-1.28): keine Abfrage, das GC9A01 ist fest verbaut
 	  Enter = unverändert (Update einer eingerichteten Uhr).
 	Läuft auf der Uhr schon uhr4, fragt flashESP.bat ihren Displaytyp ab und wählt ihn vor (Enter
 	behält ihn). Hat sie noch keinen, muss er angegeben werden. Mit falschem Displaytyp zeigt das
@@ -41,8 +43,8 @@ flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 
 	Flashen: Erst nach diesen Fragen flasht flashESP.bat die Uhr. Einen laufenden ESP32-S2 bringt
 	es selbst in den Download-Modus (1200 Baud, wie die Arduino IDE) und flasht über die neu
-	erscheinende COM Schnittstelle (meist COM4 laufend, COM3 im Download-Modus). Der ESP32-C6
-	braucht keinen Download-Modus.
+	erscheinende COM Schnittstelle (meist COM4 laufend, COM3 im Download-Modus). ESP32-C6 und
+	ESP32-S3 schaltet esptool selbst um.
 	Danach sendet es Displaytyp und WLAN per USB an die Uhr; sie startet neu und verbindet sich
 	mit dem WLAN. Zuletzt bekommt die Uhr die Uhrzeit des PCs und läuft damit sofort richtig,
 	auch ohne WLAN, DCF77 und RTC (NTP/DCF77 korrigieren später).
@@ -97,13 +99,16 @@ ODER
 
 Taster (BUTTON, siehe Pinbelegung, oder der eingebaute Boot-Taster BOOT_BUTTON):
 	Kurz drücken: Die Uhr zeigt das verbundene WLAN.
-	Länger als 10 Sekunden halten: Auf dem Display läuft ein roter "Factory Reset"-Countdown.
-	Bis hier passiert nichts, Loslassen bricht ab.
-	Länger als 15 Sekunden halten: vollständiger Werksreset. Er löscht die WLAN-Zugangsdaten UND
+	10-20 Sekunden halten: Auf dem Display läuft ein gelber "WiFi Reset"-Countdown, Loslassen bricht
+	ab.
+	20-30 Sekunden halten: Auf dem Display läuft ein roter "Factory Reset"-Countdown. Jetzt loslassen
+	löscht alle gespeicherten WLANs, die Uhr startet neu und geht in den WPS-/AccessPoint-Modus.
+	Zifferblätter, Zeigersätze, Presets und Einstellungen bleiben.
+	Länger als 30 Sekunden halten: vollständiger Werksreset. Er löscht die WLAN-Zugangsdaten UND
 	alle hochgeladenen Zifferblätter, Zeigersätze und Presets. Danach geht die Uhr in den
 	WPS-/AccessPoint-Modus.
-	Nur das WLAN zurücksetzen, ohne eigene Zifferblätter, Zeigersätze und Presets zu verlieren:
-	in der Weboberfläche Seite "Werkseinstellungen" -> "Gespeicherte Netzwerke zurücksetzen".
+	Nur das WLAN zurücksetzen geht auch in der Weboberfläche: Seite "Werkseinstellungen" ->
+	"Gespeicherte Netzwerke zurücksetzen".
 
 Displaytyp:
 	Eine Firmware je ESP, der Displaytyp ist eine Einstellung. Festlegen:
@@ -122,9 +127,11 @@ verschiedene Potentiale, ob die Bauteile vorhanden sind. Ohne Photowiderstand gi
 Helligkeit.
 	ESP32-S2: ADC_3V 1, ADC (Messung) 2, ADC_GND 4 (siehe Pinbelegung unten)
 	ESP32-C6: ADC_3V 1, ADC (Messung) 2, ADC_GND 3 (Stiftleiste)
+	ESP32-S3: ADC_3V 2, ADC (Messung) 4, ADC_GND 5 (Stiftleiste)
 Hintergrundbeleuchtung per PWM (Haken "Hintergrundbeleuchtung regeln" im Helligkeits-Tab):
 	ESP32-S2: Pin 3, bei GC9D01 und Displaytyp "GC9A01 mit BL" ab Werk an
 	ESP32-C6: Pin 22, auf dem Waveshare-Board fest verdrahtet, ab Werk an
+	ESP32-S3: Pin 40, auf dem Waveshare-Board fest verdrahtet, ab Werk an
 Unbedingt Schaltplan und Platinenentwurf beachten: Die TFTs haben unterschiedliche Pin-Reihenfolgen.
 Auf die Beschriftung achten (VCC, GND usw.).
 
@@ -185,6 +192,38 @@ DCF77-Empfänger (optional):
 	DATA: 20
 
 
+Pinbelegung ESP32-S3 (Waveshare ESP32-S3-LCD-1.28)
+
+TFT GC9A01 (fest verbaut, nur zur Information):
+	TFT_SCLK: 10
+	TFT_MOSI: 11
+	TFT_DC: 8
+	TFT_RST: 12
+	CS_1: 9 (schaltet LovyanGFX)
+	TFT_Backlight: 40
+Ebenfalls fest verbaut: Lagesensor QMI8658 (I2C 6/7, INT 47/48, für die Rotation "automatisch"),
+Akku-Messung an GPIO 1. Keine Board-LED.
+
+BUTTON: 16
+BOOT_BUTTON: 0 (eingebauter Boot-Taster)
+
+ADC_3V: 2
+ADC(photoresistor): 4
+ADC_GND: 5
+
+I2C / RTC (optional, DS3231, am selben Bus wie der Lagesensor, Pull-ups auf dem Board):
+	SDA: 6
+	SCL: 7
+
+DCF77-Empfänger (optional):
+	DATA: 17
+
+Firmware-Update über WLAN (nur ESP32-S3): Weboberfläche, Seite "Sicherung" -> "Firmware-Update",
+dort esp32s3/uhr4.ino.bin hochladen (nicht die merged-, Bootloader- oder Partitionsdatei). Einstellungen,
+Zifferblätter und Zeigersätze bleiben. Aus Visual Micro/Arduino IDE geht es auch über den Netzwerk-Port
+der Uhr (ArduinoOTA, Port 3232).
+
+
 #######################################################################################
 # Flashen unter Linux (LMDE)
 
@@ -217,13 +256,14 @@ cd build_uhr4/
 
 # flashESP.sh sucht die Uhr selbst (USB-Kennung 303a) und nimmt sie ohne Rückfrage, wenn
 # genau eine da ist. Einen laufenden ESP32-S2 bringt es in den Download-Modus (er hat dann eine
-# andere Schnittstelle). Den ESP32-C6 (303a:1001) erkennt es und flasht den Build aus esp32c6.
+# andere Schnittstelle). Den ESP32-C6 (303a:1001) und den ESP32-S3 (CH343P, 1a86:55d3) erkennt es und
+# flasht den Build aus esp32c6 bzw. esp32s3.
 # Findet es keine Uhr, fragt es nach (dmesg/lsusb, Datenkabel statt Ladekabel).
 bash flashESP.sh
 
 # Ablauf wie unter Windows: Uhr suchen, Displaytyp
 # (ESP32-S2: 1 = GC9A01 ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3, 3 = GC9D01,
-# 4 = ILI9341; ESP32-C6: 1 = ST7789 (1,47"), 2 = ST7789_240 (1,3");
+# 4 = ILI9341; ESP32-C6: 1 = ST7789 (1,47"), 2 = ST7789_240 (1,3"); ESP32-S3: keine Abfrage;
 # Enter = unverändert; bei einer laufenden uhr4 ist ihr Typ vorgewählt), dann WLAN
 # (2,4-GHz-Netze per nmcli, Passwort verdeckt, Enter = überspringen; ist der PC mit einem
 # 2,4-GHz-Netz verbunden, bietet es Name und Passwort an). Nach dem Flashen sendet es beides
@@ -247,6 +287,8 @@ esptool --port /dev/ttyACM0 erase_flash
 esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
 # ESP32-C6 (Waveshare, Build im Unterordner esp32c6) - kein Bootmodus nötig
 esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
+# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, Build im Unterordner esp32s3) - kein Bootmodus nötig
+esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32s3/uhr4.ino.bootloader.bin 0x8000 esp32s3/uhr4.ino.partitions.bin 0xe000 esp32s3/boot_app0.bin 0x10000 esp32s3/uhr4.ino.bin
 
 
 #######################################################################################
@@ -267,13 +309,13 @@ Quellcode: https://github.com/holgiw/ESP32-Station-Clock
 #######################################################################################
 # Flashing on Windows (10, 11) - tested
 
-For the ESP32-S2 (Lolin S2 Pico) and ESP32-C6 (Waveshare). Windows 7/8 have no suitable USB driver
+For the ESP32-S2 (Lolin S2 Pico), ESP32-C6 and ESP32-S3 (Waveshare). Windows 7/8 have no suitable USB driver
 and are not supported. macOS: flashESP.sh does not run there - flash manually with esptool (see the
 Linux section, port /dev/cu.usbmodem...).
 
 1. Unpack the .zip file into a directory; do not start anything from within the zip.
-   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe and the subfolders esp32s2 and
-   esp32c6 must be together.
+   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe and the subfolders esp32s2,
+   esp32c6 and esp32s3 must be together.
    If the virus scanner reports esptool.exe, that is a known false alarm (packed Python program):
    add an exception for this folder and unpack the zip again.
 
@@ -285,13 +327,15 @@ Linux section, port /dev/cu.usbmodem...).
 
 	Finding the clock: flashESP.bat lists all COM ports and marks connected clocks (download mode
 	or running). If exactly one clock is found, it uses its port without asking, otherwise it asks
-	for the number. It recognizes the board by the USB port and flashes the build from esp32s2 or
-	esp32c6.
+	for the number. It recognizes the board by the USB port and flashes the build from esp32s2,
+	esp32c6 or esp32s3. It recognizes the ESP32-S3 by the CH343P USB serial converter; as that is
+	also found on other devices, flashESP.bat asks before flashing if no uhr4 replies there.
 
 	Display type:
 	  ESP32-S2: 1 = GC9A01 (240x240) without backlight (BL), 2 = GC9A01 with BL on pin 3,
 	            3 = GC9D01 (160x160), 4 = ILI9341 (240x320, clock with a time and date strip)
 	  ESP32-C6: 1 = ST7789 (172x320, ESP32-C6-LCD-1.47), 2 = ST7789_240 (240x240, ESP32-C6-LCD-1.3)
+	  ESP32-S3 (ESP32-S3-LCD-1.28): no question, the GC9A01 is built in
 	  Enter = unchanged (updating a clock that is already set up).
 	If the clock already runs uhr4, flashESP.bat asks it for its display type and preselects it
 	(Enter keeps it). If it has none yet, it must be chosen. With the wrong display type the
@@ -305,8 +349,8 @@ Linux section, port /dev/cu.usbmodem...).
 
 	Flashing: only after these questions does flashESP.bat flash the clock. It switches a running
 	ESP32-S2 to download mode itself (1200 baud, like the Arduino IDE) and flashes via the COM port
-	that then appears (usually COM4 running, COM3 in download mode). The ESP32-C6 needs no
-	download mode.
+	that then appears (usually COM4 running, COM3 in download mode). esptool switches the ESP32-C6
+	and ESP32-S3 itself.
 	Then it sends display type and WiFi to the clock via USB; the clock restarts and connects to
 	the WiFi. Finally the clock gets the PC's time and runs correctly right away, even without
 	WiFi, DCF77 and RTC (NTP/DCF77 correct it later).
@@ -361,13 +405,15 @@ OR
 
 Button (BUTTON, see pinout, or the built-in Boot button BOOT_BUTTON):
 	Short press: the clock shows the connected WiFi network.
-	Hold for more than 10 seconds: a red "Factory Reset" countdown runs on the display.
-	Up to here nothing happens, releasing aborts.
-	Hold for more than 15 seconds: full factory reset. It erases the WiFi credentials AND all
+	Hold for 10-20 seconds: a yellow "WiFi Reset" countdown runs on the display, releasing aborts.
+	Hold for 20-30 seconds: a red "Factory Reset" countdown runs on the display. Releasing now deletes
+	all stored WiFi networks, the clock restarts and goes into WPS/Access Point mode. Clock faces, hand
+	sets, presets and settings stay.
+	Hold for more than 30 seconds: full factory reset. It erases the WiFi credentials AND all
 	uploaded clock faces, hand sets and presets. Afterwards the clock goes into WPS/Access Point
 	mode.
-	To reset only the WiFi without losing your own clock faces, hand sets and presets: web
-	interface, "Factory Reset" page -> "Reset Saved Networks".
+	Resetting only the WiFi also works in the web interface: "Factory Reset" page -> "Reset Saved
+	Networks".
 
 Display type:
 	One firmware per ESP, the display type is a setting. Set it:
@@ -385,9 +431,11 @@ supplied via the pins ADC_3V and ADC_GND. On startup the ESP checks via differen
 whether the components are present. Without a photoresistor the manual brightness applies.
 	ESP32-S2: ADC_3V 1, ADC (measurement) 2, ADC_GND 4 (see pin assignment below)
 	ESP32-C6: ADC_3V 1, ADC (measurement) 2, ADC_GND 3 (pin header)
+	ESP32-S3: ADC_3V 2, ADC (measurement) 4, ADC_GND 5 (pin header)
 Backlight via PWM ("Backlight control" checkbox in the Brightness tab):
 	ESP32-S2: pin 3, on by default for GC9D01 and display type "GC9A01 with BL"
 	ESP32-C6: pin 22, hard-wired on the Waveshare board, on by default
+	ESP32-S3: pin 40, hard-wired on the Waveshare board, on by default
 Be sure to follow the circuit diagram and PCB layout: the TFTs have different pin orders.
 Pay attention to the labeling (VCC, GND, etc.).
 
@@ -448,6 +496,38 @@ DCF77 receiver (optional):
 	DATA: 20
 
 
+ESP32-S3 (Waveshare ESP32-S3-LCD-1.28) Pin Assignment
+
+TFT GC9A01 (built in, for information only):
+	TFT_SCLK: 10
+	TFT_MOSI: 11
+	TFT_DC: 8
+	TFT_RST: 12
+	CS_1: 9 (driven by LovyanGFX)
+	TFT_Backlight: 40
+Also built in: QMI8658 motion sensor (I2C 6/7, INT 47/48, for the "automatic" rotation), battery
+measurement on GPIO 1. No board LED.
+
+BUTTON: 16
+BOOT_BUTTON: 0 (built-in Boot button)
+
+ADC_3V: 2
+ADC(photoresistor): 4
+ADC_GND: 5
+
+I2C / RTC (optional, DS3231, on the same bus as the motion sensor, pull-ups on the board):
+	SDA: 6
+	SCL: 7
+
+DCF77 receiver (optional):
+	DATA: 17
+
+Firmware update over WiFi (ESP32-S3 only): web interface, "Backup" page -> "Firmware Update", upload
+esp32s3/uhr4.ino.bin there (not the merged, bootloader or partition file). Settings, clock faces and hand
+sets stay. From Visual Micro/Arduino IDE it also works via the clock's network port (ArduinoOTA, port
+3232).
+
+
 #######################################################################################
 # Flashing on Linux (LMDE)
 
@@ -480,13 +560,14 @@ cd build_uhr4/
 
 # flashESP.sh finds the clock itself (USB id 303a) and uses it without asking if exactly one
 # is found. It switches a running ESP32-S2 to download mode (it then has a different port).
-# It recognizes the ESP32-C6 (303a:1001) and flashes the build from esp32c6.
+# It recognizes the ESP32-C6 (303a:1001) and the ESP32-S3 (CH343P, 1a86:55d3) and flashes the build
+# from esp32c6 or esp32s3.
 # If it finds no clock, it asks troubleshooting questions (dmesg/lsusb, data cable instead of charging cable).
 bash flashESP.sh
 
 # Same steps as on Windows: find the clock, display type
 # (ESP32-S2: 1 = GC9A01 without backlight (BL), 2 = GC9A01 with BL on pin 3, 3 = GC9D01,
-# 4 = ILI9341; ESP32-C6: 1 = ST7789 (1.47"), 2 = ST7789_240 (1.3");
+# 4 = ILI9341; ESP32-C6: 1 = ST7789 (1.47"), 2 = ST7789_240 (1.3"); ESP32-S3: no question;
 # Enter = unchanged; for a running uhr4 its type is preselected), then WiFi
 # (2.4 GHz networks via nmcli, password hidden, Enter = skip; if the PC is connected to a
 # 2.4 GHz network, it offers its name and password). After flashing it sends both to the
@@ -510,6 +591,8 @@ esptool --port /dev/ttyACM0 erase_flash
 esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
 # ESP32-C6 (Waveshare, build in the subfolder esp32c6) - no boot mode needed
 esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
+# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, build in the subfolder esp32s3) - no boot mode needed
+esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32s3/uhr4.ino.bootloader.bin 0x8000 esp32s3/uhr4.ino.partitions.bin 0xe000 esp32s3/boot_app0.bin 0x10000 esp32s3/uhr4.ino.bin
 
 #######################################################################################
 # License

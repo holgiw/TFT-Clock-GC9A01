@@ -58,17 +58,18 @@
       modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
       strip: 'Streifen Uhrzeit/Datum', sPos: 'Lage:', sBelow: 'unter der Uhr (quer: rechts)', sAbove: '\u00fcber der Uhr (quer: links)', sBg: 'Hintergrund:', sFg: 'Schriftfarbe:', sFont: 'Schriftart:',
-      sTime: 'Uhrzeit:', sDate: 'Datum:', sAuto: 'automatisch', sBlink: 'Doppelpunkt blinkt (ohne Sekunden)', sDef: 'Standard', sSave: 'Streifen speichern',
-      stripHint: 'Der Streifen ist Teil der Zeichenfl\u00e4che und wird mit dem Zifferblatt gespeichert (strip_Name.bmp). '
-      + '\u00c4nderungen hier zeigt die Uhr sofort an, gespeichert werden sie mit \u201eStreifen speichern\u201c. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
+      sTime: 'Uhrzeit', sDate: 'Datum', sWday: 'Wochentag (ausgeschrieben)', sShow: 'anzeigen', sSize: 'Gr\u00f6\u00dfe:', sXY: 'Position:', sAuto: 'automatisch', sBlink: 'Doppelpunkt blinkt (ohne Sekunden)', sDef: 'Standard', sSave: 'Streifen speichern',
+      stripHint: 'Der Streifen geh\u00f6rt zum Zifferblatt: Grafik (strip_Name.bmp) und diese Einstellungen (stripcfg_Name.txt). '
+      + '\u00c4nderungen hier zeigt die Uhr sofort an, gespeichert werden sie mit \u201eStreifen speichern\u201c oder mit dem Zifferblatt. '
+      + 'Ein Zifferblatt ohne eigene Einstellungen bekommt den Standard. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
       stripSaved: 'Streifen gespeichert.', stripErr: 'Streifen konnte nicht an die Uhr gesendet werden.',
       hub: 'Nabe', hubSize: 'Radius:', hubColor: 'Farbe:', hubSave: 'Nabe speichern',
       hubHint: 'Mittelpunkt \u00fcber den Zeigern, 0 = keine Nabe. \u00c4nderungen zeigt die Uhr sofort an, gespeichert werden sie mit \u201eNabe speichern\u201c.',
       hubSaved: 'Nabe gespeichert.', hubErr: 'Nabe konnte nicht an die Uhr gesendet werden.',
       sTFmt: 'Zeitformat:', sSec: 'Sekunden:', sec0: 'automatisch (ohne Sekundenzeiger)', sec1: 'ohne Sekunden', sec2: 'mit Sekunden',
-      sDFmt: 'Datumsformat:', sVSize: 'Gr\u00f6\u00dfe Uhrzeit / Datum:', tf0: '24 Stunden',
+      sDFmt: 'Datumsformat:', tf0: '24 Stunden',
       tf1: '12 Stunden mit AM/PM', tf2: '12 Stunden', df0: 'T.MM.JJJJ', df1: 'TT.MM.JJJJ', df2: 'TT.MM.JJ', df3: 'MM/TT/JJJJ',
-      df4: 'JJJJ-MM-TT', df5: 'TT.MM.', vlwCur: ' (auf der Uhr)', vlwErr: 'Schrift f\u00fcr den Streifen konnte nicht erzeugt werden.',
+      df4: 'JJJJ-MM-TT', df5: 'TT.MM.', df6: 'T.MM.JJ', vlwCur: ' (auf der Uhr)', vlwErr: 'Schrift f\u00fcr den Streifen konnte nicht erzeugt werden.',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', active: 'active', reset: 'Discard changes',
       saveBtn: 'Save as new clock face', name: 'Name:',
@@ -117,14 +118,15 @@
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
       strip: 'Time/date strip', sPos: 'Placement:', sBelow: 'below the clock (landscape: right)', sAbove: 'above the clock (landscape: left)', sBg: 'Background:', sFg: 'Text colour:', sFont: 'Font:',
-      sTime: 'Time:', sDate: 'Date:', sAuto: 'automatic', sBlink: 'Colon blinks (without seconds)', sDef: 'Default', sSave: 'Save strip',
-      stripHint: 'The strip is part of the drawing area and is saved with the clock face (strip_name.bmp). '
-      + 'The clock shows changes here right away, they are stored with "Save strip". ' + 'X/Y = centre of the line in the strip (portrait); in landscape the lines are arranged below each other automatically.',
+      sTime: 'Time', sDate: 'Date', sWday: 'Weekday (written out)', sShow: 'show', sSize: 'Size:', sXY: 'Position:', sAuto: 'automatic', sBlink: 'Colon blinks (without seconds)', sDef: 'Default', sSave: 'Save strip',
+      stripHint: 'The strip belongs to the clock face: graphic (strip_name.bmp) and these settings (stripcfg_name.txt). '
+      + 'The clock shows changes here right away, they are stored with "Save strip" or with the clock face. '
+      + 'A clock face without its own settings gets the default. ' + 'X/Y = centre of the line in the strip (portrait); in landscape the lines are arranged below each other automatically.',
       stripSaved: 'Strip saved.', stripErr: 'Could not send the strip to the clock.',
       sTFmt: 'Time format:', sSec: 'Seconds:', sec0: 'automatic (without second hand)', sec1: 'without seconds', sec2: 'with seconds',
-      sDFmt: 'Date format:', sVSize: 'Size time / date:', tf0: '24 hours',
+      sDFmt: 'Date format:', tf0: '24 hours',
       tf1: '12 hours with AM/PM', tf2: '12 hours', df0: 'D.MM.YYYY', df1: 'DD.MM.YYYY', df2: 'DD.MM.YY', df3: 'MM/DD/YYYY',
-      df4: 'YYYY-MM-DD', df5: 'DD.MM.', vlwCur: ' (on the clock)', vlwErr: 'Could not create the font for the strip.',
+      df4: 'YYYY-MM-DD', df5: 'DD.MM.', df6: 'D.MM.YY', vlwCur: ' (on the clock)', vlwErr: 'Could not create the font for the strip.',
       hub: 'Hub', hubSize: 'Radius:', hubColor: 'Colour:', hubSave: 'Save hub',
       hubHint: 'Centre over the hands, 0 = no hub. The clock shows changes right away, they are stored with "Save hub".',
       hubSaved: 'Hub saved.', hubErr: 'Could not send the hub to the clock.',
@@ -762,8 +764,8 @@
   // int32, per character 7 x int32 (unicode, height, width, advance, top above baseline, left offset, 0), then
   // the alpha bitmaps. All numbers big-endian, characters sorted by unicode.
 
-  function makeVlw(css, px) {
-    var chars = ' -./0123456789:AMP'.split(''), pad = Math.ceil(px * 0.5);
+  function makeVlw(css, px, extra) {
+    var chars = (' -./0123456789:AMP' + (extra || '')).split(''), pad = Math.ceil(px * 0.5);
     var c = newCanvas(px * 4, px * 3), x = c.getContext('2d');
     x.font = css; x.textBaseline = 'alphabetic';
     var ref = x.measureText('0');
@@ -972,6 +974,11 @@
   // Upload via /upload (RLE-compressed there, masked on round displays),
   // do NOT follow the redirect; then activate - /setbackground reloads.
 
+  // Streifen-Einstellungen zu einem Zifferblatt speichern (gesetzt im Streifen-Bereich, nur Displays mit Streifen)
+  // Store strip settings for a clock face (set in the strip section, only displays with a strip)
+
+  var stripSaveFor = null;
+
   function saveFace(file, isNew) {
     $('saveBtn').disabled = true; $('saveCurBtn').disabled = true;
     showMsg(t('saving'));
@@ -984,6 +991,8 @@
     }
     upload(encodeBmp(rows(pix, OY, FH), W, FH), file).then(function () {
       if (SH) return upload(encodeBmp(rows(pix, stripY(), SH), W, SH), 'strip_' + file.replace(/^face_/, ''));
+    }).then(function () {
+      if (stripSaveFor) return stripSaveFor(file);
     }).then(function () {
       return fetch('/setbackground?file=' + encodeURIComponent(file), { redirect: 'manual' }).then(function () {
         FD.active = '/' + file; base = FD.active;
@@ -1018,26 +1027,32 @@
   var pv = $('pv'), pctx = pv.getContext('2d'), S = W;
   pv.width = W; pv.height = H;
 
-  // Mit Streifen (ILI9341) zeigt die Vorschau das ganze Display. Uhrzeit und Datum zeichnet die Uhr
-  // (/api/stripimg?text=1, RGB565 big-endian, Hintergrund 0x0120 = transparent) - sie liegen ueber der Zeichnung.
+  // Mit Streifen (ILI9341) zeigt die Vorschau das ganze Display. Uhrzeit und Datum zeichnet die Uhr zweimal
+  // (/api/stripimg?text=2, RGB565 big-endian, auf Schwarz und auf Weiss) - aus dem Unterschied folgt die Deckkraft
+  // je Pixel, kantengeglaettete Schrift liegt so ohne Saum ueber der Zeichnung.
 
-  // With a strip (ILI9341) the preview shows the whole display. The clock draws time and date
-  // (/api/stripimg?text=1, RGB565 big-endian, background 0x0120 = transparent) - they lie over the drawing.
+  // With a strip (ILI9341) the preview shows the whole display. The clock draws time and date twice
+  // (/api/stripimg?text=2, RGB565 big-endian, on black and on white) - the difference gives the opacity per
+  // pixel, so anti-aliased text lies over the drawing without a fringe.
 
   var stripImg = null;
   function loadStripImg() {
     var sp = FD.strip;
     if (!sp) return Promise.resolve();
-    return fetch('/api/stripimg?text=1' + ($('live').checked ? '' : '&h=10&m=8&s=37'), { cache: 'no-store' }).then(function (r) {
+    return fetch('/api/stripimg?text=2' + ($('live').checked ? '' : '&h=10&m=8&s=37'), { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.arrayBuffer();
     }).then(function (ab) {
-      var b = new Uint8Array(ab);
-      if (b.length < sp.w * sp.h * 2) return;
+      var b = new Uint8Array(ab), n = sp.w * sp.h;
+      if (b.length < n * 4) return;
       var c = stripImg || newCanvas(sp.w, sp.h), x = c.getContext('2d'), id = x.createImageData(sp.w, sp.h);
-      for (var i = 0; i < sp.w * sp.h; i++) {
-        var v = (b[2 * i] << 8) | b[2 * i + 1], rgb = rgbOf(v);
-        id.data[i * 4] = rgb[0]; id.data[i * 4 + 1] = rgb[1]; id.data[i * 4 + 2] = rgb[2]; id.data[i * 4 + 3] = v === 0x0120 ? 0 : 255;
+      for (var i = 0; i < n; i++) {
+        var k = rgbOf((b[2 * i] << 8) | b[2 * i + 1]), w = rgbOf((b[2 * (n + i)] << 8) | b[2 * (n + i) + 1]);
+        var a = 1 - ((w[0] - k[0]) + (w[1] - k[1]) + (w[2] - k[2])) / 765;
+        if (a < 0.03) continue;
+        a = Math.min(1, a);
+        for (var j = 0; j < 3; j++) id.data[i * 4 + j] = Math.min(255, Math.round(k[j] / a));
+        id.data[i * 4 + 3] = Math.round(a * 255);
       }
       x.putImageData(id, 0, 0);
       stripImg = c;
@@ -1245,7 +1260,27 @@
     if (SP.font === 255) opt('sFont', 'v:cur', (SP.vlw || 'VLW') + t('vlwCur'));
     [0, 1, 2].forEach(function (i) { opt('sTFmt', String(i), t('tf' + i)); });
     [0, 1, 2].forEach(function (i) { opt('sSec', String(i), t('sec' + i)); });
-    [0, 1, 2, 3, 4, 5].forEach(function (i) { opt('sDFmt', String(i), t('df' + i)); });
+    [0, 1, 6, 2, 3, 4, 5].forEach(function (i) { opt('sDFmt', String(i), t('df' + i)); });
+
+    // Die drei Zeilen des Streifens: Kennbuchstabe der Element-IDs, Groesse in % (SP-Feld), VLW-Groesse in px
+    // (SP-Feld, Vorgabe), Anzeige, Position und automatische Hoehe
+
+    // The three lines of the strip: letter of the element IDs, size in % (SP field), VLW size in px (SP field,
+    // default), show, position and automatic height
+
+    var LINES = [
+      { k: 'T', scale: 'ts', vlw: 'vt', vlwDef: 44, show: 'st', x: 'tx', y: 'ty', auto: 'aty', showDef: 1 },
+      { k: 'D', scale: 'ds', vlw: 'vd', vlwDef: 22, show: 'sd', x: 'dx', y: 'dy', auto: 'ady', showDef: 1 },
+      { k: 'W', scale: 'ws', vlw: 'vw', vlwDef: 22, show: 'sw', x: 'wx', y: 'wy', auto: 'awy', showDef: 0 }
+    ];
+
+    // Schluessel der erzeugten VLW-Dateien - der Wochentag zaehlt nur, wenn er angezeigt wird. Fehlt seine Datei
+    // auf der Uhr (SP.vwok), wird beim ersten Senden neu erzeugt.
+
+    // Key of the created VLW files - the weekday only counts if it is shown. If its file is missing on the clock
+    // (SP.vwok), they are created again on the first send.
+
+    var vlwKey = function (family, vt, vd, vw, sw, bold) { return family + '|' + vt + '|' + vd + '|' + (sw ? vw : '-') + '|' + bold; };
 
     // Designer-Schriften als VLW anbieten; die auf der Uhr aktive (SP.vlw, " B" = fett) wird wiedererkannt
     // Offer designer fonts as VLW; the one active on the clock (SP.vlw, " B" = bold) is recognised
@@ -1256,38 +1291,60 @@
       if (SP.font === 255 && $('sFont').value === 'v:cur' && SP.vlw.replace(/ B$/, '') === f.label) {
         $('sFont').value = 'v:' + i;
         $('sVB').checked = / B$/.test(SP.vlw);
-        lastVlwKey = f.family + '|' + SP.vt + '|' + SP.vd + '|' + $('sVB').checked;
+        lastVlwKey = (SP.sw && !SP.vwok) ? null : vlwKey(f.family, SP.vt, SP.vd, SP.vw, SP.sw, $('sVB').checked);
         vlwRows();
       }
     };
-    var vlwRows = function () {
+
+    // Groessen-Regler: eingebaute Schrift in % (sTS/sDS/sWS), Designer-Schrift (VLW) in px (sVT/sVD/sVW)
+    // Size sliders: built-in font in % (sTS/sDS/sWS), designer font (VLW) in px (sVT/sVD/sVW)
+
+    var sizeLabels = function () {
       var v = $('sFont').value.indexOf('v:') === 0;
+      LINES.forEach(function (L) {
+        $('s' + L.k + 'SVal').textContent = v ? $('sV' + L.k).value + ' px' : $('s' + L.k + 'S').value + ' %';
+      });
+    };
+    var vlwRows = function () {
+      var v = $('sFont').value.indexOf('v:') === 0, cur = $('sFont').value === 'v:cur';
       document.querySelectorAll('#stripCard .vlwRow').forEach(function (e) { e.style.display = v ? '' : 'none'; });
-      $('sVT').disabled = $('sVD').disabled = $('sVB').disabled = $('sFont').value === 'v:cur';
+      document.querySelectorAll('#stripCard .fontScale').forEach(function (e) { e.style.display = v ? 'none' : ''; });
+      LINES.forEach(function (L) { $('sV' + L.k).disabled = cur; });
+      $('sVB').disabled = cur;
+      sizeLabels();
     };
 
-    // Dateiname wie stripVlwPath() in display.h: stripfont_<Name>_<Groesse>.vlw, Leerzeichen -> '-'
-    // File name like stripVlwPath() in display.h: stripfont_<name>_<size>.vlw, spaces -> '-'
+    // Dateiname wie stripVlwPath() in display.h: stripfont_<Name>_<Groesse>.vlw, Leerzeichen -> '-'; der
+    // Wochentag mit "_wd" und den Buchstaben der Wochentage (deutsch und englisch)
 
-    var vlwFile = function (name, px) { return 'stripfont_' + name.replace(/ /g, '-').replace(/[^A-Za-z0-9_-]/g, '') + '_' + px + '.vlw'; };
-    var uploadVlw = function (family, name, vt, vd, bold) {
+    // File name like stripVlwPath() in display.h: stripfont_<name>_<size>.vlw, spaces -> '-'; the weekday with
+    // "_wd" and the letters of the weekdays (German and English)
+
+    var WDAY_CHARS = 'SonntagMontagDienstagMittwochDonnerstagFreitagSamstagSundayMondayTuesdayWednesdayThursdayFridaySaturday'
+      .split('').filter(function (c, i, a) { return a.indexOf(c) === i; }).join('');
+    var vlwFile = function (name, px, wd) {
+      return 'stripfont_' + name.replace(/ /g, '-').replace(/[^A-Za-z0-9_-]/g, '') + '_' + px + (wd ? '_wd' : '') + '.vlw';
+    };
+    var uploadVlw = function (family, name, vt, vd, vw, sw, bold) {
       var css = function (px) { return (bold ? 'bold ' : '') + px + 'px ' + family; };
-      var up = function (px, name) {
+      var up = function (px, wd) {
         var fd = new FormData();
-        fd.append('upload', makeVlw(css(px), px), name);
+        fd.append('upload', makeVlw(css(px), px, wd ? WDAY_CHARS : ''), vlwFile(name, px, wd));
         return fetch('/upload', { method: 'POST', body: fd, redirect: 'manual' });
       };
-      return Promise.all([document.fonts.load(css(vt), '0123456789'), document.fonts.load(css(vd), '0123456789')]).then(function () {
-        return up(vt, vlwFile(name, vt));
-      }).then(function () { if (vd !== vt) return up(vd, vlwFile(name, vd)); });
+      var loads = [document.fonts.load(css(vt), '0123456789'), document.fonts.load(css(vd), '0123456789')];
+      if (sw) loads.push(document.fonts.load(css(vw), WDAY_CHARS));
+      return Promise.all(loads).then(function () {
+        return up(vt, false);
+      }).then(function () { if (vd !== vt) return up(vd, false); }).then(function () { if (sw) return up(vw, true); });
     };
     fontFamilies.forEach(function (f, i) { onFontAdded(i); });
-    $('sTX').max = $('sDX').max = SP.w; $('sTY').max = $('sDY').max = SP.h;
+    LINES.forEach(function (L) { $('s' + L.k + 'X').max = SP.w; $('s' + L.k + 'Y').max = SP.h; });
     var stripSync = function () {
-      [['T', SP.aty], ['D', SP.ady]].forEach(function (k) {
-        var auto = $('s' + k[0] + 'Auto').checked;
-        $('s' + k[0] + 'X').disabled = $('s' + k[0] + 'Y').disabled = auto;
-        if (auto) { $('s' + k[0] + 'X').value = SP.w >> 1; $('s' + k[0] + 'Y').value = k[1]; }
+      LINES.forEach(function (L) {
+        var auto = $('s' + L.k + 'Auto').checked;
+        $('s' + L.k + 'X').disabled = $('s' + L.k + 'Y').disabled = auto;
+        if (auto) { $('s' + L.k + 'X').value = SP.w >> 1; $('s' + L.k + 'Y').value = SP[L.auto]; }
       });
     };
     var stripFill = function () {
@@ -1295,18 +1352,30 @@
       if (SP.font !== 255) $('sFont').value = String(SP.font);
       else if ($('sFont').value.indexOf('v:') !== 0) $('sFont').value = 'v:cur';
       $('sTFmt').value = String(SP.tfmt || 0); $('sSec').value = String(SP.sec || 0); $('sDFmt').value = String(SP.dfmt || 0);
-      $('sVT').value = SP.vt || 44; $('sVD').value = SP.vd || 22;
+      LINES.forEach(function (L) {
+        $('sV' + L.k).value = SP[L.vlw] || L.vlwDef;
+        $('s' + L.k + 'S').value = SP[L.scale] || 100;
+        $('s' + L.k + 'Show').checked = SP[L.show] === undefined ? !!L.showDef : !!SP[L.show];
+        $('s' + L.k + 'Auto').checked = !(SP[L.x] >= 0);
+        $('s' + L.k + 'X').value = SP[L.x] >= 0 ? SP[L.x] : SP.w >> 1;
+        $('s' + L.k + 'Y').value = SP[L.y] >= 0 ? SP[L.y] : SP[L.auto];
+      });
       vlwRows();
-      $('sTAuto').checked = SP.tx < 0; $('sDAuto').checked = SP.dx < 0;
-      $('sTX').value = SP.tx < 0 ? SP.w >> 1 : SP.tx; $('sTY').value = SP.ty < 0 ? SP.aty : SP.ty;
-      $('sDX').value = SP.dx < 0 ? SP.w >> 1 : SP.dx; $('sDY').value = SP.dy < 0 ? SP.ady : SP.dy;
       stripSync();
     };
-    var stripSend = function (save) {
+    var stripSend = function (save, face) {
       var p = new URLSearchParams();
+      if (face) p.set('face', face);
       SP.before = +$('sBefore').value; SP.bg = $('sBg').value;
       p.set('before', $('sBefore').value); p.set('blink', $('sBlink').checked ? '1' : '0'); p.set('bg', $('sBg').value); p.set('fg', $('sFg').value);
       p.set('tfmt', $('sTFmt').value); p.set('sec', $('sSec').value); p.set('dfmt', $('sDFmt').value);
+      LINES.forEach(function (L) {
+        var auto = $('s' + L.k + 'Auto').checked;
+        SP[L.scale] = +$('s' + L.k + 'S').value;
+        SP[L.show] = $('s' + L.k + 'Show').checked ? 1 : 0;
+        p.set(L.scale, SP[L.scale]); p.set(L.show, SP[L.show]);
+        p.set(L.x, auto ? -1 : $('s' + L.k + 'X').value); p.set(L.y, auto ? -1 : $('s' + L.k + 'Y').value);
+      });
 
       // Designer-Schrift: VLW-Dateien nur neu erzeugen, wenn sich Schrift, Groesse oder Fett geaendert haben
       // Designer font: only create new VLW files if font, size or bold changed
@@ -1315,50 +1384,64 @@
       if (fv.indexOf('v:') === 0) {
         p.set('font', 255);
         if (fv !== 'v:cur') {
-          var ff = fontFamilies[+fv.slice(2)], vt = +$('sVT').value || 44, vd = +$('sVD').value || 22, bold = $('sVB').checked;
-          var key = ff.family + '|' + vt + '|' + vd + '|' + bold;
-          p.set('vlw', ff.label + (bold ? ' B' : '')); p.set('vt', vt); p.set('vd', vd);
-          SP.vlw = ff.label + (bold ? ' B' : ''); SP.vt = vt; SP.vd = vd;
-          if (key !== lastVlwKey) prep = uploadVlw(ff.family, SP.vlw, vt, vd, bold).then(function () { lastVlwKey = key; });
+          var ff = fontFamilies[+fv.slice(2)], bold = $('sVB').checked;
+          var vt = +$('sVT').value || 44, vd = +$('sVD').value || 22, vw = +$('sVW').value || 22;
+          var key = vlwKey(ff.family, vt, vd, vw, SP.sw, bold);
+          p.set('vlw', ff.label + (bold ? ' B' : '')); p.set('vt', vt); p.set('vd', vd); p.set('vw', vw);
+          SP.vlw = ff.label + (bold ? ' B' : ''); SP.vt = vt; SP.vd = vd; SP.vw = vw;
+          if (key !== lastVlwKey) prep = uploadVlw(ff.family, SP.vlw, vt, vd, vw, SP.sw, bold).then(function () { lastVlwKey = key; });
         }
       }
       else p.set('font', fv);
       SP.font = fv.indexOf('v:') === 0 ? 255 : +fv;
-      p.set('tx', $('sTAuto').checked ? -1 : $('sTX').value); p.set('ty', $('sTAuto').checked ? -1 : $('sTY').value);
-      p.set('dx', $('sDAuto').checked ? -1 : $('sDX').value); p.set('dy', $('sDAuto').checked ? -1 : $('sDY').value);
       p.set('save', save ? '1' : '0');
       return prep.then(function () {
         return fetch('/save_strip', { method: 'POST', body: p });
       }, function (e) { showMsg(t('vlwErr'), false); throw e; }).then(function (r) { return r.json(); }).then(function (j) {
         if (!j.ok) throw new Error();
-        SP.aty = j.aty; SP.ady = j.ady;
+        SP.aty = j.aty; SP.ady = j.ady; SP.awy = j.awy;
         stripSync();
         loadStripImg();
-        if (save) showMsg(t('stripSaved'), true);
+        if (save && !face) showMsg(t('stripSaved'), true);
       }).catch(function () { showMsg(t('stripErr'), false); });
     };
+    stripSaveFor = function (face) { clearTimeout(stripTimer); return stripSend(true, face); };
     var stripLive = function () {
       stripSync();
       clearTimeout(stripTimer);
       stripTimer = setTimeout(function () { stripSend(false); }, 250);
     };
     $('sFont').addEventListener('change', vlwRows);
-    ['sBefore', 'sBlink', 'sBg', 'sFg', 'sFont', 'sVT', 'sVD', 'sVB', 'sTFmt', 'sSec', 'sDFmt', 'sTAuto', 'sDAuto', 'sTX', 'sTY', 'sDX', 'sDY'].forEach(function (id) {
+    var liveIds = ['sBefore', 'sBlink', 'sBg', 'sFg', 'sFont', 'sVB', 'sTFmt', 'sSec', 'sDFmt'];
+    LINES.forEach(function (L) { ['S', 'Show', 'Auto', 'X', 'Y'].forEach(function (s) { liveIds.push('s' + L.k + s); }); });
+    liveIds.forEach(function (id) {
       $(id).addEventListener('input', stripLive);
       $(id).addEventListener('change', stripLive);
+    });
+
+    // VLW-Groesse erst beim Loslassen senden - jede Groesse ist eine eigene Datei auf der Uhr
+    // Send the VLW size only on release - every size is a file of its own on the clock
+
+    LINES.forEach(function (L) {
+      $('s' + L.k + 'S').addEventListener('input', sizeLabels);
+      $('sV' + L.k).addEventListener('input', sizeLabels);
+      $('sV' + L.k).addEventListener('change', stripLive);
     });
     $('sBefore').addEventListener('change', function () { setStripBefore(this.value === '1'); });
     $('sDefBtn').onclick = function () {
       setStripBefore(false);
-      SP.before = 0; SP.blink = 1; SP.bg = '#000000'; SP.fg = '#ffffff'; SP.font = 0; SP.tfmt = 0; SP.sec = 0; SP.dfmt = 0;
-      SP.tx = SP.ty = SP.dx = SP.dy = -1;
+      SP.before = 0; SP.blink = 1; SP.bg = '#ffffff'; SP.fg = '#000000'; SP.font = Math.max(0, SP.fonts.indexOf('FreeSans Bold'));
+      SP.tfmt = 0; SP.sec = 0; SP.dfmt = 0; SP.vt = 44; SP.vd = SP.vw = 22;
+      LINES.forEach(function (L) { SP[L.scale] = 100; SP[L.show] = L.showDef; SP[L.x] = SP[L.y] = -1; });
       stripFill(); stripLive();
     };
     $('sSaveBtn').onclick = function () { clearTimeout(stripTimer); stripSend(true); };
     var stripLabels = { tStrip: 'strip', tSPos: 'sPos', tSBg: 'sBg', tSFg: 'sFg', tSFont: 'sFont', tSTime: 'sTime', tSDate: 'sDate',
-      stripHint: 'stripHint', tSVSize: 'sVSize', tSTFmt: 'sTFmt', tSSec: 'sSec', tSDFmt: 'sDFmt' };
+      tSWday: 'sWday', stripHint: 'stripHint', tSTFmt: 'sTFmt', tSSec: 'sSec', tSDFmt: 'sDFmt' };
     Object.keys(stripLabels).forEach(function (id) { $(id).textContent = t(stripLabels[id]); });
-    document.querySelectorAll('#stripCard .tSAuto').forEach(function (e) { e.textContent = t('sAuto'); });
+    [['tSAuto', 'sAuto'], ['tSShow', 'sShow'], ['tSSize', 'sSize'], ['tSXY', 'sXY']].forEach(function (c) {
+      document.querySelectorAll('#stripCard .' + c[0]).forEach(function (e) { e.textContent = t(c[1]); });
+    });
     $('tSBlink').textContent = t('sBlink');
     $('sDefBtn').textContent = t('sDef'); $('sSaveBtn').textContent = t('sSave');
     stripFill();

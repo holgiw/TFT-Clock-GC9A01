@@ -28,6 +28,17 @@
 
     bool loggingEnabled = false;
 
+    // Laufendes Firmware-Update (ota_update.h): loop() pausiert, WLAN-Scans unterbleiben. Bleibt auf
+    // S2/C6 (ohne OTA) immer false.
+
+    // Running firmware update (ota_update.h): loop() pauses, WiFi scans are skipped. Always stays false on
+    // S2/C6 (without OTA).
+
+    bool otaInProgress = false;
+    unsigned long otaStartMillis = 0;
+    String otaUploadError = ""; // Fehler beim Hochladen ueber die Weboberflaeche, leer = ok
+                                // error while uploading via the web interface, empty = ok
+
     // Log-Zeilen werden gesammelt statt einzeln auf Flash geschrieben - jeder Flash-Zugriff haelt kurz alles
     // an (auch die Displayuebertragung). logBufferMutex schuetzt logLineBuffer, da auch NTP-/Rocrail-Tasks
     // hineinschreiben.
@@ -642,6 +653,8 @@
     // run. Query via isDisplayConnected()/effectiveRotation(), never compare the value directly.
 
     uint8_t tftRotation1 = TFT_ROTATION1_DEFAULT;
+    bool autoRotation = false; // Display 1 dreht sich nach dem Lagesensor (imu_rotation.h, nur S3)
+                               // display 1 turns according to the motion sensor (imu_rotation.h, S3 only)
     uint8_t tftRotation2 = TFT_ROTATION2_DEFAULT; // Rotation von Display 2 (CS2) - eigener Wert, damit beide Displays
                                                   // unterschiedlich ausgerichtet montiert sein koennen (siehe uhr4.ino/webserver_routes.h)
                                                   // rotation of Display 2 (CS2) - its own value, so both displays can be
@@ -820,6 +833,35 @@
     String stripVlwName = "";
     uint8_t stripVlwTimeSize = 44;
     uint8_t stripVlwDateSize = 22;
+
+    // Groesse der eingebauten Streifen-Schrift in Prozent (STRIP_SCALE_MIN..MAX), getrennt fuer Uhrzeit und Datum.
+    // VLW-Schriften haben stattdessen ihre Pixelgroesse (stripVlwTimeSize/stripVlwDateSize).
+
+    // Size of the built-in strip font in percent (STRIP_SCALE_MIN..MAX), separate for time and date. VLW fonts
+    // have their pixel size instead (stripVlwTimeSize/stripVlwDateSize).
+
+    String stripSettingsFor = "?"; // Zifferblatt, dessen Streifen-Einstellungen geladen sind ("?" = neu laden)
+                                   // clock face whose strip settings are loaded ("?" = reload)
+    uint8_t stripTimeScale = 100;
+    uint8_t stripDateScale = 100;
+    bool stripShowTime = true; // Uhrzeit bzw. Datum im Streifen ein-/ausgeschaltet
+    bool stripShowDate = true; // time or date in the strip switched on/off
+
+    // Wochentag ausgeschrieben (Sprache der Weboberflaeche): ab Werk aus, eigene Groesse und Position. Die
+    // VLW-Datei hat zusaetzlich die Buchstaben der Wochentage (stripVlwPath(size, true)).
+
+    // Weekday written out (language of the web interface): off by default, own size and position. The VLW
+    // file additionally holds the letters of the weekdays (stripVlwPath(size, true)).
+
+    bool stripShowWeekday = false;
+    uint8_t stripWeekdayScale = 100;
+    uint8_t stripVlwWeekdaySize = 22;
+    int16_t stripWeekdayX = -1;
+    int16_t stripWeekdayY = -1;
+    int16_t stripAutoWeekdayY = 0;
+    uint8_t* stripVlwWeekday = nullptr;
+    int8_t stripWeekdayLine = -1; // quer: Zeile des Wochentags (stripContent()), -1 = keine
+                                  // landscape: line of the weekday (stripContent()), -1 = none
 
     // Wird hochgezaehlt, sobald sich Zifferblatt, Zeigersatz oder Zeigerbreiten
     // aendern - macht jedes Zwischenbild ungueltig, ohne dass jede einzelne

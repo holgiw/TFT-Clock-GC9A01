@@ -161,11 +161,12 @@
 
 
     // Preset-URL: Zifferblatt, Zeiger, Modi und Nabe wie uebergeben, Zeitzone, Rocrail, WLAN neu verbinden,
-    // Helligkeit und Streifen aus den aktuellen Einstellungen - gemeinsam fuer createPresetFromPreferences() und
-    // addStarterPresets().
+    // Helligkeit aus den aktuellen Einstellungen - gemeinsam fuer createPresetFromPreferences() und
+    // addStarterPresets(). Der Streifen gehoert zum Zifferblatt (stripcfg_*.txt), nicht zum Preset.
 
     // Preset URL: clock face, hands, modes and hub as passed, time zone, Rocrail, reconnect WiFi, brightness
-    // and strip from the current settings - shared by createPresetFromPreferences() and addStarterPresets().
+    // from the current settings - shared by createPresetFromPreferences() and addStarterPresets(). The strip
+    // belongs to the clock face (stripcfg_*.txt), not to the preset.
 
     String buildPresetUrl(const String& face, const String& handSet, bool stationMode, bool showSecondHand,
                           bool smoothMinute, bool smoothSecond, uint8_t hubSize, uint32_t hubColor) {
@@ -216,29 +217,6 @@
         url += "&gamma=" + String(preferences.getFloat(PK_GAMMA_BRIGHTNESS, 2.2f), 1);
         url += "&autoBrightness=" + String(useAdc ? "true" : "false");
 
-        // Streifen fuer Uhrzeit/Datum (nur Displays mit Streifen, ILI9341) - Lage, Farben, Schrift (auch die
-        // VLW-Schrift mit Groessen), Formate und Positionen. Die Streifen-Grafik haengt am Zifferblatt.
-
-        // Time/date strip (only displays with a strip, ILI9341) - placement, colors, font (also the VLW font with
-        // sizes), formats and positions. The strip graphic belongs to the clock face.
-
-        if (TFT_HEIGHT > CLOCK_HEIGHT) {
-            url += "&stripBefore=" + String(preferences.getBool(PK_STRIP_BEFORE, false) ? "true" : "false");
-            url += "&stripBg=" + String(preferences.getULong(PK_STRIP_BG, 0x000000), HEX);
-            url += "&stripFg=" + String(preferences.getULong(PK_STRIP_FG, 0xFFFFFF), HEX);
-            url += "&stripFont=" + String(preferences.getUChar(PK_STRIP_FONT, 0));
-            url += "&stripVlw=" + presetUrlEncode(preferences.getString(PK_STRIP_VLW_NAME, ""));
-            url += "&stripVt=" + String(preferences.getUChar(PK_STRIP_VLW_TSIZE, 44));
-            url += "&stripVd=" + String(preferences.getUChar(PK_STRIP_VLW_DSIZE, 22));
-            url += "&stripTfmt=" + String(preferences.getUChar(PK_STRIP_TIME_FMT, 0));
-            url += "&stripSec=" + String(preferences.getUChar(PK_STRIP_SECONDS, 0));
-            url += "&stripDfmt=" + String(preferences.getUChar(PK_STRIP_DATE_FMT, 0));
-            url += "&stripBlink=" + String(preferences.getBool(PK_STRIP_BLINK, true) ? "true" : "false");
-            url += "&stripTx=" + String(preferences.getShort(PK_STRIP_TIME_X, -1));
-            url += "&stripTy=" + String(preferences.getShort(PK_STRIP_TIME_Y, -1));
-            url += "&stripDx=" + String(preferences.getShort(PK_STRIP_DATE_X, -1));
-            url += "&stripDy=" + String(preferences.getShort(PK_STRIP_DATE_Y, -1));
-        }
         return url;
     }
 
@@ -454,21 +432,6 @@
         return url.substring(0, start) + value + (end < 0 ? String("") : url.substring(end));
     }
 
-    // Standard-Streifen wie das Set "Standard" - weisser Streifen, schwarze Schrift, FreeSans Bold - als aktuelle
-    // Einstellung (nur Displays mit Streifen): fuer eine neue Uhr und nach einer Sicherung einer Uhr ohne Streifen.
-
-    // Standard strip like the set "Standard" - white strip, black text, FreeSans Bold - as the current setting
-    // (displays with a strip only): for a new clock and after a backup of a clock without a strip.
-
-    void applyStandardStrip() {
-        if (TFT_HEIGHT <= CLOCK_HEIGHT) return;
-        applyStripPresetValue("stripBg", "ffffff", true);
-        applyStripPresetValue("stripFg", "0", true);
-        for (uint8_t f = 0; f < STRIP_FONT_COUNT; f++) {
-            if (strcmp(STRIP_FONTS[f].name, "FreeSans Bold") == 0) applyStripPresetValue("stripFont", String(f), true);
-        }
-    }
-
     // Kleinste und groesste vorhandene Groesse einer Streifen-Schrift aus dem Designer (stripfont_<Name>_<Groesse>.vlw)
     // Smallest and largest available size of a strip font from the designer (stripfont_<name>_<size>.vlw)
 
@@ -479,7 +442,7 @@
         File root = LittleFS.open("/");
         for (File f = root.openNextFile(); f; f = root.openNextFile()) {
             String n = f.name();
-            if (f.isDirectory() || !n.startsWith(prefix) || !n.endsWith(".vlw")) continue;
+            if (f.isDirectory() || !n.startsWith(prefix) || !n.endsWith(".vlw") || n.endsWith("_wd.vlw")) continue;
             int size = n.substring(prefix.length(), n.length() - 4).toInt();
             if (size <= 0) continue;
             if (!minSize || size < minSize) minSize = size;
@@ -487,6 +450,60 @@
         }
         root.close();
         return maxSize > 0;
+    }
+
+    // Einmalig: Streifen-Einstellungen von vor 2026-10-08 (Preferences fuer alle Zifferblaetter, Streifen-Werte
+    // in Presets) als stripcfg_*.txt zu den Zifferblaettern - erst das aktive aus den Preferences, dann je Preset
+    // sein Zifferblatt, solange es noch keine Datei hat. Laeuft in setup() nach loadPresets().
+
+    // Once: strip settings from before 2026-10-08 (preferences for all clock faces, strip values in presets) as
+    // stripcfg_*.txt for the clock faces - first the active one from the preferences, then per preset its clock
+    // face as long as it has no file yet. Runs in setup() after loadPresets().
+
+    void migrateStripSettings() {
+        if (TFT_HEIGHT <= CLOCK_HEIGHT || preferences.getBool(PK_STRIP_CFG_DONE, false)) return;
+        String active = stripConfigPath(selectedBackground);
+        if (active.length() && !LittleFS.exists(active) && loadLegacyStripPrefs()) saveStripSettingsForFace(selectedBackground);
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            const String& url = presets[i].url;
+            int f = url.indexOf("face=");
+            if (f < 0 || url.indexOf("stripBg=") < 0) continue;
+            int end = url.indexOf('&', f);
+            String face = "/" + presetUrlDecode(url.substring(f + 5, end < 0 ? url.length() : end));
+            String cfg = stripConfigPath(face);
+            if (!cfg.length() || LittleFS.exists(cfg) || !LittleFS.exists(face)) continue;
+            loadLegacyStripPrefs();
+            applyStripQuery(url);
+            saveStripSettingsForFace(face);
+        }
+        preferences.putBool(PK_STRIP_CFG_DONE, true);
+        stripSettingsFor = "?";
+        DEBUG_PRINTLN("[Strip] Settings moved to the clock faces (stripcfg_*.txt)");
+    }
+
+    // Verwaiste Streifen loeschen: strip_<Name>.bmp und stripcfg_<Name>.txt ohne face_<Name>.bmp (z.B. nach
+    // Loeschen ueber den Dateimanager oder einem Absturz). Laeuft in setup() nach migrateStripSettings().
+
+    // Delete orphaned strips: strip_<name>.bmp and stripcfg_<name>.txt without face_<name>.bmp (e.g. after
+    // deleting via the file manager or a crash). Runs in setup() after migrateStripSettings().
+
+    void removeOrphanedStrips() {
+        std::vector<String> orphans;
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+            String n = f.name();
+            String face;
+            if (n.startsWith("strip_") && n.endsWith(".bmp")) face = "/face_" + n.substring(6);
+            else if (n.startsWith("stripcfg_") && n.endsWith(".txt")) face = "/face_" + n.substring(9, n.length() - 4) + ".bmp";
+            if (face.length() && !f.isDirectory()) orphans.push_back(face + "|/" + n);
+        }
+        root.close();
+        for (const String& o : orphans) {
+            int sep = o.indexOf('|');
+            if (LittleFS.exists(o.substring(0, sep))) continue;
+            LittleFS.remove(o.substring(sep + 1));
+            DEBUG_PRINTLN("[Strip] Removed orphaned " + o.substring(sep + 1));
+        }
     }
 
     // Legt die drei Start-Presets zu den erzeugten Zifferblaettern und Zeigersaetzen an - jedes nur, wenn seine
@@ -516,29 +533,37 @@
             presets[freeSlot].name = s.name;
             String url = buildPresetUrl(s.face, String(s.handSet), true, s.second, false, true, displayGeom->centerSize, s.hubColor);
 
-            // Displays mit Streifen (ILI9341, ST7789 172x320): weisser Streifen, schwarze Schrift, je Preset eine
-            // eingebaute Schrift
-            // Displays with a strip (ILI9341, ST7789 172x320): white strip, black text, one built-in font per preset
+            // Displays mit Streifen (ILI9341, ST7789 172x320): Streifen-Einstellungen des Zifferblatts, falls es noch
+            // keine hat - weisser Streifen, schwarze Schrift, je Zifferblatt eine eingebaute Schrift
 
-            if (TFT_HEIGHT > CLOCK_HEIGHT) {
-                url = setPresetUrlParam(url, "stripBg", "ffffff");
-                url = setPresetUrlParam(url, "stripFg", "0");
+            // Displays with a strip (ILI9341, ST7789 172x320): strip settings of the clock face if it has none
+            // yet - white strip, black text, one built-in font per clock face
+
+            String cfg = stripConfigPath("/" + String(s.face));
+            if (TFT_HEIGHT > CLOCK_HEIGHT && cfg.length() && !LittleFS.exists(cfg)) {
+                String saved = stripSettingsQuery();
+                resetStripSettings();
                 for (uint8_t f = 0; f < STRIP_FONT_COUNT; f++) {
-                    if (strcmp(STRIP_FONTS[f].name, s.stripFont) == 0) url = setPresetUrlParam(url, "stripFont", String(f));
+                    if (strcmp(STRIP_FONTS[f].name, s.stripFont) == 0) stripFont = f;
                 }
 
                 // Eigene Designer-Schrift (VLW), falls auf der Uhr vorhanden: groesste Datei fuer die Uhrzeit,
                 // kleinste fuers Datum - sonst bleibt die eingebaute Schrift
+
                 // Own designer font (VLW) if present on the clock: largest file for the time, smallest for the
                 // date - otherwise the built-in font stays
 
                 int vlwMin = 0, vlwMax = 0;
                 if (s.vlw && stripVlwSizes(s.vlw, vlwMin, vlwMax)) {
-                    url = setPresetUrlParam(url, "stripFont", String(STRIP_FONT_VLW));
-                    url = setPresetUrlParam(url, "stripVlw", s.vlw);
-                    url = setPresetUrlParam(url, "stripVt", String(vlwMax));
-                    url = setPresetUrlParam(url, "stripVd", String(vlwMin));
+                    stripFont = STRIP_FONT_VLW;
+                    stripVlwName = s.vlw;
+                    stripVlwTimeSize = vlwMax;
+                    stripVlwDateSize = vlwMin;
                 }
+                saveStripSettingsForFace("/" + String(s.face));
+                resetStripSettings();
+                applyStripQuery(saved);
+                stripSettingsFor = "?";
             }
             presets[freeSlot].url = url;
             changed = true;
@@ -560,8 +585,6 @@
         DEBUG_PRINTLN("[Starter] No clock faces and hand sets - generating the starter set");
         ensureDefaultFace();
         ensureDefaultHands();
-
-        applyStandardStrip();
         loadPresets();
         for (int i = 0; i < MAX_PRESETS; i++) {
             if (!presets[i].name.isEmpty()) return;

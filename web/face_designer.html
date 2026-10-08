@@ -97,14 +97,23 @@
           <span id="tSPos"></span><span><select id="sBefore"></select></span>
           <span id="tSBg"></span><span><input type="color" class="clr" id="sBg"></span>
           <span id="tSFg"></span><span><input type="color" class="clr" id="sFg"></span>
-          <span id="tSFont"></span><span><select id="sFont"></select></span>
-          <span class="vlwRow" id="tSVSize"></span><span class="vlwRow"><input type="number" class="num2" id="sVT" min="8" max="120"> / <input type="number" class="num2" id="sVD" min="8" max="120"> px <label><input type="checkbox" id="sVB">B</label></span>
+          <span id="tSFont"></span><span><select id="sFont"></select> <label class="vlwRow"><input type="checkbox" id="sVB">B</label></span>
+          <b class="sGrp" id="tSTime"></b>
+          <span></span><span><label><input type="checkbox" id="sTShow"><span class="tSShow"></span></label></span>
+          <span class="tSSize"></span><span><input type="range" class="rng fontScale" id="sTS" min="50" max="200" step="5"><input type="range" class="rng vlwRow" id="sVT" min="8" max="120"> <span id="sTSVal"></span></span>
           <span id="tSTFmt"></span><span><select id="sTFmt"></select></span>
           <span id="tSSec"></span><span><select id="sSec"></select></span>
-          <span id="tSDFmt"></span><span><select id="sDFmt"></select></span>
           <span></span><span><label><input type="checkbox" id="sBlink"><span id="tSBlink"></span></label></span>
-          <span id="tSTime" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sTAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sTX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sTY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
-          <span id="tSDate" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sDAuto"><span class="tSAuto"></span></label><br>X <input type="range" id="sDX" min="0" style="width:150px;margin:2px 0;vertical-align:middle"><br>Y <input type="range" id="sDY" min="0" style="width:150px;margin:2px 0;vertical-align:middle"></span>
+          <span class="tSXY" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sTAuto"><span class="tSAuto"></span></label><br>X <input type="range" class="rng" id="sTX" min="0"><br>Y <input type="range" class="rng" id="sTY" min="0"></span>
+          <b class="sGrp" id="tSDate"></b>
+          <span></span><span><label><input type="checkbox" id="sDShow"><span class="tSShow"></span></label></span>
+          <span class="tSSize"></span><span><input type="range" class="rng fontScale" id="sDS" min="50" max="200" step="5"><input type="range" class="rng vlwRow" id="sVD" min="8" max="120"> <span id="sDSVal"></span></span>
+          <span id="tSDFmt"></span><span><select id="sDFmt"></select></span>
+          <span class="tSXY" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sDAuto"><span class="tSAuto"></span></label><br>X <input type="range" class="rng" id="sDX" min="0"><br>Y <input type="range" class="rng" id="sDY" min="0"></span>
+          <b class="sGrp" id="tSWday"></b>
+          <span></span><span><label><input type="checkbox" id="sWShow"><span class="tSShow"></span></label></span>
+          <span class="tSSize"></span><span><input type="range" class="rng fontScale" id="sWS" min="50" max="200" step="5"><input type="range" class="rng vlwRow" id="sVW" min="8" max="120"> <span id="sWSVal"></span></span>
+          <span class="tSXY" style="align-self:start;margin-top:4px"></span><span><label><input type="checkbox" id="sWAuto"><span class="tSAuto"></span></label><br>X <input type="range" class="rng" id="sWX" min="0"><br>Y <input type="range" class="rng" id="sWY" min="0"></span>
         </div>
         <small id="stripHint"></small>
         <button type="button" class="tb" id="sDefBtn"></button>

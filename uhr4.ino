@@ -1,5 +1,5 @@
     // howl-clock@gmx.de - Stationsuhr uhr4: ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT
-    // GC9A01/GC9D01/ILI9341, oder ESP32-C6 mit ST7789. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // GC9A01/GC9D01/ILI9341, ESP32-C6 mit ST7789 oder ESP32-S3 mit GC9A01. DCF77-Modul: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
     // Bibliotheken (Bibliotheksverwalter): LovyanGFX 1.2.31, RTClib 2.1.4 mit Adafruit BusIO 1.17.4. WiFi,
     // WebServer, LittleFS, Preferences, DNSServer, ESPmDNS und Wire bringt der Core "esp32" 3.3.12 von
@@ -12,15 +12,19 @@
     // (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled". Pins stellt config.h ein (BOARD_WAVESHARE_C6_ST7789),
     // das Display der Displaytyp (ST7789 / ST7789_240).
 
+    // Waveshare ESP32-S3-LCD-1.28 (eigenes Build): Board "ESP32S3 Dev Module", Flash Size "16MB", PSRAM "QSPI
+    // PSRAM", Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)", USB CDC On Boot "Disabled" (USB ueber CH343P).
+    // Pins stellt config.h ein (BOARD_WAVESHARE_S3_GC9A01).
+
     // build_opt.h (nur "-g0", Kommentare darf die Datei nicht enthalten): ohne Debug-Infos - schnelleres
     // Uebersetzen und Linken, gleiche Firmware; ein Absturz-Backtrace zeigt dann nur Funktionsnamen.
 
-    // ESP32-S2 braucht beim Linken -mtext-section-literals (sonst "dangerous relocation: l32r"). Visual Micro
+    // ESP32-S2 und -S3 brauchen beim Linken -mtext-section-literals (sonst "dangerous relocation: l32r"). Visual Micro
     // liest board.txt. Arduino IDE: platform.local.txt aus dem Projektordner nach
     // %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\ kopieren (Linux/macOS: siehe Datei).
 
     // howl-clock@gmx.de - station clock uhr4: ESP32-S2 Mini (Lolin S2 Pico), LittleFS, TFT
-    // GC9A01/GC9D01/ILI9341, or ESP32-C6 with ST7789. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
+    // GC9A01/GC9D01/ILI9341, ESP32-C6 with ST7789 or ESP32-S3 with GC9A01. DCF77 module: https://de.elv.com/p/elv-dcf-empfangsmodul-dcf-2-P091610/
 
     // Libraries (Library Manager): LovyanGFX 1.2.31, RTClib 2.1.4 with Adafruit BusIO 1.17.4. WiFi,
     // WebServer, LittleFS, Preferences, DNSServer, ESPmDNS and Wire come with the "esp32" core 3.3.12 by
@@ -33,10 +37,14 @@
     // OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled". config.h sets the pins
     // (BOARD_WAVESHARE_C6_ST7789), the display type the display (ST7789 / ST7789_240).
 
+    // Waveshare ESP32-S3-LCD-1.28 (separate build): board "ESP32S3 Dev Module", Flash Size "16MB", PSRAM "QSPI
+    // PSRAM", Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)", USB CDC On Boot "Disabled" (USB via CH343P).
+    // config.h sets the pins (BOARD_WAVESHARE_S3_GC9A01).
+
     // build_opt.h (only "-g0", the file must not contain comments): without debug info - faster compiling
     // and linking, same firmware; a crash backtrace then only shows function names.
 
-    // The ESP32-S2 needs -mtext-section-literals when linking (else "dangerous relocation: l32r"). Visual
+    // The ESP32-S2 and -S3 need -mtext-section-literals when linking (else "dangerous relocation: l32r"). Visual
     // Micro reads board.txt. Arduino IDE: copy platform.local.txt from the project folder to
     // %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\ (Linux/macOS: see the file).
 
@@ -96,6 +104,8 @@
 #include "wifi_manager.h"      // WLAN: Verbindung, AP, Scan, Reconnect
                                // WiFi: connection, AP, scan, reconnect
 #include "time_sync.h"         // RTC, DCF77, NTP
+#include "open_wifi_time.h"    // Uhrzeit aus offenen WLANs beim Start (TLS)
+                               // time from open WiFis at boot (TLS)
 #include "rocrail_client.h"    // Rocrail-Modellzeit (Discovery, TCP-Client, Clock-Parsing)
                                // Rocrail model time (discovery, TCP client, clock parsing)
 #include "display.h"           // Zifferblatt, Zeiger, Helligkeit
@@ -110,6 +120,10 @@
                                 // clock face designer page (generated from web/, CSS/JS gzip)
 #include "backup.h"            // Komplettsicherung/-wiederherstellung (TAR)
                                // full backup/restore (TAR)
+#include "imu_rotation.h"      // automatische Rotation per Lagesensor (nur ESP32-S3)
+                               // automatic rotation via the motion sensor (ESP32-S3 only)
+#include "ota_update.h"        // Firmware-Update ueber WLAN (nur ESP32-S3)
+                               // firmware update over WiFi (ESP32-S3 only)
 #include "webserver_routes.h"  // Webinterface (alle HTTP-Routen)
                                // web interface (all HTTP routes)
 #include "system_utils.h"      // Tasten, Logging, Reset, Neustart
@@ -303,29 +317,43 @@ void connectWiFiAtBoot() {
                 }
             }
 
+            // Kein gespeichertes WLAN verbunden - nicht im Scan oder Verbindung gescheitert (z.B. falsches oder
+            // fehlendes Passwort): Uhrzeit aus einem offenen WLAN versuchen (open_wifi_time.h). Mit Zeit - auch einer
+            // inzwischen per USB gesetzten - normaler Uhrenbetrieb wie mit RTC, ohne WPS/AP; sonst DCF77, AP.
+
+            // No stored WiFi connected - not in the scan or the connection failed (e.g. a wrong or missing
+            // password): try the time from an open WiFi (open_wifi_time.h). With a time - also one set via USB
+            // meanwhile - normal clock operation as with an RTC, without WPS/AP; otherwise DCF77, AP.
+
+            bool storedInScan = foundLastSSID;
+            for (int i = 0; i < MAX_WLAN && !storedInScan; i++) {
+                if (availableNetworks[i].ssid == "") continue;
+                for (int j = 0; j < MAX_WLAN && !storedInScan; j++) {
+                    storedInScan = trim(wifiSsid[j]) != "" && wifiSsid[j] == availableNetworks[i].ssid;
+                }
+            }
+            DEBUG_PRINTLN(storedInScan ? "[WiFi] A stored WiFi is in range, but the connection failed (password?)"
+                                       : "[WiFi] None of the stored WiFis is in the scan");
+            if (fetchTimeFromOpenWifi()) {
+                DEBUG_PRINTLN("[WiFi] Time from open WiFi - normal clock mode without WPS/access point");
+                return;
+            }
+            struct tm keptTime;
+            if (getLocalTime(&keptTime, 0)) {
+                DEBUG_PRINTLN("[WiFi] Valid time already set (e.g. via USB) - normal clock mode without WPS/access point");
+                return;
+            }
+
             if (rtcOk == RTC_AVAILABLE) {
-                DRAW_ON_BOTH_DISPLAYS(
-                    tft.fillScreen(TFT_BLACK);
-                    tft.setTextColor(TFT_WHITE);
-                    tft.setTextSize(TFT_TEXT_SIZE);
-                    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                    tft.println(tftText(translate("Check RTC")));
-                );
+                showButtonMessage(TFT_GREEN, tftText(translate("Check RTC")), "...", "", TFT_DARKGREY);
                 delay(1000);
                 loadTimeFromRTC();
                 return;
             }
 
-            // delay(3000);
             if (dcf77Count >= 1) {
                 DEBUG_PRINTLN("[DCF77] DCF77 signal received during setup, waiting for valid time..");
-                DRAW_ON_BOTH_DISPLAYS(
-                    tft.fillScreen(TFT_BLACK);
-                    tft.setTextColor(TFT_WHITE);
-                    tft.setTextSize(TFT_TEXT_SIZE);
-                    tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                    tft.println(tftText(translate("DCF77 detected")));
-                );
+                showButtonMessage(TFT_GREEN, tftText(translate("DCF77 detected")), tftText(translate("Waiting")) + "...", "", TFT_DARKGREY);
 
                 unsigned long startWait = millis();
                 while (millis() - startWait < WAIT_1h) { // Warte bis zu 1 Stunde auf gültige DCF77-Zeit
@@ -343,6 +371,8 @@ void connectWiFiAtBoot() {
                     updateDcf77Status();
                     handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
                                             // display type via USB also during this wait (see handleSerialCommands())
+                    checkButton();          // Taster/Boot-Taste auch waehrend dieser Wartezeit
+                                            // button/boot button also during this wait
                     if (applyDcf77DecodedTime("[DCF77] boot (no WiFi/RTC)")) {
                         return;
                     }
@@ -350,11 +380,6 @@ void connectWiFiAtBoot() {
                         DEBUG_PRINTLN("[DCF77] Wait ended - time set via USB");
                         return;
                     }
-                    DRAW_ON_BOTH_DISPLAYS(
-                        tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 8));
-                        tft.print(tftText(translate("Waiting")));
-                        tft.print("...");
-                    );
                     delay(100);
                 }
             }
@@ -375,6 +400,15 @@ void connectWiFiAtBoot() {
     // Setup function
 
 void setup() {
+
+        // Systemzeit verwerfen: sie uebersteht einen Neustart per Reset-Taste oder Software. Jeder Start beginnt
+        // so ohne Zeit wie nach einem Stromausfall und holt sie neu (NTP, RTC, DCF77, offenes WLAN, USB).
+
+        // Discard the system time: it survives a restart via the reset button or software. Every boot thus
+        // starts without a time like after a power cut and gets it anew (NTP, RTC, DCF77, open WiFi, USB).
+
+        struct timeval noTime = { 0, 0 };
+        settimeofday(&noTime, nullptr);
 
         setLedOn();
 
@@ -471,7 +505,7 @@ void setup() {
         }
 
 
-        if (!LittleFS.begin(true)) {
+        if (!LittleFS.begin(true, "/littlefs", 10, LITTLEFS_PARTITION)) {
             if (loggingEnabled) Serial.println("[LittleFS] Mount Failed");
         }
 
@@ -649,6 +683,12 @@ void setup() {
             Wire.end();
             rtcOk = RTC_NOT_AVAILABLE;
         }
+
+        // Lagesensor fuer die automatische Rotation (nur ESP32-S3-LCD-1.28, imu_rotation.h)
+        // Motion sensor for the automatic rotation (ESP32-S3-LCD-1.28 only, imu_rotation.h)
+
+        imuBegin();
+        autoRotation = HAS_IMU && imuAvailable() && preferences.getBool(PK_AUTO_ROTATION, false);
 
 
         // PSRAM-Check: der GC9D01-Treiber hat keine Hardware-Rotation (MADCTL immer 0), mit PSRAM wird per
@@ -850,8 +890,6 @@ void setup() {
                                                                                // DB red
         hubColor = tft.color565((hubColorRgb >> 16) & 0xFF, (hubColorRgb >> 8) & 0xFF, hubColorRgb & 0xFF);
         hubSize = preferences.getUInt(PK_CENTER_SIZE, 6);
-        loadInfoStripSettings(); // Streifen Uhrzeit/Datum (nur ILI9341)
-                                 // time/date strip (ILI9341 only)
 
         // Auf 0-100 begrenzen: fruehere Backlight-Builds speicherten 255, das
         // Formularfeld (max 100) liesse sich damit gar nicht mehr absenden.
@@ -890,6 +928,14 @@ void setup() {
         useBacklight = preferences.getBool(PK_USE_BACKLIGHT, BACKLIGHT_DEFAULT);
 
         pinMode(BUTTON1, INPUT_PULLDOWN);
+
+        // Boot-Taste (GPIO 0 bzw. 9 beim C6) hat dieselbe Funktion wie der Taster - Pull-up ausdruecklich setzen,
+        // nicht nur auf den Zustand nach dem Reset verlassen
+
+        // Boot button (GPIO 0, or 9 on the C6) has the same function as the button - set the pull-up explicitly,
+        // do not just rely on the state after reset
+
+        pinMode(BOOT_BUTTON, INPUT_PULLUP);
 
         // auf Fotowiderstand prüfen
         // Check for photoresistor
@@ -1072,13 +1118,7 @@ void setup() {
 
         if (digitalRead(BUTTON1) == HIGH || digitalRead(BOOT_BUTTON) == LOW) {
             DEBUG_PRINTLN("[SETUP] Reset button pressed, clearing WiFi credentials and starting AP..");
-            DRAW_ON_BOTH_DISPLAYS(
-                tft.fillScreen(TFT_RED);
-                tft.setTextColor(TFT_WHITE);
-                tft.setTextSize(TFT_TEXT_SIZE);
-                tft.setCursor(20, (CLOCK_HEIGHT / 2) - (CLOCK_HEIGHT / 4));
-                tft.println(tftText(translate("Reset WLan...")));
-            );
+            showButtonMessage(TFT_YELLOW, "WiFi Reset", "...", "", TFT_DARKGREY);
             delay(1000);
 
             // preferences.end()/begin() nicht pro Eintrag noetig: putString()
@@ -1127,6 +1167,10 @@ void setup() {
         startNtpSyncTask("Initial sync");
 
         loadPresets();
+        migrateStripSettings(); // Streifen-Einstellungen einmalig zu den Zifferblaettern (presets_manager.h)
+                                // strip settings once to the clock faces (presets_manager.h)
+        removeOrphanedStrips(); // Streifen ohne Zifferblatt loeschen
+                                // delete strips without a clock face
 
         // NTP-Server unabhaengig von rtcOk starten - loop() prueft vor jeder Antwort ohnehin, ob eine
         // gueltige Zeit da ist. startNtpServer() statt udp.begin(): prueft das Ergebnis und wird nach jedem
@@ -1160,6 +1204,11 @@ void setup() {
     // Main loop
 
     void loop() {
+
+        // Firmware-Update ueber WLAN (nur ESP32-S3): waehrend es laeuft, pausiert alles andere
+        // Firmware update over WiFi (ESP32-S3 only): while it runs, everything else pauses
+
+        if (handleOta()) return;
 
         // updateClock() bedient beide Displays je Tick samt eigener Rotation. WPS per Web-Button startet
         // verzoegert hier, nicht im Handler von /api/startWPS - so wird die Zielseite des Redirects sofort
@@ -1431,6 +1480,7 @@ void setup() {
         // meanwhile, so the code stays readable.
 
         if (!checkFactoryResetCodePending()) {
+            handleAutoRotation(); // Rotation nach dem Lagesensor (nur S3 mit "automatisch") / rotation via the motion sensor (S3 with "automatic" only)
             updateClock();
         }
 
