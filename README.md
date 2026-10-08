@@ -2,7 +2,7 @@
 
 *English version below.*
 
-uhr4 zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem TFT-Display. Die Hardware ist ein ESP32-S2 (Lolin S2 Pico) mit rundem (GC9A01, GC9D01) oder rechteckigem Display (ILI9341) oder ein ESP32-C6 von Waveshare mit eingebautem ST7789. Auf hochkanten Displays (ILI9341, ST7789 172 × 320) steht die Uhr oben, darunter Uhrzeit und Datum. Die Zeit kommt per NTP (WLAN), DCF77 oder RTC. Zifferblätter, Zeiger und alle Einstellungen werden über die Weboberfläche angepasst.
+uhr4 zeigt die Uhrzeit als Zifferblatt mit Zeigern auf einem TFT-Display. Die Hardware ist ein ESP32-S2 (Lolin S2 Pico) mit rundem (GC9A01, GC9D01) oder rechteckigem Display (ILI9341) oder ein ESP32-C6 von Waveshare mit eingebautem ST7789. Auf den rechteckigen Displays (ILI9341, ST7789 172 × 320) zeigt ein Streifen neben der Uhr Uhrzeit und Datum, wahlweise über oder unter der Uhr (quer: links oder rechts). Die Zeit kommt per NTP (WLAN), DCF77 oder RTC. Zifferblätter, Zeiger und alle Einstellungen werden über die Weboberfläche angepasst.
 
 **Download:** Firmware mit Flash-Tool unter [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) oder im Ordner `build_uhr4` (Anleitung: `build_uhr4/readme.txt`). Beim Update von uhr3 (Version 3) übernimmt uhr4 den Displaytyp.
 
@@ -15,9 +15,9 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 - **ESP32-S2** (Lolin S2 Pico, Build `build_uhr4/esp32s2`):
   - GC9A01 – rund, 240 × 240; ohne oder mit geregelter Hintergrundbeleuchtung (BL)
   - GC9D01 – rund, 160 × 160; BL geregelt
-  - ILI9341 – rechteckig, 240 × 320; oben die Uhr (240 × 240, Zifferblätter und Zeiger wie beim GC9A01), darunter Uhrzeit und Datum; feste Beleuchtung
+  - ILI9341 – rechteckig, 240 × 320; Uhr 240 × 240 (Zifferblätter und Zeiger wie beim GC9A01) und Streifen mit Uhrzeit und Datum; feste Beleuchtung
 - **ESP32-C6** (Waveshare, Display fest verbaut, Build `build_uhr4/esp32c6`, ohne PSRAM; BL geregelt):
-  - ESP32-C6-LCD-1.47: ST7789 – rechteckig, 172 × 320; oben die Uhr (172 × 172), darunter Uhrzeit und Datum
+  - ESP32-C6-LCD-1.47: ST7789 – rechteckig, 172 × 320; Uhr 172 × 172 und Streifen mit Uhrzeit und Datum
   - ESP32-C6-LCD-1.3: ST7789_240 – quadratisch, 240 × 240
 - Zweites, baugleiches Display (nur ESP32-S2) mit eigener Rotation (0°, 90°, 180°, 270°). Steht ein Display auf „nicht angeschlossen (n.a.)“, bleibt es schwarz, und die Uhr zeichnet und berechnet nichts dafür. Standard: Display 1 mit 0°, Display 2 n.a. Status- und Startmeldungen (Start, Access-Point-Modus) erscheinen bis zum Uhrstart trotzdem auf beiden Displays; die Einstellungsseite weist darauf hin.
 
@@ -153,7 +153,7 @@ FreeSans, Orbitron) stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
 
 # English Version
 
-uhr4 shows the time as a clock face with hands on a TFT display. The hardware is an ESP32-S2 (Lolin S2 Pico) with a round (GC9A01, GC9D01) or rectangular display (ILI9341), or a Waveshare ESP32-C6 with a built-in ST7789. On portrait displays (ILI9341, ST7789 172 × 320) the clock is on top, with time and date below. The time comes via NTP (WiFi), DCF77 or RTC. Clock faces, hands and all settings are adjusted in the web interface.
+uhr4 shows the time as a clock face with hands on a TFT display. The hardware is an ESP32-S2 (Lolin S2 Pico) with a round (GC9A01, GC9D01) or rectangular display (ILI9341), or a Waveshare ESP32-C6 with a built-in ST7789. On the rectangular displays (ILI9341, ST7789 172 × 320) a strip next to the clock shows time and date, either above or below the clock (landscape: left or right). The time comes via NTP (WiFi), DCF77 or RTC. Clock faces, hands and all settings are adjusted in the web interface.
 
 **Download:** firmware with flash tool under [Releases](https://github.com/holgiw/ESP32-Station-Clock/releases/latest) or in the folder `build_uhr4` (instructions: `build_uhr4/readme.txt`). When updating from uhr3 (version 3), uhr4 keeps the display type.
 
@@ -164,9 +164,9 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 - **ESP32-S2** (Lolin S2 Pico, build `build_uhr4/esp32s2`):
   - GC9A01 – round, 240 × 240; without or with controlled backlight (BL)
   - GC9D01 – round, 160 × 160; BL controlled
-  - ILI9341 – rectangular, 240 × 320; the clock on top (240 × 240, clock faces and hands as for the GC9A01), time and date below; fixed backlight
+  - ILI9341 – rectangular, 240 × 320; clock 240 × 240 (clock faces and hands as for the GC9A01) and a strip with time and date; fixed backlight
 - **ESP32-C6** (Waveshare, display built in, build `build_uhr4/esp32c6`, without PSRAM; BL controlled):
-  - ESP32-C6-LCD-1.47: ST7789 – rectangular, 172 × 320; the clock on top (172 × 172), time and date below
+  - ESP32-C6-LCD-1.47: ST7789 – rectangular, 172 × 320; clock 172 × 172 and a strip with time and date
   - ESP32-C6-LCD-1.3: ST7789_240 – square, 240 × 240
 - A second, identical display (ESP32-S2 only) with its own rotation (0°, 90°, 180°, 270°). A display set to "not connected (n.a.)" stays black, and the clock neither draws nor calculates anything for it. Default: display 1 at 0°, display 2 n.a. Status and boot messages (boot, access point mode) still appear on both displays until the clock starts; the settings page notes this.
 

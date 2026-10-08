@@ -54,10 +54,10 @@ function Set-Board([string]$b) {
     $script:board = $b
     if ($b -eq 'c6') {
         $script:names = @{ 1 = 'ST7789'; 2 = 'ST7789_240' }
-        $script:labels = @{ 1 = 'ST7789 (172x320, Waveshare ESP32-C6-LCD-1.47) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock'; 2 = 'ST7789 (240x240, Waveshare ESP32-C6-LCD-1.3)' }
+        $script:labels = @{ 1 = 'ST7789 (172x320, Waveshare ESP32-C6-LCD-1.47) mit Streifen fuer Uhrzeit und Datum / with time and date strip'; 2 = 'ST7789 (240x240, Waveshare ESP32-C6-LCD-1.3)' }
     } else {
         $script:names = @{ 1 = 'GC9A01'; 2 = 'GC9A01_WITH_BACKLIGHT'; 3 = 'GC9D01'; 4 = 'ILI9341' }
-        $script:labels = @{ 1 = 'GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)'; 2 = 'GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3'; 3 = 'GC9D01 (160x160)'; 4 = 'ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock' }
+        $script:labels = @{ 1 = 'GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)'; 2 = 'GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3'; 3 = 'GC9D01 (160x160)'; 4 = 'ILI9341 (240x320) mit Streifen fuer Uhrzeit und Datum / with time and date strip' }
     }
 }
 Set-Board 's2'

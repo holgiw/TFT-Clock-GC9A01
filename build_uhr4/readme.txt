@@ -26,7 +26,7 @@ flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 
 	Displaytyp:
 	  ESP32-S2: 1 = GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL), 2 = GC9A01 mit BL an Pin 3,
-	            3 = GC9D01 (160x160), 4 = ILI9341 (240x320, Uhr oben, darunter Uhrzeit und Datum)
+	            3 = GC9D01 (160x160), 4 = ILI9341 (240x320, Uhr mit Streifen für Uhrzeit und Datum)
 	  ESP32-C6: 1 = ST7789 (172x320, ESP32-C6-LCD-1.47), 2 = ST7789_240 (240x240, ESP32-C6-LCD-1.3)
 	  Enter = unverändert (Update einer eingerichteten Uhr).
 	Läuft auf der Uhr schon uhr4, fragt flashESP.bat ihren Displaytyp ab und wählt ihn vor (Enter
@@ -290,7 +290,7 @@ Linux section, port /dev/cu.usbmodem...).
 
 	Display type:
 	  ESP32-S2: 1 = GC9A01 (240x240) without backlight (BL), 2 = GC9A01 with BL on pin 3,
-	            3 = GC9D01 (160x160), 4 = ILI9341 (240x320, clock on top, time and date below)
+	            3 = GC9D01 (160x160), 4 = ILI9341 (240x320, clock with a time and date strip)
 	  ESP32-C6: 1 = ST7789 (172x320, ESP32-C6-LCD-1.47), 2 = ST7789_240 (240x240, ESP32-C6-LCD-1.3)
 	  Enter = unchanged (updating a clock that is already set up).
 	If the clock already runs uhr4, flashESP.bat asks it for its display type and preselects it

@@ -461,11 +461,11 @@ query_clock_info() {
 # Sets DISP (empty = send nothing).
 ask_display() {
     local k mark answer choice
-    local labels=("" "GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)" "GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3" "GC9D01 (160x160)" "ILI9341 (240x320) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock")
+    local labels=("" "GC9A01 (240x240) ohne Hintergrundbeleuchtung (BL) / without backlight (BL)" "GC9A01 (240x240) mit Hintergrundbeleuchtung (BL) an Pin 3 / with backlight (BL) on pin 3" "GC9D01 (160x160)" "ILI9341 (240x320) mit Streifen fuer Uhrzeit und Datum / with time and date strip")
     local names=("" GC9A01 GC9A01_WITH_BACKLIGHT GC9D01 ILI9341)
     local keys="1 2 3 4" hint="1, 2, 3 oder 4 / 1, 2, 3 or 4"
     if [ "$BOARD" = c6 ]; then
-        labels=("" "ST7789 (172x320, Waveshare ESP32-C6-LCD-1.47) mit Uhrzeit und Datum unter der Uhr / with time and date below the clock" "ST7789 (240x240, Waveshare ESP32-C6-LCD-1.3)")
+        labels=("" "ST7789 (172x320, Waveshare ESP32-C6-LCD-1.47) mit Streifen fuer Uhrzeit und Datum / with time and date strip" "ST7789 (240x240, Waveshare ESP32-C6-LCD-1.3)")
         names=("" ST7789 ST7789_240)
         keys="1 2"
         hint="1 oder 2 / 1 or 2"
