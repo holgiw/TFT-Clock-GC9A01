@@ -7357,9 +7357,9 @@
             // overwritten (backup.h).
 
             html += "<h3>" + translate("Restore Backup") + "</h3>";
-            html += "<p>" + translate("Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards") + ".</p>";
+            html += "<p>" + translate("Takes over the settings of the backup and adds its presets, clock faces and hand sets - existing ones stay, same-named ones are replaced by the backup. The clock restarts afterwards") + ".</p>";
             html += "<p><small>" + translate("Display type, rotation, backlight and light sensor of this clock stay unchanged. From a clock with another display type only clock faces, hands, presets and general settings are restored, scaled to this clock - its clock faces must be 240x240") + ". " + translate("This clock") + ": " + String(displayChoiceName(displayType, useBacklight)) + ".</small></p>";
-            html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' id='restoreForm' data-ask='" + translate("Replace all current settings, clock faces and hand sets with the backup?") + "'>";
+            html += "<form method='POST' action='/backup/restore' enctype='multipart/form-data' id='restoreForm' data-ask='" + translate("Take over the settings of the backup? Existing clock faces, hand sets and presets stay, same-named ones are replaced.") + "'>";
             html += "<label><input type='checkbox' name='restoreWifi' value='1' style='width:auto;margin:0 6px 0 0;'>" + translate("Restore WiFi credentials (network names, passwords, hostname)") + "</label>";
             html += "<p><small>" + translate("Without this option the clock keeps its own WiFi and hostname - recommended when transferring the settings to another clock") + ".</small></p>";
             html += "<input type='file' name='backupfile' accept='.tar' required> ";

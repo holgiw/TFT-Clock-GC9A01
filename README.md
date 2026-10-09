@@ -135,7 +135,7 @@ Eine Firmware je ESP. Den Displaytyp wählt man im Tab „Uhr Einstellungen“ o
 - Bis zu 50 Uhren Sets (Presets) mit Zifferblatt, Zeigersatz, Nabenfarbe und -größe, Sekundenzeiger (sichtbar, Stil), Bahnhofsmodus, sanftem Minutenzeiger, Zeitzone und Helligkeit. Einzeln umbenennen und löschen, alphabetisch sortiert; alle zusammen in eine Datei sichern und wiederherstellen. Sind alle 50 Plätze belegt, erscheint eine Warnung.
 - Komplettsicherung (Seite „Sicherung“):
   - Eine TAR-Datei mit allen Einstellungen, Uhren Sets, Zifferblättern, Zeigersätzen und Schriften; Zifferblätter und Zeiger darin als normale BMP-Bilder. Der Dateiname enthält Hostname, Displaytyp, Datum und Uhrzeit.
-  - Wiederherstellen auf dieser oder einer anderen Uhr; Sichern und Wiederherstellen zeigen einen Fortschrittsbalken.
+  - Wiederherstellen auf dieser oder einer anderen Uhr; Sichern und Wiederherstellen zeigen einen Fortschrittsbalken. Vorhandene Zifferblätter, Zeigersätze und Uhren Sets bleiben; gleichnamige aus der Sicherung ersetzen sie.
   - WLAN-Zugangsdaten nur auf Wunsch, verschlüsselt mit einem Schlüssel, der in jeder uhr4-Firmware gleich ist – also nicht sicher.
   - Displaytyp, Rotation, Hintergrundbeleuchtung und Lichtsensor der Ziel-Uhr bleiben. Eine falsche oder beschädigte Datei ändert nichts.
   - Sicherung von einem anderen Displaytyp: Die Uhr weist darauf hin und übernimmt nur Zifferblätter, Zeiger (auf ihre Größe skaliert), Uhren Sets und allgemeine Einstellungen. Die Nabengröße (auch in den Uhren Sets) rechnet sie um, die Helligkeit bleibt. Das geht nur mit Zifferblättern in 240 × 240, sonst übernimmt sie nichts. Hat die Sicherung keinen Streifen, bekommt eine Uhr mit Streifen den Standard-Streifen.
@@ -299,7 +299,7 @@ One firmware per ESP. The display type is chosen in the "Clock Setup" tab or whe
 - Up to 50 presets with clock face, hand set, hub colour and size, second hand (visible, style), station mode, smooth minute hand, time zone and brightness. Rename and delete them individually, sorted alphabetically; back up all of them to one file and restore them. A warning appears once all 50 slots are full.
 - Full backup (Backup page):
   - One TAR file with all settings, presets, clock faces, hand sets and fonts; clock faces and hands inside as normal BMP images. The file name contains host name, display type, date and time.
-  - Restore on this or another clock; backup and restore show a progress bar.
+  - Restore on this or another clock; backup and restore show a progress bar. Existing clock faces, hand sets and presets stay; same-named ones from the backup replace them.
   - WiFi credentials only on request, encrypted with a key that is the same in every uhr4 firmware – so not secure.
   - Display type, rotation, backlight and light sensor of the target clock stay. A wrong or damaged file changes nothing.
   - Backup from another display type: the clock points this out and only takes over clock faces, hands (scaled to its size), presets and general settings. It converts the hub size (also in the presets), the brightness stays. This only works with clock faces in 240 × 240, otherwise it takes over nothing. If the backup has no strip, a clock with a strip gets the standard strip.

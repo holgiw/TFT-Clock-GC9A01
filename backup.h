@@ -30,6 +30,7 @@
 #include <nvs.h>
 #include <mbedtls/gcm.h>
 #include <esp_random.h>
+#include <algorithm>
 
 #define BACKUP_SETTINGS_NAME   "settings.txt"
 #define BACKUP_TMP_PATH        "/backup_restore.tmp" // BMP aus der Sicherung, bis es RLE-komprimiert abgelegt ist
@@ -900,13 +901,13 @@
     }
 
 
-    // settings.txt anwenden (nach checkBackupSettings()): erst alle ersetzten Schluessel entfernen (so
-    // verschwinden auch ueberzaehlige Presets), dann die Werte mit ihrem Typ schreiben. isBackupKeptKey()
-    // (Hardware, ohne applyWifi auch WLAN/Hostname) bleibt unberuehrt.
+    // settings.txt anwenden (nach checkBackupSettings()): erst alle ersetzten Schluessel entfernen, dann die
+    // Werte mit ihrem Typ schreiben. isBackupKeptKey() (Hardware, ohne applyWifi auch WLAN/Hostname) bleibt
+    // unberuehrt; die vorhandenen Presets holt mergeRestoredPresets() danach zurueck.
 
-    // Apply settings.txt (after checkBackupSettings()): first remove all replaced keys (so surplus presets
-    // disappear too), then write the values with their type. isBackupKeptKey() (hardware, without applyWifi
-    // also WiFi/hostname) stays untouched.
+    // Apply settings.txt (after checkBackupSettings()): first remove all replaced keys, then write the values
+    // with their type. isBackupKeptKey() (hardware, without applyWifi also WiFi/hostname) stays untouched;
+    // mergeRestoredPresets() brings the existing presets back afterwards.
 
     void applyBackupSettings(const String& settings, bool applyWifi, bool keepBrightness, bool otherType, const String& wifiPlain) {
 
@@ -1054,27 +1055,50 @@
         DEBUG_PRINTLN("[Backup] Restore failed: " + error);
     }
 
-    // Loescht alle Zifferblaetter und Zeigersaetze - erst NACHDEM settings.txt
-    // vollstaendig geprueft ist (siehe backupRestoreSettingsDone()), damit eine
-    // falsch gewaehlte Datei oder nicht entschluesselbare WLAN-Daten nichts zerstoert.
+    // Presets nach dem Wiederherstellen zusammenfuehren: die vorhandenen (keptNames/keptUrls, vor
+    // applyBackupSettings() gelesen) bleiben auf ihren Plaetzen, ein gleichnamiges der Sicherung ersetzt sie dort.
+    // Presets der Sicherung mit neuem Namen kommen in freie Plaetze, ohne freien Platz fallen sie weg (Log).
 
-    // Deletes all clock faces and hand sets - only AFTER settings.txt has been
-    // fully checked (see backupRestoreSettingsDone()), so a wrongly chosen file
-    // or undecryptable WiFi data doesn't destroy anything.
+    // Merge presets after the restore: the existing ones (keptNames/keptUrls, read before applyBackupSettings())
+    // stay in their slots, a backup preset with the same name replaces them there. Backup presets with a new name
+    // go into free slots, without a free slot they are dropped (log).
 
-    void deleteAllFacesAndHands() {
-        std::vector<String> toDelete;
-        std::vector<size_t> unused;
-        collectBackupFiles(toDelete, unused);
-        for (const String& name : toDelete) LittleFS.remove("/" + name);
-        DEBUG_PRINTLN("[Backup] Removed " + String(toDelete.size()) + " existing faces/hand sets");
+    void mergeRestoredPresets(std::vector<String> keptNames, std::vector<String> keptUrls) {
+        std::vector<String> addNames, addUrls;
+        int replaced = 0;
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            String n = preferences.getString(pkPresetName(i).c_str(), "");
+            if (n.isEmpty()) continue;
+            String u = preferences.getString(pkPresetUrl(i).c_str(), "");
+            auto same = std::find(keptNames.begin(), keptNames.end(), n);
+            if (same != keptNames.end()) {
+                keptUrls[same - keptNames.begin()] = u;
+                replaced++;
+                continue;
+            }
+            addNames.push_back(n);
+            addUrls.push_back(u);
+        }
+        size_t next = 0;
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            String n = keptNames[i], u = keptUrls[i];
+            if (n.isEmpty() && u.isEmpty() && next < addNames.size()) {
+                n = addNames[next];
+                u = addUrls[next];
+                next++;
+            }
+            if (n.isEmpty()) preferences.remove(pkPresetName(i).c_str()); else preferences.putString(pkPresetName(i).c_str(), n);
+            if (u.isEmpty()) preferences.remove(pkPresetUrl(i).c_str()); else preferences.putString(pkPresetUrl(i).c_str(), u);
+        }
+        DEBUG_PRINTLN("[Backup] Presets: " + String(replaced) + " replaced, " + String(next) + " added from the backup" +
+                      (next < addNames.size() ? ", " + String(addNames.size() - next) + " skipped (no free slot)" : String("")));
     }
 
-    // settings.txt ist vollstaendig: pruefen (inkl. WLAN-Entschluesselung), erst dann
-    // die vorhandenen Zifferblaetter/Zeiger loeschen - ab hier wird geaendert.
+    // settings.txt ist vollstaendig: pruefen (inkl. WLAN-Entschluesselung), erst dann wird geaendert.
+    // Vorhandene Zifferblaetter, Zeiger und Presets bleiben, gleichnamige aus der Sicherung ersetzen sie.
 
-    // settings.txt is complete: check it (incl. WiFi decryption), only then
-    // delete the existing faces/hands - from here on things get changed.
+    // settings.txt is complete: check it (incl. WiFi decryption), only then things get changed. Existing
+    // clock faces, hands and presets stay, same-named ones from the backup replace them.
 
     bool backupRestoreSettingsDone() {
         BackupRestoreState& s = *backupRestore;
@@ -1086,7 +1110,6 @@
             backupRestoreFail(error);
             return false;
         }
-        deleteAllFacesAndHands();
         s.settingsChecked = true;
         return true;
     }
@@ -1283,6 +1306,14 @@
                 backupRestoreFail("backup contains no settings");
                 return;
             }
+            // Vorhandene Presets merken - applyBackupSettings() ersetzt sie, mergeRestoredPresets() holt sie zurueck
+            // Remember the existing presets - applyBackupSettings() replaces them, mergeRestoredPresets() restores them
+
+            std::vector<String> keptNames, keptUrls;
+            for (int i = 0; i < MAX_PRESETS; i++) {
+                keptNames.push_back(preferences.getString(pkPresetName(i).c_str(), ""));
+                keptUrls.push_back(preferences.getString(pkPresetUrl(i).c_str(), ""));
+            }
             applyBackupSettings(backupRestore->settings, backupRestore->applyWifi, backupRestore->keepBrightness, backupRestore->otherType,
                                 backupRestore->wifiPlain);
 
@@ -1302,7 +1333,9 @@
                 if (backupRestore->otherType) scaleStripConfigFile("/" + f, from.panelWidth, from.panelHeight - from.clock);
             }
             if (!hasStripCfg) preferences.remove(PK_STRIP_CFG_DONE);
-            if (backupRestore->otherType) scaleBackupHubSizes(backupRestore->settings, from.clock);
+            if (backupRestore->otherType) scaleBackupHubSizes(backupRestore->settings, from.clock); // nur Presets der Sicherung
+                                                                                                    // only the backup's presets
+            mergeRestoredPresets(keptNames, keptUrls);
             backupWipe(backupRestore->wifiPlain);
             backupRestore->phase = BackupRestoreState::END;
             DEBUG_PRINTLN("[Backup] Restore complete: " + String(backupRestore->restoredFiles.size()) + " files");

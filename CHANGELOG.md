@@ -70,6 +70,10 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- Wiederherstellen einer Sicherung löscht nichts mehr: Vorhandene Zifferblätter, Zeigersätze, Streifen,
+  Schriften und Uhren Sets bleiben, gleichnamige aus der Sicherung ersetzen sie. Uhren Sets der Sicherung mit
+  neuem Namen kommen in freie Plätze. Die übrigen Einstellungen übernimmt die Uhr wie bisher aus der
+  Sicherung.
 - Jeder Start beginnt ohne Uhrzeit: Die Systemzeit überstand bisher einen Neustart per Reset-Taste oder
   Software und wird jetzt am Anfang verworfen. Die Uhr holt sie wie nach einem Stromausfall neu (NTP, RTC,
   DCF77, offenes WLAN, USB).
@@ -286,6 +290,9 @@
     their clock faces.
 
 ### Changed
+- Restoring a backup no longer deletes anything: existing clock faces, hand sets, strips, fonts and presets
+  stay, same-named ones from the backup replace them. Backup presets with a new name go into free slots. The
+  clock takes over the other settings from the backup as before.
 - Every boot starts without a time: the system time used to survive a restart via the reset button or
   software and is now discarded at the start. The clock gets it anew as after a power cut (NTP, RTC, DCF77,
   open WiFi, USB).

@@ -343,12 +343,12 @@
         { "Nothing was changed on the clock", "An der Uhr wurde nichts ge&auml;ndert" },
         { "Download Backup", "Sicherung herunterladen" },
         { "Restore Backup", "Sicherung wiederherstellen" },
-        { "Replaces all settings, presets, clock faces and hand sets with the contents of the backup - the clock restarts afterwards", "Ersetzt alle Einstellungen, Presets, Zifferbl&auml;tter und Zeigers&auml;tze durch den Inhalt der Sicherung - die Uhr startet danach neu" },
+        { "Takes over the settings of the backup and adds its presets, clock faces and hand sets - existing ones stay, same-named ones are replaced by the backup. The clock restarts afterwards", "&Uuml;bernimmt die Einstellungen der Sicherung und erg&auml;nzt ihre Presets, Zifferbl&auml;tter und Zeigers&auml;tze - vorhandene bleiben, gleichnamige ersetzt die Sicherung. Die Uhr startet danach neu" },
 
         // Steht in einem JavaScript-confirm() mit einfachen Anfuehrungszeichen - daher ohne Apostroph
         // Used inside a JavaScript confirm() with single quotes - hence no apostrophe
 
-        { "Replace all current settings, clock faces and hand sets with the backup?", "Alle aktuellen Einstellungen, Zifferbl&auml;tter und Zeigers&auml;tze durch die Sicherung ersetzen?" },
+        { "Take over the settings of the backup? Existing clock faces, hand sets and presets stay, same-named ones are replaced.", "Die Einstellungen der Sicherung &uuml;bernehmen? Vorhandene Zifferbl&auml;tter, Zeigers&auml;tze und Presets bleiben, gleichnamige werden ersetzt." },
         { "The backup could not be restored", "Die Sicherung konnte nicht wiederhergestellt werden" },
         { "Backup restored", "Sicherung wiederhergestellt" },
         { "This backup is from a {b} clock, this clock is a {c}", "Diese Sicherung stammt von einer {b}-Uhr, diese Uhr ist eine {c}" },
