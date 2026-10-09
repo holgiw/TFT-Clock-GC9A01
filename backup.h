@@ -52,8 +52,8 @@
     // change) and obsolete keys (isObsoletePrefKey()) - "ssid"/"pass" held the WiFi in plain text.
 
     bool isBackupExcludedKey(const String& key) {
-        return key == PK_VERSION || key == PK_FIRST_START || key == PK_MIGRATIONS_DONE ||
-               key == PK_LOG_FILE_NUMBER || key == PK_LAST_RESET_WEEK || isObsoletePrefKey(key);
+        return key == PK_VERSION || key == PK_FIRST_START || key == PK_MIGRATIONS_DONE || key == PK_SUBDIAL_SET || key == PK_RENUM_PLAN ||
+               key == PK_LOG_FILE_NUMBER || key == PK_LAST_RESET_WEEK || key.startsWith("wtx") || isObsoletePrefKey(key);
     }
 
 
@@ -407,6 +407,13 @@
     bool isBackupFileName(const String& name) {
         if (name.length() == 0 || name.length() > 60) return false;
         if (name.indexOf('/') >= 0 || name.indexOf("..") >= 0) return false;
+
+        // Von der Firmware erzeugte Dateien (Startpaket) gehoeren nicht in die Sicherung und werden nie
+        // ueberschrieben - die Uhr erzeugt sie selbst
+        // Files created by the firmware (starter set) are not part of the backup and are never overwritten -
+        // the clock creates them itself
+
+        if (isProtectedFile(name)) return false;
         if (name.startsWith("font_")) {
             return name.endsWith(".ttf") || name.endsWith(".otf") || name.endsWith(".woff") || name.endsWith(".woff2");
         }
@@ -513,7 +520,7 @@
     String buildStatusText() {
         char now[24] = "";
         if (timeinfo.tm_year >= 100) strftime(now, sizeof(now), "%Y-%m-%d %H:%M:%S", &timeinfo);
-        String text = "uhr4 status - " + String(hostname) + " - " + displayChoiceName(displayType, useBacklight) + " - " + now + "\n\n";
+        String text = "uhr4 status - " + String(hostname) + " - " + CHIP_SHORT_NAME + " " + displayChoiceName(displayType, useBacklight) + " - " + now + "\n\n";
         String chunk;
         generateStatusItems(chunk, [&text](String& part) { text += htmlToText(part); part = ""; });
         return text;
@@ -615,12 +622,12 @@
         total += 512 + status.length() + tarPadding(status.length());
         for (size_t i = 0; i < logNames.size(); i++) total += 512 + logSizes[i] + tarPadding(logSizes[i]);
 
-        // Dateiname mit Hostname, Displaytyp (wie in flashESP, z.B. GC9A01_WITH_BACKLIGHT), Datum und Uhrzeit
-        // File name with host name, display type (as in flashESP, e.g. GC9A01_WITH_BACKLIGHT), date and time
+        // Dateiname mit Hostname, Chip (S2, S3, C6), Displaytyp (wie in flashESP, z.B. GC9A01_WITH_BACKLIGHT), Datum und Uhrzeit
+        // File name with host name, chip (S2, S3, C6), display type (as in flashESP, e.g. GC9A01_WITH_BACKLIGHT), date and time
 
         char date[24] = "";
         if (timeinfo.tm_year >= 100) strftime(date, sizeof(date), "-%Y%m%d-%H%M%S", &timeinfo);
-        String fileName = "uhr4-backup-" + String(hostname) + "-" + displayChoiceName(displayType, useBacklight) + date + ".tar";
+        String fileName = "uhr4-backup-" + String(hostname) + "-" + CHIP_SHORT_NAME + "-" + displayChoiceName(displayType, useBacklight) + date + ".tar";
 
         webserver.sendHeader("Content-Disposition", "attachment; filename=" + fileName);
         webserver.sendHeader("Cache-Control", "no-store");
@@ -1022,6 +1029,8 @@
         String bmpTarget;          // Bild, das gerade nach BACKUP_TMP_PATH geschrieben wird
                                    // image currently being written to BACKUP_TMP_PATH
         std::vector<String> restoredFiles;
+        std::vector<String> tempHandIds; // Nummern von Zeigersaetzen der Sicherung, die hier die Firmware belegt
+                                         // numbers of hand sets in the backup that the firmware occupies here
         String error;
 
         // Formularfelder (stehen im Formular VOR der Datei, damit sie beim
@@ -1050,6 +1059,10 @@
         if (!backupRestore) return;
         if (backupRestore->out) backupRestore->out.close();
         LittleFS.remove(BACKUP_TMP_PATH);
+        for (const String& f : backupRestore->restoredFiles) {
+            if (f.startsWith("hand_set~")) LittleFS.remove("/" + f); // halb umbenannte Zeigersaetze nicht liegen lassen
+                                                                      // do not leave half-renamed hand sets behind
+        }
         backupRestore->phase = BackupRestoreState::FAILED;
         backupRestore->error = error;
         DEBUG_PRINTLN("[Backup] Restore failed: " + error);
@@ -1092,6 +1105,108 @@
         }
         DEBUG_PRINTLN("[Backup] Presets: " + String(replaced) + " replaced, " + String(next) + " added from the backup" +
                       (next < addNames.size() ? ", " + String(addNames.size() - next) + " skipped (no free slot)" : String("")));
+    }
+
+    // Zeigersaetze der Sicherung, deren Nummer hier die Firmware belegt (0, 1, 2 und der Sekundenfeld-Satz, siehe
+    // isProtectedFile()): z.B. die Saetze 0-2 einer aelteren Sicherung. Sie kommen zuerst unter "hand_set~<Nr>_..."
+    // auf die Uhr und werden am Ende von placeRenamedHandSets() umbenannt.
+
+    // Hand sets of the backup whose number the firmware occupies here (0, 1, 2 and the subdial set, see
+    // isProtectedFile()): e.g. sets 0-2 of an older backup. They first land as "hand_set~<no>_..." and are renamed
+    // at the end by placeRenamedHandSets().
+
+    bool isRenamedHandCandidate(const String& name) {
+        if (name.length() == 0 || name.length() > 60 || name.indexOf('/') >= 0 || name.indexOf("..") >= 0) return false;
+        if (!name.startsWith("hand_set") || !name.endsWith(".bmp")) return false;
+        int us = name.indexOf('_', 8);
+        return us > 8 && isProtectedHandSetId(name.substring(8, us));
+    }
+
+    // Gleiche Pixel? (beide Zeigerdateien in das Zeigerformat gelesen - unabhaengig vom Format der Datei)
+    // Same pixels? (both hand files read into the hand format - independent of the file's format)
+
+    bool handFilesSame(const String& a, const String& b) {
+        size_t n = (size_t)HAND_WIDTH * HAND_HEIGHT;
+        uint16_t* pa = (uint16_t*)malloc(n * 2);
+        uint16_t* pb = (uint16_t*)malloc(n * 2);
+        bool same = pa && pb && loadHandPixels(a, pa) && loadHandPixels(b, pb) && memcmp(pa, pb, n * 2) == 0;
+        free(pa);
+        free(pb);
+        return same;
+    }
+
+    struct HandSetMove {
+        String from, to;
+    };
+
+    // Die zwischengelegten Zeigersaetze endgueltig ablegen: sind alle ihre Zeiger pixelgleich mit dem Satz der
+    // Firmware (z.B. die erzeugten Saetze einer aelteren Sicherung), entfallen sie und das Preset zeigt weiter auf
+    // den Satz der Firmware. Sonst bekommen sie die kleinste freie Nummer ab 3. Gibt die Umbenennungen zurueck.
+
+    // Place the temporarily stored hand sets for good: if all their hands are pixel-identical to the firmware's
+    // set (e.g. the generated sets of an older backup), they are dropped and the preset keeps pointing at the
+    // firmware's set. Otherwise they get the smallest free number from 3. Returns the renames.
+
+    std::vector<HandSetMove> placeRenamedHandSets(const std::vector<String>& tempIds) {
+        std::vector<HandSetMove> moves;
+        if (tempIds.empty()) return moves;
+
+        std::set<String> occupied = { "0", "1", "2", subdialHandSet() };
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+            String n = f.name();
+            if (f.isDirectory() || !n.startsWith("hand_set") || n.startsWith("hand_set~")) continue;
+            int us = n.indexOf('_', 8);
+            if (us > 8) occupied.insert(n.substring(8, us));
+        }
+        root.close();
+
+        for (const String& id : tempIds) {
+            bool any = false, same = true;
+            for (const char* part : { "hour", "minute", "second" }) {
+                String temp = "/hand_set~" + id + "_" + part + ".bmp";
+                if (!LittleFS.exists(temp)) continue;
+                any = true;
+                String own = "/hand_set" + id + "_" + part + ".bmp";
+                if (!LittleFS.exists(own) || !handFilesSame(temp, own)) same = false;
+            }
+            if (!any) continue;
+            if (same) {
+                for (const char* part : { "hour", "minute", "second" }) LittleFS.remove("/hand_set~" + id + "_" + part + ".bmp");
+                DEBUG_PRINTLN("[Backup] Hand set " + id + " equals the firmware's set - dropped");
+                continue;
+            }
+            int n = 3;
+            while (occupied.count(String(n))) n++;
+            String to = String(n);
+            occupied.insert(to);
+            for (const char* part : { "hour", "minute", "second" }) {
+                String temp = "/hand_set~" + id + "_" + part + ".bmp";
+                if (LittleFS.exists(temp)) LittleFS.rename(temp, "/hand_set" + to + "_" + part + ".bmp");
+            }
+            moves.push_back({ id, to });
+            DEBUG_PRINTLN("[Backup] Hand set " + id + " of the backup stored as set " + to);
+        }
+        return moves;
+    }
+
+    // Presets und aktiven Zeigersatz der Sicherung auf die neuen Nummern umstellen. Leer, "default" und "0" meinen
+    // beide Satz 0.
+
+    // Switch the backup's presets and active hand set to the new numbers. Empty, "default" and "0" all mean set 0.
+
+    String movedHandSetId(const std::vector<HandSetMove>& moves, const String& id) {
+        String key = (id.isEmpty() || id == "default") ? String("0") : id;
+        for (const HandSetMove& m : moves) {
+            if (m.from == key) return m.to;
+        }
+        return id;
+    }
+
+    void applyHandSetMoves(const std::vector<HandSetMove>& moves) {
+        if (moves.empty()) return;
+        int changed = rewriteHandSetRefs([&](const String& id) { return movedHandSetId(moves, id); });
+        DEBUG_PRINTLN("[Backup] Presets switched to the new hand set numbers: " + String(changed));
     }
 
     // settings.txt ist vollstaendig: pruefen (inkl. WLAN-Entschluesselung), erst dann wird geaendert.
@@ -1208,16 +1323,28 @@
             s.toSettings = true;
             s.settings.reserve(size);
         }
-        else if ((type == '0' || type == 0) && isBackupFileName(name) && size > 0 && !skipBackupStripFile(name)) {
+        else if ((type == '0' || type == 0) && size > 0 && !skipBackupStripFile(name) &&
+                 (isBackupFileName(name) || isRenamedHandCandidate(name))) {
             bool bmp = name.endsWith(".bmp");
-            s.bmpTarget = bmp ? name : String();
-            String path = bmp ? String(BACKUP_TMP_PATH) : String("/" + name);
+
+            // Zeigersatz mit einer von der Firmware belegten Nummer: unter einem Zwischennamen ablegen
+            // Hand set with a number occupied by the firmware: store under a temporary name
+
+            String stored = name;
+            if (isRenamedHandCandidate(name)) {
+                String rest = name.substring(8);
+                stored = "hand_set~" + rest;
+                String id = rest.substring(0, rest.indexOf('_'));
+                if (std::find(s.tempHandIds.begin(), s.tempHandIds.end(), id) == s.tempHandIds.end()) s.tempHandIds.push_back(id);
+            }
+            s.bmpTarget = bmp ? stored : String();
+            String path = bmp ? String(BACKUP_TMP_PATH) : String("/" + stored);
             s.out = LittleFS.open(path, "w");
             if (!s.out) {
                 backupRestoreFail("cannot write " + name);
                 return;
             }
-            s.restoredFiles.push_back(name);
+            s.restoredFiles.push_back(stored);
         }
 
         // Alles andere (Verzeichnisse, status.txt, Logdateien, fremde Dateien) wird uebersprungen
@@ -1314,8 +1441,12 @@
                 keptNames.push_back(preferences.getString(pkPresetName(i).c_str(), ""));
                 keptUrls.push_back(preferences.getString(pkPresetUrl(i).c_str(), ""));
             }
+            std::vector<HandSetMove> handSetMoves = placeRenamedHandSets(backupRestore->tempHandIds);
             applyBackupSettings(backupRestore->settings, backupRestore->applyWifi, backupRestore->keepBrightness, backupRestore->otherType,
                                 backupRestore->wifiPlain);
+            applyHandSetMoves(handSetMoves);
+            completeHandSets();
+            upgradeHandFiles();
 
             // Streifen-Einstellungen eines anderen Displaytyps auf diesen Streifen umrechnen. Sicherung ohne
             // stripcfg_*.txt (aelter): ihre Preferences beim naechsten Start einmal zum aktiven Zifferblatt

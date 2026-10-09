@@ -8,9 +8,10 @@
     // Board: "LOLIN S2 PICO", Partition Scheme "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"
     // (Vorgabe); PSRAM ist bei diesem Board immer an.
 
-    // Waveshare ESP32-C6-LCD-1.47 / -1.3 (eigenes Build): Board "ESP32C6 Dev Module", Partition Scheme "No OTA
-    // (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled". Pins stellt config.h ein (BOARD_WAVESHARE_C6_ST7789),
-    // das Display der Displaytyp (ST7789 / ST7789_240).
+    // Waveshare ESP32-C6-LCD-1.47 / -1.3 (eigenes Build): Board "ESP32C6 Dev Module", Partition Scheme "uhr4 C6
+    // (2.25MB APP/1.6MB SPIFFS)" (boards.local.txt und uhr4_c6.csv aus dem Projektordner in den Core-Ordner
+    // kopieren, siehe boards.local.txt), USB CDC On Boot "Enabled". Pins stellt config.h ein
+    // (BOARD_WAVESHARE_C6_ST7789), das Display der Displaytyp (ST7789 / ST7789_240).
 
     // Waveshare ESP32-S3-LCD-1.28 (eigenes Build): Board "ESP32S3 Dev Module", Flash Size "16MB", PSRAM "QSPI
     // PSRAM", Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)", USB CDC On Boot "Disabled" (USB ueber CH343P).
@@ -33,8 +34,9 @@
     // Board: "LOLIN S2 PICO", Partition Scheme "No OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled"
     // (default); PSRAM is always on for this board.
 
-    // Waveshare ESP32-C6-LCD-1.47 / -1.3 (separate build): board "ESP32C6 Dev Module", Partition Scheme "No
-    // OTA (2MB APP/2MB SPIFFS)", USB CDC On Boot "Enabled". config.h sets the pins
+    // Waveshare ESP32-C6-LCD-1.47 / -1.3 (separate build): board "ESP32C6 Dev Module", Partition Scheme "uhr4 C6
+    // (2.25MB APP/1.6MB SPIFFS)" (copy boards.local.txt and uhr4_c6.csv from the project folder into the core
+    // folder, see boards.local.txt), USB CDC On Boot "Enabled". config.h sets the pins
     // (BOARD_WAVESHARE_C6_ST7789), the display type the display (ST7789 / ST7789_240).
 
     // Waveshare ESP32-S3-LCD-1.28 (separate build): board "ESP32S3 Dev Module", Flash Size "16MB", PSRAM "QSPI
@@ -83,6 +85,7 @@
 // panic, brownout, ...), shown in Status (see webserver_routes.h).
 
 #include <esp_system.h>
+#include <esp_mac.h> // esp_read_mac()
 #include <Wire.h>
 #include <RTClib.h>
 #include <WiFiUdp.h>
@@ -485,6 +488,17 @@ void setup() {
         // status polling, as recommended in Espressif's WPS example.
 
         WiFi.onEvent(onWpsEvent);
+
+        // Grund jedes Verbindungsabbruchs fuers Log merken (siehe wifiDisconnectReasonText())
+        // Remember the reason of every disconnect for the log (see wifiDisconnectReasonText())
+
+        WiFi.onEvent(onWifiDisconnectEvent, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+        // Sendeleistung (WIFI_TX_AUTO) bei jedem Start des Funks setzen, siehe onWifiStartEvent()
+        // Set the transmit power (WIFI_TX_AUTO) every time the radio starts, see onWifiStartEvent()
+
+        WiFi.onEvent(onWifiStartEvent, ARDUINO_EVENT_WIFI_STA_START);
+        WiFi.onEvent(onWifiStartEvent, ARDUINO_EVENT_WIFI_AP_START);
 
         // Jahr 0 (1900) = "noch keine Uhrzeit", die Zeiger stehen bis dahin
         // auf der Startzeit (siehe START_TIME_* in config.h)
@@ -1079,10 +1093,18 @@ void setup() {
         createSprite16(secondHandSprite, HAND_WIDTH, HAND_HEIGHT);
         secondHandSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
+        recoverHandSetRenumber(); // unterbrochene Neunummerierung der Zeigersaetze beenden (presets_manager.h)
+                                  // finish an interrupted renumbering of the hand sets (presets_manager.h)
         ensureStarterSet(); // fehlende Zifferblaetter, Zeigersaetze und Presets des Startpakets erzeugen (presets_manager.h)
                             // generate missing clock faces, hand sets and presets of the starter set (presets_manager.h)
+        renumberHandSets(); // Zeigersaetze fortlaufend nummerieren, Uhren Sets ziehen mit
+                            // number the hand sets consecutively, presets follow
         refreshGeneratedAssets(); // erzeugte Dateien im Mass eines anderen Displaytyps neu erzeugen
                                   // regenerate generated files in the size of another display type
+        completeHandSets();       // jeder Zeigersatz mit allen drei Zeigern (fehlende aus Satz 0)
+                                  // every hand set with all three hands (missing ones from set 0)
+        upgradeHandFiles();       // alle Zeiger im neuen Format speichern (alte Formate auffuellen)
+                                  // store all hands in the new format (pad the old formats)
         loadClockFace();
         loadHandSprites();
 

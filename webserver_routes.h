@@ -403,7 +403,7 @@
     // strip graphic and strip data to reload. false if the file does not exist.
 
     bool deleteFileWithSideEffects(const String& path) {
-        if (!LittleFS.exists(path)) return false;
+        if (!LittleFS.exists(path) || isProtectedFile(path)) return false;
         LittleFS.remove(path);
 
         // Falls ein Zifferblatt oder Teil eines Zeigersatzes geloescht
@@ -540,10 +540,10 @@
             html += "<span class='ip-hint'><a href='http://" + WiFi.softAPIP().toString() + "/'>" + WiFi.softAPIP().toString() + "</a></span>";
         }
 
-        // Displaytyp neben der Adresse (Schreibweise wie in flashESP und der Displayauswahl)
-        // Display type next to the address (spelling as in flashESP and the display selection)
+        // Chip und Displaytyp neben der Adresse (Schreibweise wie in flashESP und der Displayauswahl)
+        // Chip and display type next to the address (spelling as in flashESP and the display selection)
 
-        html += "<span class='ip-hint' title='" + translate("Display type") + "'>" + String(displayChoiceName(displayType, useBacklight)) + "</span>";
+        html += "<span class='ip-hint' title='Chip / " + translate("Display type") + "'>" + String(CHIP_SHORT_NAME) + " " + String(displayChoiceName(displayType, useBacklight)) + "</span>";
         html += "</div>";
 
         html += "<div class='status-strip'>";
@@ -1027,6 +1027,26 @@
         else if (kind == "ok") {
             html += "<script>setTimeout(function(){var e=document.getElementById('flashMsg'); if(e) e.style.display='none';}, 4000);</script>";
         }
+        return html;
+    }
+
+
+    // Auswahl eines Zifferblatts oder Zeigersatzes ohne die Seite neu zu laden: pickItem() ruft den Link per fetch() mit
+    // &ajax=1 auf, setzt den Hinweis "(aktiv)" im angeklickten Feld (Klasse cls) um und zeigt die Meldung. Schlaegt
+    // der Aufruf fehl, folgt der Browser dem Link wie bisher.
+
+    // Selecting a clock face or hand set without reloading the page: pickItem() calls the link via fetch() with
+    // &ajax=1, moves the "(active)" note to the clicked item (class cls) and shows the message. If the call
+    // fails, the browser follows the link as before.
+
+    String selectWithoutReloadScript(const String& message, const String& activeText) {
+        String html = "<div id='selMsg' class='msg ok' style='display:none' data-act='" + activeText + "'>" + message + "</div>";
+        html += "<script>function pickItem(a,cls){fetch(a.href+'&ajax=1').then(function(r){if(!r.ok)throw 0;"
+                "var m=document.getElementById('selMsg');"
+                "document.querySelectorAll('.'+cls).forEach(function(e){e.textContent='';});"
+                "a.parentNode.querySelector('.'+cls).textContent=' ('+m.dataset.act+')';"
+                "m.style.display='block';clearTimeout(window.selT);window.selT=setTimeout(function(){m.style.display='none';},4000);"
+                "}).catch(function(){location.href=a.href;});return false;}</script>";
         return html;
     }
 
@@ -1652,6 +1672,7 @@
         chunk += "<li>WiFi SSID: " + String(WiFi.SSID()) + "</li>";
         chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
         chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
+        chunk += "<li>WiFi TX Power: " + String(WiFi.getTxPower() / 4.0f, 1) + " dBm</li>";
         chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li>";
 
         // ntpServerRunning kommt vom echten Rueckgabewert von udp.begin()
@@ -2710,6 +2731,14 @@
                 // Validate the new filename: filenames get embedded unescaped into HTML attributes (/files,
                 // /listfilesFaces, /handsets) - a "'" or "<" would enable stored XSS there.
 
+                // Von der Firmware erzeugte Dateien weder umbenennen noch durch Umbenennen ueberschreiben
+                // Neither rename files created by the firmware nor overwrite them by renaming
+
+                if (isProtectedFile(oldName) || isProtectedFile(newName)) {
+                    webserver.send(403, "text/html", simpleMessagePage(translate("Rename"), "<p>" + translate("Built-in file cannot be changed") + ".</p>"));
+                    return;
+                }
+
                 bool newNameValid = (newName.length() > 1 && newName.length() < 96);
                 for (size_t i = 1; newNameValid && i < newName.length(); i++) {
                     char c = newName[i];
@@ -2855,6 +2884,10 @@
             int w = argToIntClamped("w", 0, 1, 1000);
             int h = argToIntClamped("h", 0, 1, 1000);
 
+            if (isProtectedFile(dst)) {
+                webserver.send(403, "text/html", simpleMessagePage(translate("Failed to scale BMP"), "<p>" + translate("Built-in file cannot be changed") + ".</p><a href='/files'><button type='button'>" + translate("Back") + "</button></a>"));
+                return;
+            }
             bool scaleSuccess = scaleAndSaveBmp(src.c_str(), dst.c_str(), w, h);
             if (scaleSuccess) {
                 webserver.send(200, "text/html", simpleMessagePage(translate("Scaling successful") + "!", "<p>" + translate("Saved as") + ": " + dst + "</p><a href='/files'><button type='button'>" + translate("Back") + "</button></a>"));
@@ -3630,6 +3663,8 @@
             if (webserver.hasArg("file")) {
                 String path = webserver.arg("file");
                 if (!path.startsWith("/")) path = "/" + path;
+                if (webserver.hasArg("v")) webserver.sendHeader("Cache-Control", "public, max-age=31536000, immutable"); // Adresse traegt die Dateiversion
+                                                                                                                      // the address carries the file version
                 sendScaledBmpPreview(path, 80, 80);
             }
             else {
@@ -4743,6 +4778,7 @@
             String chunk = beginPage();
             chunk.reserve(1024);
             chunk += generateFlashMessage();
+            chunk += selectWithoutReloadScript(translate("Clock face selected"), translate("active"));
             chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
             chunk += "<p>" + generateStorageInfo(used, total) + "</p>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
@@ -4787,6 +4823,18 @@
             }
             naturalSortNames(faceNames);
 
+            // Zifferblaetter des Startpakets zuerst, in fester Reihenfolge
+            // Starter set clock faces first, in a fixed order
+
+            {
+                std::vector<String> ordered;
+                for (const auto& f : STARTER_FACES) {
+                    for (const String& n : faceNames) if (n == String(f.path + 1)) ordered.push_back(n);
+                }
+                for (const String& n : faceNames) if (!isProtectedFile(n)) ordered.push_back(n);
+                faceNames = ordered;
+            }
+
             bool anyFile = !faceNames.empty();
             int rowCount = 0;
             for (const String& name : faceNames) {
@@ -4806,12 +4854,17 @@
                 String safeName = escapeHtmlText(name);
                 String safeShortName = escapeHtmlText(shortName);
                 chunk += "<div style='text-align:center;width:100px;'>";
-                chunk += "<a href='/setbackground?file=" + safeShortName + "'>";
-                chunk += faceThumb("/facepreview?file=" + safeName, safeName);
-                chunk += "</a><br>" + escapeHtmlText(displayName) + String(isActive ? " (" + translate("active") + ")" : "");
+                chunk += "<a href='/setbackground?file=" + safeShortName + "' onclick='return pickItem(this,\"fa\")'>";
+                chunk += faceThumb("/facepreview?file=" + safeName + "&v=" + fileVersion("/" + name), safeName);
+                chunk += "</a><br>" + escapeHtmlText(displayName) + "<span class='fa'>" + String(isActive ? " (" + translate("active") + ")" : "") + "</span>";
                 chunk += "<br><a href='/setbackground?file=" + safeShortName + "&designer=1'>" + translate("Designer") + "</a>";
-                chunk += "<br><a href='/rename_form?file=" + safeName + "&from=listfilesFaces'>" + translate("Rename") + "</a> ";
-                chunk += "<a href='/delete?file=" + safeName + "&from=listfilesFaces' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
+                if (isProtectedFile(name)) {
+                    chunk += "<br><small>" + translate("built-in") + "</small>";
+                }
+                else {
+                    chunk += "<br><a href='/rename_form?file=" + safeName + "&from=listfilesFaces'>" + translate("Rename") + "</a> ";
+                    chunk += "<a href='/delete?file=" + safeName + "&from=listfilesFaces' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
+                }
                 chunk += "</div>";
 
                 // Alle paar Eintraege zwischendurch senden, damit der Puffer auch
@@ -4829,49 +4882,6 @@
 
             if (!anyFile) chunk += "<p>" + translate("No BMP files found in /") + "</p>";
             chunk += "</div><hr>";
-
-            // Browser laedt neue Faces per HTTPS von GitHub und laedt sie per
-            // lokalem HTTP zu /upload hoch - die Uhr braucht nie HTTPS.
-
-            // Browser downloads new faces via HTTPS from GitHub and uploads
-            // them via local HTTP to /upload - the clock never needs HTTPS.
-
-            chunk += "<h3>" + translate("Download Additional Clock Faces from GitHub") + "</h3>";
-            chunk += "<button type='button' id='ghFaceBtn' onclick='loadFacesFromGithub()'>" + translate("Download Additional Clock Faces from GitHub") + "</button>";
-            chunk += "<div id='ghFaceStatus'></div>";
-            chunk += "<script>";
-            chunk += "var existingFaces = [";
-            for (size_t i = 0; i < faceNames.size(); i++) {
-                if (i > 0) chunk += ",";
-                chunk += "\"" + faceNames[i] + "\"";
-            }
-            chunk += "];";
-            chunk += "async function loadFacesFromGithub() {";
-            chunk += "  var btn = document.getElementById('ghFaceBtn');";
-            chunk += "  var status = document.getElementById('ghFaceStatus');";
-            chunk += "  btn.disabled = true;";
-            chunk += "  status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
-            chunk += "  try {";
-            chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(GITHUB_GRAPHIC_SIZE) + "');";
-            chunk += "    var files = await resp.json();";
-            chunk += "    var toGet = files.filter(function(f) { return f.name.indexOf('face_') === 0 && f.name.endsWith('.bmp') && existingFaces.indexOf(f.name) === -1; });";
-            chunk += "    if (toGet.length === 0) { status.innerHTML = '" + translate("All files already up to date") + ".'; btn.disabled = false; return; }";
-            chunk += "    for (var i = 0; i < toGet.length; i++) {";
-            chunk += "      status.innerHTML = '" + translate("Downloading") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
-            chunk += "      var blob = await (await fetch(toGet[i].download_url)).blob();";
-            chunk += "      var fd = new FormData();";
-            chunk += "      fd.append('upload', blob, toGet[i].name);";
-            chunk += "      status.innerHTML = '" + translate("Converting") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
-            chunk += "      await fetch('/upload', { method: 'POST', body: fd });";
-            chunk += "    }";
-            chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
-            chunk += "    location.href = location.pathname;";
-            chunk += "  } catch (e) {";
-            chunk += "    status.innerHTML = '" + translate("Failed to reach GitHub - check your internet connection") + ".';";
-            chunk += "    btn.disabled = false;";
-            chunk += "  }";
-            chunk += "}";
-            chunk += "</script><hr>";
 
             webserver.sendContent(chunk);
             chunk = "";
@@ -6267,7 +6277,8 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    redirectTo(faceTarget);
+                    if (webserver.arg("ajax") == "1") webserver.send(200, "text/plain", "ok");
+                    else redirectTo(faceTarget);
                     return;
                 }
 
@@ -6278,7 +6289,8 @@
                     freeClockFaceBuffer();
                     loadClockFace();
                     loadHandSprites();
-                    redirectTo(faceTarget);
+                    if (webserver.arg("ajax") == "1") webserver.send(200, "text/plain", "ok");
+                    else redirectTo(faceTarget);
                     return;
                 }
             }
@@ -6307,7 +6319,10 @@
                 String path = webserver.arg("file");
                 //path.replace(".", "");
                 if (!path.startsWith("/")) path = "/" + path;
-                if (deleteFileWithSideEffects(path)) {
+                if (isProtectedFile(path)) {
+                    redirectTo(fileManagerReturnTarget(webserver.arg("from")) + "?err=Built-in%20file%20cannot%20be%20deleted");
+                }
+                else if (deleteFileWithSideEffects(path)) {
                     String redirectTarget = fileManagerReturnTarget(webserver.arg("from"));
                     redirectTo(redirectTarget + "?msg=File%20deleted");
                 }
@@ -6335,7 +6350,7 @@
                 webserver.send(200, "text/html", simpleMessagePage(translate("Delete"), "<p>" + translate("This action is only available when accessing the clock from a private network") + ".</p>"));
                 return;
             }
-            int deleted = 0;
+            int deleted = 0, kept = 0;
             for (int i = 0; i < webserver.args(); i++) {
                 if (webserver.argName(i) != "file") continue;
                 String path = webserver.arg(i);
@@ -6343,9 +6358,11 @@
                 path = String(path.c_str()); // an einem eingebetteten Nullbyte kappen (wie /download)
                                              // truncate at an embedded null byte (like /download)
                 if (path.indexOf("..") >= 0) continue;
+                if (isProtectedFile(path)) { kept++; continue; }
                 if (deleteFileWithSideEffects(path)) deleted++;
             }
-            redirectTo(deleted ? "/files?msg=Files%20deleted" : "/files?err=No%20files%20selected");
+            redirectTo(deleted ? (kept ? "/files?warn=Files%20deleted%20-%20built-in%20files%20stay" : "/files?msg=Files%20deleted")
+                               : (kept ? "/files?err=Built-in%20file%20cannot%20be%20deleted" : "/files?err=No%20files%20selected"));
             });
 
         // Einzelnes Preset loeschen (Slot wird dadurch wieder frei fuer
@@ -6500,7 +6517,7 @@
                             uint8_t* bmp = (px && loadFaceBmpInto(path, px, hw, hh)) ? encodeBmpToBytes(px, hw, hh, &size) : nullptr;
                             free(px);
                             if (bmp) {
-                                webserver.sendHeader("Cache-Control", "no-store");
+                                webserver.sendHeader("Cache-Control", webserver.hasArg("v") ? "public, max-age=31536000, immutable" : "no-store");
                                 webserver.send_P(200, "image/bmp", (const char*)bmp, size);
                                 delete[] bmp;
                                 setLedOff();
@@ -6583,6 +6600,7 @@
 
             String chunk = beginPage();
             chunk += generateFlashMessage();
+            chunk += selectWithoutReloadScript(translate("Hand set selected"), translate("active"));
             chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
             chunk += "<p>" + generateStorageInfo(used, total) + "</p>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
@@ -6594,6 +6612,7 @@
             // The default set 0 is never missing from the list (e.g. recreated after deletion)
 
             ensureDefaultHands();
+            completeHandSets();
 
             // Numerisch sortieren (std::map<int,String>), damit z.B. "10" nach "9" statt
             // zwischen "1" und "2" landet. Nicht-numerische Namen (unueblich) landen
@@ -6649,7 +6668,7 @@
 
                 String safeSetId = escapeHtmlText(setId);
                 chunk = "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;'>";
-                chunk += "<a href='/sethandset?set=" + safeSetId + "'>";
+                chunk += "<a href='/sethandset?set=" + safeSetId + "' onclick='return pickItem(this,\"ha\")'>";
 
                 // Fehlende Zeiger eines Satzes zeigt die Uhr aus dem Standardsatz 0 - hier ebenso
                 // The clock shows missing hands of a set from the default set 0 - likewise here
@@ -6657,11 +6676,12 @@
                 for (const char* part : { "hour", "minute", "second" }) {
                     String path = "/hand_set" + setId + "_" + part + ".bmp";
                     if (!LittleFS.exists(path)) path = String("/hand_set0_") + part + ".bmp";
-                    chunk += "<img src='/file?name=" + escapeHtmlText(path) + "'> ";
+                    chunk += "<img src='/file?name=" + escapeHtmlText(path) + "&v=" + fileVersion(path) + "'> ";
                 }
-                chunk += "</a><br>" + safeSetId + (setId == activeSet ? " (" + translate("active") + ")" : "");
+                chunk += "</a><br>" + safeSetId + "<span class='ha'>" + (setId == activeSet ? " (" + translate("active") + ")" : "") + "</span>";
                 chunk += "<br><a href='/sethandset?set=" + safeSetId + "&designer=1'>" + translate("Designer") + "</a>";
-                chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\")'>" + translate("Delete") + "</a>";
+                if (isProtectedHandSetId(setId)) chunk += "<br><small>" + translate("built-in") + "</small>";
+                else chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\")'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
                 webserver.sendContent(chunk);
                 checkHeapWarning("/handsets Zeigersatz " + setId);
@@ -6670,8 +6690,14 @@
             // Zuerst alle numerisch benannten Zeigersaetze in aufsteigender Reihenfolge...
             // First all numerically named hand sets in ascending order...
 
+            // Zeigersaetze des Startpakets vorweg: 0, 1, 2, dann der Sekundenfeld-Satz
+            // Starter set hand sets up front: 0, 1, 2, then the subdial set
+
+            for (const String& id : { String("0"), String("1"), String("2"), subdialHandSet() }) {
+                if (seenSetIds.count(id)) renderSetRow(id);
+            }
             for (auto& entry : numericSets) {
-                renderSetRow(entry.second);
+                if (!isProtectedHandSetId(entry.second)) renderSetRow(entry.second);
             }
 
             // ...danach eventuelle Sonderfaelle mit nicht-numerischem Namen (unsortiert)
@@ -6681,88 +6707,7 @@
                 renderSetRow(setId);
             }
 
-            chunk = "</div><hr>";
-
-            // Platz fuer eine unkomprimierte Zeigerdatei im neuen Format - so landet
-            // der Upload zuerst auf LittleFS, bevor er RLE-komprimiert wird.
-
-            // Room for one uncompressed hand file in the new format - that is how
-            // the upload first lands on LittleFS before it is RLE-compressed.
-
-            const size_t handUploadBytes = 66 + (size_t)((HAND_WIDTH * 2 + 3) / 4 * 4) * HAND_HEIGHT;
-            if (used + handUploadBytes > total) {
-                chunk += "<div style='color:red;font-weight:bold;'>" + translate("Warning: Not enough free space to upload new hand sets! Free up some space first") + ".</div><br><br>";
-            }
-            else {
-
-                // Vorhandene Zeigersatz-Dateinamen fuer den Vergleich mit GitHub einsammeln
-                // Collect existing hand-set filenames to compare with GitHub
-
-                std::vector<String> existingHandFiles;
-                File handRootScan = LittleFS.open("/");
-                File handFileScan = handRootScan.openNextFile();
-                while (handFileScan) {
-                    String hName = handFileScan.name();
-                    if (!handFileScan.isDirectory() && hName.startsWith("hand_set") && hName.endsWith(".bmp")) {
-                        existingHandFiles.push_back(hName);
-                    }
-                    handFileScan = handRootScan.openNextFile();
-                }
-
-                // Automatischer Download neuer Zeigersaetze direkt im Browser (siehe
-                // ausfuehrlichen Kommentar bei /listfilesFaces - gleiches Prinzip:
-                // Browser laedt per CORS von GitHub, laedt lokal per /uploadhandset hoch).
-
-                // Automatic download of new hand sets directly in the browser (see the
-                // detailed comment at /listfilesFaces - same principle: browser
-                // downloads via CORS from GitHub, uploads locally via /uploadhandset).
-
-                chunk += "<h3>" + translate("Download Additional Hand Sets from GitHub") + "</h3>";
-                chunk += "<button type='button' id='ghHandBtn' onclick='loadHandsFromGithub()'>" + translate("Download Additional Hand Sets from GitHub") + "</button>";
-                chunk += "<div id='ghHandStatus'></div>";
-                chunk += "<script>";
-                chunk += "var existingHands = [";
-                for (size_t i = 0; i < existingHandFiles.size(); i++) {
-                    if (i > 0) chunk += ",";
-                    chunk += "\"" + existingHandFiles[i] + "\"";
-                }
-                chunk += "];";
-                chunk += "async function loadHandsFromGithub() {";
-                chunk += "  var btn = document.getElementById('ghHandBtn');";
-                chunk += "  var status = document.getElementById('ghHandStatus');";
-                chunk += "  btn.disabled = true;";
-                chunk += "  status.innerHTML = '" + translate("Checking GitHub for new files") + "...';";
-                chunk += "  try {";
-                chunk += "    var resp = await fetch('" GITHUB_API_CONTENTS_BASE + String(GITHUB_GRAPHIC_SIZE) + "');";
-                chunk += "    var files = await resp.json();";
-                chunk += "    var toGet = files.filter(function(f) { return f.name.indexOf('hand_set') === 0 && f.name.endsWith('.bmp') && existingHands.indexOf(f.name) === -1; });";
-                chunk += "    if (toGet.length === 0) { status.innerHTML = '" + translate("All files already up to date") + ".'; btn.disabled = false; return; }";
-                chunk += "    for (var i = 0; i < toGet.length; i++) {";
-                chunk += "      status.innerHTML = '" + translate("Downloading") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
-                chunk += "      var blob = await (await fetch(toGet[i].download_url)).blob();";
-                chunk += "      var fd = new FormData();";
-                chunk += "      fd.append('upload', blob, toGet[i].name);";
-                chunk += "      status.innerHTML = '" + translate("Converting") + " ' + toGet[i].name + ' (' + (i + 1) + '/' + toGet.length + ')...';";
-                chunk += "      await fetch('/uploadhandset', { method: 'POST', body: fd });";
-                chunk += "    }";
-                chunk += "    status.innerHTML = '" + translate("Done - reloading") + "...';";
-                chunk += "    location.href = location.pathname;";
-                chunk += "  } catch (e) {";
-                chunk += "    status.innerHTML = '" + translate("Failed to reach GitHub - check your internet connection") + ".';";
-                chunk += "    btn.disabled = false;";
-                chunk += "  }";
-                chunk += "}";
-                chunk += "</script><hr>";
-
-                chunk += "<h3>" + translate("Upload New Hand Set") + "</h3>";
-                chunk += "<small>" + translate("BMP file (16, 24 or 32 bit), at most about") + " " + String((total > used ? total - used : 0) / 1024) + " KB " + translate("(free space of the clock)") + ". " + translate("The clock scales it to") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + " " + translate("pixels") + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH) + " x " + String(HAND_LEGACY_HEIGHT) + ") " + translate("and converts it to RGB565") + ".<br>" + translate("Name") + ": " + translate("no.") + " + _hour, _minute " + translate("or") + " _second.bmp, " + translate("e.g.") + " <code>1_second.bmp</code> (" + translate("stored as") + " <code>hand_set1_second.bmp</code>)<br>" + translate("Pivot point") + ": " + String(HAND_WIDTH / 2) + " / " + String(HAND_PIVOT_Y) + " (" + translate("old format") + ": " + String(HAND_LEGACY_WIDTH / 2) + " / " + String(HAND_LEGACY_PIVOT_Y) + ")<br><br>";
-                chunk += "<form method='POST' action='/uploadhandset' enctype='multipart/form-data'>";
-
-                chunk += translate("File") + ": <input type='file' name='upload' accept='.bmp' multiple required><br><br>";
-                chunk += "<button type='submit'>" + translate("Upload to Set") + "</button></form>";
-            }
-            chunk += "<br><br>";
-
+            chunk = "</div><br><br>";
             chunk += "<br><br>";
             chunk += "</body></html>";
             webserver.sendContent(chunk);
@@ -6867,6 +6812,7 @@
         webserver.on("/sethandset", HTTP_GET, []() {
             if (webserver.hasArg("set")) {
                 String chosen = webserver.arg("set");
+                completeHandSet(handSetFileId(chosen));
                 preferences.putString(PK_HANDSET, chosen);
                 // DEBUG_PRINTLN("[HANDSET] Set to: " + chosen);
                 freeClockFaceBuffer();
@@ -6881,6 +6827,7 @@
                 // on the active set, so activate first, then open it.
 
                 if (webserver.arg("designer") == "1") redirectTo("/handdesigner");
+                else if (webserver.arg("ajax") == "1") webserver.send(200, "text/plain", "ok");
                 else redirectTo("/handsets?msg=Hand%20set%20selected");
             }
             else {
@@ -7000,7 +6947,7 @@
                      ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
                      ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(handSetFileId(preferences.getString(PK_HANDSET, ""))) +
                      "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
-                     "',sec:[" + String(secPivotX) + "," + String(secPivotY) + "]" +
+                     "',sec:[" + String(secPivotX) + "," + String(secPivotY) + "],prot:[" + protectedSetsJs() + "]" +
                      ",lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}" + modeJs + "};</script>";
             webserver.sendContent(chunk);
@@ -7129,7 +7076,7 @@
                      ",set:'" + jsSafe(handSetFileId(preferences.getString(PK_HANDSET, ""))) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
-                     ",sec:[" + String(secPivotX) + "," + String(secPivotY) + "]" +
+                     ",sec:[" + String(secPivotX) + "," + String(secPivotY) + "],prot:[" + protectedFacesJs() + "]" +
                      ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + ",strip:" + stripJs + ",fonts:[" + fontsJs + "]};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(FACE_DESIGNER_HTML);
@@ -7150,7 +7097,10 @@
                 return;
             }
 
-            if (webserver.hasArg("set")) {
+            if (webserver.hasArg("set") && isProtectedHandSetId(webserver.arg("set"))) {
+                redirectTo("/handsets?err=Built-in%20file%20cannot%20be%20deleted");
+            }
+            else if (webserver.hasArg("set")) {
                 String setId = webserver.arg("set");
                 String targets[] = { "hour", "minute", "second" };
                 for (const String& target : targets) {
@@ -7583,13 +7533,13 @@
             html += "<button type='submit'>" + translate("Reset Saved Networks") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Clock Faces (except default)") + "</h3>";
-            html += "<p>" + translate("Deletes all clock faces - the three generated clock faces are created again") + ".</p>";
+            html += "<p>" + translate("Deletes all clock faces except the built-in ones") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all clock faces except the default one?") + "');\">";
             html += "<input type='hidden' name='action' value='faces'>";
             html += "<button type='submit'>" + translate("Delete Clock Faces (except default)") + "</button></form><hr>";
 
             html += "<h3>" + translate("Delete Hand Sets (except default)") + "</h3>";
-            html += "<p>" + translate("Deletes all hand sets - the three generated hand sets are created again") + ".</p>";
+            html += "<p>" + translate("Deletes all hand sets except the built-in ones") + ".</p>";
             html += "<form method='POST' action='/factoryReset/requestCode' onsubmit=\"return confirm('" + translate("Are you sure you want to delete all hand sets except the default one?") + "');\">";
             html += "<input type='hidden' name='action' value='hands'>";
             html += "<button type='submit'>" + translate("Delete Hand Sets (except default)") + "</button></form><hr>";
@@ -7840,6 +7790,12 @@
                     uploadSuccess = false;
                     return;
                 }
+            }
+
+            if (isProtectedFile(uploadFilePath)) {
+                DEBUG_PRINTLN("[UPLOAD] Rejected - built-in file: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");
+                uploadSuccess = false;
+                return;
             }
 
             DEBUG_PRINTLN("[UPLOAD] Start: " + uploadFilePath + " (from " + webserver.client().remoteIP().toString() + ")");

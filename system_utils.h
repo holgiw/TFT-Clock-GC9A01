@@ -36,9 +36,30 @@
             usable = dy < r ? 2.0f * sqrtf(r * r - dy * dy) * 0.9f : 0;
         }
         g.setTextSize(1);
+        int chosen = 0;
         for (int i = 0; fontList[i]; i++) {
+            chosen = i;
             g.setFont(fontList[i]);
             if (g.textWidth(text) <= usable) break;
+        }
+
+        // Passt nur noch Font0 (6 x 8 Pixel, sehr klein): lieber die vorige Schrift bis auf 75 % verkleinern, und wenn
+        // auch das nicht reicht, Font0 in Halbschritten bis 3-fach vergroessern.
+
+        // Only Font0 (6 x 8 pixels, very small) is left: rather shrink the previous font down to 75 %, and if that
+        // is not enough either, enlarge Font0 in half steps up to 3x.
+
+        if (chosen > 0 && fontList[chosen] == &fonts::Font0) {
+            g.setFont(fontList[chosen - 1]);
+            float wide = (float)g.textWidth(text);
+            if (wide > 0 && usable / wide >= 0.75f) {
+                g.setTextSize(usable / wide);
+            }
+            else {
+                g.setFont(&fonts::Font0);
+                float wide0 = (float)g.textWidth(text);
+                g.setTextSize(wide0 > 0 ? constrain(floorf(usable / wide0 * 2.0f) / 2.0f, 1.0f, 3.0f) : 1.0f);
+            }
         }
         if (clear) {
             int fh = g.fontHeight();
@@ -52,6 +73,7 @@
 
         g.setTextDatum(lgfx::top_left);
         g.setFont(&fonts::Font0);
+        g.setTextSize(1);
     }
 
     // Meldung der Tasterstufen und des Werksresets: schwarzer Hintergrund, Titel und Zeile 2 zentriert in der

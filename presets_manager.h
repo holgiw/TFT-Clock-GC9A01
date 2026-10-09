@@ -432,6 +432,148 @@
         return url.substring(0, start) + value + (end < 0 ? String("") : url.substring(end));
     }
 
+    // Zeigersatz-Nummern in allen Uhren Sets (Parameter handSet) und im aktiven Satz durch fn ersetzen. Gibt die
+    // Zahl der geaenderten Uhren Sets zurueck.
+
+    // Replace hand set numbers in all presets (parameter handSet) and in the active set through fn. Returns the
+    // number of changed presets.
+
+    int rewriteHandSetRefs(const std::function<String(const String&)>& fn) {
+        int changed = 0;
+        for (int i = 0; i < MAX_PRESETS; i++) {
+            String url = preferences.getString(pkPresetUrl(i).c_str(), "");
+            int q = url.indexOf('?');
+            if (q < 0) continue;
+            int pos = url.indexOf("?handSet=", q);
+            if (pos < 0) pos = url.indexOf("&handSet=", q);
+            if (pos < 0) continue;
+            int start = pos + 9, end = url.indexOf('&', start);
+            String value = url.substring(start, end < 0 ? url.length() : end);
+            String moved = fn(value);
+            if (moved != value) {
+                preferences.putString(pkPresetUrl(i).c_str(), setPresetUrlParam(url, "handSet", moved));
+                changed++;
+            }
+        }
+        String active = preferences.getString(PK_HANDSET, "");
+        String movedActive = fn(active);
+        if (movedActive != active) preferences.putString(PK_HANDSET, movedActive);
+        return changed;
+    }
+
+    // Neunummerierung zu Ende fuehren. Plan "Stufe|alt>neu,...": 1 Uhren Sets und Sekundenfeld-Nummer auf "~neu",
+    // 2 Dateien auf "hand_set^neu_...", 3 auf den neuen Namen, 4 "~" entfernen. Jede Stufe ist wiederholbar.
+
+    // Finish the renumbering. Plan "stage|old>new,...": 1 presets and subdial number to "~new", 2 files to
+    // "hand_set^new_...", 3 to the new name, 4 remove "~". Every stage can be repeated.
+
+    void finishHandSetRenumber(String plan) {
+        int stage = plan.substring(0, 1).toInt();
+        std::vector<std::pair<String, String>> pairs;
+        for (int p = 2; p < (int)plan.length();) {
+            int comma = plan.indexOf(',', p);
+            String item = plan.substring(p, comma < 0 ? plan.length() : comma);
+            int arrow = item.indexOf('>');
+            if (arrow > 0) pairs.push_back({ item.substring(0, arrow), item.substring(arrow + 1) });
+            if (comma < 0) break;
+            p = comma + 1;
+        }
+        auto setStage = [&](int s) {
+            plan = String(s) + plan.substring(1);
+            preferences.putString(PK_RENUM_PLAN, plan);
+        };
+        const char* parts[] = { "hour", "minute", "second" };
+
+        if (stage <= 1) {
+            rewriteHandSetRefs([&](const String& v) -> String {
+                for (const auto& pr : pairs) if (pr.first == v) return String("~" + pr.second);
+                return v;
+            });
+            String sub = preferences.getString(PK_SUBDIAL_SET, "");
+            for (const auto& pr : pairs) {
+                if (pr.first == sub) { preferences.putString(PK_SUBDIAL_SET, String("~") + pr.second); break; }
+            }
+            setStage(2);
+        }
+        if (stage <= 2) {
+            for (const auto& pr : pairs) {
+                for (const char* part : parts) {
+                    String from = "/hand_set" + pr.first + "_" + part + ".bmp";
+                    String temp = "/hand_set^" + pr.second + "_" + part + ".bmp";
+                    if (!LittleFS.exists(from)) continue;
+                    LittleFS.remove(temp);
+                    LittleFS.rename(from, temp);
+                }
+            }
+            setStage(3);
+        }
+        if (stage <= 3) {
+            for (const auto& pr : pairs) {
+                for (const char* part : parts) {
+                    String temp = "/hand_set^" + pr.second + "_" + part + ".bmp";
+                    String to = "/hand_set" + pr.second + "_" + part + ".bmp";
+                    if (!LittleFS.exists(temp)) continue;
+                    LittleFS.remove(to);
+                    LittleFS.rename(temp, to);
+                }
+            }
+            setStage(4);
+        }
+        rewriteHandSetRefs([](const String& v) -> String { return v.startsWith("~") ? v.substring(1) : v; });
+        String sub = preferences.getString(PK_SUBDIAL_SET, "");
+        if (sub.startsWith("~")) preferences.putString(PK_SUBDIAL_SET, sub.substring(1));
+        preferences.remove(PK_RENUM_PLAN);
+        loadPresets();
+        DEBUG_PRINTLN("[Starter] Hand sets renumbered: " + String(pairs.size()) + " moved");
+    }
+
+    // Beim Start VOR ensureStarterSet(): eine unterbrochene Neunummerierung (Stromausfall) zu Ende fuehren
+    // At boot BEFORE ensureStarterSet(): finish an interrupted renumbering (power cut)
+
+    void recoverHandSetRenumber() {
+        String plan = preferences.getString(PK_RENUM_PLAN, "");
+        if (plan.length() > 2) finishHandSetRenumber(plan);
+        else if (plan.length()) preferences.remove(PK_RENUM_PLAN);
+    }
+
+    // Beim Start NACH ensureStarterSet(): Zeigersaetze fortlaufend nummerieren. 0, 1, 2 bleiben, der Sekundenfeld-
+    // Satz wird 3, die uebrigen folgen in ihrer Reihenfolge ab 4; Uhren Sets und aktiver Satz ziehen mit.
+
+    // At boot AFTER ensureStarterSet(): number the hand sets consecutively. 0, 1, 2 stay, the subdial set
+    // becomes 3, the others follow in their order from 4; presets and active set follow.
+
+    void renumberHandSets() {
+        std::set<int> numbers;
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+            String n = f.name();
+            if (f.isDirectory() || !n.startsWith("hand_set") || !n.endsWith(".bmp")) continue;
+            int us = n.indexOf('_', 8);
+            if (us <= 8) continue;
+            String id = n.substring(8, us);
+            int num = id.toInt();
+            if (num >= 3 && String(num) == id) numbers.insert(num); // nur gewoehnliche Zahlen, Namen und "07" bleiben
+                                                                    // only plain numbers, names and "07" stay
+        }
+        root.close();
+
+        int sub = subdialHandSet().toInt();
+        std::vector<int> order;
+        if (numbers.count(sub)) order.push_back(sub);
+        for (int n : numbers) if (n != sub) order.push_back(n);
+
+        String plan;
+        int target = 3;
+        for (int n : order) {
+            if (n != target) plan += String(plan.length() ? "," : "") + String(n) + ">" + String(target);
+            target++;
+        }
+        if (plan.isEmpty()) return;
+        plan = "1|" + plan;
+        preferences.putString(PK_RENUM_PLAN, plan);
+        finishHandSetRenumber(plan);
+    }
+
     // Kleinste und groesste vorhandene Groesse einer Streifen-Schrift aus dem Designer (stripfont_<Name>_<Groesse>.vlw)
     // Smallest and largest available size of a strip font from the designer (stripfont_<name>_<size>.vlw)
 

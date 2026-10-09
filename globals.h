@@ -116,6 +116,14 @@
                                  // Connection before the WPS start, to switch back to it afterward if needed
     volatile bool wpsSuccessEvent = false; // wird im WiFi-Event-Callback gesetzt (anderer Kontext!)
                                            // set in the WiFi event callback (different context!)
+#ifdef WIFI_TX_AUTO
+    volatile int8_t wifiTxPowerCurrent = WIFI_TX_FIRST; // gerade gewaehlte Sendeleistung (wifiTxPowerCurrent wird im Start-Ereignis angewendet)
+                                                            // currently chosen transmit power (applied in the start event)
+#endif
+    volatile int lastTxPowerResult = -1; // Ergebnis von esp_wifi_set_max_tx_power() im Start-Ereignis (-1 = nie aufgerufen)
+                                         // result of esp_wifi_set_max_tx_power() in the start event (-1 = never called)
+    volatile uint8_t lastWifiDisconnectReason = 0; // Grund des letzten Verbindungsabbruchs (WiFi-Event, anderer Kontext!)
+                                                   // reason of the last disconnect (WiFi event, other context!)
     volatile bool wpsFailedEvent = false;
 
     // Verzoegerter WPS-Start: der HTTP-Handler darf nicht per delay()

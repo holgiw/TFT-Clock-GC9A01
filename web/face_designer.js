@@ -63,7 +63,7 @@
       + '\u00c4nderungen hier zeigt die Uhr sofort an, gespeichert werden sie mit \u201eStreifen speichern\u201c oder mit dem Zifferblatt. '
       + 'Ein Zifferblatt ohne eigene Einstellungen bekommt den Standard. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
       stripSaved: 'Streifen gespeichert.', stripErr: 'Streifen konnte nicht an die Uhr gesendet werden.',
-      hub: 'Nabe und Sekundenzeiger', hubSize: 'Nabe:', hubColor: 'Farbe:', hubSave: 'Speichern',
+      hub: 'Nabe und Sekundenzeiger', hubSize: 'Nabe:', hubColor: 'Farbe:', hubTake: 'Aktuelle Farbe', hubTakeTip: 'Farbe aus dem Werkzeugkasten (Pipette, Palette, Farbfeld) f\u00fcr die Nabe \u00fcbernehmen', hubSave: 'Speichern',
       secPiv: 'Drehpunkt Sekundenzeiger:', secCtr: 'Mitte',
       hubHint: 'Nabe = Mittelpunkt \u00fcber den Zeigern, 0 = keine Nabe. Ein Drehpunkt au\u00dferhalb der Mitte ergibt ein Sekundenfeld: '
       + 'der Sekundenzeiger liegt dann unter Stunden- und Minutenzeiger, einen passend kurzen zeichnet man im Zeiger-Designer. '
@@ -73,6 +73,8 @@
       sDFmt: 'Datumsformat:', tf0: '24 Stunden',
       tf1: '12 Stunden mit AM/PM', tf2: '12 Stunden', df0: 'T.MM.JJJJ', df1: 'TT.MM.JJJJ', df2: 'TT.MM.JJ', df3: 'MM/TT/JJJJ',
       df4: 'JJJJ-MM-TT', df5: 'TT.MM.', df6: 'T.MM.JJ', vlwCur: ' (auf der Uhr)', vlwErr: 'Schrift f\u00fcr den Streifen konnte nicht erzeugt werden.',
+      protName: 'Dieser Name geh\u00f6rt zu einem von der Firmware erzeugten Zifferblatt - bitte einen anderen w\u00e4hlen.',
+      protHint: 'Von der Firmware erzeugte Zifferbl\u00e4tter lassen sich nicht \u00fcberschreiben - unter einem anderen Namen speichern.',
       pos: 'Pixel', center: 'Mitte' },
     en: { base: 'Based on:', active: 'active', reset: 'Discard changes',
       saveBtn: 'Save as new clock face', name: 'Name:',
@@ -130,12 +132,14 @@
       sDFmt: 'Date format:', tf0: '24 hours',
       tf1: '12 hours with AM/PM', tf2: '12 hours', df0: 'D.MM.YYYY', df1: 'DD.MM.YYYY', df2: 'DD.MM.YY', df3: 'MM/DD/YYYY',
       df4: 'YYYY-MM-DD', df5: 'DD.MM.', df6: 'D.MM.YY', vlwCur: ' (on the clock)', vlwErr: 'Could not create the font for the strip.',
-      hub: 'Hub and second hand', hubSize: 'Hub:', hubColor: 'Colour:', hubSave: 'Save',
+      hub: 'Hub and second hand', hubSize: 'Hub:', hubColor: 'Colour:', hubTake: 'Current colour', hubTakeTip: 'Use the toolbox colour (picker, palette, colour field) for the hub', hubSave: 'Save',
       secPiv: 'Second hand pivot:', secCtr: 'centre',
       hubHint: 'Hub = centre over the hands, 0 = no hub. A pivot outside the centre gives a seconds subdial: the second hand '
       + 'then lies below the hour and minute hand, a fittingly short one is drawn in the hand designer. The pivot belongs to the '
       + 'clock face. The clock shows changes right away, they are stored with "Save" or with the clock face.',
       hubSaved: 'Hub and pivot saved.', hubErr: 'Could not send the hub to the clock.',
+      protName: 'This name belongs to a clock face created by the firmware - please choose another one.',
+      protHint: 'Clock faces created by the firmware cannot be overwritten - save under another name.',
       pos: 'Pixel', center: 'Centre' },
   };
   var L = TX[FD.lang] ? FD.lang : 'en';
@@ -151,16 +155,20 @@
   var pix = new Uint16Array(N).fill(0xFFFF), undoSt = [], redoSt = [];
   var tool = 'pen', color = 0x0000, dirty = false, base = DEF;
 
-  // Ueberschreiben nur fuer Dateien, deren Name /upload auch annimmt
-  // Overwriting only for files whose name /upload accepts as well
+  // Ueberschreiben nur fuer Dateien, deren Name /upload auch annimmt - nicht fuer die von der Firmware erzeugten
+  // Zifferblaetter (FD.prot)
+  // Overwriting only for files whose name /upload accepts as well - not for the clock faces created by the
+  // firmware (FD.prot)
 
-  function canOverwrite() { return /^\/face_[A-Za-z0-9_.-]+\.bmp$/.test(base); }
+  function isProt(file) { return FD.prot.indexOf(file.replace(/^\//, '')) >= 0; }
+  function canOverwrite() { return /^\/face_[A-Za-z0-9_.-]+\.bmp$/.test(base) && !isProt(base); }
   // Beide Knoepfe sind immer bedienbar, auch ohne Aenderung
   // Both buttons are always usable, even without a change
 
   function setDirty(v) {
     dirty = v; $('saveBtn').disabled = false;
     $('saveCurBtn').disabled = !canOverwrite();
+    $('saveCurBtn').title = isProt(base) ? t('protHint') : '';
   }
 
   // Farben (RGB565) - im Zifferblatt ist jede Farbe erlaubt, auch Weiss
@@ -1020,6 +1028,7 @@
     var name = $('faceName').value.trim();
     if (!/^[A-Za-z0-9_-]{1,20}$/.test(name)) { showMsg(t('badName'), false); return; }
     var file = 'face_' + name + '.bmp';
+    if (isProt(file)) { showMsg(t('protName'), false); return; }
     if (FD.faces.indexOf(file) >= 0 && !confirm(t('confirmExists', name))) return;
     saveFace(file, true);
   };
@@ -1246,23 +1255,32 @@
   function hubLive() {
     var s = parseInt($('hubSize').value, 10), ctr = $('secCtr').checked;
     FD.hub = isNaN(s) ? 0 : Math.max(0, Math.min(100, s));
-    FD.hubColor = $('hubColor').value;
     $('secX').disabled = $('secY').disabled = ctr;
     FD.sec = ctr ? [-1, -1] : [+$('secX').value, +$('secY').value];
     renderPreview();
     clearTimeout(hubTimer);
     hubTimer = setTimeout(function () { hubSend(false); }, 250);
   }
-  $('hubSize').value = FD.hub; $('hubColor').value = FD.hubColor;
+  $('hubSize').value = FD.hub; $('hubSwatch').style.background = FD.hubColor;
+
+  // Die Nabenfarbe kommt aus dem Werkzeugkasten: Pipette, Palette oder Farbfeld waehlen die Farbe, der Button uebernimmt sie
+  // The hub colour comes from the toolbox: picker, palette or colour field choose the colour, the button takes it over
+
+  $('hubColorBtn').onclick = function () {
+    FD.hubColor = hexOf(color);
+    $('hubSwatch').style.background = FD.hubColor;
+    hubLive();
+  };
   $('secX').max = W - 1; $('secY').max = FH - 1;
   $('secCtr').checked = FD.sec[0] < 0;
   $('secX').value = FD.sec[0] < 0 ? W >> 1 : FD.sec[0];
   $('secY').value = FD.sec[0] < 0 ? Math.round(FH * 0.72) : FD.sec[1]; // ohne Drehpunkt: unteres Drittel vorschlagen
                                                                          // without a pivot: suggest the lower third
   $('secX').disabled = $('secY').disabled = FD.sec[0] < 0;
-  ['hubSize', 'hubColor', 'secCtr', 'secX', 'secY'].forEach(function (id) { $(id).addEventListener('input', hubLive); });
+  ['hubSize', 'secCtr', 'secX', 'secY'].forEach(function (id) { $(id).addEventListener('input', hubLive); });
   $('hubSaveBtn').onclick = function () { clearTimeout(hubTimer); hubSend(true); };
   $('tHub').textContent = t('hub'); $('tHubSize').textContent = t('hubSize'); $('tHubColor').textContent = t('hubColor');
+  $('hubColorBtn').textContent = t('hubTake'); $('hubColorBtn').title = t('hubTakeTip');
   $('tSecPiv').textContent = t('secPiv'); $('tSecCtr').textContent = t('secCtr');
   $('hubHint').textContent = t('hubHint'); $('hubSaveBtn').textContent = t('hubSave');
 

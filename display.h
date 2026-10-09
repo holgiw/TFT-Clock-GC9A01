@@ -278,6 +278,35 @@
         espReboot();
     }
 
+    // "UHR4 OPENWIFI" (Diagnose): holt die Uhrzeit wie beim Start aus einem offenen WLAN (Schritte im Log), danach Neustart.
+    // Gespeicherte WLANs bleiben unberuehrt. Die Antwort kommt sofort, der Test dauert bis zu mehreren Minuten.
+
+    // "UHR4 OPENWIFI" (diagnostic): gets the time from an open WiFi like at boot (steps in the log), then restarts.
+    // Stored WiFis stay untouched. The reply comes right away, the test takes up to several minutes.
+
+    void handleSerialOpenWifi() {
+        serialReply("UHR4 OK OPENWIFI started");
+
+        // Ohne Auto-Verbindung, sonst verbindet die Uhr sich sofort wieder und der Scan scheitert
+        // Without auto-connect, otherwise the clock reconnects right away and the scan fails
+
+        WiFi.setAutoReconnect(false);
+        WiFi.disconnect();
+        delay(500);
+        WiFi.mode(WIFI_STA);
+        applyWifiTxPower();
+        int found = WiFi.scanNetworks();
+        if (found < 0) {
+            delay(1000);
+            found = WiFi.scanNetworks();
+        }
+        DEBUG_PRINTLN("[OPEN-WIFI] Scan: " + String(found) + " networks");
+        collectStrongestNetworks(found < 0 ? 0 : found);
+        WiFi.scanDelete();
+        bool ok = fetchTimeFromOpenWifi(true);
+        serialRestart(ok ? "UHR4 OK OPENWIFI time set" : "UHR4 OK OPENWIFI no time");
+    }
+
     void handleSerialWifi(const String& args) {
         int sep = args.indexOf(' ');
         String ssid, pass;
@@ -374,6 +403,9 @@
             }
             else if (cmd == "UHR4 INFO") {
                 handleSerialInfo();
+            }
+            else if (cmd == "UHR4 OPENWIFI") {
+                handleSerialOpenWifi();
             }
             else if (cmd == "UHR4 PINS") {
 
@@ -1546,6 +1578,133 @@
         return id;
     }
 
+    // Von der Firmware erzeugte Dateien (Startpaket): die Zifferblaetter STARTER_FACES und die Zeigersaetze 0, 1, 2
+    // und der Sekundenfeld-Satz. Sie lassen sich weder loeschen noch umbenennen noch ueberschreiben (Weboberflaeche,
+    // Upload, Designer, Sicherung) - die Uhr erzeugt sie bei Bedarf neu.
+
+    // Files created by the firmware (starter set): the clock faces STARTER_FACES and the hand sets 0, 1, 2 and the
+    // subdial set. They can be neither deleted nor renamed nor overwritten (web interface, upload, designer,
+    // backup) - the clock creates them again when needed.
+
+    bool isProtectedHandSetId(const String& id) {
+        return id == "0" || id == "1" || id == "2" || id == subdialHandSet();
+    }
+
+    bool isProtectedFile(const String& path) {
+        String name = path.startsWith("/") ? path.substring(1) : path;
+        if (name.startsWith("face_")) {
+            for (const auto& f : STARTER_FACES) {
+                if (name == String(f.path + 1)) return true;
+            }
+            return false;
+        }
+        if (name.startsWith("hand_set") && name.endsWith(".bmp")) {
+            int us = name.indexOf('_', 8);
+            return us > 8 && isProtectedHandSetId(name.substring(8, us));
+        }
+        return false;
+    }
+
+    // Namen fuer die Designer-Seiten und die Reihenfolge der Uebersichten (Startpaket zuerst)
+    // Names for the designer pages and the order of the overviews (starter set first)
+
+    String protectedFacesJs() {
+        String out;
+        for (const auto& f : STARTER_FACES) out += String(out.length() ? "," : "") + "'" + (f.path + 1) + "'";
+        return out;
+    }
+
+    String protectedSetsJs() {
+        return String("'0','1','2','") + subdialHandSet() + "'";
+    }
+
+    // Datei kopieren (LittleFS)
+    // Copy a file (LittleFS)
+
+    bool copyLittleFile(const String& from, const String& to) {
+        File in = LittleFS.open(from, "r");
+        if (!in) return false;
+        File out = LittleFS.open(to, "w");
+        if (!out) {
+            in.close();
+            return false;
+        }
+        uint8_t buf[512];
+        bool ok = true;
+        for (size_t n = in.read(buf, sizeof(buf)); n > 0 && ok; n = in.read(buf, sizeof(buf))) ok = out.write(buf, n) == n;
+        in.close();
+        out.close();
+        if (!ok) LittleFS.remove(to);
+        return ok;
+    }
+
+    // Jeder Zeigersatz bekommt alle drei Zeiger: einen fehlenden kopiert die Uhr aus dem Satz 0 (bisher zeigte sie
+    // ihn nur ersatzweise an). So bleibt ein Satz auch bestehen, wenn sich Satz 0 aendert, und jeder Zeiger
+    // laesst sich einzeln anpassen.
+
+    // Every hand set gets all three hands: the clock copies a missing one from set 0 (it used to show it only as a
+    // substitute). This way a set stays as it is when set 0 changes, and every hand can be adjusted on its own.
+
+    void completeHandSet(const String& id) {
+        if (id.isEmpty() || id == "0" || id.startsWith("~")) return;
+        for (const char* part : { "hour", "minute", "second" }) {
+            String path = "/hand_set" + id + "_" + part + ".bmp", source = String("/hand_set0_") + part + ".bmp";
+            if (!LittleFS.exists(path) && LittleFS.exists(source)) copyLittleFile(source, path);
+        }
+    }
+
+    void completeHandSets() {
+        std::set<String> ids;
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+            String n = f.name();
+            if (f.isDirectory() || !n.startsWith("hand_set") || !n.endsWith(".bmp")) continue;
+            int us = n.indexOf('_', 8);
+            if (us > 8) ids.insert(n.substring(8, us));
+        }
+        root.close();
+        for (const String& id : ids) completeHandSet(id);
+    }
+
+    // Alle Zeigerdateien im neuen Format (HAND_WIDTH x HAND_HEIGHT) speichern. Zeiger im alten Format (schmaler
+    // und/oder kuerzer) werden transparent aufgefuellt wie beim Laden (placeHand) - verlustfrei, die Uhr zeigt sie
+    // unveraendert. Dateien anderer Groesse bleiben unberuehrt. Gibt die Zahl der umgeschriebenen Dateien zurueck.
+
+    // Store all hand files in the new format (HAND_WIDTH x HAND_HEIGHT). Hands in the old format (narrower
+    // and/or shorter) are padded transparent as when loading (placeHand) - lossless, the clock shows them
+    // unchanged. Files of any other size stay untouched. Returns the number of rewritten files.
+
+    int upgradeHandFiles() {
+        std::vector<String> names;
+        File root = LittleFS.open("/");
+        for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+            String n = f.name();
+            if (f.isDirectory() || !n.startsWith("hand_set") || !n.endsWith(".bmp")) continue;
+            int32_t w, h;
+            if (readImageSize(("/" + n).c_str(), w, h) && isValidHandSize(w, h) && (w != HAND_WIDTH || h != HAND_HEIGHT)) names.push_back(n);
+        }
+        root.close();
+        if (names.empty()) return 0;
+
+        uint16_t* pixels = (uint16_t*)preferPsramMalloc((size_t)HAND_WIDTH * HAND_HEIGHT * sizeof(uint16_t));
+        if (!pixels) return 0;
+        const String tmp = "/hand_upgrade.tmp";
+        int done = 0;
+        for (const String& n : names) {
+            String path = "/" + n;
+            if (!loadHandPixels(path, pixels)) continue;
+            bool ok = writeRleImage(tmp, HAND_WIDTH, HAND_HEIGHT, [pixels](int y, uint16_t* row) {
+                memcpy(row, pixels + (size_t)y * HAND_WIDTH, (size_t)HAND_WIDTH * sizeof(uint16_t));
+            });
+            if (ok && LittleFS.rename(tmp, path)) done++; // rename ersetzt die alte Datei in einem Schritt
+                                                          // rename replaces the old file in one step
+            else LittleFS.remove(tmp);
+        }
+        free(pixels);
+        DEBUG_PRINTLN("[Starter] Hand files brought to the new size: " + String(done));
+        return done;
+    }
+
     // Legt fehlende Dateien des Standardsatzes 0 an - Ersatz fuer jeden fehlenden Zeiger
     // Creates missing files of the default set 0 - substitute for every missing hand
 
@@ -1734,6 +1893,20 @@
             h = abs(*(int32_t*)&head[22]);
         }
         return w > 0 && h > 0;
+    }
+
+    // Versionskennung einer Datei (Groesse, Aenderungszeit, Displaygroesse) fuer Bild-Adressen "&v=...": ein Bild
+    // laesst sich dauerhaft zwischenspeichern, weil sich die Adresse mit der Datei aendert.
+
+    // Version tag of a file (size, modification time, display size) for image addresses "&v=...": an image can be
+    // cached permanently because the address changes with the file.
+
+    String fileVersion(const String& path) {
+        File f = LittleFS.open(path, "r");
+        if (!f) return "0";
+        String v = String((uint32_t)f.size(), HEX) + "-" + String((uint32_t)f.getLastWrite(), HEX) + "-" + String(CLOCK_WIDTH, HEX);
+        f.close();
+        return v;
     }
 
     bool isValidHandSize(int32_t w, int32_t h) {
@@ -2205,7 +2378,7 @@
         File file = root.openNextFile();
         while (file) {
             String name = file.name();
-            if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp")) {
+            if (!file.isDirectory() && name.startsWith("face_") && name.endsWith(".bmp") && !isProtectedFile(name)) {
                 toDelete.push_back(name);
             }
             file = root.openNextFile();
@@ -2238,7 +2411,7 @@
         File file = root.openNextFile();
         while (file) {
             String name = file.name();
-            if (!file.isDirectory() && name.startsWith("hand_set") && name.endsWith(".bmp")) {
+            if (!file.isDirectory() && name.startsWith("hand_set") && name.endsWith(".bmp") && !isProtectedFile(name)) {
                 toDelete.push_back(name);
                 int start = 8; // Laenge von "hand_set"
                                // length of "hand_set"

@@ -82,6 +82,7 @@
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
     constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_* (config.h), wirkt nach Neustart
                                                                  // DISPLAY_TYPE_* (config.h), takes effect after a restart
+    constexpr const char* PK_RENUM_PLAN        = "renumPlan";    // laufende Neunummerierung der Zeigersaetze (Stufe|alt>neu,...)
     constexpr const char* PK_SUBDIAL_SET       = "subdialSet";   // Nummer des erzeugten Zeigersatzes fuers Sekundenfeld
                                                                  // number of the generated hand set for the subdial
     constexpr const char* PK_STRIP_CFG_DONE    = "stripCfgDone"; // Streifen-Einstellungen in stripcfg_*.txt uebernommen
@@ -220,6 +221,8 @@
     // Returns the preferences key for the WiFi password field at index i
 
     inline String pkPass(int i)         { return "pass" + String(i + 1); }
+    inline String pkWifiTx(int i)       { return "wtx" + String(i + 1); } // Sendeleistungs-Stufe, mit der das WLAN in Slot i klappte
+                                                                         // TX power step that worked for the WiFi in slot i
 
 
     // Liefert den Preferences-Key fuer den NTP-Server an Index i

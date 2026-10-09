@@ -4,7 +4,8 @@
 #        (port.ps1 -NoSwitch), fragt eine laufende Uhr nach ihrem Displaytyp,
 #        fragt Displaytyp und WLAN ab, bringt die Uhr dann in den Download-Modus,
 #        flasht sie (esptool) und sendet danach die Einstellungen und die
-#        Uhrzeit des PCs ueber USB.
+#        Uhrzeit des PCs ueber USB. Danach bleibt ein serieller Monitor offen und
+#        zeigt die Ausgabe der Uhr (Beenden mit Q oder Esc; -NoMonitor = ohne).
 #        Mit -Port ohne Rueckfragen, das WLAN wird dann nicht abgefragt.
 #   -Send <n>
 #        Nur senden (ohne Flashen): Displaytyp an eine laufende Uhr.
@@ -34,6 +35,8 @@
 #        Send only (without flashing): display type to a running clock.
 #   -Time [-Port <n>]
 #        Only send the PC's time to a running clock (setTime.bat).
+#   -NoMonitor
+#        With -Flash: no serial monitor afterwards (it stays open otherwise).
 # Sent are "UHR4 WIFI <name hex> <password hex>", "UHR4 DISPLAY <name>",
 # "UHR4 RESTART" if needed, then "UHR4 TIME <unix seconds>" (see
 # handleSerialCommands() in display.h).
@@ -45,7 +48,7 @@
 # subfolder (esp32s2, esp32c6 or esp32s3).
 # The WiFi password is entered hidden, stays only in this script's memory (no
 # file, no environment variable) and only goes to the clock via USB.
-param([switch]$Flash, [string]$Port, [string]$Display, [string]$Send, [switch]$Time)
+param([switch]$Flash, [string]$Port, [string]$Display, [string]$Send, [switch]$Time, [switch]$NoMonitor)
 
 # Board und Displaytypen: 's2' (Lolin S2 Pico, wechselbares Display), 'c6' (Waveshare ESP32-C6-LCD mit fest
 # verbautem ST7789) oder 's3' (Waveshare ESP32-S3-LCD-1.28 mit fest verbautem GC9A01). Set-Board stellt Namen
@@ -702,6 +705,56 @@ if ($displayName -or $wifiSsid) {
     }
 }
 
+# Serieller Monitor: zeigt die Ausgabe der Uhr, damit Fehler beim Start (WLAN, Zeit) sichtbar bleiben. Verbindet sich
+# nach einem Neustart der Uhr selbst wieder. Beenden mit Q oder Esc (oder Strg+C). Die Uhr schreibt ins Log, wenn
+# "Logging aktivieren" in ihren Einstellungen an ist.
+# Serial monitor: shows the clock's output so errors at start (WiFi, time) stay visible. Reconnects by itself after
+# the clock restarts. Quit with Q or Esc (or Ctrl+C). The clock writes to the log if "Enable Logging" is on in its
+# settings.
+function Start-SerialMonitor {
+    Write-Host ''
+    Write-Host 'Serieller Monitor - Beenden mit Q oder Esc. Ausgaben erscheinen nur, wenn "Logging aktivieren" in der Uhr an ist.'
+    Write-Host 'Serial monitor - quit with Q or Esc. Output appears only if "Enable Logging" is on in the clock.'
+    Write-Host '------------------------------------------------------------'
+    $sp = $null
+    $keys = $true
+    while ($true) {
+        if ($keys) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $k = [Console]::ReadKey($true)
+                    if ($k.Key -eq 'Q' -or $k.Key -eq 'Escape') { break }
+                }
+            } catch { $keys = $false }   # keine Konsole (Eingabe umgeleitet) / no console (input redirected)
+        }
+        if (-not $sp -or -not $sp.IsOpen) {
+            $n = Get-RunningClockPort
+            if (-not $n) { Start-Sleep -Milliseconds 500; continue }
+            try {
+                $sp = Open-ClockPort $n
+                Write-Host "--- COM$n verbunden / connected ---"
+            } catch {
+                $sp = $null
+                Start-Sleep -Milliseconds 500
+                continue
+            }
+        }
+        try {
+            $text = $sp.ReadExisting()
+            if ($text) { Write-Host -NoNewline $text }
+        } catch {
+            # Port weg (Uhr startet neu): schliessen und neu verbinden / port gone (clock restarts): close and reconnect
+            try { $sp.Close() } catch {}
+            $sp = $null
+            Write-Host '--- Verbindung getrennt / disconnected ---'
+            continue
+        }
+        Start-Sleep -Milliseconds 50
+    }
+    if ($sp -and $sp.IsOpen) { try { $sp.Close() } catch {} }
+    Write-Host ''
+}
+
 # 6) Uhrzeit des PCs senden - nach einem Neustart erst, wenn die Uhr wieder
 #    laeuft (die Wartezeit ueberbrueckt die 1 s bis zum Neustart). Nur wenn
 #    die Einstellungen angekommen sind; sonst antwortet die Uhr ohnehin nicht.
@@ -714,4 +767,7 @@ if ($result -eq 0) {
     if ($restarting) { Start-Sleep -Seconds 3 }
     [void](Send-ClockTime 0 60)
 }
+
+# 7) Serieller Monitor (nur nach dem Flashen) / serial monitor (only after flashing)
+if ($Flash -and -not $NoMonitor) { Start-SerialMonitor }
 exit $result

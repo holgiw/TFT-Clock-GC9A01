@@ -48,7 +48,10 @@ flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 	Danach sendet es Displaytyp und WLAN per USB an die Uhr; sie startet neu und verbindet sich
 	mit dem WLAN. Zuletzt bekommt die Uhr die Uhrzeit des PCs und läuft damit sofort richtig,
 	auch ohne WLAN, DCF77 und RTC (NTP/DCF77 korrigieren später).
-	Das Fenster bleibt am Ende offen, damit das Ergebnis lesbar ist.
+	Das Fenster bleibt am Ende offen und wird zum seriellen Monitor: Er zeigt die Ausgabe der Uhr
+	(WLAN, Zeit, Fehler) und verbindet sich nach einem Neustart der Uhr selbst wieder. Beenden mit Q
+	oder Esc. Die Uhr schreibt nur dann, wenn "Logging aktivieren" in ihren Einstellungen an ist.
+	Ohne Monitor: clocksetup.ps1 -Flash -NoMonitor.
 
 	Im DOS Fenster im ausgepackten Verzeichnis geht es auch mit der COM-Nummer, z.B.
 	"flashESP.bat 3" für COM3, optional mit Displaytyp: "flashESP.bat 3 GC9D01".
@@ -285,7 +288,8 @@ esptool --port /dev/ttyACM0 erase_flash
 
 # ESP32-S2 (Build im Unterordner esp32s2)
 esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
-# ESP32-C6 (Waveshare, Build im Unterordner esp32c6) - kein Bootmodus nötig
+# ESP32-C6 (Waveshare, Build im Unterordner esp32c6) - kein Bootmodus nötig. Vorher bei einer vorhandenen Uhr eine
+# Sicherung ziehen: die Partitionstabelle der Firmware ist neu (2,25 MB Programm), das Dateisystem wird neu angelegt.
 esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
 # ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, Build im Unterordner esp32s3) - kein Bootmodus nötig
 esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32s3/uhr4.ino.bootloader.bin 0x8000 esp32s3/uhr4.ino.partitions.bin 0xe000 esp32s3/boot_app0.bin 0x10000 esp32s3/uhr4.ino.bin
@@ -354,7 +358,10 @@ Linux section, port /dev/cu.usbmodem...).
 	Then it sends display type and WiFi to the clock via USB; the clock restarts and connects to
 	the WiFi. Finally the clock gets the PC's time and runs correctly right away, even without
 	WiFi, DCF77 and RTC (NTP/DCF77 correct it later).
-	The window stays open at the end so the result can be read.
+	The window stays open at the end and becomes a serial monitor: it shows the clock's output
+	(WiFi, time, errors) and reconnects by itself after the clock restarts. Quit with Q or Esc. The
+	clock only writes if "Enable Logging" is on in its settings. Without monitor:
+	clocksetup.ps1 -Flash -NoMonitor.
 
 	In a Command Prompt in the unpacked folder it also works with the COM port number, e.g.
 	"flashESP.bat 3" for COM3, optionally with display type: "flashESP.bat 3 GC9D01".
@@ -589,7 +596,8 @@ esptool --port /dev/ttyACM0 erase_flash
 
 # ESP32-S2 (build in the subfolder esp32s2)
 esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
-# ESP32-C6 (Waveshare, build in the subfolder esp32c6) - no boot mode needed
+# ESP32-C6 (Waveshare, build in the subfolder esp32c6) - no boot mode needed. Take a backup first on an existing
+# clock: the firmware's partition table is new (2.25 MB program), the file system is created anew.
 esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
 # ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, build in the subfolder esp32s3) - no boot mode needed
 esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32s3/uhr4.ino.bootloader.bin 0x8000 esp32s3/uhr4.ino.partitions.bin 0xe000 esp32s3/boot_app0.bin 0x10000 esp32s3/uhr4.ino.bin

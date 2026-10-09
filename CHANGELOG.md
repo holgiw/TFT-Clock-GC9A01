@@ -54,6 +54,13 @@
   Umbenennen und Sicherung, von einem anderen Displaytyp umgerechnet) und gilt auch in allen Vorschauen.
   Das Startpaket enthält dafür `face_subdial.bmp` (12, 3, 9, Sekundenfeld statt der 6), einen Zeigersatz wie
   Satz 0 mit kurzem rotem Sekundenzeiger samt Scheibe und das Uhren Set „Sekundenfeld“.
+- Die von der Firmware erzeugten Zifferblätter (Startpaket) und Zeigersätze (0, 1, 2 und der Sekundenfeld-Satz)
+  lassen sich weder löschen noch umbenennen noch überschreiben – in der Weboberfläche, beim Hochladen, im
+  Designer und beim Wiederherstellen. Sie stehen in den Übersichten „Zifferblätter“ und „Zeigersätze“ zuerst und
+  tragen den Hinweis „von der Firmware“ statt „Umbenennen“ und „Löschen“. Im Designer ist „Aktuelles … speichern
+  und anwenden“ für sie gesperrt, nur „Als neues … speichern“ geht, und deren Namen sind nicht wählbar. Sie
+  gehören nicht in die Sicherung; die Uhr erzeugt sie bei Bedarf selbst. Die Werksreset-Aktionen „Zifferblätter
+  löschen“ und „Zeigersätze löschen“ lassen sie stehen.
 - Startpaket: Fehlende Zifferblätter, Zeigersätze und Uhren Sets des Startpakets erzeugt die Uhr bei jedem Start
   neu, nicht mehr nur ohne jedes Zifferblatt und jeden Zeigersatz – so bekommen auch bestehende Uhren das
   Sekundenfeld. Vorhandenes bleibt; den Sekundenfeld-Satz legt die Uhr unter der ersten freien Nummer ab 3 an.
@@ -80,10 +87,44 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- Der Chip (S2, S3, C6) steht jetzt neben dem Displaytyp in der Kopfzeile der Weboberfläche („S3 GC9A01_WITH_BACKLIGHT“),
+  im Dateinamen der Sicherung (`uhr4-backup-<Hostname>-<Chip>-<Displaytyp>-<Datum>.tar`) und im Kopf der mitgesicherten
+  Statusdatei.
+- flashESP.bat: Nach dem Flashen und dem Senden von WLAN und Uhrzeit bleibt ein serieller Monitor offen. Er zeigt die
+  Ausgabe der Uhr, verbindet sich nach einem Neustart selbst wieder und endet mit Q oder Esc. Die Uhr schreibt nur,
+  wenn „Logging aktivieren“ an ist. Ohne Monitor: `clocksetup.ps1 -Flash -NoMonitor`.
+- Zifferblatt- und Zeigersatz-Seite: Ein Klick auf ein Zifferblatt oder einen Zeigersatz wählt es aus, ohne die Seite
+  neu zu laden; nur der Hinweis „(aktiv)“ wandert, die Meldung erscheint oben. Die Vorschaubilder tragen die
+  Dateiversion in der Adresse und bleiben im Browser zwischengespeichert (ändert sich eine Datei, ändert sich die
+  Adresse). Die Seiten laden dadurch auch beim erneuten Öffnen deutlich schneller. Schlägt der Aufruf fehl, folgt der
+  Browser dem Link wie bisher. Der Streifen der Zifferblatt-Vorschau (zeigt Uhrzeit/Datum) wird nicht zwischengespeichert.
+- Zifferblatt-Designer: Die Nabenfarbe hat kein eigenes Farbfeld mehr. Sie kommt aus dem Werkzeugkasten (Pipette,
+  Palette, Farbfeld): Farbe wählen und „Aktuelle Farbe“ im Bereich „Nabe und Sekundenzeiger“ drücken; daneben zeigt
+  ein Farbfeld die Nabenfarbe.
+- Alle Zeigerdateien speichert die Uhr beim Start (und nach dem Wiederherstellen) im neuen Format des Displays.
+  Zeiger im alten Format (schmaler und/oder kürzer) füllt sie transparent auf wie beim Laden; die Anzeige bleibt
+  gleich, die Übersicht zeigt „neues Format“. Dateien anderer Größe bleiben unberührt.
+- Die Zeigersätze nummeriert die Uhr beim Start fortlaufend neu: 0, 1 und 2 bleiben, der Sekundenfeld-Satz wird 3,
+  die übrigen folgen in ihrer bisherigen Reihenfolge ab 4. Lücken von gelöschten Sätzen oder einer
+  Wiederherstellung schließen sich. Uhren Sets, der aktive Zeigersatz und die gemerkte Nummer des
+  Sekundenfeld-Satzes ziehen mit. Fällt beim Umnummerieren der Strom aus, setzt die Uhr beim nächsten Start fort.
+- Jeder Zeigersatz hat jetzt alle drei Zeiger: Fehlt einem ein Zeiger, kopiert die Uhr ihn aus Satz 0 – beim Start,
+  in der Zeigersatz-Übersicht, beim Aktivieren und nach dem Wiederherstellen. Bisher zeigte sie den fehlenden
+  Zeiger aus Satz 0 nur ersatzweise an und folgte damit späteren Änderungen von Satz 0; jetzt ist die Kopie ein
+  eigener Zeiger des Satzes.
+- ESP32-C6: eigene Partitionstabelle `uhr4_c6` mit 2,25 MB Programm (bisher 2 MB) und 1,625 MB Dateisystem (bisher
+  1,875 MB) – das Programm passte nicht mehr in 2 MB. Beim Selbstbauen `boards.local.txt` und `uhr4_c6.csv` in den
+  Core-Ordner kopieren und das Schema „uhr4 C6 (2.25MB APP/1.6MB SPIFFS)“ wählen; mit „No OTA“ bricht der Build
+  mit einer Meldung ab. **Beim ersten Flashen einer vorhandenen C6 vorher eine Sicherung ziehen:** Das Dateisystem
+  liegt an anderer Stelle und wird neu angelegt, Zifferblätter, Zeiger, Streifen und Schriften sind danach leer;
+  Einstellungen, WLAN und Uhren Sets bleiben. Danach die Sicherung wiederherstellen.
 - Wiederherstellen einer Sicherung löscht nichts mehr: Vorhandene Zifferblätter, Zeigersätze, Streifen,
   Schriften und Uhren Sets bleiben, gleichnamige aus der Sicherung ersetzen sie. Uhren Sets der Sicherung mit
   neuem Namen kommen in freie Plätze. Die übrigen Einstellungen übernimmt die Uhr wie bisher aus der
-  Sicherung.
+  Sicherung. Zeigersätze der Sicherung mit einer Nummer, die die Firmware belegt (0–2, Sekundenfeld-Satz –
+  etwa in einer älteren Sicherung), bekommen die nächste freie Nummer ab 3, und die Uhren Sets sowie der aktive
+  Zeigersatz der Sicherung ziehen mit. Sind alle Zeiger pixelgleich mit dem Satz der Firmware (die erzeugten
+  Sätze), entfallen sie und die Uhren Sets zeigen auf den Satz der Firmware.
 - Jeder Start beginnt ohne Uhrzeit: Die Systemzeit überstand bisher einen Neustart per Reset-Taste oder
   Software und wird jetzt am Anfang verworfen. Die Uhr holt sie wie nach einem Stromausfall neu (NTP, RTC,
   DCF77, offenes WLAN, USB).
@@ -94,7 +135,48 @@
   loslässt, löscht alle gespeicherten WLANs und startet neu; der vollständige Werksreset kommt erst nach
   30 s (bisher 15 s). Jede Stufe steht im Log.
 
+### Entfernt
+- „Weitere Zifferblätter von GitHub laden“ (Zifferblatt-Seite) und „Weitere Zeigersätze von GitHub laden“ sowie
+  das Formular „Neuen Zeigersatz hochladen“ (Zeigersatz-Seite) entfallen. Zifferblätter und Zeiger entstehen in den
+  Designern oder kommen über den Dateimanager und die Sicherung auf die Uhr; das Hochladen-Formular der
+  Zifferblatt-Seite bleibt.
+
 ### Behoben
+- Uhrzeit aus offenen WLANs auf dem ESP32-S3: Die Uhr verbindet sich mit den offenen Hotspots mit voller Sendeleistung (sie sind meist
+  weit weg), danach gilt wieder die kleinste Stufe. Neuer Diagnosebefehl `UHR4 OPENWIFI` (USB): sucht die Zeit gezielt aus
+  einem offenen WLAN (auch ab -95 dBm), jeder Schritt steht im Log, danach Neustart.
+- ESP32-S3-Build: Bricht jetzt mit einer Meldung ab, wenn PSRAM nicht auf „QSPI PSRAM“ steht. Der Chip hat 2 MB PSRAM;
+  ohne sie blieben nur etwa 30 KB freier Heap (größter Block 8 KB), und Seiten der Weboberfläche liefen in die
+  Zeitüberschreitung.
+- Die Uhr wählt die WLAN-Sendeleistung selbst (`WIFI_TX_AUTO` in `config.h`). Mit voller Leistung (20 dBm) antworteten
+  Router und Hotspots auf die Anmeldung der ESP32-S3 nicht (Abbruchgrund „2 AUTH_EXPIRE“). Die S3 beginnt bei 8,5 dBm
+  und geht bei Misserfolg über 13 und 17 auf 19,5 dBm hoch; S2 und C6 beginnen mit der vollen Standardleistung und gehen
+  nur bei Misserfolg herunter (17, 13, 8,5 dBm). Je Stufe ein Versuch nur mit WPA2, zuletzt einer mit WPA3. Bei einem
+  neuen WLAN prüft die Uhr nach dem Verbinden das Gateway (TCP- und DNS-Antwort): zu hohe Leistung lässt kurze
+  Verwaltungspakete durch, Daten aber nicht. Besteht die Prüfung auf keiner Stufe, gilt die erste, auf der sie
+  verbunden war. Die Stufe, die klappt, merkt sie sich je WLAN, ebenso, ob das Netz WPA3 braucht (dann beginnt sie dort gleich mit WPA3), und
+  nimmt sie beim nächsten Start zuerst (ohne Prüfung); sie steht nicht in der Sicherung. Nach einem Misserfolg gilt wieder die Startstufe (Access Point, offene
+  WLANs). Die Statusseite zeigt die Sendeleistung.
+- WLAN-Log: Die Zeile zum Verbindungsversuch nennt die Länge des Passworts (nicht das Passwort) und die Sendeleistung.
+- Uhrzeit aus offenen WLANs: Die TLS-Verbindung zur Anmeldeseite eines Hotspots bekommt 10 s statt 4 s, und schlägt sie
+  fehl, nennt das Log den mbedTLS-Fehler. Hotspots wie „Vodafone Hotspot“ leiten auf eine Anmeldeseite um, deren
+  Antwort ohne `Date:`-Kopf kommt; die Uhr braucht dann die HTTPS-Antwort der Anmeldeseite.
+- WLAN: Der erste Verbindungsversuch läuft nur mit WPA2 (ohne geschützte Verwaltungsframes, 15 s), erst der zweite
+  mit WPA3. Router im Mischbetrieb WPA2/WPA3 antworteten auf die WPA3-Anmeldung der ESP32-S3 nicht (Abbruchgrund
+  „2 AUTH_EXPIRE“). Ein Router nur mit WPA3 verbindet damit erst im zweiten Versuch.
+- WLAN: Die Uhr durchsucht beim Verbinden alle Kanäle und nimmt den stärksten Access Point mit dem gespeicherten
+  Namen. Bisher nahm sie den ersten gefundenen; bei mehreren Access Points mit gleichem Namen (Repeater, Mesh) konnte
+  das der schwache sein und die Verbindung mit „2 AUTH_EXPIRE“ scheitern. Das Log nennt bei Erfolg Kanal, BSSID und
+  Signalstärke.
+- WLAN: Schlägt eine Verbindung fehl, nennt das Log jetzt den Grund des Abbruchs (z. B. „202 AUTH_FAIL“ bei falschem
+  Passwort, „201 NO_AP_FOUND“, „203 ASSOC_FAIL“ wenn der Router das Gerät ablehnt).
+- Der Hostname aus der MAC-Adresse (`clock_XXXXXX`) war auf dem ESP32-S3 `clock_000000`, weil die Adresse zu früh
+  gelesen wurde. Die Uhr liest sie jetzt direkt aus dem Chip, unabhängig vom WLAN-Zustand. Ein bereits gespeicherter
+  eigener Hostname bleibt unverändert.
+- Meldungen auf dem Display (WPS-Hinweis „then Access Point“, Access-Point-Anzeige mit „http://…“): Passte ein Text
+  in keine der größeren Schriften, nahm die Uhr die winzige Notschrift (6 × 8 Pixel). Jetzt verkleinert sie die
+  letzte größere Schrift bis auf 75 % und vergrößert erst danach die Notschrift (bis 3-fach). Das betrifft vor allem
+  runde Displays, wo die untere Zeile schmal ist.
 - Taster und Boot-Taste reagierten nicht, solange die Uhr auf eine WLAN-Verbindung wartete (je 30 s, beim
   Start und bei jedem Reconnect), offene WLANs abfragte, im WPS-Countdown stand oder auf DCF77 wartete. Sie
   werden jetzt auch dort abgefragt. Außerdem versuchte die Uhr direkt nach einem gescheiterten Start sofort
@@ -284,6 +366,12 @@
   another display type) and also applies in all previews. The starter set contains `face_subdial.bmp` (12, 3, 9,
   subdial instead of the 6), a hand set like set 0 with a short red second hand with a disc and the preset
   "Sekundenfeld" for it.
+- The clock faces (starter set) and hand sets (0, 1, 2 and the subdial set) created by the firmware can be
+  neither deleted nor renamed nor overwritten – in the web interface, on upload, in the designer and on restore.
+  They come first in the "Clock Faces" and "Hand Sets" overviews and show "built-in" instead of "Rename" and
+  "Delete". In the designer "Save and apply current …" is locked for them, only "Save as new …" works, and their
+  names cannot be chosen. They are not part of the backup; the clock creates them itself when needed. The
+  factory reset actions "Delete Clock Faces" and "Delete Hand Sets" leave them in place.
 - Starter set: the clock creates missing clock faces, hand sets and presets of the starter set at every start,
   no longer only without any clock face and hand set – so existing clocks get the subdial too. Existing items
   stay; the clock creates the subdial set under the first free number from 3.
@@ -310,9 +398,42 @@
     their clock faces.
 
 ### Changed
+- The chip (S2, S3, C6) now appears next to the display type in the header of the web interface ("S3
+  GC9A01_WITH_BACKLIGHT"), in the backup file name (`uhr4-backup-<host name>-<chip>-<display type>-<date>.tar`) and
+  in the header of the status file included in the backup.
+- flashESP.bat: after flashing and sending WiFi and time, a serial monitor stays open. It shows the clock's output,
+  reconnects by itself after a restart and ends with Q or Esc. The clock only writes if "Enable Logging" is on.
+  Without monitor: `clocksetup.ps1 -Flash -NoMonitor`.
+- Clock face and hand set page: a click on a clock face or hand set selects it without reloading the page; only the
+  "(active)" note moves and the message appears at the top. The preview images carry the file version in their
+  address and stay cached in the browser (when a file changes, its address changes). The pages therefore also load
+  noticeably faster when opened again. If the call fails, the browser follows the link as before. The strip of the
+  clock face preview (shows time/date) is not cached.
+- Clock face designer: the hub colour no longer has a colour field of its own. It comes from the toolbox (picker,
+  palette, colour field): choose a colour and press "Current colour" in the "Hub and second hand" area; a swatch next
+  to it shows the hub colour.
+- The clock stores all hand files in the display's new format at start (and after a restore). Hands in the old
+  format (narrower and/or shorter) are padded transparent as when loading; the display stays the same, the
+  overview shows "new format". Files of any other size stay untouched.
+- The clock numbers the hand sets consecutively again at start: 0, 1 and 2 stay, the subdial set becomes 3, the
+  others follow in their previous order from 4. Gaps from deleted sets or a restore close. Presets, the active
+  hand set and the remembered number of the subdial set follow. If the power fails while renumbering, the clock
+  continues at the next start.
+- Every hand set now has all three hands: if one is missing, the clock copies it from set 0 – at start, in the
+  hand set overview, on activation and after a restore. It used to show the missing hand from set 0 only as a
+  substitute and thus followed later changes of set 0; now the copy is a hand of its own in the set.
+- ESP32-C6: own partition table `uhr4_c6` with 2.25 MB program (previously 2 MB) and 1.625 MB file system
+  (previously 1.875 MB) – the program no longer fit into 2 MB. When building yourself copy `boards.local.txt` and
+  `uhr4_c6.csv` into the core folder and choose the scheme "uhr4 C6 (2.25MB APP/1.6MB SPIFFS)"; with "No OTA" the
+  build stops with a message. **Take a backup before flashing an existing C6 for the first time:** the file system
+  sits elsewhere and is created anew, clock faces, hands, strips and fonts are empty afterwards; settings, WiFi and
+  presets stay. Then restore the backup.
 - Restoring a backup no longer deletes anything: existing clock faces, hand sets, strips, fonts and presets
   stay, same-named ones from the backup replace them. Backup presets with a new name go into free slots. The
-  clock takes over the other settings from the backup as before.
+  clock takes over the other settings from the backup as before. Hand sets of the backup with a number the
+  firmware occupies (0–2, subdial set – e.g. in an older backup) get the next free number from 3, and the
+  presets and the active hand set of the backup follow. If all hands are pixel-identical to the firmware's set
+  (the generated sets), they are dropped and the presets point to the firmware's set.
 - Every boot starts without a time: the system time used to survive a restart via the reset button or
   software and is now discarded at the start. The clock gets it anew as after a power cut (NTP, RTC, DCF77,
   open WiFi, USB).
@@ -323,7 +444,46 @@
   stored WiFi networks and restarts; the full factory reset now only comes after 30 s (previously 15 s).
   Every stage is logged.
 
+### Removed
+- "Download Additional Clock Faces from GitHub" (clock face page) and "Download Additional Hand Sets from GitHub"
+  as well as the "Upload New Hand Set" form (hand set page) are gone. Clock faces and hands come from the
+  designers or onto the clock via the file manager and the backup; the upload form of the clock face page stays.
+
 ### Fixed
+- Time from open WiFis on the ESP32-S3: the clock connects to open hotspots at full transmit power (they are usually far
+  away), afterwards the lowest step applies again. New diagnostic command `UHR4 OPENWIFI` (USB): gets the time
+  from an open WiFi on demand (also from -95 dBm), every step is in the log, then restart.
+- ESP32-S3 build: now aborts with a message if PSRAM is not set to "QSPI PSRAM". The chip has 2 MB PSRAM; without it
+  only about 30 KB of free heap remained (largest block 8 KB), and pages of the web interface timed out.
+- The clock chooses the WiFi transmit power itself (`WIFI_TX_AUTO` in `config.h`). At full power (20 dBm) routers and
+  hotspots did not answer the ESP32-S3's login (disconnect reason "2 AUTH_EXPIRE"). The S3 starts at 8.5 dBm and on
+  failure goes up via 13 and 17 to 19.5 dBm; S2 and C6 start with the full default power and only go down on failure
+  (17, 13, 8.5 dBm). One WPA2-only attempt per step, a last one with WPA3. For a new WiFi the clock checks the
+  gateway after connecting (TCP and DNS answer): too high power lets short management frames through but not data.
+  If the check passes on no step, the first step on which it connected applies. The step that works is remembered per
+  WiFi, as is whether the network needs WPA3 (then it starts with WPA3 right away), and used first at the next start
+  (without the check); it is not part of the backup. After a failure the start
+  step applies again (access point, open WiFis). The status page shows the transmit power.
+- WiFi log: the line for the connection attempt names the length of the password (not the password) and the TX power.
+- Time from open WiFis: the TLS connection to a hotspot's login page gets 10 s instead of 4 s, and if it fails, the log
+  names the mbedTLS error. Hotspots like "Vodafone Hotspot" redirect to a login page whose reply comes without a
+  `Date:` header; the clock then needs the login page's HTTPS reply.
+- WiFi: the first connection attempt runs with WPA2 only (without protected management frames, 15 s), only the
+  second with WPA3. Routers in WPA2/WPA3 mixed mode did not answer the WPA3 login of the ESP32-S3 (disconnect reason
+  "2 AUTH_EXPIRE"). A WPA3-only router therefore connects only on the second attempt.
+- WiFi: when connecting, the clock scans all channels and takes the strongest access point with the stored name.
+  It used to take the first one found; with several access points of the same name (repeater, mesh) that could be
+  the weak one and the connection failed with "2 AUTH_EXPIRE". On success the log names channel, BSSID and signal
+  strength.
+- WiFi: when a connection fails, the log now names the reason of the disconnect (e.g. "202 AUTH_FAIL" for a wrong
+  password, "201 NO_AP_FOUND", "203 ASSOC_FAIL" when the router refuses the device).
+- The hostname derived from the MAC address (`clock_XXXXXX`) was `clock_000000` on the ESP32-S3 because the address
+  was read too early. The clock now reads it straight from the chip, independent of the WiFi state. A stored custom
+  hostname stays unchanged.
+- Messages on the display (WPS hint "then Access Point", access point screen with "http://…"): when a text did not fit
+  any of the larger fonts, the clock used the tiny fallback font (6 x 8 pixels). Now it shrinks the last larger
+  font down to 75 % and only then enlarges the fallback font (up to 3x). This mostly affects round displays, where
+  the bottom row is narrow.
 - The button and boot button did not react while the clock waited for a WiFi connection (30 s each, at boot
   and on every reconnect), queried open WiFis, was in the WPS countdown or waited for DCF77. They are now
   checked there too. Also, right after a failed boot the clock immediately tried again for 60 s; the first

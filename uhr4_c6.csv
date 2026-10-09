@@ -1,0 +1,12 @@
+# Partitionstabelle fuer den ESP32-C6 (4 MB Flash): App 2,25 MB statt 2 MB, Dateisystem 1,625 MB statt 1,875 MB.
+# Gehoert in den Ordner tools/partitions des ESP32-Cores, siehe boards.local.txt.
+#
+# Partition table for the ESP32-C6 (4 MB flash): app 2.25 MB instead of 2 MB, file system 1.625 MB instead of 1.875 MB.
+# Belongs in the tools/partitions folder of the ESP32 core, see boards.local.txt.
+#
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x240000,
+spiffs,   data, spiffs,  0x250000,0x1A0000,
+coredump, data, coredump,0x3F0000,0x10000,

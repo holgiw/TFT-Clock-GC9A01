@@ -35,6 +35,7 @@
       h_poly: 'Polygon: Punkte anklicken, Doppelklick oder Klick auf den ersten Punkt schlie\u00dft, Esc bricht ab.',
       modeAs: 'Wie auf der Uhr:', mStation: 'Sekunde wartet auf 12', mSecSmooth: 'Sekunde schleichend', mSecTick: 'Sekunde tickend',
       mMinSmooth: 'Minute schleichend', mMinJump: 'Minute springt',
+      protHint: 'Von der Firmware erzeugte Zeigers\u00e4tze lassen sich nicht \u00fcberschreiben - als neues Design speichern.',
       pos: 'Pixel', pivot: 'Drehpunkt',
       widthHint: 'Das aktuelle Zifferblatt zeigt diesen Zeiger nur {0} px breit - ausgegraute Spalten werden auf der Uhr abgeschnitten.' },
     en: { base: 'Based on:', set: 'Set', active: 'active', reset: 'Discard changes',
@@ -68,6 +69,7 @@
       h_poly: 'Polygon: click points, double-click or click the first point to close, Esc cancels.',
       modeAs: 'As on the clock:', mStation: 'second waits at 12', mSecSmooth: 'smooth second', mSecTick: 'ticking second',
       mMinSmooth: 'smooth minute', mMinJump: 'minute jumps',
+      protHint: 'Hand sets created by the firmware cannot be overwritten - save as a new design.',
       pos: 'Pixel', pivot: 'Pivot',
       widthHint: 'The current clock face shows this hand only {0} px wide - greyed-out columns are cut off on the clock.' },
   };
@@ -83,6 +85,13 @@
   function setDirty(v) {
     dirty = v; $('saveBtn').disabled = false; // beide Knoepfe immer bedienbar, auch ohne Aenderung
                                               // both buttons always usable, even without a change
+
+    // Nicht fuer die von der Firmware erzeugten Zeigersaetze (HD.prot): nur als neues Design speichern
+    // Not for the hand sets created by the firmware (HD.prot): only save as a new design
+
+    var prot = HD.prot.indexOf(activeBase()) >= 0;
+    $('saveCurBtn').disabled = prot;
+    $('saveCurBtn').title = prot ? t('protHint') : '';
   }
 
   // Formparameter je Zeiger (Startwerte aus den Displaymassen)

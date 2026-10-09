@@ -10,6 +10,11 @@
     // wifi_manager.h: WiFi: connection setup, access point, scan, reconnect
 
     void startWPS() ;
+    void applyWifiTxPower() ;
+    bool wifiLinkWorks() ;
+    void onWifiStartEvent(arduino_event_id_t event, arduino_event_info_t info) ;
+    String wifiDisconnectReasonText(uint8_t reason) ;
+    void onWifiDisconnectEvent(arduino_event_id_t event, arduino_event_info_t info) ;
     bool checkWiFiReconnect() ;
     void wipeWifiDriverStorage() ;
     bool wifiStoreCrypt(bool encrypt, const uint8_t* iv, uint8_t* tag, const uint8_t* in, uint8_t* out, size_t len) ;
@@ -27,7 +32,8 @@
     void restorePreviousWpsConnection() ;
     void startAP() ;
     String buildLabel() ; // "Build " + Version fuer die WLAN-Anzeigen / "Build " + version for the WiFi screens
-    int connectWiFi(int number, bool verboseMode) ;
+    int connectWiFi(int number, bool verboseMode, bool wpa2Only = false) ; // wpa2Only: Verbindung ohne WPA3 (siehe wifi_manager.h)
+                                                                            // wpa2Only: connect without WPA3 (see wifi_manager.h)
     int connectWiFiWithRetries(int number, const String& label, bool verboseMode = true) ; // ruft connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal auf (siehe wifi_manager.h)
                                                                                             // calls connectWiFi() up to WIFI_CONNECT_ATTEMPTS times (see wifi_manager.h)
     void animateCursor(int x, int y, int delayMs) ;
@@ -82,7 +88,9 @@
     // open_wifi_time.h (Uhrzeit aus offenen WLANs beim Start) / (time from open WiFis at boot)
     time_t httpDateEpoch(const String& target, const String& path, String& note, String& location, bool tls) ;
     time_t openWifiQueryTime(const String& ssid, String& how) ;
-    bool fetchTimeFromOpenWifi() ;
+    bool fetchTimeFromOpenWifi(bool force = false) ; // force: auch mit gueltiger Zeit/RTC/ausgeschaltet (Diagnose "UHR4 OPENWIFI")
+                                                      // force: also with a valid time/RTC/switched off (diagnostic "UHR4 OPENWIFI")
+    void handleSerialOpenWifi() ;
     boolean setupNTP() ; // blockierender Worker - nicht direkt aufrufen, siehe startNtpSyncTask()
                         // blocking worker - do not call directly, see startNtpSyncTask()
     void ntpSyncTaskFunc(void* param) ;
@@ -165,6 +173,14 @@
     bool writeGeneratedHandSet(int style, const String& id) ;
     bool handSetExists(const String& id) ;
     String subdialHandSet() ;
+    bool copyLittleFile(const String& from, const String& to) ;
+    void completeHandSet(const String& id) ;
+    void completeHandSets() ;
+    int upgradeHandFiles() ;
+    bool isProtectedHandSetId(const String& id) ;
+    bool isProtectedFile(const String& path) ;
+    String protectedFacesJs() ;
+    String protectedSetsJs() ;
     bool ensureDefaultHands() ;
     String handSetFileId(const String& setId) ;
     void loadHandOrDefault(const String& setId, const char* part, uint16_t* dest) ;
@@ -181,6 +197,8 @@
     void handTargetSize(const char* path, int& outW, int& outH) ;
     bool readImageSize(const char* path, int32_t& w, int32_t& h) ;
     bool isValidHandSize(int32_t w, int32_t h) ;
+    String fileVersion(const String& path) ;
+    String selectWithoutReloadScript(const String& message, const String& activeText) ;
     String handFormatLabel(const String& path) ;
     float shortestAngleDiff(float from, float to) ;
     bool lowMemoryFace() ;
@@ -317,6 +335,10 @@
     String presetUrlEncode(const String& value) ;
     String buildPresetUrl(const String& face, const String& handSet, bool stationMode, bool showSecondHand, bool smoothMinute, bool smoothSecond, uint8_t hubSize, uint32_t hubColor) ;
     String setPresetUrlParam(const String& url, const String& key, const String& value) ;
+    int rewriteHandSetRefs(const std::function<String(const String&)>& fn) ;
+    void finishHandSetRenumber(String plan) ;
+    void recoverHandSetRenumber() ;
+    void renumberHandSets() ;
     bool stripVlwSizes(const char* name, int& minSize, int& maxSize) ;
     void addStarterPresets() ;
     void ensureStarterSet() ;

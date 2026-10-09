@@ -22,7 +22,8 @@
                            String& location) {
         IPAddress ip;
         location = "";
-        bool connected = ip.fromString(target) ? client.connect(ip, port, 4000) : client.connect(target.c_str(), port, 4000);
+        uint32_t connectMs = (port == 443) ? 10000 : 4000; // TLS braucht laenger / TLS takes longer
+        bool connected = ip.fromString(target) ? client.connect(ip, port, connectMs) : client.connect(target.c_str(), port, connectMs);
         if (!connected) {
             note = "no connection";
             return 0;
@@ -93,7 +94,17 @@
             NetworkClientSecure client;
             client.setInsecure();
             client.setHandshakeTimeout(8);
-            return httpDateRequest(client, 443, target, path, note, location);
+            time_t result = httpDateRequest(client, 443, target, path, note, location);
+
+            // Schlug die TLS-Verbindung fehl, den mbedTLS-Fehler fuers Log anhaengen
+            // If the TLS connection failed, append the mbedTLS error to the log
+
+            if (!result && note == "no connection") {
+                char err[80] = "";
+                int code = client.lastError(err, sizeof(err));
+                if (code) note += " (TLS error " + String(code) + (err[0] ? String(": ") + err : String("")) + ")";
+            }
+            return result;
         }
         WiFiClient client;
         return httpDateRequest(client, 80, target, path, note, location);
@@ -154,12 +165,12 @@
     // four strongest open WiFis from the scan (from -85 dBm), get the time, disconnect right away. Stored WiFis
     // stay untouched (WiFi.persistent(false)). Can be switched off in the "NTP Timezone" tab. true = time set.
 
-    bool fetchTimeFromOpenWifi() {
-        if (!preferences.getBool(PK_OPEN_WIFI_TIME, true)) {
+    bool fetchTimeFromOpenWifi(bool force) {
+        if (!force && !preferences.getBool(PK_OPEN_WIFI_TIME, true)) {
             DEBUG_PRINTLN("[OPEN-WIFI] Skipped - switched off in the settings");
             return false;
         }
-        if (rtcOk == RTC_AVAILABLE) {
+        if (!force && rtcOk == RTC_AVAILABLE) {
             DEBUG_PRINTLN("[OPEN-WIFI] Skipped - the RTC provides the time");
             return false;
         }
@@ -168,7 +179,7 @@
         // Already a time (e.g. set via USB during the WiFi attempts) - then fetch nothing
 
         struct tm now;
-        if (getLocalTime(&now, 0)) {
+        if (!force && getLocalTime(&now, 0)) {
             DEBUG_PRINTLN("[OPEN-WIFI] Skipped - the clock already has a valid time (e.g. set via USB)");
             return false;
         }
@@ -181,7 +192,7 @@
         int candidateCount = 0;
         for (int i = 0; i < MAX_WLAN && candidateCount < MAX_TRIES; i++) {
             if (availableNetworks[i].ssid.length() == 0 || availableNetworks[i].enc != WIFI_AUTH_OPEN) continue;
-            if (availableNetworks[i].rssi < -85) continue;
+            if (availableNetworks[i].rssi < (force ? -95 : -85)) continue; // force (Diagnose): auch sehr schwache / also very weak ones
 
             // Gleicher Name von mehreren Sendern (z.B. Hotspot-Ketten) nur einmal - WiFi.begin() nimmt ohnehin
             // den staerksten Sender dieses Namens
@@ -200,6 +211,20 @@
             return false;
         }
         DEBUG_PRINTLN("[OPEN-WIFI] Trying to get the time from " + String(candidateCount) + " open WiFi(s)");
+
+#ifdef WIFI_TX_AUTO
+
+        // Offene Hotspots sind meist weit weg (niedrige Datenrate, keine Verzerrung): volle Leistung. Danach wieder die
+        // Startstufe, damit Access Point und gespeicherte WLANs sicher laufen.
+
+        // Open hotspots are usually far away (low data rate, no distortion): full power. Afterwards the start step
+        // again, so the access point and stored WiFis run safely.
+
+        struct TxGuard {
+            TxGuard() { wifiTxPowerCurrent = WIFI_TX_OPEN; }
+            ~TxGuard() { wifiTxPowerCurrent = WIFI_TX_FIRST; applyWifiTxPower(); }
+        } txGuard;
+#endif
         showButtonMessage(TFT_GREEN, tftText(translate("Time from open WiFi")), "...", "", TFT_DARKGREY);
 
         for (int c = 0; c < candidateCount; c++) {
@@ -207,6 +232,7 @@
             DEBUG_PRINTLN("[OPEN-WIFI] '" + ssid + "': connecting..");
             WiFi.disconnect();
             WiFi.mode(WIFI_STA);
+            applyWifiTxPower();
             WiFi.begin(ssid.c_str());
             unsigned long start = millis();
             while (WiFi.status() != WL_CONNECTED && millis() - start < 15 * WAIT_1s) {

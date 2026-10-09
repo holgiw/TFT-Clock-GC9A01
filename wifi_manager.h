@@ -182,6 +182,7 @@
             else if (!(WiFi.getMode() & WIFI_AP)) {
                 WiFi.disconnect(); // keine Verbindungsversuche neben dem AP / no connection attempts beside the AP
                 WiFi.softAP(AP_SSID, apPassword);
+                applyWifiTxPower();
                 dnsServer.stop();
                 dnsServer.start(53, "*", WiFi.softAPIP());
                 DEBUG_PRINTLN("[WiFi] Reconnect failed - access point restarted: " + String(AP_SSID));
@@ -198,6 +199,62 @@
     // WiFi event callback for the web-button WPS request. Runs in a
     // different thread than loop() - only set flags here, no preferences
     // access or reconnects.
+
+    // Sendeleistung setzen (WIFI_TX_AUTO in config.h). Der Funk muss laufen, daher nach jedem Moduswechsel aufrufen.
+    // Set the transmit power (WIFI_TX_AUTO in config.h). The radio must be running, so call it after every mode change.
+
+    void applyWifiTxPower() {
+#ifdef WIFI_TX_AUTO
+        lastTxPowerResult = esp_wifi_set_max_tx_power(wifiTxPowerCurrent);
+#endif
+    }
+
+    // Start-Ereignis von STA und AP: der Treiber setzt die Sendeleistung beim Start des Funks selbst auf den Standard
+    // zurueck - erst hier hat die Begrenzung Bestand. Laeuft in einem anderen Thread, nur einen Treiberaufruf.
+
+    // Start event of STA and AP: the driver resets the transmit power to the default itself when the radio starts -
+    // only here the limit sticks. Runs in a different thread, just one driver call.
+
+    void onWifiStartEvent(arduino_event_id_t event, arduino_event_info_t info) {
+        applyWifiTxPower();
+    }
+
+    // Grund eines Verbindungsabbruchs als Text fuers Log (ESP-IDF wifi_err_reason_t)
+    // Reason of a disconnect as text for the log (ESP-IDF wifi_err_reason_t)
+
+    String wifiDisconnectReasonText(uint8_t reason) {
+        const char* name = "";
+        switch (reason) {
+            case 0:   return "none";
+            case 2:   name = "AUTH_EXPIRE"; break;
+            case 4:   name = "ASSOC_EXPIRE"; break;
+            case 8:   name = "ASSOC_LEAVE"; break;
+            case 15:  name = "4WAY_HANDSHAKE_TIMEOUT (wrong password?)"; break;
+            case 16:  name = "GROUP_KEY_UPDATE_TIMEOUT"; break;
+            case 17:  name = "IE_IN_4WAY_DIFFERS"; break;
+            case 23:  name = "802_1X_AUTH_FAILED"; break;
+            case 200: name = "BEACON_TIMEOUT"; break;
+            case 201: name = "NO_AP_FOUND"; break;
+            case 202: name = "AUTH_FAIL (wrong password?)"; break;
+            case 203: name = "ASSOC_FAIL (router refuses the device?)"; break;
+            case 204: name = "HANDSHAKE_TIMEOUT"; break;
+            case 205: name = "CONNECTION_FAIL"; break;
+            case 210: name = "NO_AP_FOUND_W_COMPATIBLE_SECURITY"; break;
+            case 211: name = "NO_AP_FOUND_IN_AUTHMODE_THRESHOLD"; break;
+            case 212: name = "NO_AP_FOUND_IN_RSSI_THRESHOLD"; break;
+        }
+        return String(reason) + (name[0] ? String(" ") + name : String(""));
+    }
+
+    // Merkt den Grund jedes Verbindungsabbruchs. Laeuft in einem anderen Thread als loop() - nur die Zahl merken,
+    // ausgegeben wird sie nach einem fehlgeschlagenen Verbindungsversuch.
+
+    // Remembers the reason of every disconnect. Runs in a different thread than loop() - only remember the number,
+    // it is logged after a failed connection attempt.
+
+    void onWifiDisconnectEvent(arduino_event_id_t event, arduino_event_info_t info) {
+        lastWifiDisconnectReason = info.wifi_sta_disconnected.reason;
+    }
 
     void onWpsEvent(WiFiEvent_t event) {
 
@@ -461,6 +518,7 @@
         // would interfere with WPS negotiation (shared radio).
 
         WiFi.mode(WIFI_MODE_STA);
+        applyWifiTxPower();
         WiFi.disconnect();
 
 
@@ -563,7 +621,7 @@
         // the scan hangs. Fetch the MAC here - without a stored network connectWiFi(), which otherwise fills
         // mac[], never ran.
 
-        WiFi.macAddress(mac);
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
         // Festes Passwort aus der Firmware (AP_PASSWORD in config.h)
         // Fixed password from the firmware (AP_PASSWORD in config.h)
@@ -645,7 +703,7 @@
     // connection info on the display while connecting and checks internet
     // connectivity after a successful connection.
 
-    int connectWiFi(int number, bool verboseMode) {
+    int connectWiFi(int number, bool verboseMode, bool wpa2Only) {
 
         // Bereichspruefung: 'number' indiziert wifiSsid[]/wifiPass[] direkt,
         // und mind. ein Aufrufer reicht ihn ungeprueft aus dem NVS durch -
@@ -704,11 +762,12 @@
         WiFi.mode(WIFI_MODE_NULL);
 
         WiFi.mode(WIFI_STA);
+        applyWifiTxPower();
 
         // MAC-Adresse holen
         // Get MAC address
 
-        WiFi.macAddress(mac);
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
         String customHostname = preferences.getString(PK_HOSTNAME, "");
         if (customHostname.length() > 0) {
@@ -724,14 +783,45 @@
 
         uint16_t waitTime = WAIT_30s; // 30 Sekunden
                                       // 30 seconds
-        if (rtcOk == RTC_AVAILABLE) {
-            waitTime = WAIT_15s; // 15 Sekunden
-                                 // 15 seconds
+        if (rtcOk == RTC_AVAILABLE || (wpa2Only && waitTime > WAIT_15s)) {
+            waitTime = WAIT_15s; // 15 Sekunden (auch der WPA2-Versuch: ein WPA3-only-Router lehnt ihn ohnehin ab)
+                                 // 15 seconds (also the WPA2 attempt: a WPA3-only router rejects it anyway)
         }
 
 
-        DEBUG_PRINTLN("[WiFi] Attempting connection with a timeout of " + String(waitTime / 1000) + " seconds..");
-        WiFi.begin(wifiSsid[number].c_str(), wifiPass[number].c_str());
+        DEBUG_PRINTLN("[WiFi] Attempting connection with a timeout of " + String(waitTime / 1000) + " seconds.." + (wpa2Only ? " (WPA2 only)" : "") +
+                      " [password " + String(wifiPass[number].length()) + " characters, TX power " + String((int)WiFi.getTxPower()) + " (units of 0.25 dBm), set result " + String(lastTxPowerResult) + "]");
+        // Standard ist WIFI_FAST_SCAN: die Uhr nimmt den ersten Access Point mit passendem Namen, nicht den
+        // staerksten. Bei mehreren Access Points mit demselben Namen (Repeater, Mesh) kann das der schwache sein
+        // (Abbruchgrund 2 AUTH_EXPIRE). Darum alle Kanaele absuchen und den staerksten nehmen.
+
+        // The default is WIFI_FAST_SCAN: the clock takes the first access point with a matching name, not the
+        // strongest. With several access points of the same name (repeater, mesh) that can be the weak one
+        // (disconnect reason 2 AUTH_EXPIRE). So scan all channels and take the strongest.
+
+        WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+        WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+        lastWifiDisconnectReason = 0;
+        if (wpa2Only && wifiPass[number].length() > 0) {
+
+            // Nur WPA2: ohne PMF (geschuetzte Verwaltungsframes) bietet die Uhr kein WPA3 (SAE) an. WiFi.begin() verbindet
+            // hier noch nicht, die Konfiguration wird erst angepasst.
+
+            // WPA2 only: without PMF (protected management frames) the clock does not offer WPA3 (SAE). WiFi.begin() does
+            // not connect here yet, the configuration is adjusted first.
+
+            WiFi.begin(wifiSsid[number].c_str(), wifiPass[number].c_str(), 0, nullptr, false);
+            wifi_config_t staConfig;
+            if (esp_wifi_get_config(WIFI_IF_STA, &staConfig) == ESP_OK) {
+                staConfig.sta.pmf_cfg.capable = false;
+                staConfig.sta.pmf_cfg.required = false;
+                esp_wifi_set_config(WIFI_IF_STA, &staConfig);
+            }
+            esp_wifi_connect();
+        }
+        else {
+            WiFi.begin(wifiSsid[number].c_str(), wifiPass[number].c_str());
+        }
         unsigned long start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < waitTime) {
             handleSerialCommands(); // Displaytyp per USB auch waehrend dieser Wartezeit (siehe handleSerialCommands())
@@ -752,9 +842,9 @@
         if (loggingEnabled) Serial.println();
 
         if (WiFi.status() != WL_CONNECTED) {
-            DEBUG_PRINTLN("[WiFi] Connection to '" + wifiSsid[number] + "' failed or timed out");
+            DEBUG_PRINTLN("[WiFi] Connection to '" + wifiSsid[number] + "' failed or timed out (last disconnect reason: " + wifiDisconnectReasonText(lastWifiDisconnectReason) + ")");
         } else {
-            DEBUG_PRINTLN("[WiFi] Connected successfully to '" + wifiSsid[number] + "'");
+            DEBUG_PRINTLN("[WiFi] Connected successfully to '" + wifiSsid[number] + "' (channel " + String(WiFi.channel()) + ", " + WiFi.BSSIDstr() + ", " + String(WiFi.RSSI()) + " dBm)");
         }
 
         if (WiFi.status() == WL_CONNECTED) {
@@ -833,6 +923,45 @@
     }
 
 
+    // Pruefung nach dem Verbinden: Das Gateway muss 3 von 4 TCP-Versuchen schnell beantworten (auch "abgelehnt") oder
+    // DNS beantworten. Zu hohe Sendeleistung laesst kurze Verwaltungspakete durch, Daten nicht. Ohne Gateway: kein Test.
+
+    // Check after connecting: the gateway must answer 3 of 4 TCP attempts quickly (also "refused") or answer DNS.
+    // Too high transmit power lets short management frames through, not data. Without a gateway: no test.
+
+    bool wifiLinkWorks() {
+        IPAddress gateway = WiFi.gatewayIP();
+        if ((uint32_t)gateway == 0) return true;
+        int fast = 0;
+        for (int i = 0; i < 4; i++) {
+            WiFiClient probe;
+            unsigned long t = millis();
+            probe.connect(gateway, 80, 700);
+            if (millis() - t < 500) fast++;
+            probe.stop();
+            delay(100);
+        }
+        bool dnsReply = false;
+        if (fast < 3) {
+            const uint8_t query[] = { 0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                      3, 'w', 'w', 'w', 7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0, 0x00, 0x01, 0x00, 0x01 };
+            WiFiUDP udp;
+            if (udp.begin(0)) {
+                udp.beginPacket(gateway, 53);
+                udp.write(query, sizeof(query));
+                udp.endPacket();
+                unsigned long t = millis();
+                while (millis() - t < 800 && !dnsReply) {
+                    dnsReply = udp.parsePacket() > 0;
+                    delay(20);
+                }
+                udp.stop();
+            }
+        }
+        DEBUG_PRINTLN("[WiFi] Link test to the gateway: " + String(fast) + "/4 TCP answers, DNS " + (dnsReply ? "answered" : "no answer"));
+        return fast >= 3 || dnsReply;
+    }
+
     // Versucht connectWiFi() bis zu WIFI_CONNECT_ATTEMPTS mal (config.h).
     // Gemeinsam genutzt von connectWiFiAtBoot() (verboseMode=true) sowie
     // checkWiFiReconnect()/restorePreviousWpsConnection() (beide false).
@@ -843,13 +972,91 @@
 
     int connectWiFiWithRetries(int number, const String& label, bool verboseMode) {
         int result = NOT_CONNECTED;
+#ifdef WIFI_TX_AUTO
+
+        // Sendeleistung automatisch: ab der gemerkten Stufe alle Stufen durchgehen, je Stufe ein WPA2-Versuch, zuletzt WPA3.
+        // Bei einem neuen WLAN muss wifiLinkWorks() bestehen, sonst gilt die erste verbundene Stufe. Gemerkt je Slot.
+        // Nach einem Misserfolg gilt wieder die erste Stufe (Access Point, offene WLANs); "kein AP gefunden" bricht ab.
+
+        // Automatic transmit power: from the remembered step go through all steps, one WPA2 attempt each, WPA3 last.
+        // For a new WiFi wifiLinkWorks() must pass, otherwise the first connected step applies. Remembered per slot.
+        // After a failure the first step applies again (access point, open WiFis); "no AP found" aborts.
+
+        static const int8_t steps[] = WIFI_TX_STEPS;
+        const int stepCount = sizeof(steps) / sizeof(steps[0]);
+        // Gemerkt wird die Stufe in den unteren Bits, Bit 4 (0x10) heisst: das WLAN braucht WPA3 (WPA2-Versuch klappte nicht)
+        // Remembered is the step in the lower bits, bit 4 (0x10) means: the WiFi needs WPA3 (the WPA2 attempt did not work)
+
+        int storedRaw = preferences.getInt(pkWifiTx(number).c_str(), -1);
+        int stored = (storedRaw >= 0 && (storedRaw & 0x0F) < stepCount) ? (storedRaw & 0x0F) : -1;
+        bool storedWpa3 = stored >= 0 && (storedRaw & 0x10);
+        int start = stored >= 0 ? stored : 0;
+        int usedStep = -1;
+        bool usedWpa3 = false;
+        int firstConnected = -1;
+        if (storedWpa3) {
+            wifiTxPowerCurrent = steps[start];
+            DEBUG_PRINTLN("[WiFi] '" + label + "': remembered: WPA3 at " + String(steps[start] / 4.0f, 1) + " dBm");
+            result = connectWiFi(number, verboseMode, false);
+            if (result != NOT_CONNECTED) {
+                usedStep = start;
+                usedWpa3 = true;
+            }
+        }
+        for (int k = 0; k < stepCount && result == NOT_CONNECTED; k++) {
+            int step = (start + k) % stepCount;
+            wifiTxPowerCurrent = steps[step];
+            DEBUG_PRINTLN("[WiFi] '" + label + "': TX power step " + String(k + 1) + "/" + String(stepCount) + " (" + String(steps[step] / 4.0f, 1) + " dBm)");
+            result = connectWiFi(number, verboseMode, true);
+            if (result != NOT_CONNECTED) {
+                if (stored < 0 && !wifiLinkWorks()) {
+                    DEBUG_PRINTLN("[WiFi] '" + label + "': link test failed at " + String(steps[step] / 4.0f, 1) + " dBm");
+                    if (firstConnected < 0) firstConnected = step;
+                    WiFi.disconnect();
+                    result = NOT_CONNECTED;
+                    continue;
+                }
+                usedStep = step;
+            }
+            else if (lastWifiDisconnectReason == 201) break;
+        }
+        if (result == NOT_CONNECTED && firstConnected >= 0) {
+            wifiTxPowerCurrent = steps[firstConnected];
+            DEBUG_PRINTLN("[WiFi] '" + label + "': link test failed on every step - using the first connected step (" + String(steps[firstConnected] / 4.0f, 1) + " dBm)");
+            result = connectWiFi(number, verboseMode, true);
+            if (result != NOT_CONNECTED) usedStep = firstConnected;
+        }
+        if (result == NOT_CONNECTED) {
+            wifiTxPowerCurrent = steps[start];
+            DEBUG_PRINTLN("[WiFi] '" + label + "': last attempt with WPA3 allowed (" + String(steps[start] / 4.0f, 1) + " dBm)");
+            result = connectWiFi(number, verboseMode, false);
+            if (result != NOT_CONNECTED) {
+                usedStep = start;
+                usedWpa3 = true;
+            }
+        }
+        if (result != NOT_CONNECTED) {
+            int raw = usedStep | (usedWpa3 ? 0x10 : 0);
+            if (raw != storedRaw) {
+                preferences.putInt(pkWifiTx(number).c_str(), raw);
+                DEBUG_PRINTLN("[WiFi] '" + label + "': TX power step " + String(usedStep + 1) + " (" + String(steps[usedStep] / 4.0f, 1) + " dBm)" + (usedWpa3 ? ", WPA3" : "") + " remembered");
+            }
+        }
+        else {
+            wifiTxPowerCurrent = steps[0];
+            applyWifiTxPower();
+        }
+        return result;
+#else
         for (int attempt = 0; attempt < WIFI_CONNECT_ATTEMPTS && result == NOT_CONNECTED; attempt++) {
             if (attempt > 0) {
                 DEBUG_PRINTLN("[WiFi] Retrying '" + label + "' (attempt " + String(attempt + 1) + "/" + String(WIFI_CONNECT_ATTEMPTS) + ")..");
             }
-            result = connectWiFi(number, verboseMode);
+            result = connectWiFi(number, verboseMode, attempt == 0); // 1. Versuch nur WPA2, danach mit WPA3
+                                                                     // 1st attempt WPA2 only, then with WPA3
         }
         return result;
+#endif
     }
 
 
@@ -963,6 +1170,7 @@
             isScanning = true;
 
             WiFi.mode(WIFI_STA);
+            applyWifiTxPower();
             WiFi.disconnect();
             delay(10);
             DEBUG_PRINTLN("[WiFi] Starting asynchronous scan..");

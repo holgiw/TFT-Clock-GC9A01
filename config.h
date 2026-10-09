@@ -30,6 +30,19 @@
     // ESP32-C6-LCD with a built-in ST7789 (1.47 = 172x320 or 1.3 = 240x240, chosen by the display type) or
     // Waveshare ESP32-S3-LCD-1.28 with a built-in GC9A01. Pin mapping further below.
 
+    // Kurzname des Chips fuer Anzeige und Dateinamen (Kopfzeile der Weboberflaeche, Sicherung)
+    // Short name of the chip for display and file names (header of the web interface, backup)
+
+#if CONFIG_IDF_TARGET_ESP32S3
+#define CHIP_SHORT_NAME "S3"
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define CHIP_SHORT_NAME "C6"
+#elif CONFIG_IDF_TARGET_ESP32S2
+#define CHIP_SHORT_NAME "S2"
+#else
+#define CHIP_SHORT_NAME "ESP32"
+#endif
+
 #if CONFIG_IDF_TARGET_ESP32C6
 #define BOARD_WAVESHARE_C6_ST7789 1
 #define BOARD_WAVESHARE_S3_GC9A01 0
@@ -94,6 +107,16 @@
 
 #if !ARDUINO_USB_CDC_ON_BOOT
 #error "ESP32-C6: Board-Option USB CDC On Boot auf Enabled stellen / set the board option USB CDC On Boot to Enabled"
+#endif
+
+    // Das Programm ist groesser als 2 MB: nur mit der Tabelle uhr4_c6 (2,25 MB App, siehe boards.local.txt und
+    // uhr4_c6.csv) passt es, mit "No OTA" bricht der Linker mit einer unverstaendlichen Meldung ab.
+
+    // The program is larger than 2 MB: it only fits with the table uhr4_c6 (2.25 MB app, see boards.local.txt and
+    // uhr4_c6.csv), with "No OTA" the linker aborts with a cryptic message.
+
+#ifndef ARDUINO_PARTITION_uhr4_c6
+#error "ESP32-C6: Partition Scheme 'uhr4 C6 (2.25MB APP/1.6MB SPIFFS)' waehlen - boards.local.txt und uhr4_c6.csv in den Core-Ordner kopieren / choose it - copy boards.local.txt and uhr4_c6.csv into the core folder"
 #endif
 
     // Waveshare ESP32-C6-LCD-1.47 und -1.3 gleich belegt: Display (6, 7, 14, 15, 21, BL 22) und RGB-LED (8,
@@ -161,6 +184,16 @@
 
 #ifndef ARDUINO_PARTITION_app3M_fat9M_16MB
 #error "ESP32-S3-LCD-1.28: Flash Size 16MB, Partition Scheme '16M Flash (3MB APP/9.9MB FATFS)' waehlen / choose it"
+#endif
+
+    // Der Chip (ESP32-S3R2) hat 2 MB PSRAM. Ohne ihn bleiben nur ~30 KB Heap, die Weboberflaeche und das WLAN
+    // arbeiten dann an der Speichergrenze (Seiten laufen in die Zeitueberschreitung).
+
+    // The chip (ESP32-S3R2) has 2 MB PSRAM. Without it only ~30 KB of heap is left, the web interface and WiFi
+    // then run at the memory limit (pages time out).
+
+#ifndef BOARD_HAS_PSRAM
+#error "ESP32-S3-LCD-1.28: PSRAM 'QSPI PSRAM' waehlen (Visual Micro: Board-Optionen, Arduino IDE: Tools > PSRAM) / choose it"
 #endif
 
     // Waveshare ESP32-S3-LCD-1.28: Display (DC 8, CS 9, SCLK 10, MOSI 11, RST 12, BL 40), Lagesensor QMI8658
@@ -290,6 +323,22 @@
     // update hangs, the clock restarts after OTA_TIMEOUT_MS instead of standing still.
 
 #define HAS_OTA BOARD_WAVESHARE_S3_GC9A01
+
+    // Sendeleistung des WLAN automatisch waehlen: Stufen probieren, die klappende je WLAN merken. ESP32-S3: bei voller
+    // Leistung (20 dBm) antworten Router nicht (2 AUTH_EXPIRE), daher von unten nach oben; S2 und C6 von oben nach unten.
+
+    // Choose the WiFi transmit power automatically: try steps, remember the one that works per WiFi. ESP32-S3: at full
+    // power (20 dBm) routers do not answer (2 AUTH_EXPIRE), so bottom up; S2 and C6 top down.
+
+#define WIFI_TX_AUTO 1
+#if BOARD_WAVESHARE_S3_GC9A01
+#define WIFI_TX_STEPS { WIFI_POWER_8_5dBm, WIFI_POWER_13dBm, WIFI_POWER_17dBm, WIFI_POWER_19_5dBm }
+#define WIFI_TX_FIRST WIFI_POWER_8_5dBm
+#else
+#define WIFI_TX_STEPS { WIFI_POWER_20dBm, WIFI_POWER_17dBm, WIFI_POWER_13dBm, WIFI_POWER_8_5dBm }
+#define WIFI_TX_FIRST WIFI_POWER_20dBm
+#endif
+#define WIFI_TX_OPEN WIFI_POWER_19_5dBm // offene Hotspots: volle Leistung / open hotspots: full power
 #define OTA_TIMEOUT_MS (3 * WAIT_1m)
 #define OTA_PORT 3232 // ArduinoOTA (Visual Micro, Arduino IDE)
 
@@ -491,15 +540,6 @@ static_assert(displayGeometryValid(DISPLAY_GEOMETRY[DISPLAY_TYPE_GC9A01]) &&
 #define GITHUB_REPO_OWNER "holgiw"
 #define GITHUB_REPO_NAME "ESP32-Station-Clock"
 #define GITHUB_REPO_URL "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME
-#define GITHUB_API_CONTENTS_BASE "https://api.github.com/repos/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/contents/graphic/"
-
-    // Ordner der Zifferblaetter auf GitHub (graphic/240, graphic/160) - das ST7789 (172) nimmt die 240er,
-    // /upload verkleinert sie auf seine Groesse.
-
-    // Folder of the clock faces on GitHub (graphic/240, graphic/160) - the ST7789 (172) takes the 240 ones,
-    // /upload scales them down to its size.
-
-#define GITHUB_GRAPHIC_SIZE (CLOCK_WIDTH == 160 ? 160 : 240)
 
     // Zeit / NTP-Standardwerte & Timing-Makros
     // Time / NTP defaults & timing macros

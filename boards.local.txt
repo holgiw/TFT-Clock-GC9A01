@@ -1,0 +1,23 @@
+# Arduino IDE / arduino-cli / Visual Micro: Partitionsschema fuer den ESP32-C6 von uhr4 (App 2,25 MB, Dateisystem
+# 1,625 MB). Im Projektordner wirkt die Datei nicht - sie gehoert in den Ordner des ESP32-Cores (neben dessen
+# boards.txt), die Tabelle uhr4_c6.csv nach tools/partitions darin:
+#   Windows: %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\boards.local.txt und \tools\partitions\uhr4_c6.csv
+#   Linux:   ~/.arduino15/packages/esp32/hardware/esp32/3.3.12/boards.local.txt und /tools/partitions/uhr4_c6.csv
+#   macOS:   ~/Library/Arduino15/packages/esp32/hardware/esp32/3.3.12/boards.local.txt und /tools/partitions/uhr4_c6.csv
+# Danach die IDE neu starten und beim C6 unter Tools -> Partition Scheme "uhr4 C6 (2.25MB APP/1.6MB SPIFFS)" waehlen.
+# Nach einem Core-Update (neuer Versionsordner) beide Dateien erneut kopieren. Andere Boards bleiben unberuehrt.
+#
+# Arduino IDE / arduino-cli / Visual Micro: partition scheme for uhr4's ESP32-C6 (app 2.25 MB, file system
+# 1.625 MB). In the project folder the file has no effect - it belongs in the ESP32 core's folder (next to its
+# boards.txt), the table uhr4_c6.csv in tools/partitions inside it:
+#   Windows: %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\3.3.12\boards.local.txt and \tools\partitions\uhr4_c6.csv
+#   Linux:   ~/.arduino15/packages/esp32/hardware/esp32/3.3.12/boards.local.txt and /tools/partitions/uhr4_c6.csv
+#   macOS:   ~/Library/Arduino15/packages/esp32/hardware/esp32/3.3.12/boards.local.txt and /tools/partitions/uhr4_c6.csv
+# Then restart the IDE and choose Tools -> Partition Scheme "uhr4 C6 (2.25MB APP/1.6MB SPIFFS)" for the C6.
+# Copy both files again after a core update (new version folder). Other boards stay untouched.
+#
+# upload.maximum_size = 0x240000 (App-Partition / app partition)
+
+esp32c6.menu.PartitionScheme.uhr4_c6=uhr4 C6 (2.25MB APP/1.6MB SPIFFS)
+esp32c6.menu.PartitionScheme.uhr4_c6.build.partitions=uhr4_c6
+esp32c6.menu.PartitionScheme.uhr4_c6.upload.maximum_size=2359296
