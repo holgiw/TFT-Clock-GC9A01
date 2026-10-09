@@ -1079,8 +1079,8 @@ void setup() {
         createSprite16(secondHandSprite, HAND_WIDTH, HAND_HEIGHT);
         secondHandSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
-        ensureStarterSet(); // neue Uhr: Zifferblaetter, Zeigersaetze und Presets erzeugen (presets_manager.h)
-                            // new clock: generate clock faces, hand sets and presets (presets_manager.h)
+        ensureStarterSet(); // fehlende Zifferblaetter, Zeigersaetze und Presets des Startpakets erzeugen (presets_manager.h)
+                            // generate missing clock faces, hand sets and presets of the starter set (presets_manager.h)
         refreshGeneratedAssets(); // erzeugte Dateien im Mass eines anderen Displaytyps neu erzeugen
                                   // regenerate generated files in the size of another display type
         loadClockFace();

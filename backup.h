@@ -411,7 +411,7 @@
             return name.endsWith(".ttf") || name.endsWith(".otf") || name.endsWith(".woff") || name.endsWith(".woff2");
         }
         if (name.startsWith("stripfont_")) return name.endsWith(".vlw");
-        if (name.startsWith("stripcfg_")) return name.endsWith(".txt");
+        if (name.startsWith("stripcfg_") || name.startsWith("facecfg_")) return name.endsWith(".txt");
         if (!name.endsWith(".bmp")) return false;
         return name.startsWith("face_") || name.startsWith("hand_set") || name.startsWith("strip_");
     }
@@ -1328,6 +1328,16 @@
             const DisplayGeometry& from = DISPLAY_GEOMETRY[backupRestore->backupType];
             bool hasStripCfg = false;
             for (const String& f : backupRestore->restoredFiles) {
+
+                // Drehpunkt des Sekundenzeigers im Verhaeltnis der Uhrgroessen umrechnen
+                // Convert the second hand's pivot in the ratio of the clock sizes
+
+                if (f.startsWith("facecfg_") && backupRestore->otherType && from.clock > 0) {
+                    String face = "/face_" + f.substring(8, f.length() - 4) + ".bmp";
+                    int16_t x, y;
+                    readFaceSecPivot(face, x, y);
+                    if (x >= 0) saveFaceSettings(face, (int16_t)(x * CLOCK_WIDTH / from.clock), (int16_t)(y * CLOCK_WIDTH / from.clock));
+                }
                 if (!f.startsWith("stripcfg_")) continue;
                 hasStripCfg = true;
                 if (backupRestore->otherType) scaleStripConfigFile("/" + f, from.panelWidth, from.panelHeight - from.clock);

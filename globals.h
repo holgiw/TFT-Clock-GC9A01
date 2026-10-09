@@ -705,6 +705,8 @@
         uint32_t assetGeneration = 0xFFFFFFFF;
         bool allocationFailed = false; // nach einem Fehlschlag nicht bei jedem Tick erneut versuchen
                                        // don't retry on every tick after a failure
+        bool hands = true;             // mit Stunden-/Minutenzeiger (false: nur Zifferblatt, Sekundenfeld)
+                                       // with hour/minute hand (false: clock face only, seconds subdial)
     };
     HandComposite handComposite[2]; // [0] = Display 1, [1] = Display 2
 
@@ -839,6 +841,16 @@
 
     // Size of the built-in strip font in percent (STRIP_SCALE_MIN..MAX), separate for time and date. VLW fonts
     // have their pixel size instead (stripVlwTimeSize/stripVlwDateSize).
+
+    // Drehpunkt des Sekundenzeigers im Zifferblatt (facecfg_<Name>.txt), -1 = Mitte. faceSettingsFor: Zifferblatt,
+    // dessen Einstellungen geladen sind ("?" = neu laden).
+
+    // Pivot of the second hand on the clock face (facecfg_<name>.txt), -1 = centre. faceSettingsFor: clock face
+    // whose settings are loaded ("?" = reload).
+
+    int16_t secPivotX = -1;
+    int16_t secPivotY = -1;
+    String faceSettingsFor = "?";
 
     String stripSettingsFor = "?"; // Zifferblatt, dessen Streifen-Einstellungen geladen sind ("?" = neu laden)
                                    // clock face whose strip settings are loaded ("?" = reload)

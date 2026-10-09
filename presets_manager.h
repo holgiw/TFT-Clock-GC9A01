@@ -481,11 +481,11 @@
         DEBUG_PRINTLN("[Strip] Settings moved to the clock faces (stripcfg_*.txt)");
     }
 
-    // Verwaiste Streifen loeschen: strip_<Name>.bmp und stripcfg_<Name>.txt ohne face_<Name>.bmp (z.B. nach
-    // Loeschen ueber den Dateimanager oder einem Absturz). Laeuft in setup() nach migrateStripSettings().
+    // Verwaiste Dateien eines Zifferblatts loeschen: strip_<Name>.bmp, stripcfg_<Name>.txt und facecfg_<Name>.txt
+    // ohne face_<Name>.bmp (z.B. nach Loeschen ueber den Dateimanager). Laeuft in setup() nach migrateStripSettings().
 
-    // Delete orphaned strips: strip_<name>.bmp and stripcfg_<name>.txt without face_<name>.bmp (e.g. after
-    // deleting via the file manager or a crash). Runs in setup() after migrateStripSettings().
+    // Delete orphaned files of a clock face: strip_<name>.bmp, stripcfg_<name>.txt and facecfg_<name>.txt without
+    // face_<name>.bmp (e.g. after deleting via the file manager). Runs in setup() after migrateStripSettings().
 
     void removeOrphanedStrips() {
         std::vector<String> orphans;
@@ -495,6 +495,7 @@
             String face;
             if (n.startsWith("strip_") && n.endsWith(".bmp")) face = "/face_" + n.substring(6);
             else if (n.startsWith("stripcfg_") && n.endsWith(".txt")) face = "/face_" + n.substring(9, n.length() - 4) + ".bmp";
+            else if (n.startsWith("facecfg_") && n.endsWith(".txt")) face = "/face_" + n.substring(8, n.length() - 4) + ".bmp";
             if (face.length() && !f.isDirectory()) orphans.push_back(face + "|/" + n);
         }
         root.close();
@@ -506,23 +507,26 @@
         }
     }
 
-    // Legt die drei Start-Presets zu den erzeugten Zifferblaettern und Zeigersaetzen an - jedes nur, wenn seine
+    // Legt die vier Start-Presets zu den erzeugten Zifferblaettern und Zeigersaetzen an - jedes nur, wenn seine
     // Dateien da sind und kein Preset gleichen Namens existiert. Bahnhofsmodus, Nabe rot bzw. schwarz, roemisch
-    // ohne Sekundenzeiger, mit Streifen weiss/schwarz in eigener Schrift; sonst wie die Einstellungen.
+    // ohne Sekundenzeiger, Sekundenfeld mit eigenem Satz, mit Streifen weiss/schwarz in eigener Schrift; sonst wie die
+    // Einstellungen.
 
-    // Creates the three starter presets for the generated clock faces and hand sets - each only if its files
+    // Creates the four starter presets for the generated clock faces and hand sets - each only if its files
     // exist and there is no preset with the same name. Station mode, hub red or black, roman without a second
-    // hand, with a strip white/black in its own font; otherwise as the current settings.
+    // hand, subdial with its own set, with a strip white/black in its own font; otherwise as the current settings.
 
     void addStarterPresets() {
-        struct { const char* name; const char* face; int handSet; bool second; uint32_t hubColor; const char* stripFont; const char* vlw; } starter[] = {
+        struct { const char* name; const char* face; int style; bool second; uint32_t hubColor; const char* stripFont; const char* vlw; } starter[] = {
             { "Standard", "face_default.bmp", 0, true, 0xEC0016, "FreeSans Bold", nullptr },
             { "1-12", "face_numbers.bmp", 1, true, 0xEC0016, "DejaVu", nullptr },
             { "I-XII", "face_roman.bmp", 2, false, 0x000000, "GLCD", "Sans" },
+            { "Sekundenfeld", "face_subdial.bmp", 3, true, 0x000000, "FreeSans Bold", nullptr },
         };
         bool changed = false;
         for (const auto& s : starter) {
-            if (!LittleFS.exists("/" + String(s.face)) || !LittleFS.exists("/hand_set" + String(s.handSet) + "_hour.bmp")) continue;
+            String handSet = s.style == 3 ? subdialHandSet() : String(s.style);
+            if (!LittleFS.exists("/" + String(s.face)) || !LittleFS.exists("/hand_set" + handSet + "_hour.bmp")) continue;
             int freeSlot = -1;
             bool exists = false;
             for (int i = 0; i < MAX_PRESETS && !exists; i++) {
@@ -531,7 +535,7 @@
             }
             if (exists || freeSlot < 0) continue;
             presets[freeSlot].name = s.name;
-            String url = buildPresetUrl(s.face, String(s.handSet), true, s.second, false, true, displayGeom->centerSize, s.hubColor);
+            String url = buildPresetUrl(s.face, handSet, true, s.second, false, true, displayGeom->centerSize, s.hubColor);
 
             // Displays mit Streifen (ILI9341, ST7789 172x320): Streifen-Einstellungen des Zifferblatts, falls es noch
             // keine hat - weisser Streifen, schwarze Schrift, je Zifferblatt eine eingebaute Schrift
@@ -572,23 +576,26 @@
     }
 
 
-    // Startpaket einer neuen Uhr: gibt es weder Zifferblatt noch Zeigersatz, die drei erzeugten Zifferblaetter
-    // und Zeigersaetze und - ohne vorhandene Presets - die Start-Presets. Laeuft in setup() VOR loadClockFace()
-    // (laedt die Presets dafuer schon einmal, setup() laedt sie spaeter mit der IP neu).
+    // Startpaket: fehlende Zifferblaetter, Zeigersaetze und Uhren Sets des Startpakets bei jedem Start erzeugen -
+    // vorhandene bleiben. Ein Zeigersatz gilt als vorhanden, sobald eine seiner Dateien da ist (eigene Saetze mit
+    // gleicher Nummer werden nicht ergaenzt). Laeuft in setup() VOR loadClockFace() (laedt die Presets dafuer
+    // schon einmal, setup() laedt sie spaeter mit der IP neu).
 
-    // Starter kit of a new clock: if there is neither a clock face nor a hand set, the three generated clock
-    // faces and hand sets and - without existing presets - the starter presets. Runs in setup() BEFORE
-    // loadClockFace() (loads the presets once for this, setup() reloads them later with the IP).
+    // Starter set: create missing clock faces, hand sets and presets of the starter set at every start - existing
+    // ones stay. A hand set counts as present as soon as one of its files is there (own sets with the same number
+    // are not completed). Runs in setup() BEFORE loadClockFace() (loads the presets once for this, setup()
+    // reloads them later with the IP).
 
     void ensureStarterSet() {
-        if (hasBmpWithPrefix("face_") || hasBmpWithPrefix("hand_set")) return;
-        DEBUG_PRINTLN("[Starter] No clock faces and hand sets - generating the starter set");
-        ensureDefaultFace();
-        ensureDefaultHands();
-        loadPresets();
-        for (int i = 0; i < MAX_PRESETS; i++) {
-            if (!presets[i].name.isEmpty()) return;
+        for (const auto& f : STARTER_FACES) {
+            if (!LittleFS.exists(f.path)) writeGeneratedFace(f.path, f.numerals);
         }
+        ensureDefaultHands();
+        for (int style = 1; style <= 3; style++) {
+            String id = style == 3 ? subdialHandSet() : String(style);
+            if (!handSetExists(id)) writeGeneratedHandSet(style, id);
+        }
+        loadPresets();
         addStarterPresets();
     }
 
@@ -602,12 +609,7 @@
     // as a substitute. Files of the right size stay untouched.
 
     void refreshGeneratedAssets() {
-        struct { const char* path; uint8_t numerals; } faces[] = {
-            { "/face_default.bmp", FACE_NUMERALS_QUARTER },
-            { "/face_numbers.bmp", FACE_NUMERALS_ARABIC },
-            { "/face_roman.bmp", FACE_NUMERALS_ROMAN },
-        };
-        for (const auto& f : faces) {
+        for (const auto& f : STARTER_FACES) {
             int32_t w, h;
             if (!LittleFS.exists(f.path)) continue;
             if (readImageSize(f.path, w, h) && w == CLOCK_WIDTH && h == CLOCK_HEIGHT) continue;
@@ -615,16 +617,17 @@
             LittleFS.remove(f.path);
             writeGeneratedFace(f.path, f.numerals);
         }
-        for (int set = 0; set <= 2; set++) {
+        for (int style = 0; style <= 3; style++) {
+            String id = style == 3 ? subdialHandSet() : String(style);
             bool wrongSize = false;
             for (const char* part : { "hour", "minute", "second" }) {
-                String path = "/hand_set" + String(set) + "_" + part + ".bmp";
+                String path = "/hand_set" + id + "_" + part + ".bmp";
                 int32_t w, h;
                 if (LittleFS.exists(path) && !(readImageSize(path.c_str(), w, h) && isValidHandSize(w, h))) wrongSize = true;
             }
             if (!wrongSize) continue;
-            DEBUG_PRINTLN("[Starter] Wrong size, regenerating hand set " + String(set));
-            for (const char* part : { "hour", "minute", "second" }) LittleFS.remove("/hand_set" + String(set) + "_" + part + ".bmp");
-            writeGeneratedHandSet(set);
+            DEBUG_PRINTLN("[Starter] Wrong size, regenerating hand set " + id);
+            for (const char* part : { "hour", "minute", "second" }) LittleFS.remove("/hand_set" + id + "_" + part + ".bmp");
+            writeGeneratedHandSet(style, id);
         }
     }

@@ -82,6 +82,8 @@
     constexpr const char* PK_BRIGHT_END_HOUR   = "brightEnd";
     constexpr const char* PK_DISPLAY_TYPE      = "displayType";  // DISPLAY_TYPE_* (config.h), wirkt nach Neustart
                                                                  // DISPLAY_TYPE_* (config.h), takes effect after a restart
+    constexpr const char* PK_SUBDIAL_SET       = "subdialSet";   // Nummer des erzeugten Zeigersatzes fuers Sekundenfeld
+                                                                 // number of the generated hand set for the subdial
     constexpr const char* PK_STRIP_CFG_DONE    = "stripCfgDone"; // Streifen-Einstellungen in stripcfg_*.txt uebernommen
                                                                  // strip settings moved to stripcfg_*.txt
     constexpr const char* PK_STRIP_BG          = "stripBg";      // Streifen bis 2026-10-08 (gilt jetzt je Zifferblatt,

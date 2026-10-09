@@ -417,14 +417,15 @@
         if (name.startsWith("face_") && name.endsWith(".bmp")) {
             removeOrphanedPresets(path, "");
 
-            // Streifen-Grafik und -Einstellungen des Zifferblatts gleich mit loeschen
-            // Delete the clock face's strip graphic and settings as well
+            // Streifen-Grafik und -Einstellungen sowie Zifferblatt-Einstellungen gleich mit loeschen
+            // Delete the strip graphic and settings as well as the clock face settings along with it
 
-            String stripPath = stripPathForFace(path), stripCfg = stripConfigPath(path);
-            if (stripPath.length() && LittleFS.exists(stripPath)) LittleFS.remove(stripPath);
-            if (stripCfg.length() && LittleFS.exists(stripCfg)) LittleFS.remove(stripCfg);
+            for (const String& side : { stripPathForFace(path), stripConfigPath(path), faceConfigPath(path) }) {
+                if (side.length() && LittleFS.exists(side)) LittleFS.remove(side);
+            }
             stripImageFor = "?";
             stripSettingsFor = "?";
+            faceSettingsFor = "?";
             infoStripDirty[0] = infoStripDirty[1] = true;
         }
         else if (name.startsWith("strip_")) {
@@ -2732,19 +2733,22 @@
                     }
                     if (LittleFS.rename(oldName, newName)) {
 
-                        // Streifen-Grafik und -Einstellungen eines Zifferblatts mit umbenennen
-                        // Rename a clock face's strip graphic and settings as well
+                        // Streifen-Grafik, Streifen- und Zifferblatt-Einstellungen eines Zifferblatts mit umbenennen
+                        // Rename a clock face's strip graphic, strip and clock face settings as well
 
                         String oldStrip = stripPathForFace(oldName), newStrip = stripPathForFace(newName);
                         if (oldStrip.length() && newStrip.length() && LittleFS.exists(oldStrip) && !LittleFS.exists(newStrip)) {
                             LittleFS.rename(oldStrip, newStrip);
                         }
-                        String oldCfg = stripConfigPath(oldName), newCfg = stripConfigPath(newName);
-                        if (oldCfg.length() && newCfg.length() && LittleFS.exists(oldCfg) && !LittleFS.exists(newCfg)) {
-                            LittleFS.rename(oldCfg, newCfg);
+                        for (const char* prefix : { "stripcfg_", "facecfg_" }) {
+                            String oldCfg = faceSidePath(oldName, prefix), newCfg = faceSidePath(newName, prefix);
+                            if (oldCfg.length() && newCfg.length() && LittleFS.exists(oldCfg) && !LittleFS.exists(newCfg)) {
+                                LittleFS.rename(oldCfg, newCfg);
+                            }
                         }
                         stripImageFor = "?";
                         stripSettingsFor = "?";
+                        faceSettingsFor = "?";
                         infoStripDirty[0] = infoStripDirty[1] = true;
 
                         // Aktives Zifferblatt: Preference mitziehen, sonst zeigt
@@ -4137,10 +4141,20 @@
                      String(stripPrevH > 0 ? "outline:3px solid #333;" : "") + "'>";
             if (stripBefore) chunk += stripCanvas;
             chunk += "<div style='width:" + String(previewSize) + "px;height:" + String(previewSize) + "px;box-sizing:border-box;" + String(stripPrevH > 0 ? "" : "border:3px solid #333;") + String(displayGeom->round ? "border-radius:50%;" : "") + "background:#fff url(/currentfacebg) center/cover no-repeat;overflow:hidden;position:relative;'>";
+
+            // Sekundenfeld: Sekundenzeiger an seinem Drehpunkt und unter den grossen Zeigern (wie renderClockFrame())
+            // Seconds subdial: second hand at its pivot and below the large hands (as in renderClockFrame())
+
+            ensureFaceSettings();
+            bool subdial = showSecond && secPivotX >= 0;
+            if (subdial) {
+                chunk += "<div style='position:absolute;left:" + String((secPivotX + 0.5f) * scaleFactor, 2) + "px;top:" +
+                         String((secPivotY + 0.5f) * scaleFactor, 2) + "px;width:0;height:0;'>" + handImg("liveSecondHandFull", "second", secondW) + "</div>";
+            }
             chunk += "<div id='liveHandsPivotFull' style='position:absolute;left:50%;top:50%;width:0;height:0;'>";
             chunk += handImg("liveHourHandFull", "hour", hourW);
             chunk += handImg("liveMinuteHandFull", "minute", minuteW);
-            if (showSecond) {
+            if (showSecond && !subdial) {
                 chunk += handImg("liveSecondHandFull", "second", secondW);
             }
             chunk += "<div id='liveHubFull' style='position:absolute;left:-" + String(scaledHubSize / 2) + "px;top:-" + String(scaledHubSize / 2) + "px;width:" + String(scaledHubSize) + "px;height:" + String(scaledHubSize) + "px;border-radius:50%;background:" + String(hubHex) + ";'></div>";
@@ -6782,9 +6796,24 @@
             uint8_t b = rgb & 0xFF;
             hubColor = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 
+            // Drehpunkt des Sekundenzeigers (secx/secy, -1 = Mitte) gehoert zum Zifferblatt: gespeichert in dessen
+            // facecfg_*.txt - face = Zifferblatt, das der Designer gerade speichert, sonst das aktive
+
+            // Pivot of the second hand (secx/secy, -1 = centre) belongs to the clock face: stored in its
+            // facecfg_*.txt - face = clock face the designer is saving right now, otherwise the active one
+
+            bool pivotArg = webserver.hasArg("secx") && webserver.hasArg("secy");
+            if (pivotArg) {
+                ensureFaceSettings();
+                secPivotX = (int16_t)constrain(webserver.arg("secx").toInt(), -1L, (long)CLOCK_WIDTH - 1);
+                secPivotY = (int16_t)constrain(webserver.arg("secy").toInt(), -1L, (long)CLOCK_HEIGHT - 1);
+                if (secPivotX < 0 || secPivotY < 0) secPivotX = secPivotY = -1;
+                clockFrameDirty[0] = clockFrameDirty[1] = true;
+            }
             if (webserver.arg("save") == "1") {
                 preferences.putUInt(PK_CENTER_SIZE, hubSize);
                 preferences.putLong(PK_CENTER_COLOR, rgb);
+                if (pivotArg) saveFaceSettings(webserver.hasArg("face") ? "/" + webserver.arg("face") : selectedBackground, secPivotX, secPivotY);
                 DEBUG_PRINTLN("[WEB] Hub saved: radius " + String(hubSize) + ", color " + String(rgb, HEX));
             }
             webserver.send(200, "application/json", "{\"ok\":true}");
@@ -6966,11 +6995,13 @@
                           ",sec:" + String(stripShowsSeconds() ? "true" : "false") + "}";
             }
 
+            ensureFaceSettings();
             chunk += "<script>var HD={w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) +
                      ",px:" + String(HAND_WIDTH / 2) + ",py:" + String(HAND_PIVOT_Y) +
                      ",cw:" + String(CLOCK_WIDTH) + ",active:'" + jsSafe(handSetFileId(preferences.getString(PK_HANDSET, ""))) +
                      "',face:'" + jsSafe(selectedBackground) + "',hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) +
-                     "',lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
+                     "',sec:[" + String(secPivotX) + "," + String(secPivotY) + "]" +
+                     ",lang:'" + jsSafe(currentLanguage) + "',sets:[" + setsJs + "]" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}" + modeJs + "};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(HAND_DESIGNER_HTML);
@@ -7091,12 +7122,14 @@
                             ",smoothSec:" + String(getSmoothSecondPref(modeStation) ? "true" : "false") +
                             ",fastMs:" + String((int)FAST_SECOND) + "}";
 
+            ensureFaceSettings();
             chunk += "<script>var FD={w:" + String(CLOCK_WIDTH) + ",h:" + String(CLOCK_HEIGHT) + ",round:" + String(roundJs) +
                      ",active:'" + jsSafe(selectedBackground) + "',faces:[" + facesJs + "],free:" + String(freeBytes) +
                      ",hand:{w:" + String(HAND_WIDTH) + ",h:" + String(HAND_HEIGHT) + ",lh:" + String(HAND_LEGACY_HEIGHT) + ",lw:" + String(HAND_LEGACY_WIDTH) + ",py:" + String(HAND_PIVOT_Y) +
                      ",set:'" + jsSafe(handSetFileId(preferences.getString(PK_HANDSET, ""))) + "'" +
                      ",widths:{hour:" + String(hourHandWidth) + ",minute:" + String(minuteHandWidth) + ",second:" + String(secondHandWidth) + "}}" +
                      ",hub:" + String(hubSize) + ",hubColor:'" + String(hubHex) + "',showSec:" + String(showSecondHand ? "true" : "false") +
+                     ",sec:[" + String(secPivotX) + "," + String(secPivotY) + "]" +
                      ",lang:'" + jsSafe(currentLanguage) + "'" + modeJs + ",strip:" + stripJs + ",fonts:[" + fontsJs + "]};</script>";
             webserver.sendContent(chunk);
             webserver.sendContent_P(FACE_DESIGNER_HTML);

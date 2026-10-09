@@ -794,9 +794,14 @@
     if (bg === 'bgFace' && faceCanvas) pctx.drawImage(faceCanvas, 0, OY, S, S);
     if (bg === 'bgFace' && stripImg) pctx.drawImage(stripImg, 0, OY ? 0 : S, S, SH);
     var ang = handAngles($('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37), HD.mode);
-    PARTS.forEach(function (p) {
+
+    // Sekundenfeld des Zifferblatts (HD.sec): Sekundenzeiger zuerst und an seinem Drehpunkt, unter den grossen Zeigern
+    // Seconds subdial of the clock face (HD.sec): second hand first and at its pivot, below the large hands
+
+    var sub = HD.sec && HD.sec[0] >= 0;
+    (sub ? ['second', 'hour', 'minute'] : PARTS).forEach(function (p) {
       pctx.save();
-      pctx.translate(S / 2, OY + S / 2);
+      if (sub && p === 'second') pctx.translate(HD.sec[0], OY + HD.sec[1]); else pctx.translate(S / 2, OY + S / 2);
       pctx.rotate(ang[p] * Math.PI / 180);
       pctx.drawImage(handCanvas(pix[p], p), -((spriteWidth(p) >> 1) + 0.5), -(PY + 0.5));
       pctx.restore();

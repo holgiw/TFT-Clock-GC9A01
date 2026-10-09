@@ -63,9 +63,12 @@
       + '\u00c4nderungen hier zeigt die Uhr sofort an, gespeichert werden sie mit \u201eStreifen speichern\u201c oder mit dem Zifferblatt. '
       + 'Ein Zifferblatt ohne eigene Einstellungen bekommt den Standard. ' + 'X/Y = Mitte der Zeile im Streifen (hochkant); quer stehen die Zeilen automatisch untereinander.',
       stripSaved: 'Streifen gespeichert.', stripErr: 'Streifen konnte nicht an die Uhr gesendet werden.',
-      hub: 'Nabe', hubSize: 'Radius:', hubColor: 'Farbe:', hubSave: 'Nabe speichern',
-      hubHint: 'Mittelpunkt \u00fcber den Zeigern, 0 = keine Nabe. \u00c4nderungen zeigt die Uhr sofort an, gespeichert werden sie mit \u201eNabe speichern\u201c.',
-      hubSaved: 'Nabe gespeichert.', hubErr: 'Nabe konnte nicht an die Uhr gesendet werden.',
+      hub: 'Nabe und Sekundenzeiger', hubSize: 'Nabe:', hubColor: 'Farbe:', hubSave: 'Speichern',
+      secPiv: 'Drehpunkt Sekundenzeiger:', secCtr: 'Mitte',
+      hubHint: 'Nabe = Mittelpunkt \u00fcber den Zeigern, 0 = keine Nabe. Ein Drehpunkt au\u00dferhalb der Mitte ergibt ein Sekundenfeld: '
+      + 'der Sekundenzeiger liegt dann unter Stunden- und Minutenzeiger, einen passend kurzen zeichnet man im Zeiger-Designer. '
+      + 'Der Drehpunkt geh\u00f6rt zum Zifferblatt. \u00c4nderungen zeigt die Uhr sofort an, gespeichert werden sie mit \u201eSpeichern\u201c oder mit dem Zifferblatt.',
+      hubSaved: 'Nabe und Drehpunkt gespeichert.', hubErr: 'Nabe konnte nicht an die Uhr gesendet werden.',
       sTFmt: 'Zeitformat:', sSec: 'Sekunden:', sec0: 'automatisch (ohne Sekundenzeiger)', sec1: 'ohne Sekunden', sec2: 'mit Sekunden',
       sDFmt: 'Datumsformat:', tf0: '24 Stunden',
       tf1: '12 Stunden mit AM/PM', tf2: '12 Stunden', df0: 'T.MM.JJJJ', df1: 'TT.MM.JJJJ', df2: 'TT.MM.JJ', df3: 'MM/TT/JJJJ',
@@ -127,9 +130,12 @@
       sDFmt: 'Date format:', tf0: '24 hours',
       tf1: '12 hours with AM/PM', tf2: '12 hours', df0: 'D.MM.YYYY', df1: 'DD.MM.YYYY', df2: 'DD.MM.YY', df3: 'MM/DD/YYYY',
       df4: 'YYYY-MM-DD', df5: 'DD.MM.', df6: 'D.MM.YY', vlwCur: ' (on the clock)', vlwErr: 'Could not create the font for the strip.',
-      hub: 'Hub', hubSize: 'Radius:', hubColor: 'Colour:', hubSave: 'Save hub',
-      hubHint: 'Centre over the hands, 0 = no hub. The clock shows changes right away, they are stored with "Save hub".',
-      hubSaved: 'Hub saved.', hubErr: 'Could not send the hub to the clock.',
+      hub: 'Hub and second hand', hubSize: 'Hub:', hubColor: 'Colour:', hubSave: 'Save',
+      secPiv: 'Second hand pivot:', secCtr: 'centre',
+      hubHint: 'Hub = centre over the hands, 0 = no hub. A pivot outside the centre gives a seconds subdial: the second hand '
+      + 'then lies below the hour and minute hand, a fittingly short one is drawn in the hand designer. The pivot belongs to the '
+      + 'clock face. The clock shows changes right away, they are stored with "Save" or with the clock face.',
+      hubSaved: 'Hub and pivot saved.', hubErr: 'Could not send the hub to the clock.',
       pos: 'Pixel', center: 'Centre' },
   };
   var L = TX[FD.lang] ? FD.lang : 'en';
@@ -994,6 +1000,8 @@
     }).then(function () {
       if (stripSaveFor) return stripSaveFor(file);
     }).then(function () {
+      return hubSend(true, file);
+    }).then(function () {
       return fetch('/setbackground?file=' + encodeURIComponent(file), { redirect: 'manual' }).then(function () {
         FD.active = '/' + file; base = FD.active;
       });
@@ -1129,10 +1137,15 @@
     if (SH && stripImg) pctx.drawImage(stripImg, 0, stripY());
     if ($('showHands').checked) {
       var ang = handAngles($('live').checked ? new Date() : new Date(2000, 0, 1, 10, 8, 37), FD.mode);
-      PARTS.forEach(function (p) {
+
+      // Sekundenfeld: Sekundenzeiger zuerst und an seinem Drehpunkt - unter Stunden- und Minutenzeiger wie auf der Uhr
+      // Seconds subdial: second hand first and at its pivot - below the hour and minute hand as on the clock
+
+      var sub = FD.sec[0] >= 0;
+      (sub ? ['second', 'hour', 'minute'] : PARTS).forEach(function (p) {
         if (!hands[p] || (p === 'second' && !FD.showSec)) return;
         pctx.save();
-        pctx.translate(CX, CY);
+        if (sub && p === 'second') pctx.translate(FD.sec[0], OY + FD.sec[1]); else pctx.translate(CX, CY);
         pctx.rotate(ang[p] * Math.PI / 180);
         pctx.drawImage(hands[p], -((spriteWidth(p) >> 1) + 0.5), -(HPY + 0.5));
         pctx.restore();
@@ -1213,31 +1226,44 @@
   var need = Math.ceil((N * 2 + 66) / 1024);
   $('spaceHint').textContent = (FD.free >= 0 && FD.free / 1024 < need) ? t('lowSpace', Math.floor(FD.free / 1024), need) : (FD.round ? t('roundHint') : '');
 
-  // Nabe: Aenderungen gehen sofort live an die Uhr (save=0), "Nabe speichern" legt sie dauerhaft ab
+  // Nabe und Drehpunkt des Sekundenzeigers (FD.sec, -1 = Mitte): Aenderungen gehen sofort live an die Uhr (save=0),
+  // "Speichern" legt sie ab - den Drehpunkt zum aktiven Zifferblatt bzw. zu face (beim Speichern des Zifferblatts)
 
-  // Hub: changes go live to the clock right away (save=0), "Save hub" stores them permanently
+  // Hub and second hand pivot (FD.sec, -1 = centre): changes go live to the clock right away (save=0), "Save"
+  // stores them - the pivot for the active clock face or for face (when saving the clock face)
 
   var hubTimer = null;
-  function hubSend(save) {
+  function hubSend(save, face) {
     var p = new URLSearchParams();
     p.set('size', FD.hub); p.set('color', FD.hubColor.slice(1)); p.set('save', save ? '1' : '0');
+    p.set('secx', FD.sec[0]); p.set('secy', FD.sec[1]);
+    if (face) p.set('face', face);
     return fetch('/setcenter', { method: 'POST', body: p }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) throw new Error();
-      if (save) showMsg(t('hubSaved'), true);
+      if (save && !face) showMsg(t('hubSaved'), true);
     }).catch(function () { showMsg(t('hubErr'), false); });
   }
   function hubLive() {
-    var s = parseInt($('hubSize').value, 10);
+    var s = parseInt($('hubSize').value, 10), ctr = $('secCtr').checked;
     FD.hub = isNaN(s) ? 0 : Math.max(0, Math.min(100, s));
     FD.hubColor = $('hubColor').value;
+    $('secX').disabled = $('secY').disabled = ctr;
+    FD.sec = ctr ? [-1, -1] : [+$('secX').value, +$('secY').value];
     renderPreview();
     clearTimeout(hubTimer);
     hubTimer = setTimeout(function () { hubSend(false); }, 250);
   }
   $('hubSize').value = FD.hub; $('hubColor').value = FD.hubColor;
-  ['hubSize', 'hubColor'].forEach(function (id) { $(id).addEventListener('input', hubLive); });
+  $('secX').max = W - 1; $('secY').max = FH - 1;
+  $('secCtr').checked = FD.sec[0] < 0;
+  $('secX').value = FD.sec[0] < 0 ? W >> 1 : FD.sec[0];
+  $('secY').value = FD.sec[0] < 0 ? Math.round(FH * 0.72) : FD.sec[1]; // ohne Drehpunkt: unteres Drittel vorschlagen
+                                                                         // without a pivot: suggest the lower third
+  $('secX').disabled = $('secY').disabled = FD.sec[0] < 0;
+  ['hubSize', 'hubColor', 'secCtr', 'secX', 'secY'].forEach(function (id) { $(id).addEventListener('input', hubLive); });
   $('hubSaveBtn').onclick = function () { clearTimeout(hubTimer); hubSend(true); };
   $('tHub').textContent = t('hub'); $('tHubSize').textContent = t('hubSize'); $('tHubColor').textContent = t('hubColor');
+  $('tSecPiv').textContent = t('secPiv'); $('tSecCtr').textContent = t('secCtr');
   $('hubHint').textContent = t('hubHint'); $('hubSaveBtn').textContent = t('hubSave');
 
   // Streifen Uhrzeit/Datum (nur Displays mit Streifen wie ILI9341): Aenderungen gehen sofort live an die Uhr

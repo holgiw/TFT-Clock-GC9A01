@@ -1057,10 +1057,15 @@
     }
 
 
-    // Ziffern der erzeugten Zifferblaetter: nur 12/3/6/9 (face_default), 1-12 und I-XII
-    // Numerals of the generated clock faces: only 12/3/6/9 (face_default), 1-12 and I-XII
+    // Ziffern der erzeugten Zifferblaetter: nur 12/3/6/9 (face_default), 1-12, I-XII und 12/3/9 mit Sekundenfeld
+    // statt der 6 (face_subdial). Sekundenfeld: Mitte bei SUBDIAL_Y der Breite, Radius SUBDIAL_R der Breite.
 
-    enum : uint8_t { FACE_NUMERALS_QUARTER, FACE_NUMERALS_ARABIC, FACE_NUMERALS_ROMAN };
+    // Numerals of the generated clock faces: only 12/3/6/9 (face_default), 1-12, I-XII and 12/3/9 with a
+    // seconds subdial instead of the 6 (face_subdial). Subdial: centre at SUBDIAL_Y, radius SUBDIAL_R of the width.
+
+    enum : uint8_t { FACE_NUMERALS_QUARTER, FACE_NUMERALS_ARABIC, FACE_NUMERALS_ROMAN, FACE_NUMERALS_SUBDIAL };
+    constexpr float SUBDIAL_Y = 0.72f;
+    constexpr float SUBDIAL_R = 0.14f;
 
     // Erzeugtes Zifferblatt wie der Generator im Zifferblatt-Designer mit dessen Vorgaben: weiss, schwarzer
     // Rand, Stunden- und Minutenstriche, Ziffern. Je Pixel 4 x 4 Abtastpunkte (Kantenglaettung); zeilenweise,
@@ -1078,7 +1083,32 @@
                                     // direction (sin, -cos) x 1024
             int16_t t0, t1, hw;     // radial von t0 bis t1, halbe Breite hw (Achtelpixel)
                                     // radially from t0 to t1, half width hw (eighths of a pixel)
+            int16_t cx8, cy8;       // Mitte (Achtelpixel): Zifferblatt oder Sekundenfeld
+                                    // centre (eighths of a pixel): clock face or subdial
         };
+
+        // Strich bei Winkel a um die Mitte cx/cy (Pixel), aussen bei rOuter, Laenge len, Breite width
+        // Mark at angle a around the centre cx/cy (pixels), outer end at rOuter, length len, width width
+
+        void setMark(Mark& m, float cx, float cy, float a, int rOuter, int len, int width) {
+            float s = sinf(a), c = -cosf(a);
+            m.s = lroundf(s * 1024);
+            m.c = lroundf(c * 1024);
+            m.t0 = 8 * (rOuter - len);
+            m.t1 = 8 * rOuter;
+            m.hw = 4 * width;
+            m.cx8 = lroundf(8 * cx);
+            m.cy8 = lroundf(8 * cy);
+            float minX = w, maxX = 0, minY = w, maxY = 0;
+            for (int k = 0; k < 4; k++) {
+                float rr = (k & 1) ? rOuter : rOuter - len, side = (k & 2) ? width / 2.0f : -width / 2.0f;
+                float x = cx + s * rr - c * side, y = cy + c * rr + s * side;
+                minX = min(minX, x); maxX = max(maxX, x);
+                minY = min(minY, y); maxY = max(maxY, y);
+            }
+            m.x0 = max(0, (int)floorf(minX)); m.x1 = min(w - 1, (int)floorf(maxX));
+            m.y0 = max(0, (int)floorf(minY)); m.y1 = min(w - 1, (int)floorf(maxY));
+        }
 
         // Ziffer als fertige Deckung je Pixel (0..16 getroffene Abtastpunkte) ab x0/y0
         // Numeral as finished coverage per pixel (0..16 samples hit) from x0/y0
@@ -1087,10 +1117,13 @@
             int16_t x0 = 0, y0 = 0, w = 0, h = 0;
             std::vector<uint8_t> cov;
         };
-        Mark marks[60];
+        std::vector<Mark> marks;    // 60 am Rand, mit Sekundenfeld 60 weitere darin (Heap statt Stack)
+                                    // 60 at the rim, with a subdial 60 more in it (heap instead of stack)
         Numeral numerals[12];
         int w, c8, ringIn, ringOut; // Mitte und Rand (Achtelpixel)
                                     // centre and ring (eighths of a pixel)
+        int32_t subX8 = 0, subY8 = 0, subIn = 0, subOut = 0; // Sekundenfeld-Ring (Achtelpixel), 0 = keiner
+                                                             // subdial ring (eighths of a pixel), 0 = none
         bool round;                 // rundes Display: ausserhalb des Kreises weiss wie scaleAndSaveBmp()
                                     // round display: white outside the circle like scaleAndSaveBmp()
 
@@ -1166,27 +1199,26 @@
             // 60 Striche reihum, jeder fuenfte ist ein Stundenstrich
             // 60 marks around, every fifth is an hour mark
 
+            marks.resize(numeralMode == FACE_NUMERALS_SUBDIAL ? 120 : 60);
             for (int i = 0; i < 60; i++) {
                 bool hour = (i % 5 == 0);
-                int len = lroundf(w * (hour ? 0.08f : 0.03f));
-                int width = lroundf(w * (hour ? 0.025f : 0.008f));
-                if (width < 1) width = 1;
-                float a = i * 2 * PI / 60, s = sinf(a), c = -cosf(a);
-                Mark& m = marks[i];
-                m.s = lroundf(s * 1024);
-                m.c = lroundf(c * 1024);
-                m.t0 = 8 * (outer - len);
-                m.t1 = 8 * outer;
-                m.hw = 4 * width;
-                float minX = w, maxX = 0, minY = w, maxY = 0;
-                for (int k = 0; k < 4; k++) {
-                    float rr = (k & 1) ? outer : outer - len, side = (k & 2) ? width / 2.0f : -width / 2.0f;
-                    float x = r + s * rr - c * side, y = r + c * rr + s * side;
-                    minX = min(minX, x); maxX = max(maxX, x);
-                    minY = min(minY, y); maxY = max(maxY, y);
+                setMark(marks[i], r, r, i * 2 * PI / 60, outer, lroundf(w * (hour ? 0.08f : 0.03f)),
+                        max(1L, lroundf(w * (hour ? 0.025f : 0.008f))));
+            }
+
+            // Sekundenfeld: duenner Ring und 60 Striche um den Drehpunkt (Pixelmitte wie der Zeiger-Drehpunkt)
+            // Seconds subdial: thin ring and 60 marks around the pivot (pixel centre like the hand pivot)
+
+            if (numeralMode == FACE_NUMERALS_SUBDIAL) {
+                float sx = w / 2 + 0.5f, sy = lroundf(w * SUBDIAL_Y) + 0.5f;
+                int sr = lroundf(w * SUBDIAL_R), sw = max(1L, lroundf(w * 0.007f));
+                subX8 = lroundf(8 * sx); subY8 = lroundf(8 * sy);
+                subIn = 8 * (sr - sw); subOut = 8 * sr;
+                for (int i = 0; i < 60; i++) {
+                    bool five = (i % 5 == 0);
+                    setMark(marks[60 + i], sx, sy, i * 2 * PI / 60, sr - sw - 1, lroundf(w * (five ? 0.025f : 0.012f)),
+                            max(1L, lroundf(w * (five ? 0.01f : 0.004f))));
                 }
-                m.x0 = max(0, (int)floorf(minX)); m.x1 = min(w - 1, (int)floorf(maxX));
-                m.y0 = max(0, (int)floorf(minY)); m.y1 = min(w - 1, (int)floorf(maxY));
             }
 
             // Ziffern: 1-12 in FreeSans Bold, I-XII in FreeSerif Bold, Hoehe wie im Designer (Schriftgroesse 9 %
@@ -1203,7 +1235,9 @@
             float limitQ = 4 * (outer - lroundf(w * 0.08f) - w * 0.05f);
             bool ok = true;
             for (int h = 0; h < 12; h++) {
-                if (numeralMode == FACE_NUMERALS_QUARTER && h % 3) continue;
+                if (numeralMode != FACE_NUMERALS_ARABIC && numeralMode != FACE_NUMERALS_ROMAN && h % 3) continue;
+                if (numeralMode == FACE_NUMERALS_SUBDIAL && h == 6) continue; // dort liegt das Sekundenfeld
+                                                                              // the subdial is there
                 char arabic[3];
                 snprintf(arabic, sizeof(arabic), "%d", h ? h : 12);
                 if (!addNumeral(numerals[h], roman ? romanNumerals[h] : arabic, font, scale, h * PI / 6, limitQ)) ok = false;
@@ -1245,14 +1279,29 @@
                 for (int x = m.x0; x <= m.x1; x++) {
                     int n = 0;
                     for (int sy = 0; sy < 4; sy++) {
-                        int32_t dy = 8 * y + 2 * sy + 1 - c8;
+                        int32_t dy = 8 * y + 2 * sy + 1 - m.cy8;
                         for (int sx = 0; sx < 4; sx++) {
-                            int32_t dx = 8 * x + 2 * sx + 1 - c8;
+                            int32_t dx = 8 * x + 2 * sx + 1 - m.cx8;
                             int32_t t = dx * m.s + dy * m.c, u = dy * m.s - dx * m.c;
                             if (t >= m.t0 * 1024 && t <= m.t1 * 1024 && abs(u) <= m.hw * 1024) n++;
                         }
                     }
                     cov[x] = min(16, cov[x] + n);
+                }
+            }
+
+            // Ring des Sekundenfelds, je Pixel 4 x 4 Abtastpunkte
+            // Ring of the subdial, 4 x 4 samples per pixel
+
+            if (subOut > 0 && abs(8 * y + 4 - subY8) <= subOut + 8) {
+                for (int x = max(0L, (long)((subX8 - subOut) / 8 - 1)); x < w && 8 * x <= subX8 + subOut + 8; x++) {
+                    for (int sy = 0; sy < 4; sy++) {
+                        int32_t dy = 8 * y + 2 * sy + 1 - subY8;
+                        for (int sx = 0; sx < 4; sx++) {
+                            int32_t dx = 8 * x + 2 * sx + 1 - subX8, d2 = dx * dx + dy * dy;
+                            if (d2 >= subIn * subIn && d2 <= subOut * subOut && cov[x] < 16) cov[x]++;
+                        }
+                    }
                 }
             }
             for (const Numeral& n : numerals) {
@@ -1333,35 +1382,30 @@
             DEBUG_PRINTLN(String("[FS] Error: not enough memory for the numerals of ") + path);
             return false;
         }
+
+        // Mit Sekundenfeld gleich den passenden Drehpunkt des Sekundenzeigers (facecfg_*.txt)
+        // With a subdial the matching second hand pivot right away (facecfg_*.txt)
+
+        if (numeralMode == FACE_NUMERALS_SUBDIAL) saveFaceSettings(path, CLOCK_WIDTH / 2, lroundf(CLOCK_WIDTH * SUBDIAL_Y));
         return writeRleImage(path, gen.w, gen.w, [&gen](int y, uint16_t* row) { gen.row(y, row); });
     }
 
-    // True, wenn es eine BMP-Datei mit diesem Namensanfang gibt ("face_", "hand_set")
-    // True if there is a BMP file with this name prefix ("face_", "hand_set")
+    // Zifferblaetter des Startpakets (ensureStarterSet(), refreshGeneratedAssets())
+    // Clock faces of the starter set (ensureStarterSet(), refreshGeneratedAssets())
 
-    bool hasBmpWithPrefix(const char* prefix) {
-        bool found = false;
-        File root = LittleFS.open("/");
-        for (File f = root.openNextFile(); f && !found; f = root.openNextFile()) {
-            String name = f.name();
-            found = !f.isDirectory() && name.startsWith(prefix) && name.endsWith(".bmp");
-        }
-        root.close();
-        return found;
-    }
+    struct StarterFace { const char* path; uint8_t numerals; };
+    const StarterFace STARTER_FACES[] = {
+        { "/face_default.bmp", FACE_NUMERALS_QUARTER },
+        { "/face_numbers.bmp", FACE_NUMERALS_ARABIC },
+        { "/face_roman.bmp", FACE_NUMERALS_ROMAN },
+        { "/face_subdial.bmp", FACE_NUMERALS_SUBDIAL },
+    };
 
-    // Legt face_default.bmp (12, 3, 6, 9) an, falls es fehlt. Gibt es gar kein Zifferblatt (neue Uhr,
-    // Werksreset, alle geloescht), dazu face_numbers.bmp (1-12) und face_roman.bmp (I-XII).
-
-    // Creates face_default.bmp (12, 3, 6, 9) if it is missing. If there is no clock face at all (new clock,
-    // factory reset, all deleted), also face_numbers.bmp (1-12) and face_roman.bmp (I-XII).
+    // Legt face_default.bmp (12, 3, 6, 9) an, falls es fehlt - Ersatz fuer jedes fehlende Zifferblatt
+    // Creates face_default.bmp (12, 3, 6, 9) if it is missing - substitute for every missing clock face
 
     bool ensureDefaultFace() {
         if (LittleFS.exists("/face_default.bmp")) return true;
-        if (!hasBmpWithPrefix("face_")) {
-            writeGeneratedFace("/face_numbers.bmp", FACE_NUMERALS_ARABIC);
-            writeGeneratedFace("/face_roman.bmp", FACE_NUMERALS_ROMAN);
-        }
         return writeGeneratedFace("/face_default.bmp", FACE_NUMERALS_QUARTER);
     }
 
@@ -1408,30 +1452,46 @@
     }
 
     // Erzeugte Zeigersaetze, mittig auf dem Drehpunkt, Hintergrund weiss wie bei hochgeladenen Zeigern (gilt
-    // ueberall als transparent). Satz 0 und 1: Stunden- und Minutenzeiger als schwarze Balken bis zum unteren
-    // Bildrand, Sekundenzeiger als duenne rote (0) bzw. schwarze (1) Linie; Satz 2 geschwungen.
+    // ueberall als transparent). Satz 0, 1 und 3: Stunden- und Minutenzeiger als schwarze Balken bis zum unteren
+    // Bildrand, Sekundenzeiger als duenne rote (0) bzw. schwarze (1) Linie, bei 3 kurz fuers Sekundenfeld; Satz 2
+    // geschwungen.
 
     // Generated hand sets, centred on the pivot, background white like uploaded hands (counts as transparent
-    // everywhere). Sets 0 and 1: hour and minute hand as black bars down to the bottom edge, second hand as a
-    // thin red (0) or black (1) line; set 2 curved.
+    // everywhere). Sets 0, 1 and 3: hour and minute hand as black bars down to the bottom edge, second hand as a
+    // thin red (0) or black (1) line, short for the subdial with 3; set 2 curved.
+
+    // Halbe Breite des kurzen Sekundenzeigers von Satz 3 (Sekundenfeld): Nadel bis kurz vor den Feldrand, kurzes
+    // Gegengewicht, eigene runde Scheibe am Drehpunkt
+    // Half width of the short second hand of set 3 (subdial): needle up to just before the subdial rim, short
+    // counterweight, its own round disc at the pivot
+
+    float subdialSecondHalfWidth(float d) {
+        float c = CLOCK_WIDTH, r = SUBDIAL_R * c, w = 0, rd = 0.03f * c;
+        if (d >= -0.3f * r && d <= 0.92f * r) w = max(0.6f, 0.0083f * c);
+        if (fabsf(d) <= rd) w = max(w, sqrtf(rd * rd - d * d));
+        return w;
+    }
 
     void generatedHandRow(int set, const char* part, int y, uint16_t* row) {
         int top = strcmp(part, "hour") == 0 ? HAND_PIVOT_Y - lroundf(HAND_LEGACY_PIVOT_Y * 0.56f) : HAND_TOP_PAD;
         bool second = strcmp(part, "second") == 0;
-        if (set == 2) {
+        if (set == 2 || (set == 3 && second)) {
 
             // Je Pixel 4 x 4 Abtastpunkte, gesetzt ab der Haelfte - scharfe Kante, die Uhr glaettet beim Drehen
             // 4 x 4 samples per pixel, set from half of them - sharp edge, the clock smooths when rotating
 
             float half[4];
-            for (int sy = 0; sy < 4; sy++) half[sy] = curvedHandHalfWidth(part, HAND_PIVOT_Y - top, HAND_PIVOT_Y + 0.5f - (y + (sy + 0.5f) / 4));
+            for (int sy = 0; sy < 4; sy++) {
+                float d = HAND_PIVOT_Y + 0.5f - (y + (sy + 0.5f) / 4);
+                half[sy] = set == 3 ? subdialSecondHalfWidth(d) : curvedHandHalfWidth(part, HAND_PIVOT_Y - top, d);
+            }
             for (int x = 0; x < HAND_WIDTH; x++) {
                 int n = 0;
                 for (int sx = 0; sx < 4; sx++) {
                     float dx = fabsf(x + (sx + 0.5f) / 4 - (HAND_WIDTH / 2 + 0.5f));
                     for (int sy = 0; sy < 4; sy++) if (dx <= half[sy]) n++;
                 }
-                row[x] = n >= 8 ? 0x0000 : 0xFFFF;
+                row[x] = n < 8 ? 0xFFFF : set == 3 ? 0xF800 : 0x0000;
             }
             return;
         }
@@ -1449,33 +1509,50 @@
         for (int y = 0; y < HAND_HEIGHT; y++) generatedHandRow(0, part, y, dest + y * HAND_WIDTH);
     }
 
-    // Legt fehlende Dateien eines erzeugten Zeigersatzes an (hand_set<set>_hour/minute/second.bmp)
-    // Creates missing files of a generated hand set (hand_set<set>_hour/minute/second.bmp)
+    // Legt fehlende Dateien eines erzeugten Zeigersatzes an (hand_set<id>_hour/minute/second.bmp) - style waehlt
+    // die Form (0-3, siehe generatedHandRow())
+    // Creates missing files of a generated hand set (hand_set<id>_hour/minute/second.bmp) - style picks the
+    // shape (0-3, see generatedHandRow())
 
-    bool writeGeneratedHandSet(int set) {
+    bool writeGeneratedHandSet(int style, const String& id) {
         bool ok = true;
         for (const char* part : { "hour", "minute", "second" }) {
-            String path = "/hand_set" + String(set) + "_" + part + ".bmp";
+            String path = "/hand_set" + id + "_" + part + ".bmp";
             if (LittleFS.exists(path)) continue;
-            ok = writeRleImage(path, HAND_WIDTH, HAND_HEIGHT, [set, part](int y, uint16_t* row) { generatedHandRow(set, part, y, row); }) && ok;
+            ok = writeRleImage(path, HAND_WIDTH, HAND_HEIGHT, [style, part](int y, uint16_t* row) { generatedHandRow(style, part, y, row); }) && ok;
         }
         return ok;
     }
 
-    // Legt fehlende Dateien des Standardsatzes 0 an. Gibt es gar keinen Zeigersatz (neue Uhr, Werksreset,
-    // alle geloescht), dazu Satz 1 (schwarzer Sekundenzeiger) und Satz 2 (geschwungen).
+    bool handSetExists(const String& id) {
+        for (const char* part : { "hour", "minute", "second" }) {
+            if (LittleFS.exists("/hand_set" + id + "_" + part + ".bmp")) return true;
+        }
+        return false;
+    }
 
-    // Creates missing files of the default set 0. If there is no hand set at all (new clock, factory reset,
-    // all deleted), also set 1 (black second hand) and set 2 (curved).
+    // Nummer des Zeigersatzes fuers Sekundenfeld (Form 3): beim ersten Mal die erste freie ab 3 - auf aelteren
+    // Uhren kann 3 schon ein eigener Satz sein -, danach gemerkt (PK_SUBDIAL_SET)
+    // Number of the hand set for the subdial (style 3): the first free one from 3 the first time - on older
+    // clocks 3 can already be an own set -, remembered afterwards (PK_SUBDIAL_SET)
+
+    String subdialHandSet() {
+        String id = preferences.getString(PK_SUBDIAL_SET, "");
+        if (id.length()) return id;
+        int n = 3;
+        while (n < 99 && handSetExists(String(n))) n++;
+        id = String(n);
+        preferences.putString(PK_SUBDIAL_SET, id);
+        return id;
+    }
+
+    // Legt fehlende Dateien des Standardsatzes 0 an - Ersatz fuer jeden fehlenden Zeiger
+    // Creates missing files of the default set 0 - substitute for every missing hand
 
     bool ensureDefaultHands() {
         if (LittleFS.exists("/hand_set0_hour.bmp") && LittleFS.exists("/hand_set0_minute.bmp") &&
             LittleFS.exists("/hand_set0_second.bmp")) return true;
-        if (!hasBmpWithPrefix("hand_set")) {
-            writeGeneratedHandSet(1);
-            writeGeneratedHandSet(2);
-        }
-        return writeGeneratedHandSet(0);
+        return writeGeneratedHandSet(0, "0");
     }
 
     // Satz-ID der Dateien: leer und "default" (alte Einstellungen, Presets) stehen fuer den Standardsatz 0
@@ -2366,7 +2443,7 @@
     // Renders ONE frame (clock face, hands, hub) for the selected display, each with its own smoothing. The
     // composite: rotated clock face with hour and minute hand via pushRotatedWithAA() (like the second hand).
 
-    bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) {
+    bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle, bool hands) {
         if (comp.allocationFailed) return false;
 
         // Erst pruefen, ob das Zifferblatt lieferbar ist, DANN den Puffer
@@ -2401,11 +2478,17 @@
         compositeBuildCount++; // renderClockFrame(): Teil-Aktualisierung dann nicht zulaessig
                                // renderClockFrame(): partial update not allowed then
 
-        // Drehpunkt = Pivot des Zwischenbilds (Mitte, wie backgroundSprite)
-        // pivot = the composite's pivot (centre, like backgroundSprite)
+        // Drehpunkt = Pivot des Zwischenbilds (Mitte, wie backgroundSprite). Ohne hands (Sekundenfeld) nur das
+        // Zifferblatt - Stunden- und Minutenzeiger zeichnet renderClockFrame() dann ueber den Sekundenzeiger.
 
-        hourHandSprite.pushRotatedWithAA(comp.sprite, hourAngle, TRANSPARENT_COLOR);
-        minuteHandSprite.pushRotatedWithAA(comp.sprite, minuteAngle, TRANSPARENT_COLOR);
+        // pivot = the composite's pivot (centre, like backgroundSprite). Without hands (seconds subdial) only the
+        // clock face - renderClockFrame() then draws hour and minute hand over the second hand.
+
+        comp.hands = hands;
+        if (hands) {
+            hourHandSprite.pushRotatedWithAA(comp.sprite, hourAngle, TRANSPARENT_COLOR);
+            minuteHandSprite.pushRotatedWithAA(comp.sprite, minuteAngle, TRANSPARENT_COLOR);
+        }
 
         // Nur als gueltig markieren, wenn die Zeiger wirklich drin sind - sonst
         // (Speichermangel bei den Zeiger-Sprites) lieber naechsten Tick erneut
@@ -2415,7 +2498,7 @@
         // sprite allocation failed) better retry next tick than keep an image
         // without hands permanently.
 
-        if (hourHandSprite.width() <= 0 || minuteHandSprite.width() <= 0) {
+        if (hands && (hourHandSprite.width() <= 0 || minuteHandSprite.width() <= 0)) {
             return true;
         }
 
@@ -2437,7 +2520,7 @@
     // Rebuilt only on a noticeable change (image/rotation/brightness/angle >
     // COMPOSITE_ANGLE_EPS, clearly under 1 pixel at the hand tip).
 
-    bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) {
+    bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle, bool hands) {
         const float COMPOSITE_ANGLE_EPS = 0.12f;
 
         HandComposite& comp = handComposite[(displayNum == 1) ? 0 : 1];
@@ -2455,11 +2538,12 @@
             // trigger a pointless rebuild.
 
             || (!useBacklight && comp.brightness != currentBrightness)
-            || fabsf(shortestAngleDiff(comp.hourAngle, hourAngle)) >= COMPOSITE_ANGLE_EPS
-            || fabsf(shortestAngleDiff(comp.minuteAngle, minuteAngle)) >= COMPOSITE_ANGLE_EPS;
+            || comp.hands != hands
+            || (hands && fabsf(shortestAngleDiff(comp.hourAngle, hourAngle)) >= COMPOSITE_ANGLE_EPS)
+            || (hands && fabsf(shortestAngleDiff(comp.minuteAngle, minuteAngle)) >= COMPOSITE_ANGLE_EPS);
 
         if (needsRebuild) {
-            if (!buildHandComposite(comp, rotation, hourAngle, minuteAngle)) return false;
+            if (!buildHandComposite(comp, rotation, hourAngle, minuteAngle, hands)) return false;
         }
         else if (!comp.sprite) {
             return false;
@@ -2546,6 +2630,7 @@
 
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) {
 
+        ensureFaceSettings();
         int orientation = rotation;
         bool forceRender = firstRunRef;
 
@@ -3081,10 +3166,30 @@
             && lastFrame.smoothSecond == smoothSecond
             && lastFrame.assetGeneration == clockAssetGeneration;
 
+        // Sekundenfeld (Drehpunkt nicht in der Mitte): der Sekundenzeiger liegt unter Stunden- und Minutenzeiger.
+        // Das Zwischenbild ist dann nur das Zifferblatt, die grossen Zeiger kommen je Bild darueber - im
+        // Rechteck um den Sekundenzeiger mit den Winkeln des letzten vollen Bildes, damit es zum Rest passt.
+
+        // Seconds subdial (pivot not in the centre): the second hand lies below the hour and minute hand. The
+        // composite is then the clock face only, the large hands go over it each frame - in the rectangle around
+        // the second hand with the angles of the last full frame, so that it matches the rest.
+
+        float subX = 0, subY = 0;
+        const bool subdial = drawSecond && secondPivotAt(rotation, subX, subY);
+        const float centreX = backgroundSprite.getPivotX(), centreY = backgroundSprite.getPivotY();
+        if (subdial && partial) {
+            partial = fabsf(shortestAngleDiff(lastFrame.hourAngle, hourAngle)) < 0.12f &&
+                      fabsf(shortestAngleDiff(lastFrame.minuteAngle, minAngle)) < 0.12f;
+        }
+        const float drawHourAngle = (subdial && partial) ? lastFrame.hourAngle : hourAngle;
+        const float drawMinAngle = (subdial && partial) ? lastFrame.minuteAngle : minAngle;
+
         int32_t px0 = INT32_MAX, py0 = INT32_MAX, px1 = INT32_MIN, py1 = INT32_MIN;
         if (partial) {
+            if (subdial) backgroundSprite.setPivot(subX, subY);
             addRotatedSpriteBounds(secondHandSprite, lastFrame.secondAngle, px0, py0, px1, py1);
             addRotatedSpriteBounds(secondHandSprite, secAngle, px0, py0, px1, py1);
+            backgroundSprite.setPivot(centreX, centreY);
             if (drawHub) {
                 px0 = min(px0, (int32_t)(CLOCK_WIDTH / 2 - hubSize - 2));
                 py0 = min(py0, (int32_t)(CLOCK_HEIGHT / 2 - hubSize - 2));
@@ -3100,7 +3205,7 @@
         if (partial) backgroundSprite.setClipRect(px0, py0, px1 - px0 + 1, py1 - py0 + 1);
 
         uint32_t buildsBefore = compositeBuildCount;
-        bool compositeOk = drawCompositeInto(displayNum, rotation, hourAngle, minAngle);
+        bool compositeOk = drawCompositeInto(displayNum, rotation, hourAngle, minAngle, !subdial);
 
         // Wurde das Zwischenbild neu aufgebaut oder fehlt es (Speichermangel), hat sich das Bild auch
         // ausserhalb des Rechtecks geaendert - dann das Frame voll zeichnen und senden.
@@ -3111,15 +3216,20 @@
         if (partial && (compositeBuildCount != buildsBefore || !compositeOk)) {
             partial = false;
             backgroundSprite.clearClipRect();
-            if (compositeOk) compositeOk = drawCompositeInto(displayNum, rotation, hourAngle, minAngle);
+            if (compositeOk) compositeOk = drawCompositeInto(displayNum, rotation, hourAngle, minAngle, !subdial);
         }
-        if (!compositeOk) {
-            loadClockFace(rotation);
-            hourHandSprite.pushRotatedWithAA(&backgroundSprite, hourAngle, TRANSPARENT_COLOR);
-            minuteHandSprite.pushRotatedWithAA(&backgroundSprite, minAngle, TRANSPARENT_COLOR);
+        if (!compositeOk) loadClockFace(rotation);
+        if (subdial) {
+            backgroundSprite.setPivot(subX, subY);
+            secondHandSprite.pushRotatedWithAA(&backgroundSprite, secAngle, TRANSPARENT_COLOR);
+            backgroundSprite.setPivot(centreX, centreY);
+        }
+        if (!compositeOk || subdial) {
+            hourHandSprite.pushRotatedWithAA(&backgroundSprite, drawHourAngle, TRANSPARENT_COLOR);
+            minuteHandSprite.pushRotatedWithAA(&backgroundSprite, drawMinAngle, TRANSPARENT_COLOR);
         }
 
-        if (drawSecond) {
+        if (drawSecond && !subdial) {
 
             // Tickend wie schwingend: LovyanGFX pushRotatedWithAA() - dasselbe
             // Verfahren wie bei Stunden-/Minutenzeiger (buildHandComposite()),
@@ -3168,8 +3278,8 @@
         recordRenderFrame(micros() - renderStartMicros, partial);
 
         lastFrame.valid = true;
-        lastFrame.hourAngle = hourAngle;
-        lastFrame.minuteAngle = minAngle;
+        lastFrame.hourAngle = drawHourAngle;
+        lastFrame.minuteAngle = drawMinAngle;
         lastFrame.secondAngle = secAngle;
         lastFrame.drawSecond = drawSecond;
         lastFrame.drawHub = drawHub;
@@ -3217,10 +3327,77 @@
     // Strip settings belong to the clock face: /stripcfg_<name>.txt for /face_<name>.bmp, content like the strip
     // keys of earlier presets ("stripBg=ffffff&stripFont=2&..."). Without a file the default applies.
 
-    String stripConfigPath(const String& facePath) {
+    String faceSidePath(const String& facePath, const char* prefix) {
         String name = facePath.startsWith("/") ? facePath.substring(1) : facePath;
         if (!name.startsWith("face_") || !name.endsWith(".bmp") || name.indexOf('/') >= 0 || name.indexOf("..") >= 0) return "";
-        return "/stripcfg_" + name.substring(5, name.length() - 4) + ".txt";
+        return "/" + String(prefix) + name.substring(5, name.length() - 4) + ".txt";
+    }
+
+    String stripConfigPath(const String& facePath) { return faceSidePath(facePath, "stripcfg_"); }
+
+    // Weitere Einstellungen des Zifferblatts auf allen Displays: /facecfg_<Name>.txt, "secX=..&secY=.." =
+    // Drehpunkt des Sekundenzeigers in Zifferblatt-Pixeln (-1 = Mitte). Ohne Datei: Mitte.
+
+    // Further settings of the clock face on all displays: /facecfg_<name>.txt, "secX=..&secY=.." = pivot of the
+    // second hand in clock face pixels (-1 = centre). Without a file: centre.
+
+    String faceConfigPath(const String& facePath) { return faceSidePath(facePath, "facecfg_"); }
+
+    void readFaceSecPivot(const String& facePath, int16_t& x, int16_t& y) {
+        x = y = -1;
+        String path = faceConfigPath(facePath);
+        if (!path.length() || !LittleFS.exists(path)) return;
+        File f = LittleFS.open(path, "r");
+        if (!f) return;
+        String text = f.size() < 512 ? f.readString() : String("");
+        f.close();
+        int px = text.indexOf("secX="), py = text.indexOf("secY=");
+        if (px < 0 || py < 0) return;
+        x = (int16_t)constrain(text.substring(px + 5).toInt(), -1L, (long)CLOCK_WIDTH - 1);
+        y = (int16_t)constrain(text.substring(py + 5).toInt(), -1L, (long)CLOCK_HEIGHT - 1);
+        if (x < 0 || y < 0) x = y = -1;
+    }
+
+    bool saveFaceSettings(const String& facePath, int16_t x, int16_t y) {
+        String path = faceConfigPath(facePath);
+        if (!path.length()) return false;
+        if (x < 0 || y < 0) {
+            LittleFS.remove(path); // Mitte = Werkseinstellung, keine Datei / centre = default, no file
+            return true;
+        }
+        File f = LittleFS.open(path, "w");
+        if (!f) return false;
+        f.print("secX=" + String(x) + "&secY=" + String(y));
+        f.close();
+        return true;
+    }
+
+    // Einstellungen des aktiven Zifferblatts laden, sobald es wechselt (wie ensureStripSettings())
+    // Load the active clock face's settings as soon as it changes (like ensureStripSettings())
+
+    void ensureFaceSettings() {
+        if (faceSettingsFor == selectedBackground) return;
+        faceSettingsFor = selectedBackground;
+        readFaceSecPivot(selectedBackground, secPivotX, secPivotY);
+        clockFrameDirty[0] = clockFrameDirty[1] = true;
+    }
+
+    // Drehpunkt des Sekundenzeigers auf dem Display: Zifferblatt-Pixel, mit der Software-Rotation gedreht wie
+    // blitFaceIntoSprite(). false = Mitte.
+
+    // Pivot of the second hand on the display: clock face pixels, turned with the software rotation like
+    // blitFaceIntoSprite(). false = centre.
+
+    bool secondPivotAt(uint8_t rotation, float& x, float& y) {
+        if (secPivotX < 0 || secPivotY < 0) return false;
+        const int n = CLOCK_WIDTH - 1;
+        switch (faceOrientationFor(rotation)) {
+            case 1:  x = n - secPivotY; y = secPivotX;     break;
+            case 2:  x = n - secPivotX; y = n - secPivotY; break;
+            case 3:  x = secPivotY;     y = n - secPivotX; break;
+            default: x = secPivotX;     y = secPivotY;     break;
+        }
+        return true;
     }
 
     // Standard-Streifen: weiss mit schwarzer Schrift FreeSans Bold, Uhrzeit und Datum automatisch, kein Wochentag
@@ -6237,8 +6414,16 @@
         bool handSpriteOk = createSprite16(handSprite, HAND_WIDTH, HAND_HEIGHT);
         if (handSpriteOk) handSprite.setPivot(HAND_WIDTH / 2, HAND_PIVOT_Y);
 
-        const struct { uint16_t* pix; float angle; } previewHands[] = {
-            { hourPix, hourAngle }, { minutePix, minuteAngle }, { secondPix, secondAngle }
+        // Sekundenfeld des Zifferblatts: Sekundenzeiger zuerst und an seinem Drehpunkt (wie renderClockFrame())
+        // Seconds subdial of the clock face: second hand first and at its pivot (as in renderClockFrame())
+
+        int16_t subX, subY;
+        readFaceSecPivot(faceFile, subX, subY);
+        const bool subdial = subX >= 0;
+        const struct { uint16_t* pix; float angle; bool sub; } previewHands[] = {
+            { subdial ? secondPix : nullptr, secondAngle, true },
+            { hourPix, hourAngle, false }, { minutePix, minuteAngle, false },
+            { subdial ? nullptr : secondPix, secondAngle, false }
         };
         for (const auto& h : previewHands) {
             if (!h.pix) continue;
@@ -6247,7 +6432,9 @@
                     if (h.pix[i] == 0xFFFF) h.pix[i] = TRANSPARENT_COLOR;
                 }
                 handSprite.pushImage(0, 0, HAND_WIDTH, HAND_HEIGHT, h.pix);
+                if (h.sub) canvas.setPivot((subX + 0.5f) * handScale - 0.5f, oy + (subY + 0.5f) * handScale - 0.5f);
                 handSprite.pushRotateZoomWithAA(&canvas, h.angle, handScale, handScale, TRANSPARENT_COLOR);
+                if (h.sub) canvas.setPivot(PREVIEW_SIZE / 2, oy + PREVIEW_SIZE / 2);
             }
             free(h.pix);
         }

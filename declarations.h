@@ -154,15 +154,17 @@
     size_t rleEncode565(const uint16_t* pixels, size_t count, uint8_t* out) ;
     void rleDecode565(const uint8_t* in, size_t inSize, uint16_t* out, size_t outCount) ;
     void drawDefaultFace(uint16_t* dest) ;
-    bool hasBmpWithPrefix(const char* prefix) ;
     bool writeGeneratedFace(const char* path, uint8_t numeralMode) ;
     bool ensureDefaultFace() ;
     void loadFaceOrDefault(const String& path, uint16_t* dest) ;
     bool writeRleImage(const String& path, int w, int h, const std::function<void(int, uint16_t*)>& rowFn) ;
+    float subdialSecondHalfWidth(float d) ;
     float curvedHandHalfWidth(const char* part, float L, float d) ;
     void generatedHandRow(int set, const char* part, int y, uint16_t* row) ;
     void drawDefaultHand(const char* part, uint16_t* dest) ;
-    bool writeGeneratedHandSet(int set) ;
+    bool writeGeneratedHandSet(int style, const String& id) ;
+    bool handSetExists(const String& id) ;
+    String subdialHandSet() ;
     bool ensureDefaultHands() ;
     String handSetFileId(const String& setId) ;
     void loadHandOrDefault(const String& setId, const char* part, uint16_t* dest) ;
@@ -187,11 +189,17 @@
     int prepareClockFaceCache() ;
     int faceOrientationFor(uint8_t rotation) ;
     bool blitFaceIntoSprite(LGFX_Sprite& dest, uint8_t rotation) ;
-    bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle) ;
-    bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle) ;
+    bool buildHandComposite(HandComposite& comp, uint8_t rotation, float hourAngle, float minuteAngle, bool hands) ;
+    bool drawCompositeInto(uint8_t displayNum, uint8_t rotation, float hourAngle, float minuteAngle, bool hands) ;
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) ; // false = Frame unveraendert, nichts gesendet
                                                                                                                                                                   // false = frame unchanged, nothing sent
+    String faceSidePath(const String& facePath, const char* prefix) ;
     String stripConfigPath(const String& facePath) ;
+    String faceConfigPath(const String& facePath) ;
+    void readFaceSecPivot(const String& facePath, int16_t& x, int16_t& y) ;
+    bool saveFaceSettings(const String& facePath, int16_t x, int16_t y) ;
+    void ensureFaceSettings() ;
+    bool secondPivotAt(uint8_t rotation, float& x, float& y) ;
     void resetStripSettings() ;
     String stripSettingsQuery() ;
     void applyStripQuery(const String& text) ;

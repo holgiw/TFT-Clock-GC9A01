@@ -47,6 +47,16 @@
   - Neues Datumsformat T.MM.JJ.
   - Der Streifen bleibt leer, bis eine aktuelle Zeit vorliegt (NTP, RTC, DCF77, offenes WLAN oder
     Rocrail-Modellzeit) – vorher stand dort „0:00“.
+- Sekundenfeld: Der Drehpunkt des Sekundenzeigers lässt sich im Zifferblatt-Designer verschieben (Bereich
+  „Nabe und Sekundenzeiger“, „Mitte“ oder X/Y), z. B. ins untere Drittel. Der Sekundenzeiger liegt dann unter
+  Stunden- und Minutenzeiger; die Zeigergrafik bleibt, einen passend kurzen Sekundenzeiger mit eigener Scheibe
+  zeichnet man im Zeiger-Designer. Der Drehpunkt gehört zum Zifferblatt (`facecfg_<Name>.txt`, mit Löschen,
+  Umbenennen und Sicherung, von einem anderen Displaytyp umgerechnet) und gilt auch in allen Vorschauen.
+  Das Startpaket enthält dafür `face_subdial.bmp` (12, 3, 9, Sekundenfeld statt der 6), einen Zeigersatz wie
+  Satz 0 mit kurzem rotem Sekundenzeiger samt Scheibe und das Uhren Set „Sekundenfeld“.
+- Startpaket: Fehlende Zifferblätter, Zeigersätze und Uhren Sets des Startpakets erzeugt die Uhr bei jedem Start
+  neu, nicht mehr nur ohne jedes Zifferblatt und jeden Zeigersatz – so bekommen auch bestehende Uhren das
+  Sekundenfeld. Vorhandenes bleibt; den Sekundenfeld-Satz legt die Uhr unter der ersten freien Nummer ab 3 an.
 - Bis eine Zeit vorliegt, stehen Stunden-, Minuten- und Sekundenzeiger auf 12 (bisher liefen sie ab 10:10:30).
   Kommt die Zeit, laufen sie zur Uhrzeit.
 - Helligkeit mit PWM (Hintergrundbeleuchtung): Solange die Uhr beim Start auf Daten wartet (noch keine Zeit,
@@ -267,6 +277,16 @@
   - New date format D.MM.YY.
   - The strip stays empty until a current time is available (NTP, RTC, DCF77, open WiFi or Rocrail model
     time) – previously it showed "0:00".
+- Seconds subdial: the second hand's pivot can be moved in the clock face designer ("Hub and second hand"
+  section, "centre" or X/Y), e.g. into the lower third. The second hand then lies below the hour and minute
+  hand; the hand graphic stays, a fittingly short second hand with its own disc is drawn in the hand designer.
+  The pivot belongs to the clock face (`facecfg_<name>.txt`, with delete, rename and backup, converted from
+  another display type) and also applies in all previews. The starter set contains `face_subdial.bmp` (12, 3, 9,
+  subdial instead of the 6), a hand set like set 0 with a short red second hand with a disc and the preset
+  "Sekundenfeld" for it.
+- Starter set: the clock creates missing clock faces, hand sets and presets of the starter set at every start,
+  no longer only without any clock face and hand set – so existing clocks get the subdial too. Existing items
+  stay; the clock creates the subdial set under the first free number from 3.
 - Until a time is available, hour, minute and second hands stand at 12 (previously they ran from 10:10:30).
   When the time arrives, they run to the time.
 - Brightness with PWM (backlight): while the clock waits for data at boot (no time yet, WPS, access point), it
