@@ -2801,6 +2801,20 @@
     }
 
 
+    // Ist die Systemzeit verlaesslich? RTC, DCF77, ein NTP-Erfolg oder eine von Hand gesetzte Zeit: ja. Sonst (nur die nach
+    // einem Neustart behaltene Systemzeit) erst nach TIME_TRUST_WAIT_MS, gezaehlt ab der ersten Abfrage.
+
+    // Is the system time reliable? RTC, DCF77, an NTP success or a manually set time: yes. Otherwise (only the system
+    // time kept over a restart) only after TIME_TRUST_WAIT_MS, counted from the first query.
+
+    bool timeTrusted() {
+        if (rtcOk == RTC_AVAILABLE || dcfTimeFound || lastNtpSuccessMillis != 0 || timeSetByUser) return true;
+        static unsigned long firstAsk = 0;
+        unsigned long now = millis();
+        if (firstAsk == 0) firstAsk = now ? now : 1;
+        return now - firstAsk > TIME_TRUST_WAIT_MS;
+    }
+
     bool renderClockFrame(uint8_t displayNum, uint8_t rotation, float& lastHourAngleRef, float& lastMinuteAngleRef, float& lastSecondAngleRef, bool& firstRunRef) {
 
         ensureFaceSettings();
@@ -2886,7 +2900,7 @@
         // With the first time realign as on the first frame - the hands then run to the time.
 
         static bool waitingForTime[2] = { false, false };
-        const bool noTimeYet = !rocrailTimeReady && t.tm_year < 100;
+        const bool noTimeYet = !rocrailTimeReady && (t.tm_year < 100 || !timeTrusted());
         if (!noTimeYet && waitingForTime[displayNum - 1]) {
             waitingForTime[displayNum - 1] = false;
             firstRunRef = true;
@@ -3301,6 +3315,35 @@
                 shown[d][h] = animateHand(moves[d][h], shown[d][h], *angles[h], now);
                 *angles[h] = shown[d][h];
             }
+
+            // Fahrt laeuft: Hintergrundarbeit ruht (backgroundWorkAllowed()). Das Log vermerkt Dauer, Bildzahl und die
+            // laengste Pause zwischen zwei Bildern - zeigt, ob in der Fahrt noch etwas den Takt stoert.
+
+            // Move running: background work rests (backgroundWorkAllowed()). The log records duration, frame count
+            // and the longest gap between two frames - shows whether something still disturbs the rhythm.
+
+            static bool moving[2] = { false, false };
+            static unsigned long moveStart = 0, lastFrame = 0, longestGap = 0;
+            static int frames = 0;
+            moving[d] = moves[d][0].active || moves[d][1].active || moves[d][2].active;
+            bool anyMoving = moving[0] || moving[1];
+            if (anyMoving && !handsAnimating) {
+                handsAnimatingSinceMillis = now;
+                moveStart = now;
+                lastFrame = now;
+                longestGap = 0;
+                frames = 0;
+            }
+            if (anyMoving) {
+                if (now - lastFrame > longestGap) longestGap = now - lastFrame;
+                lastFrame = now;
+                frames++;
+            }
+            else if (handsAnimating) {
+                DEBUG_PRINTLN("[Clock] Hands reached their position after " + String(now - moveStart) + " ms, " +
+                              String(frames) + " frames, longest gap " + String(longestGap) + " ms");
+            }
+            handsAnimating = anyMoving;
         }
 
         // Nichts geaendert (Winkel, Sichtbarkeit, Nabe, Helligkeit, Rotation,

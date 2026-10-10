@@ -1409,7 +1409,7 @@ void setup() {
         // sync via /syncnow) - no-op as long as no task has finished. See
         // startNtpSyncTask()/pollNtpSyncTask() in time_sync.h.
 
-        pollNtpSyncTask();
+        if (backgroundWorkAllowed()) pollNtpSyncTask();
 
         // Sicherheits-Abschaltung der LED einmal pro Minute, falls ein Blitz
         // haengen bleibt. Ueber millis() statt timeinfo.tm_sec, damit es auch
@@ -1434,7 +1434,7 @@ void setup() {
         }
 
 
-        webserver.handleClient();
+        if (backgroundWorkAllowed()) webserver.handleClient(); // waehrend der Zeigerfahrt zurueckgestellt / deferred during the hand move
 
         // Displaytyp per USB von flashESP.bat/.sh (siehe display.h)
         // Display type via USB from flashESP.bat/.sh (see display.h)
@@ -1514,7 +1514,7 @@ void setup() {
         // Not during WPS (wpsPending): WiFi drops briefly then, and a reconnect attempt would collide with
         // the running WPS negotiation over the same radio.
 
-        if (wifiActive && !WiFi.isConnected() && !wpsPending) {
+        if (wifiActive && !WiFi.isConnected() && !wpsPending && backgroundWorkAllowed()) {
             checkWiFiReconnect();
         }
 
@@ -1526,7 +1526,7 @@ void setup() {
         // home network is reachable in AP/setup mode. pollRocrailClient()
         // itself is a no-op as long as rocrailEnabled is off.
 
-        if (WiFi.getMode() == WIFI_STA) {
+        if (WiFi.getMode() == WIFI_STA && backgroundWorkAllowed()) {
             pollRocrailClient();
 
             // R2RNet-Multicast-Diagnose (siehe rocrail_client.h) - non-blocking,
@@ -1552,7 +1552,7 @@ void setup() {
           // the condition checks the SYSTEM TIME, not the time source, so
           // any valid source (NTP/DCF77/RTC) triggers a reply. Threshold as in setupNTP(): year > 2016.
 
-        if (ntpServerRunning) {
+        if (ntpServerRunning && backgroundWorkAllowed()) {
             int packetSize = udp.parsePacket();
             if (packetSize) {
 

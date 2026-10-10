@@ -95,6 +95,12 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- Nach einem Neustart (OTA, Browser, WPS) bleiben die Zeiger bis zu 15 s auf 12, solange nur die vom Chip behaltene
+  Systemzeit da ist (sie kann falsch sein). Sie fahren dann einmal zur bestätigten Zeit (NTP, RTC, DCF77, Rocrail
+  oder von Hand gesetzt), statt erst zur falschen und mitten in der Fahrt zur richtigen.
+- Während die Zeiger auf ihre Position fahren (Start, Zeitkorrektur, ca. 3 s), ruht die Hintergrundarbeit: kein
+  Schreiben des Logs in den Flash, kein Webserver, keine NTP-Antworten, kein Rocrail. Das Log nennt danach Dauer,
+  Bildzahl und die längste Pause zwischen zwei Bildern.
 - Beim Löschen eines Zifferblatts oder Zeigersatzes erscheint oben ein Fortschrittsbalken („Wird gelöscht - bitte
   warten“), bis die Seite neu geladen ist.
 - Zeiger laufen auf ihre Position (Start, Zeitkorrektur) ohne Ruckler in der Mitte: Sprünge über 10° gehen
@@ -423,6 +429,12 @@
     their clock faces.
 
 ### Changed
+- After a restart (OTA, browser, WPS) the hands stay at 12 for up to 15 s as long as only the system time kept by
+  the chip is there (it may be wrong). They then move once to the confirmed time (NTP, RTC, DCF77, Rocrail or
+  set by hand), instead of first to the wrong one and then, in the middle of the move, to the right one.
+- While the hands move to their position (start, time correction, about 3 s), background work rests: no writing
+  of the log to flash, no web server, no NTP replies, no Rocrail. The log then states duration, frame count and the
+  longest gap between two frames.
 - Deleting a clock face or hand set shows a progress bar at the top ("Deleting - please wait") until the page
   is reloaded.
 - Hands move to their position (start, time correction) without a stutter in the middle: jumps over 10° go

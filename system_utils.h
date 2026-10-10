@@ -686,6 +686,7 @@
 
     void checkLogFlush() {
         if (logBufferMutex == nullptr) return;
+        if (!backgroundWorkAllowed()) return; // Flash-Zugriff stoert die Zeigerfahrt / flash access disturbs the hand move
 
         // Laenge nur unter dem Mutex lesen - logLineBuffer wird auch von der NTP-/Rocrail-Task beschrieben.
         // Only read the length under the mutex - logLineBuffer is also written by the NTP/Rocrail task.

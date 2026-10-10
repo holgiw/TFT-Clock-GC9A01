@@ -39,6 +39,33 @@
     String otaUploadError = ""; // Fehler beim Hochladen ueber die Weboberflaeche, leer = ok
                                 // error while uploading via the web interface, empty = ok
 
+    // Zeiger fahren auf ihre Position (animateHand() in display.h, Start und Zeitkorrektur, ca. 3 s): in dieser Zeit ruht
+    // alle Hintergrundarbeit, die den Takt stoeren koennte (Log in den Flash schreiben, Webserver, NTP-Antworten,
+    // Rocrail). Nach HANDS_ANIMATION_MAX_DEFER_MS gilt die Pause nicht mehr, damit nie etwas haengen bleibt.
+
+    // Hands moving to their position (animateHand() in display.h, start and time correction, about 3 s): during
+    // that time all background work that could disturb the rhythm rests (writing the log to flash, web server, NTP
+    // replies, Rocrail). After HANDS_ANIMATION_MAX_DEFER_MS the pause no longer applies, so nothing ever hangs.
+
+    // Nach einem Neustart (OTA, Browser, WPS) behaelt der Chip seine Systemzeit - sie kann falsch sein (hier 28 Minuten).
+    // Ohne RTC/DCF77/NTP/manuell gesetzte Zeit bleiben die Zeiger deshalb bis zu TIME_TRUST_WAIT_MS auf 12, statt
+    // erst zu dieser Zeit und dann nochmal zur richtigen zu fahren (timeTrusted() in display.h).
+
+    // After a restart (OTA, browser, WPS) the chip keeps its system time - it may be wrong (here 28 minutes). Without
+    // RTC/DCF77/NTP/manually set time the hands therefore stay at 12 for up to TIME_TRUST_WAIT_MS, instead of first
+    // moving to that time and then again to the right one (timeTrusted() in display.h).
+
+#define TIME_TRUST_WAIT_MS 15000
+    bool timeSetByUser = false; // setClockTime() erfolgreich / setClockTime() succeeded
+
+#define HANDS_ANIMATION_MAX_DEFER_MS 5000
+    bool handsAnimating = false;
+    unsigned long handsAnimatingSinceMillis = 0;
+
+    inline bool backgroundWorkAllowed() {
+        return !handsAnimating || millis() - handsAnimatingSinceMillis > HANDS_ANIMATION_MAX_DEFER_MS;
+    }
+
     // Ergebnis der letzten Update-Pruefung auf GitHub (ota_update.h): Build-Zeit des Releases (leer = unbekannt) und
     // Fehlertext (leer = ok); fwLastCheckMillis = Zeitpunkt des Versuchs
 

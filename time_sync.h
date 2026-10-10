@@ -1628,6 +1628,7 @@
         unsigned long oldTimeMillis = millis();
         struct timeval tv = { (time_t)sec, (suseconds_t)usec };
         settimeofday(&tv, nullptr);
+        timeSetByUser = true;
 
         struct tm local;
         localtime_r(&tv.tv_sec, &local);
