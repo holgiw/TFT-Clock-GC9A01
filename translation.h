@@ -373,6 +373,7 @@
         { "The clock only checks on your click whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum", "Die Uhr pr&uuml;ft nur auf deinen Klick, ob das neueste Release auf GitHub eine neuere Firmware hat. Eingespielt wird nur auf deinen Klick; die Datei wird per Zertifikat und Pr&uuml;fsumme gepr&uuml;ft" },
         { "Check now", "Jetzt pr&uuml;fen" },
         { "Install update", "Update einspielen" },
+        { "Changelog: what is new since the installed version", "Changelog: Was seit der installierten Version neu ist" },
         { "newer - update available", "neuer - Update verf&uuml;gbar" },
         { "same as installed", "wie installiert" },
         { "older than installed", "&auml;lter als installiert" },

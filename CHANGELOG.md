@@ -5,6 +5,8 @@
 ## 2026-10-08
 
 ### Hinzugefügt
+- Steht ein Update auf GitHub bereit, zeigt die Seite „Sicherung“ einen Link zum Changelog (neueste Einträge oben):
+  Was seit der installierten Version neu ist.
 - Update von GitHub (nur ESP32-S3): Auf der Seite „Sicherung“ → „Firmware von GitHub“
   zeigt „Jetzt prüfen“, ob das neueste Release eine neuere Firmware hat (die Uhr sucht nie von selbst; Zeile
   „Firmware on GitHub“ auf der Statusseite nach einer Prüfung). Eingespielt wird nur per Klick auf „Update einspielen“; die Uhr lädt
@@ -331,6 +333,8 @@
 ## 2026-10-08
 
 ### Added
+- If an update is available on GitHub, the "Backup" page shows a link to the changelog (newest entries on top):
+  what is new since the installed version.
 - Update from GitHub (ESP32-S3 only): on the "Backup" page → "Firmware from GitHub"
   "Check now" shows whether the latest release has a newer firmware (the clock never checks by itself; line
   "Firmware on GitHub" on the status page after a check). It is installed only by clicking "Install update"; the clock downloads

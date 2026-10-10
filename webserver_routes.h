@@ -7428,6 +7428,14 @@
             html += "<hr><h3>" + translate("Firmware from GitHub") + "</h3>";
             html += "<p>" + translate("The clock only checks on your click whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum") + ".</p>";
             html += "<p><small id='ghInfo'></small></p>";
+
+            // Bei einem Update: Link zum Changelog auf GitHub (neueste Eintraege oben, nach Datum gegliedert) - dort steht,
+            // was seit der installierten Version neu ist
+
+            // On an update: link to the changelog on GitHub (newest entries on top, grouped by date) - it shows what is
+            // new since the installed version
+
+            html += "<p id='ghLog' hidden><a href='" GITHUB_REPO_URL "/blob/master/CHANGELOG.md' target='_blank' rel='noopener'>" + translate("Changelog: what is new since the installed version") + "</a></p>";
             html += "<button type='button' id='ghCheck'>" + translate("Check now") + "</button> ";
             html += "<button type='button' id='ghInstall' hidden>" + translate("Install update") + "</button>";
             html += "<div id='ghTexts' hidden data-installed='" + translate("Installed version") +
@@ -7441,10 +7449,10 @@
                     "' data-wait='" + translate("Firmware installed - waiting for the clock to restart") +
                     "' data-timeout='" + translate("The clock does not respond yet - refresh the page later") +
                     "' data-ask='" + translate("Install the firmware and restart the clock?") + "'></div>";
-            html += "<script>(function(){var T=document.getElementById('ghTexts').dataset,i=document.getElementById('ghInfo'),c=document.getElementById('ghCheck'),b=document.getElementById('ghInstall');";
+            html += "<script>(function(){var T=document.getElementById('ghTexts').dataset,i=document.getElementById('ghInfo'),c=document.getElementById('ghCheck'),b=document.getElementById('ghInstall'),l=document.getElementById('ghLog');";
             html += "function lock(on){c.disabled=on;b.disabled=on;if(window.topbarPolling)window.topbarPolling(!on);}";
             html += "function show(r){var s=r.state=='newer'?T.newer:r.state=='same'?T.same:r.state=='older'?T.older:T.unknown;";
-            html += "i.textContent=T.installed+': '+r.installed+' - '+T.github+': '+(r.remote||'?')+' ('+s+')'+(r.error?' - '+r.error:'');b.hidden=r.state!='newer';}";
+            html += "i.textContent=T.installed+': '+r.installed+' - '+T.github+': '+(r.remote||'?')+' ('+s+')'+(r.error?' - '+r.error:'');b.hidden=r.state!='newer';l.hidden=r.state!='newer';}";
             html += "function query(force){i.textContent=T.busy+' ...';c.disabled=true;fetch('/firmware/check'+(force?'?force=1':''),{cache:'no-store'}).then(function(r){return r.json();}).then(show).catch(function(){i.textContent='?';}).then(function(){c.disabled=false;});}";
             html += "function waitRestart(){var t0=Date.now();function tryIt(){fetch('/api/topbarStatus',{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;location.href='/';})";
             html += ".catch(function(){if(Date.now()-t0>120000){i.textContent=T.timeout;lock(false);}else{setTimeout(tryIt,2000);}});}setTimeout(tryIt,5000);}";
