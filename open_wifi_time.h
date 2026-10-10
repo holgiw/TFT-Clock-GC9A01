@@ -157,13 +157,13 @@
         return 0;
     }
 
-    // Beim Start (connectWiFiAtBoot()), wenn kein gespeichertes WLAN verbunden hat: mit den bis zu vier
-    // staerksten offenen WLANs aus dem Scan (ab -85 dBm) kurz verbinden, Zeit holen, sofort trennen. Gespeicherte
-    // WLANs bleiben unberuehrt (WiFi.persistent(false)). Abschaltbar im Tab "NTP Zeitzone". true = Zeit gesetzt.
+    // Beim Start (connectWiFiAtBoot()), wenn kein gespeichertes WLAN verbunden hat: mit den bis zu sechs staerksten
+    // offenen WLANs (ab -85 dBm) nacheinander kurz verbinden, Zeit holen, sofort trennen. Nach 60 s beginnt kein neuer
+    // Versuch mehr. Gespeicherte WLANs bleiben unberuehrt. Abschaltbar im Tab "NTP Zeitzone". true = Zeit gesetzt.
 
-    // At boot (connectWiFiAtBoot()), if no stored WiFi connected: briefly connect to the up to
-    // four strongest open WiFis from the scan (from -85 dBm), get the time, disconnect right away. Stored WiFis
-    // stay untouched (WiFi.persistent(false)). Can be switched off in the "NTP Timezone" tab. true = time set.
+    // At boot (connectWiFiAtBoot()), if no stored WiFi connected: briefly connect to the up to six strongest open
+    // WiFis (from -85 dBm) one after another, get the time, disconnect right away. After 60 s no new attempt
+    // starts. Stored WiFis stay untouched. Can be switched off in the "NTP Timezone" tab. true = time set.
 
     bool fetchTimeFromOpenWifi(bool force) {
         if (!force && !preferences.getBool(PK_OPEN_WIFI_TIME, true)) {
@@ -187,7 +187,8 @@
         // Offene Netze aus dem Start-Scan, staerkste zuerst (availableNetworks ist nach Signal sortiert)
         // Open networks from the boot scan, strongest first (availableNetworks is sorted by signal)
 
-        const int MAX_TRIES = 4;
+        const int MAX_TRIES = 6;
+        const unsigned long TOTAL_MS = 60 * WAIT_1s; // danach kein neuer Versuch / no new attempt after that
         String candidates[MAX_TRIES];
         int candidateCount = 0;
         for (int i = 0; i < MAX_WLAN && candidateCount < MAX_TRIES; i++) {
@@ -227,7 +228,12 @@
 #endif
         showButtonMessage(TFT_GREEN, tftText(translate("Time from open WiFi")), "...", "", TFT_DARKGREY);
 
+        unsigned long tryStart = millis();
         for (int c = 0; c < candidateCount; c++) {
+            if (millis() - tryStart >= TOTAL_MS) {
+                DEBUG_PRINTLN("[OPEN-WIFI] 60 s are over - no further attempts");
+                break;
+            }
             const String& ssid = candidates[c];
             DEBUG_PRINTLN("[OPEN-WIFI] '" + ssid + "': connecting..");
             WiFi.disconnect();
@@ -235,13 +241,13 @@
             applyWifiTxPower();
             WiFi.begin(ssid.c_str());
             unsigned long start = millis();
-            while (WiFi.status() != WL_CONNECTED && millis() - start < 15 * WAIT_1s) {
+            while (WiFi.status() != WL_CONNECTED && millis() - start < 15 * WAIT_1s && millis() - tryStart < TOTAL_MS) {
                 handleSerialCommands();
                 checkButton(); // Taster/Boot-Taste auch hier / button/boot button here too
                 delay(100);
             }
             if (WiFi.status() != WL_CONNECTED) {
-                DEBUG_PRINTLN("[OPEN-WIFI] '" + ssid + "': no connection within 15 s");
+                DEBUG_PRINTLN("[OPEN-WIFI] '" + ssid + "': no connection (15 s per WiFi, 60 s in total)");
                 WiFi.disconnect();
                 continue;
             }

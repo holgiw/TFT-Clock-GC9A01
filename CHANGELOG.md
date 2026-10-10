@@ -36,7 +36,7 @@
     nach.
 - Uhrzeit aus offenen WLANs (alle Builds, Tab „NTP Zeitzone“, ab Werk an): Verbindet sich die Uhr beim Start
   mit keinem gespeicherten WLAN (außer Reichweite oder kein Zugang, z. B. falsches Passwort), verbindet sie sich
-  ohne RTC kurz mit bis zu vier offenen WLANs (ab -85 dBm, gleiche Namen nur einmal, je 15 s) und holt die
+  ohne RTC kurz mit bis zu sechs offenen WLANs (ab -85 dBm, gleiche Namen nur einmal, je 15 s, insgesamt höchstens 60 s) und holt die
   Zeit: NTP, dann der `Date:`-Kopf einer HTTP-Antwort (erst ohne DNS: Gateway, 1.1.1.1; dann per Name),
   zuletzt einmal der Weiterleitung zur Anmeldeseite folgen, per HTTPS (TLS ohne Zertifikatsprüfung) und HTTP.
   Danach trennt sie wieder und geht wie mit RTC in den normalen Uhrenbetrieb, ohne WPS und Access Point; das
@@ -363,7 +363,7 @@
     type and flash the build from `esp32s3`. If no uhr4 replies on the converter, they ask first.
 - Time from open WiFis (all builds, "NTP Timezone" tab, on by default): if the clock connects to no stored
   WiFi at boot (out of range or no access, e.g. a wrong password), the clock without an RTC briefly connects
-  to up to four open WiFis (from -85 dBm, each name once, 15 s each) and gets the time: NTP, then the `Date:`
+  to up to six open WiFis (from -85 dBm, each name once, 15 s each, 60 s in total at most) and gets the time: NTP, then the `Date:`
   header of an HTTP reply (first without DNS: gateway, 1.1.1.1; then by name), finally follows the redirect to
   the login page once, via HTTPS (TLS without certificate check) and HTTP. Then it disconnects again and, as
   with an RTC, goes into normal clock operation without WPS and access point; the stored WiFi stays and is

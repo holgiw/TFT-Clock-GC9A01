@@ -5789,7 +5789,7 @@
                 chunk += "<input type='text' id='tz_input' name='timezone' style='width: 400px;' value='" + timezone + "'><br><br>";
                 chunk += "<small>" + translate("For custom timezones, select a preset or enter your own value above") + "</small><br><br>";
                 chunk += checkboxRow("openWifiTime", preferences.getBool(PK_OPEN_WIFI_TIME, true), translate("Get the time from open WiFis"),
-                                     translate("Only at boot, if the clock cannot connect to any stored WiFi (out of range or no access, e.g. a wrong password) and there is no RTC: the clock briefly connects to up to four open WiFis nearby and gets the time via NTP or from the login page of the hotspot (also via HTTPS), then disconnects again. Every step is written to the log. These are networks of others - only use it if allowed"));
+                                     translate("Only at boot, if the clock cannot connect to any stored WiFi (out of range or no access, e.g. a wrong password) and there is no RTC: the clock briefly connects to up to six open WiFis nearby (60 seconds at most) and gets the time via NTP or from the login page of the hotspot (also via HTTPS), then disconnects again. Every step is written to the log. These are networks of others - only use it if allowed"));
                 chunk += "<button type='submit'>" + translate("Save Timezone") + "</button><br><br>";
                 chunk += "</form>";
 
