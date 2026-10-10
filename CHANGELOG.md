@@ -95,6 +95,15 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- `flashESP.bat`/`flashESP.sh` laden den Build des erkannten Chips beim Start vom GitHub-Release
+  (`uhr4-esp32s2.zip`, `-esp32c6.zip`, `-esp32s3.zip`, je ca. 1,3 MB, mit SHA-256-Prüfung vor dem Flashen) statt ihn
+  aus dem ZIP zu nehmen. Das Flash-ZIP enthält nur noch die Werkzeuge (7 statt 15 MB). Der PC braucht dafür Internet;
+  einen Rückfall auf lokale Dateien gibt es nicht, bei einem Fehler wird nichts geflasht. Für die Entwicklung flasht
+  `clocksetup.ps1 -Local` bzw. `UHR4_LOCAL=1` die Ordner `esp32s2`/`esp32c6`/`esp32s3`. Die Pakete erzeugt
+  `build_uhr4/publish_builds.ps1`.
+- Im Dateimanager stehen die Dateien des Startpakets (Zifferblätter und Zeigersätze der Firmware) in ihrer Gruppe
+  vorn und lassen sich wie auf den Seiten „Zifferblatt“ und „Zeiger“ weder löschen noch umbenennen noch skalieren;
+  „Alle auswählen“ lässt sie aus.
 - Nach einem Neustart (OTA, Browser, WPS) bleiben die Zeiger bis zu 15 s auf 12, solange nur die vom Chip behaltene
   Systemzeit da ist (sie kann falsch sein). Sie fahren dann einmal zur bestätigten Zeit (NTP, RTC, DCF77, Rocrail
   oder von Hand gesetzt), statt erst zur falschen und mitten in der Fahrt zur richtigen.
@@ -429,6 +438,15 @@
     their clock faces.
 
 ### Changed
+- `flashESP.bat`/`flashESP.sh` download the build of the detected chip from the GitHub release when they start
+  (`uhr4-esp32s2.zip`, `-esp32c6.zip`, `-esp32s3.zip`, about 1.3 MB each, with a SHA-256 check before flashing)
+  instead of taking it from the ZIP. The flash ZIP now contains only the tools (7 instead of 15 MB). The PC needs
+  internet for that; there is no fallback to local files, on an error nothing is flashed. For development
+  `clocksetup.ps1 -Local` or `UHR4_LOCAL=1` flashes the folders `esp32s2`/`esp32c6`/`esp32s3`. The packages are
+  created by `build_uhr4/publish_builds.ps1`.
+- In the file manager the files of the starter set (the firmware's clock faces and hand sets) come first in their
+  group and, as on the "Clock face" and "Hands" pages, can be neither deleted nor renamed nor scaled; "Select all"
+  leaves them out.
 - After a restart (OTA, browser, WPS) the hands stay at 12 for up to 15 s as long as only the system time kept by
   the chip is there (it may be wrong). They then move once to the confirmed time (NTP, RTC, DCF77, Rocrail or
   set by hand), instead of first to the wrong one and then, in the middle of the move, to the right one.

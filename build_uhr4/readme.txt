@@ -8,8 +8,9 @@ USB-Treiber und werden nicht unterstützt. macOS: flashESP.sh läuft dort nicht 
 flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 
 1. Die .zip Datei in ein Verzeichnis auspacken, nicht aus dem Zip heraus starten.
-   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe und die Unterordner esp32s2,
-   esp32c6 und esp32s3 müssen zusammen liegen.
+   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1 und esptool.exe müssen zusammen liegen.
+   Die Firmware selbst steckt nicht im Zip: flashESP.bat lädt sie beim Flashen vom GitHub-Release
+   (ca. 1,3 MB, der PC braucht dafür Internet).
    Meldet der Virenscanner esptool.exe, ist das ein bekannter Fehlalarm (gepacktes Python-Programm):
    für diesen Ordner eine Ausnahme einrichten und das Zip erneut auspacken.
 
@@ -21,8 +22,9 @@ flashen (siehe Linux-Abschnitt, Port /dev/cu.usbmodem...).
 
 	Uhr suchen: flashESP.bat listet alle COM Schnittstellen und markiert angeschlossene Uhren
 	(Download-Modus bzw. laufend). Bei genau einer Uhr nimmt es deren Schnittstelle ohne Rückfrage,
-	sonst fragt es nach der Nummer. Das Board erkennt es am USB-Port und flasht den Build aus
-	esp32s2, esp32c6 bzw. esp32s3. Den ESP32-S3 erkennt es am USB-Seriell-Wandler CH343P; den gibt
+	sonst fragt es nach der Nummer. Das Board erkennt es am USB-Port, lädt den Build dieses Chips
+	vom Release (uhr4-esp32s2, -esp32c6 bzw. -esp32s3, Prüfsumme SHA-256) und flasht ihn.
+	Schlägt der Download fehl, wird nichts geflasht. Den ESP32-S3 erkennt es am USB-Seriell-Wandler CH343P; den gibt
 	es auch auf fremden Geräten, antwortet dort keine uhr4, fragt flashESP.bat vor dem Flashen nach.
 
 	Displaytyp:
@@ -260,7 +262,7 @@ cd build_uhr4/
 # flashESP.sh sucht die Uhr selbst (USB-Kennung 303a) und nimmt sie ohne Rückfrage, wenn
 # genau eine da ist. Einen laufenden ESP32-S2 bringt es in den Download-Modus (er hat dann eine
 # andere Schnittstelle). Den ESP32-C6 (303a:1001) und den ESP32-S3 (CH343P, 1a86:55d3) erkennt es und
-# flasht den Build aus esp32c6 bzw. esp32s3.
+# lädt den Build des Chips vom Release (braucht curl und unzip, Internet).
 # Findet es keine Uhr, fragt es nach (dmesg/lsusb, Datenkabel statt Ladekabel).
 bash flashESP.sh
 
@@ -286,13 +288,15 @@ bash flashESP.sh 0 GC9D01
 # optional: Chip löschen (nicht empfohlen)
 esptool --port /dev/ttyACM0 erase_flash
 
-# ESP32-S2 (Build im Unterordner esp32s2)
-esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
-# ESP32-C6 (Waveshare, Build im Unterordner esp32c6) - kein Bootmodus nötig. Vorher bei einer vorhandenen Uhr eine
+# Die Dateien stehen im Release als uhr4-esp32s2.zip, uhr4-esp32c6.zip und uhr4-esp32s3.zip (entpacken, die
+# Befehle im selben Ordner ausführen).
+# ESP32-S2 (uhr4-esp32s2.zip)
+esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin
+# ESP32-C6 (Waveshare, uhr4-esp32c6.zip) - kein Bootmodus nötig. Vorher bei einer vorhandenen Uhr eine
 # Sicherung ziehen: die Partitionstabelle der Firmware ist neu (2,25 MB Programm), das Dateisystem wird neu angelegt.
-esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
-# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, Build im Unterordner esp32s3) - kein Bootmodus nötig
-esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32s3/uhr4.ino.bootloader.bin 0x8000 esp32s3/uhr4.ino.partitions.bin 0xe000 esp32s3/boot_app0.bin 0x10000 esp32s3/uhr4.ino.bin
+esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0xe000 boot_app0.bin 0x10000 uhr4.ino.bin
+# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, uhr4-esp32s3.zip) - kein Bootmodus nötig
+esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0xe000 boot_app0.bin 0x10000 uhr4.ino.bin
 
 
 #######################################################################################
@@ -318,8 +322,9 @@ and are not supported. macOS: flashESP.sh does not run there - flash manually wi
 Linux section, port /dev/cu.usbmodem...).
 
 1. Unpack the .zip file into a directory; do not start anything from within the zip.
-   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1, esptool.exe and the subfolders esp32s2,
-   esp32c6 and esp32s3 must be together.
+   flashESP.bat, setTime.bat, clocksetup.ps1, port.ps1 and esptool.exe must be together.
+   The firmware itself is not in the zip: flashESP.bat downloads it from the GitHub release when
+   flashing (about 1.3 MB, the PC needs internet for that).
    If the virus scanner reports esptool.exe, that is a known false alarm (packed Python program):
    add an exception for this folder and unpack the zip again.
 
@@ -331,8 +336,9 @@ Linux section, port /dev/cu.usbmodem...).
 
 	Finding the clock: flashESP.bat lists all COM ports and marks connected clocks (download mode
 	or running). If exactly one clock is found, it uses its port without asking, otherwise it asks
-	for the number. It recognizes the board by the USB port and flashes the build from esp32s2,
-	esp32c6 or esp32s3. It recognizes the ESP32-S3 by the CH343P USB serial converter; as that is
+	for the number. It recognizes the board by the USB port, downloads the build of that chip from
+	the release (uhr4-esp32s2, -esp32c6 or -esp32s3, SHA-256 checksum) and flashes it. If the
+	download fails, nothing is flashed. It recognizes the ESP32-S3 by the CH343P USB serial converter; as that is
 	also found on other devices, flashESP.bat asks before flashing if no uhr4 replies there.
 
 	Display type:
@@ -568,7 +574,7 @@ cd build_uhr4/
 # flashESP.sh finds the clock itself (USB id 303a) and uses it without asking if exactly one
 # is found. It switches a running ESP32-S2 to download mode (it then has a different port).
 # It recognizes the ESP32-C6 (303a:1001) and the ESP32-S3 (CH343P, 1a86:55d3) and flashes the build
-# from esp32c6 or esp32s3.
+# downloads the build of the chip from the release (needs curl and unzip, internet).
 # If it finds no clock, it asks troubleshooting questions (dmesg/lsusb, data cable instead of charging cable).
 bash flashESP.sh
 
@@ -594,13 +600,15 @@ bash flashESP.sh 0 GC9D01
 # optional: erase the chip (not recommended)
 esptool --port /dev/ttyACM0 erase_flash
 
-# ESP32-S2 (build in the subfolder esp32s2)
-esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
-# ESP32-C6 (Waveshare, build in the subfolder esp32c6) - no boot mode needed. Take a backup first on an existing
+# The files are in the release as uhr4-esp32s2.zip, uhr4-esp32c6.zip and uhr4-esp32s3.zip (unpack, run the
+# commands in the same folder).
+# ESP32-S2 (uhr4-esp32s2.zip)
+esptool --chip esp32-s2 -p /dev/ttyACM0 -b 460800 write-flash 0x1000 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0x10000 uhr4.ino.bin
+# ESP32-C6 (Waveshare, uhr4-esp32c6.zip) - no boot mode needed. Take a backup first on an existing
 # clock: the firmware's partition table is new (2.25 MB program), the file system is created anew.
-esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32c6/uhr4.ino.bootloader.bin 0x8000 esp32c6/uhr4.ino.partitions.bin 0xe000 esp32c6/boot_app0.bin 0x10000 esp32c6/uhr4.ino.bin
-# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, build in the subfolder esp32s3) - no boot mode needed
-esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 esp32s3/uhr4.ino.bootloader.bin 0x8000 esp32s3/uhr4.ino.partitions.bin 0xe000 esp32s3/boot_app0.bin 0x10000 esp32s3/uhr4.ino.bin
+esptool --chip esp32c6 -p /dev/ttyACM0 -b 460800 write-flash 0x0 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0xe000 boot_app0.bin 0x10000 uhr4.ino.bin
+# ESP32-S3 (Waveshare ESP32-S3-LCD-1.28, uhr4-esp32s3.zip) - no boot mode needed
+esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 write-flash 0x0 uhr4.ino.bootloader.bin 0x8000 uhr4.ino.partitions.bin 0xe000 boot_app0.bin 0x10000 uhr4.ino.bin
 
 #######################################################################################
 # License

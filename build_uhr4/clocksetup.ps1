@@ -18,8 +18,13 @@
 # ESP32-C6 (Waveshare): 1/ST7789 (1,47"), 2/ST7789_240 (1,3"); ESP32-S3
 # (Waveshare ESP32-S3-LCD-1.28): fest GC9A01, keine Abfrage; 0 = unveraendert.
 # Das Board erkennt das Skript am USB-Port (303A:1001 = ESP32-C6, 1A86:55D3 =
-# ESP32-S3 am CH343P) und flasht den Build aus dem passenden Unterordner
-# (esp32s2, esp32c6 bzw. esp32s3).
+# ESP32-S3 am CH343P) und LAEDT den Build dieses Chips vom GitHub-Release (uhr4-esp32s2,
+# -esp32c6 bzw. -esp32s3 als Zip samt SHA-256, Pruefung vor dem Flashen). Dafuer braucht
+# der PC beim Flashen Internet; einen Rueckfall auf lokale Dateien gibt es nicht.
+#   -Local
+#        Nur fuer die Entwicklung: statt zu laden den Build aus dem Unterordner esp32s2,
+#        esp32c6 bzw. esp32s3 neben diesem Skript flashen (auch UHR4_LOCAL=1).
+#        Die Umgebungsvariable UHR4_BUILD_URL ersetzt die Adresse des Releases (zum Testen).
 # Das WLAN-Passwort wird verdeckt eingegeben, bleibt nur im Speicher dieses
 # Skripts (keine Datei, keine Umgebungsvariable) und geht nur per USB an die Uhr.
 #
@@ -44,11 +49,16 @@
 # ESP32-C6 (Waveshare): 1/ST7789 (1.47"), 2/ST7789_240 (1.3"); ESP32-S3
 # (Waveshare ESP32-S3-LCD-1.28): fixed GC9A01, no question; 0 = unchanged.
 # The script recognizes the board by the USB port (303A:1001 = ESP32-C6,
-# 1A86:55D3 = ESP32-S3 on the CH343P) and flashes the build from the matching
-# subfolder (esp32s2, esp32c6 or esp32s3).
+# 1A86:55D3 = ESP32-S3 on the CH343P) and DOWNLOADS the build of that chip from the GitHub
+# release (uhr4-esp32s2, -esp32c6 or -esp32s3 as a zip with SHA-256, checked before
+# flashing). The PC needs internet while flashing; there is no fallback to local files.
+#   -Local
+#        For development only: instead of downloading, flash the build from the subfolder
+#        esp32s2, esp32c6 or esp32s3 next to this script (also UHR4_LOCAL=1).
+#        The environment variable UHR4_BUILD_URL replaces the release address (for testing).
 # The WiFi password is entered hidden, stays only in this script's memory (no
 # file, no environment variable) and only goes to the clock via USB.
-param([switch]$Flash, [string]$Port, [string]$Display, [string]$Send, [switch]$Time, [switch]$NoMonitor)
+param([switch]$Flash, [string]$Port, [string]$Display, [string]$Send, [switch]$Time, [switch]$NoMonitor, [switch]$Local)
 
 # Board und Displaytypen: 's2' (Lolin S2 Pico, wechselbares Display), 'c6' (Waveshare ESP32-C6-LCD mit fest
 # verbautem ST7789) oder 's3' (Waveshare ESP32-S3-LCD-1.28 mit fest verbautem GC9A01). Set-Board stellt Namen
@@ -73,6 +83,52 @@ function Set-Board([string]$b) {
     }
 }
 Set-Board 's2'
+
+# Release, aus dem die Builds geladen werden: fest zur Version dieses Tools (die seriellen Befehle muessen zur Firmware
+# passen). UHR4_BUILD_URL ersetzt die Adresse, UHR4_LOCAL=1 bzw. -Local nimmt die Ordner neben dem Skript.
+# Release the builds are downloaded from: fixed to the version of this tool (the serial commands must match the firmware).
+# UHR4_BUILD_URL replaces the address, UHR4_LOCAL=1 or -Local uses the folders next to the script.
+$releaseTag = 'v4'
+$buildUrl = if ($env:UHR4_BUILD_URL) { $env:UHR4_BUILD_URL.TrimEnd('/') } else { "https://github.com/holgiw/ESP32-Station-Clock/releases/download/$releaseTag" }
+$useLocal = $Local -or ($env:UHR4_LOCAL -eq '1')
+
+# Ordner mit den Flash-Dateien des Boards: lokal (nur Entwicklung) oder aus dem Release geladen, per SHA-256 geprueft
+# und entpackt. Bei einem Fehler endet das Skript - kein Rueckfall auf lokale Dateien.
+# Folder with the board's flash files: local (development only) or downloaded from the release, checked by SHA-256
+# and unpacked. On an error the script ends - no fallback to local files.
+function Get-BuildDir([string]$b) {
+    if ($useLocal) { return Join-Path $PSScriptRoot "esp32$b" }
+    $name = "uhr4-esp32$b"
+    $work = Join-Path ([IO.Path]::GetTempPath()) "uhr4-flash\$name"
+    if (Test-Path $work) { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
+    $zip = Join-Path $work "$name.zip"
+    Write-Host "Build wird geladen / downloading the build: $buildUrl/$name.zip"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add('User-Agent', 'uhr4-flash')
+        $wc.Proxy = [Net.WebRequest]::GetSystemWebProxy()
+        $wc.Proxy.Credentials = [Net.CredentialCache]::DefaultCredentials
+        $shaText = $wc.DownloadString("$buildUrl/$name.sha256")
+        $wc.DownloadFile("$buildUrl/$name.zip", $zip)
+    }
+    catch {
+        Write-Host "Download fehlgeschlagen / download failed: $($_.Exception.Message)"
+        Write-Host 'Internetverbindung des PCs pruefen (GitHub erreichbar?), dann flashESP.bat erneut starten.'
+        Write-Host 'Check the PC internet connection (is GitHub reachable?), then run flashESP.bat again.'
+        exit 1
+    }
+    $want = ($shaText.Trim() -split '\s+')[0].ToLower()
+    $have = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+    if ($want -ne $have) {
+        Write-Host 'Pruefsumme der geladenen Datei stimmt nicht - nichts wird geflasht. Spaeter erneut versuchen.'
+        Write-Host 'Checksum of the downloaded file does not match - nothing is flashed. Try again later.'
+        exit 1
+    }
+    Expand-Archive -Path $zip -DestinationPath (Join-Path $work 'files') -Force
+    return (Join-Path $work 'files')
+}
 
 # Board am COM-Port: USB-Serial-JTAG (303A:1001) = ESP32-C6, CH343P (1A86:55D3) = ESP32-S3, sonst ESP32-S2
 # Board on the COM port: USB serial JTAG (303A:1001) = ESP32-C6, CH343P (1A86:55D3) = ESP32-S3, else ESP32-S2
@@ -501,20 +557,19 @@ elseif ($Flash) {
     $selPort = $LASTEXITCODE
     if ($selPort -le 0) { exit 1 }
 
-    # Board am Port erkennen; jeder Build liegt in seinem Unterordner (esp32s2, esp32c6, esp32s3)
-    # Recognize the board on the port; every build is in its own subfolder (esp32s2, esp32c6, esp32s3)
+    # Board am Port erkennen und den Build dieses Chips laden (Get-BuildDir)
+    # Recognize the board on the port and download the build of that chip (Get-BuildDir)
     Set-Board (Get-PortBoard $selPort)
-    $binDir = Join-Path $PSScriptRoot "esp32$board"
+    Write-Host "ESP32-$($board.ToUpper()) an / on COM$selPort"
+    $binDir = Get-BuildDir $board
     $bins = @('uhr4.ino.bootloader.bin', 'uhr4.ino.partitions.bin', 'uhr4.ino.bin')
     if ($board -ne 's2') {
         $bins += 'boot_app0.bin'
     }
-    Write-Host "ESP32-$($board.ToUpper()) an / on COM$selPort - Build aus / build from $(Split-Path $binDir -Leaf)"
     $missing = $bins | Where-Object { -not (Test-Path (Join-Path $binDir $_)) }
     if ($missing) {
         Write-Host "Fehlende Dateien in / missing files in ${binDir}: $($missing -join ', ')"
-        Write-Host 'Das Zip zuerst komplett in einen Ordner auspacken und flashESP.bat dort starten.'
-        Write-Host 'First unpack the whole zip into a folder and start flashESP.bat there.'
+        Write-Host 'Das Paket im Release ist unvollstaendig - bitte melden. / The package in the release is incomplete - please report.'
         exit 1
     }
 

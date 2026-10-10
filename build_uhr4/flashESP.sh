@@ -16,8 +16,12 @@
 # zurueck. ESP32-S3 (Waveshare ESP32-S3-LCD-1.28): USB-Seriell-Wandler CH343P
 # (1a86:55d3), esptool schaltet ueber DTR/RTS in den Download-Modus; das Display
 # ist fest verbaut, der Displaytyp wird nicht abgefragt. Das Skript erkennt das
-# Board an der USB-Kennung und flasht den Build aus dem passenden Unterordner
-# (esp32s2, esp32c6 bzw. esp32s3).
+# Board an der USB-Kennung und LAEDT den Build dieses Chips vom GitHub-Release
+# (uhr4-esp32s2, -esp32c6 bzw. -esp32s3 als Zip samt SHA-256, Pruefung vor dem Flashen;
+# braucht curl und unzip). Dafuer braucht der PC beim Flashen Internet; einen Rueckfall
+# auf lokale Dateien gibt es nicht. Nur fuer die Entwicklung: UHR4_LOCAL=1 flasht den Build
+# aus dem Unterordner esp32s2, esp32c6 bzw. esp32s3 neben diesem Skript;
+# UHR4_BUILD_URL ersetzt die Adresse des Releases (zum Testen).
 #
 # Optional als zweiter Parameter der Displaytyp: ./flashESP.sh 0 GC9D01
 # (ESP32-S2: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341;
@@ -46,8 +50,12 @@
 # ESP32-S3 (Waveshare ESP32-S3-LCD-1.28): CH343P USB serial converter
 # (1a86:55d3), esptool switches it into download mode via DTR/RTS; the display
 # is built in, the display type is not asked for. The script recognizes the
-# board by the USB id and flashes the build from the matching subfolder
-# (esp32s2, esp32c6 or esp32s3).
+# board by the USB id and DOWNLOADS the build of that chip from the GitHub release
+# (uhr4-esp32s2, -esp32c6 or -esp32s3 as a zip with SHA-256, checked before flashing;
+# needs curl and unzip). The PC needs internet while flashing; there is no fallback to
+# local files. For development only: UHR4_LOCAL=1 flashes the build from the subfolder
+# esp32s2, esp32c6 or esp32s3 next to this script; UHR4_BUILD_URL replaces the release
+# address (for testing).
 #
 # Optionally the display type as second parameter: ./flashESP.sh 0 GC9D01
 # (ESP32-S2: 1/GC9A01, 2/GC9A01_WITH_BACKLIGHT, 3/GC9D01, 4/ILI9341;
@@ -614,17 +622,42 @@ if [ "$state" = other ]; then
     echo "Note: no clock detected on $PORT - trying anyway (as ESP32-S2)."
 fi
 
-# Board am Port erkennen; jeder Build liegt in seinem Unterordner. Alle Dateien da? Sonst wurde das Zip
-# nicht komplett ausgepackt.
-# Recognize the board on the port; every build is in its own subfolder. All files present? Otherwise the
-# zip was not fully unpacked.
+# Board am Port erkennen und den Build dieses Chips vom Release laden (Zip + SHA-256 pruefen, entpacken)
+# Recognize the board on the port and download the build of that chip from the release (check zip + SHA-256, unpack)
 case "$state" in
     c6) BOARD=c6 ;;
     s3) BOARD=s3 ;;
     *)  BOARD=s2 ;;
 esac
-BIN_DIR="esp32$BOARD"
-echo "ESP32-${BOARD^^} an / on $PORT - Build aus / build from $BIN_DIR"
+echo "ESP32-${BOARD^^} an / on $PORT"
+if [ "${UHR4_LOCAL:-}" = 1 ]; then
+    BIN_DIR="esp32$BOARD"
+else
+    BUILD_URL="${UHR4_BUILD_URL:-https://github.com/holgiw/ESP32-Station-Clock/releases/download/v4}"
+    BUILD_URL="${BUILD_URL%/}"
+    pkg="uhr4-esp32$BOARD"
+    for tool in curl unzip; do
+        command -v "$tool" >/dev/null 2>&1 || { echo "$tool nicht gefunden / not found - bitte installieren / please install"; exit 1; }
+    done
+    WORK="${TMPDIR:-/tmp}/uhr4-flash-$(id -u)/$pkg"
+    rm -rf "$WORK"; mkdir -p "$WORK/files"
+    echo "Build wird geladen / downloading the build: $BUILD_URL/$pkg.zip"
+    if ! curl -fsSL -o "$WORK/$pkg.zip" "$BUILD_URL/$pkg.zip" || ! curl -fsSL -o "$WORK/$pkg.sha256" "$BUILD_URL/$pkg.sha256"; then
+        echo "Download fehlgeschlagen - Internetverbindung des PCs pruefen (GitHub erreichbar?), dann erneut starten."
+        echo "Download failed - check the PC internet connection (is GitHub reachable?), then run again."
+        exit 1
+    fi
+    want=$(awk '{print tolower($1); exit}' "$WORK/$pkg.sha256")
+    if command -v sha256sum >/dev/null 2>&1; then have=$(sha256sum "$WORK/$pkg.zip" | awk '{print $1}')
+    else have=$(shasum -a 256 "$WORK/$pkg.zip" | awk '{print $1}'); fi
+    if [ "$want" != "$have" ]; then
+        echo "Pruefsumme der geladenen Datei stimmt nicht - nichts wird geflasht. Spaeter erneut versuchen."
+        echo "Checksum of the downloaded file does not match - nothing is flashed. Try again later."
+        exit 1
+    fi
+    unzip -oq "$WORK/$pkg.zip" -d "$WORK/files" || { echo "Entpacken fehlgeschlagen / unpacking failed"; exit 1; }
+    BIN_DIR="$WORK/files"
+fi
 missing=""
 bins="uhr4.ino.bootloader.bin uhr4.ino.partitions.bin uhr4.ino.bin"
 [ "$BOARD" != s2 ] && bins="$bins boot_app0.bin"
@@ -633,8 +666,7 @@ for f in $bins; do
 done
 if [ -n "$missing" ]; then
     echo "Fehlende Dateien / missing files:$missing"
-    echo "Das Zip zuerst komplett in einen Ordner auspacken und flashESP.sh dort starten."
-    echo "First unpack the whole zip into a folder and start flashESP.sh there."
+    echo "Das Paket im Release ist unvollstaendig - bitte melden. / The package in the release is incomplete - please report."
     exit 1
 fi
 
@@ -724,7 +756,7 @@ if [ "$BOARD" = c6 ] || [ "$BOARD" = s3 ]; then
         0x10000 "$BIN_DIR/uhr4.ino.bin"
 else
     "$ESPTOOL" --chip esp32s2 -p "$PORT" -b 460800 "$WRITE" \
-        0x1000 esp32s2/uhr4.ino.bootloader.bin 0x8000 esp32s2/uhr4.ino.partitions.bin 0x10000 esp32s2/uhr4.ino.bin
+        0x1000 "$BIN_DIR/uhr4.ino.bootloader.bin" 0x8000 "$BIN_DIR/uhr4.ino.partitions.bin" 0x10000 "$BIN_DIR/uhr4.ino.bin"
 fi
 if [ $? -ne 0 ]; then
     echo

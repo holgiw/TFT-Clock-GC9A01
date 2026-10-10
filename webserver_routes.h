@@ -3358,6 +3358,11 @@
                 entries[j] = current;
             }
 
+            // Dateien des Startpakets (isProtectedFile()) zuerst, die Reihenfolge darin und im Rest bleibt
+            // Files of the starter set (isProtectedFile()) first, the order within them and in the rest stays
+
+            std::stable_partition(entries.begin(), entries.end(), [](const FileEntry& e) { return isProtectedFile(e.name); });
+
             // Abschnitte je Dateiart, einklappbar (Zustand merkt sich der Browser, siehe Skript unten)
             // Sections per file type, collapsible (the browser remembers the state, see the script below)
 
@@ -3412,15 +3417,26 @@
                         String label = handFormatLabel(openPath);
                         if (label.length()) info += " (" + label + ")";
                     }
-                    chunk += "<tr><td><input type='checkbox' class='fsel' value='" + name + "'></td><td>" + name + "</td><td>" + String(e.size) + "</td>";
+                    bool builtIn = isProtectedFile(name); // vom Startpaket: nicht loeschen, umbenennen, skalieren / starter set: no delete, rename, scale
+                    chunk += "<tr><td><input type='checkbox' class='fsel' value='" + name + "'" + String(builtIn ? " disabled" : "") + "></td><td>" + name +
+                             (builtIn ? "<br><small>" + translate("built-in") + "</small>" : String("")) + "</td><td>" + String(e.size) + "</td>";
                     chunk += "<td>" + modifiedText + "</td>";
                     chunk += "<td>" + String(info) + "</td>";
-                    chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
+                    if (builtIn) {
+                        chunk += " <td><span style='opacity:0.25;' title='" + translate("built-in") + "'>&#128465;&#65039;</span> ";
+                    }
+                    else {
+                        chunk += " <td><a href = '/delete?file=" + name + "&from=files' title='" + translate("Delete") + "' onclick = 'return confirm(\"" + translate("Delete") + " " + name + "?\")'>&#128465;&#65039;</a> ";
+                    }
 
                     // Skalieren und Umbenennen nur fuer .bmp-Dateien
                     // Scale and rename only for .bmp files
 
-                    if (name.endsWith(".bmp")) {
+                    if (builtIn) {
+                        chunk += "<span style='opacity:0.25;' title='" + translate("built-in") + "'>&#128208;</span> ";
+                        chunk += "<span style='opacity:0.25;' title='" + translate("built-in") + "'>&#9999;&#65039;</span> ";
+                    }
+                    else if (name.endsWith(".bmp")) {
                         chunk += "<a href = '/scalebmp_form?file=" + name + "' title='" + translate("Scale") + "'>&#128208;</a> ";
                         chunk += "<a href='/rename_form?file=" + name + "&from=files' title='" + translate("Rename") + "'>&#9999;&#65039;</a> ";
                     }
@@ -3464,8 +3480,8 @@
             chunk += "<button type='button' id='fselDel' data-none='" + translate("No files selected") + "' data-ask='" + translate("Delete the selected files?") + "'>" + translate("Delete selected") + "</button></div><br><br>";
             chunk += "<script>(function(){";
             chunk += "var all=document.getElementById('fselAll'),btn=document.getElementById('fselDel');";
-            chunk += "all.onchange=function(){document.querySelectorAll('.fsel,.fselGroup').forEach(function(c){c.checked=all.checked;});};";
-            chunk += "document.querySelectorAll('.fselGroup').forEach(function(g){g.onchange=function(){g.closest('table').querySelectorAll('.fsel').forEach(function(c){c.checked=g.checked;});};});";
+            chunk += "all.onchange=function(){document.querySelectorAll('.fsel:not(:disabled),.fselGroup').forEach(function(c){c.checked=all.checked;});};";
+            chunk += "document.querySelectorAll('.fselGroup').forEach(function(g){g.onchange=function(){g.closest('table').querySelectorAll('.fsel:not(:disabled)').forEach(function(c){c.checked=g.checked;});};});";
             chunk += "var closed=[];try{closed=JSON.parse(localStorage.getItem('uhr4FilesClosed')||'[]');}catch(e){}";
             chunk += "document.querySelectorAll('details[data-g]').forEach(function(d){if(closed.indexOf(d.dataset.g)>=0)d.open=false;";
             chunk += "d.addEventListener('toggle',function(){var k=d.dataset.g,i=closed.indexOf(k);if(d.open&&i>=0)closed.splice(i,1);if(!d.open&&i<0)closed.push(k);";
