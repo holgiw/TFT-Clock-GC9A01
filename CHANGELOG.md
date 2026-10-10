@@ -95,6 +95,8 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- Beim Löschen eines Zifferblatts oder Zeigersatzes erscheint oben ein Fortschrittsbalken („Wird gelöscht - bitte
+  warten“), bis die Seite neu geladen ist.
 - Zeiger laufen auf ihre Position (Start, Zeitkorrektur) ohne Ruckler in der Mitte: Sprünge über 10° gehen
   unverändert an die 3-Sekunden-Fahrt, statt vorher schrittweise geglättet zu werden und die Fahrt neu zu starten.
 - Im Log stehen Adresse und Zeitquelle jetzt je in einer Zeile (I2C-Suche, Zeitsynchronisation).
@@ -421,6 +423,8 @@
     their clock faces.
 
 ### Changed
+- Deleting a clock face or hand set shows a progress bar at the top ("Deleting - please wait") until the page
+  is reloaded.
 - Hands move to their position (start, time correction) without a stutter in the middle: jumps over 10° go
   unchanged to the 3-second move, instead of being smoothed step by step first and restarting the move.
 - The log now shows address and time source in one line each (I2C scan, time synchronisation).

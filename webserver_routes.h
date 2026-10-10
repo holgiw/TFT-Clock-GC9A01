@@ -1051,6 +1051,22 @@
     }
 
 
+    // Fortschrittsbalken beim Loeschen eines Zifferblatts/Zeigersatzes: showBusy() blendet oben einen Balken ein, bevor
+    // der Browser dem Loeschen-Link folgt - er bleibt, bis die Seite nach dem Loeschen neu geladen ist. Die Uhr meldet
+    // keinen Teilfortschritt, der Balken laeuft daher unbestimmt.
+
+    // Progress bar while deleting a clock face/hand set: showBusy() shows a bar at the top before the browser follows
+    // the delete link - it stays until the page is reloaded after the deletion. The clock reports no partial
+    // progress, so the bar is indeterminate.
+
+    String deleteProgressScript() {
+        String html = "<div id='busyBar' style='display:none;position:fixed;left:0;right:0;top:0;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--panel-border);z-index:20;'>"
+                      "<progress style='width:100%;'></progress><br><small>" + translate("Deleting - please wait") + "</small></div>";
+        html += "<script>function showBusy(){document.getElementById('busyBar').style.display='block';}</script>";
+        return html;
+    }
+
+
     // Sprachselector generieren
     // Generate the language selector
 
@@ -4740,6 +4756,7 @@
             chunk.reserve(1024);
             chunk += generateFlashMessage();
             chunk += selectWithoutReloadScript(translate("Clock face selected"), translate("active"));
+            chunk += deleteProgressScript();
             chunk += "<h2>" + translate("Manage Clock Face Files") + " " + String(CLOCK_WIDTH) + " x " + String(CLOCK_HEIGHT) + "</h2>";
             chunk += "<p>" + generateStorageInfo(used, total) + "</p>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
@@ -4824,7 +4841,7 @@
                 }
                 else {
                     chunk += "<br><a href='/rename_form?file=" + safeName + "&from=listfilesFaces'>" + translate("Rename") + "</a> ";
-                    chunk += "<a href='/delete?file=" + safeName + "&from=listfilesFaces' onclick='return confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\")'>" + translate("Delete") + "</a>";
+                    chunk += "<a href='/delete?file=" + safeName + "&from=listfilesFaces' onclick='if(!confirm(\"" + translate("Delete") + " " + escapeHtmlText(displayName) + "?\"))return false;showBusy();'>" + translate("Delete") + "</a>";
                 }
                 chunk += "</div>";
 
@@ -6562,6 +6579,7 @@
             String chunk = beginPage();
             chunk += generateFlashMessage();
             chunk += selectWithoutReloadScript(translate("Hand set selected"), translate("active"));
+            chunk += deleteProgressScript();
             chunk += "<h2>" + translate("Manage Clock Hand Sets") + " " + String(HAND_WIDTH) + " x " + String(HAND_HEIGHT) + "</h2>";
             chunk += "<p>" + generateStorageInfo(used, total) + "</p>";
             chunk += "<div style='display:flex;flex-wrap:wrap;gap:24px 18px;justify-content:center;align-items:flex-start;'>";
@@ -6642,7 +6660,7 @@
                 chunk += "</a><br>" + safeSetId + "<span class='ha'>" + (setId == activeSet ? " (" + translate("active") + ")" : "") + "</span>";
                 chunk += "<br><a href='/sethandset?set=" + safeSetId + "&designer=1'>" + translate("Designer") + "</a>";
                 if (isProtectedHandSetId(setId)) chunk += "<br><small>" + translate("built-in") + "</small>";
-                else chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='return confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\")'>" + translate("Delete") + "</a>";
+                else chunk += "<br><a href='/deletehandset?set=" + safeSetId + "' onclick='if(!confirm(\"" + translate("Delete") + " " + escapeForJsStringInAttr(setId, '"') + "?\"))return false;showBusy();'>" + translate("Delete") + "</a>";
                 chunk += "</div>";
                 webserver.sendContent(chunk);
                 checkHeapWarning("/handsets Zeigersatz " + setId);

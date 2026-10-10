@@ -281,6 +281,7 @@
         { "Preset renamed", "Preset umbenannt" },
         { "Hand set uploaded", "Zeigersatz hochgeladen" },
         { "Hand set selected", "Zeigersatz ausgew&auml;hlt" },
+        { "Deleting - please wait", "Wird gel&ouml;scht - bitte warten" },
         { "Hand set deleted", "Zeigersatz gel&ouml;scht" },
         { "Timezone updated", "Zeitzone aktualisiert" },
         { "Settings saved", "Einstellungen gespeichert" },
