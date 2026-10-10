@@ -342,6 +342,15 @@
 #define OTA_TIMEOUT_MS (3 * WAIT_1m)
 #define OTA_PORT 3232 // ArduinoOTA (Visual Micro, Arduino IDE)
 
+    // Update von GitHub (ota_update.h, nur ESP32-S3): Dateien des neuesten Releases, uhr4-s3.txt (Zeile 1: Build-Zeit
+    // "YYYY-MM-DD HH:MM:SS", Zeile 2: SHA-256 der .bin) und uhr4-s3.bin. Erzeugt von build_uhr4/publish_s3_update.ps1.
+
+    // Update from GitHub (ota_update.h, ESP32-S3 only): files of the latest release, uhr4-s3.txt (line 1: build time
+    // "YYYY-MM-DD HH:MM:SS", line 2: SHA-256 of the .bin) and uhr4-s3.bin. Created by build_uhr4/publish_s3_update.ps1.
+
+#define FW_UPDATE_ASSET "uhr4-s3"
+#define FW_UPDATE_URL "https://github.com/" GITHUB_REPO_OWNER "/" GITHUB_REPO_NAME "/releases/latest/download/" FW_UPDATE_ASSET
+
 #define HAS_DISPLAY2 (CS_2 >= 0)
 #define TFT_SPI_FREQUENCY 40000000 // hoechster ganzzahliger Teiler von 80 MHz unter den frueheren 60 MHz
                                    // highest integer divider of 80 MHz below the former 60 MHz

@@ -408,9 +408,6 @@
     void setupWebServer() ;
     String completeUploadName(const String& path, const String& uri) ;
     void handleFileUpload() ;
-    bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) ;
-    void handlePresetUpload(bool skipExisting, const char* tag) ;
-    void handlePresetImportUpload() ;
 
 
     // system_utils.h: Systemfunktionen: Tasten, Logging, Reset, Neustart, Hilfsfunktionen
@@ -440,6 +437,10 @@
     bool handleOta() ;
     void handleFirmwareUpload() ;
     void setupOtaRoutes() ;
+    bool checkFirmwareUpdate() ;
+    bool installFirmwareFromGithub(String& error, bool force = false) ;
+    void firmwareUpdateTick() ;
+    int firmwareUpdateState() ;
 
     // imu_rotation.h (automatische Rotation, nur ESP32-S3) / (automatic rotation, ESP32-S3 only)
     void imuBegin() ;

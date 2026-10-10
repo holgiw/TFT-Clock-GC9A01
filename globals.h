@@ -39,6 +39,17 @@
     String otaUploadError = ""; // Fehler beim Hochladen ueber die Weboberflaeche, leer = ok
                                 // error while uploading via the web interface, empty = ok
 
+    // Ergebnis der letzten Update-Pruefung auf GitHub (ota_update.h): Build-Zeit des Releases (leer = unbekannt) und
+    // Fehlertext (leer = ok); fwLastCheckMillis = Zeitpunkt des Versuchs, fwCheckedDay = Tag des Jahres der letzten Pruefung
+
+    // Result of the last update check on GitHub (ota_update.h): build time of the release (empty = unknown) and
+    // error text (empty = ok); fwLastCheckMillis = time of the attempt, fwCheckedDay = day of the year of the last check
+
+    String fwRemoteBuild = "";
+    String fwCheckError = "";
+    unsigned long fwLastCheckMillis = 0;
+    int fwCheckedDay = -1;
+
     // Log-Zeilen werden gesammelt statt einzeln auf Flash geschrieben - jeder Flash-Zugriff haelt kurz alles
     // an (auch die Displayuebertragung). logBufferMutex schuetzt logLineBuffer, da auch NTP-/Rocrail-Tasks
     // hineinschreiben.
@@ -1013,12 +1024,6 @@
     String uploadFilePath = "";
     bool uploadSuccess = false;
 
-    // Presets-Import (separat vom BMP-Upload, um Statuskonflikte zu vermeiden)
-    // Presets import (separate from the BMP upload, to avoid status conflicts)
-
-    File presetImportFile;
-    bool presetImportSuccess = false;
-    const char* PRESET_IMPORT_TMP_PATH = "/tmp_presets_import.txt";
 
 
     int lastResetWeek = -1;

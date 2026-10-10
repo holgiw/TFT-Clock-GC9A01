@@ -1673,6 +1673,9 @@
         chunk += "<li>WiFi Mode: " + String(WiFi.getMode() == WIFI_AP ? "WIFI_AP" : (WiFi.getMode() == WIFI_STA ? "WIFI_STA" : "AP_STA")) + "</li>";
         chunk += "<li>WiFi Channel: " + String(WiFi.channel()) + "</li>";
         chunk += "<li>WiFi TX Power: " + String(WiFi.getTxPower() / 4.0f, 1) + " dBm</li>";
+#if HAS_OTA
+        if (fwRemoteBuild.length()) chunk += "<li>Firmware on GitHub: " + fwRemoteBuild + (firmwareUpdateState() > 0 ? " (newer)" : "") + "</li>";
+#endif
         chunk += "<li>Signal Strength (RSSI): " + String(WiFi.RSSI()) + " dBm</li>";
 
         // ntpServerRunning kommt vom echten Rueckgabewert von udp.begin()
@@ -2245,6 +2248,14 @@
                 String sourceArg = webserver.arg("source");
                 if (sourceArg == "preset") {
                     // DEBUG_PRINTLN("[API] Request source: preset");
+
+                    // Mit ajax=1 (Seite /presets ohne Neuladen) genuegt die Bestaetigung
+                    // With ajax=1 (page /presets without reloading) the confirmation is enough
+
+                    if (webserver.arg("ajax") == "1") {
+                        webserver.send(200, "text/plain", "ok");
+                        return;
+                    }
                     redirectTo("/presets?msg=Preset%20applied", "Redirecting to /presets..");
                     return;
                 }
@@ -2356,8 +2367,8 @@
 
                     String safePresetNameText = escapeHtmlText(presets[i].name);
                     chunk += "<div style='text-align:center;border:1px solid #ccc;border-radius:6px;padding:8px;width:220px;'>";
-                    chunk += "<a href='" + displayUrl + "'><img class='pv' data-src='/presetpreview?index=" + String(i) + "' style='width:90px;height:auto;'></a>";
-                    chunk += "<br><a href='" + displayUrl + "'>" + safePresetNameText + "</a>";
+                    chunk += "<a href='" + displayUrl + "' onclick='return pickPreset(this)'><img class='pv' data-src='/presetpreview?index=" + String(i) + "' style='width:90px;height:auto;'></a>";
+                    chunk += "<br><a href='" + displayUrl + "' onclick='return pickPreset(this)'>" + safePresetNameText + "</a>";
                     String presetName = presets[i].name;
                     presetName.replace(" ", "_"); // Ersetze Leerzeichen durch Unterstriche
                                                   // replace spaces with underscores
@@ -2400,6 +2411,17 @@
             }
             chunk += "</div>";
 
+            // Preset anwenden ohne die Seite neu zu laden: pickPreset() ruft den Link per fetch() mit &ajax=1 auf und
+            // zeigt die Meldung. Schlaegt der Aufruf fehl, folgt der Browser dem Link wie bisher.
+
+            // Apply a preset without reloading the page: pickPreset() calls the link via fetch() with &ajax=1 and shows
+            // the message. If the call fails, the browser follows the link as before.
+
+            chunk += "<div id='presetMsg' class='msg ok' style='display:none'>" + translate("Preset applied") + "</div>";
+            chunk += "<script>function pickPreset(a){var m=document.getElementById('presetMsg');fetch(a.href+'&ajax=1').then(function(r){if(!r.ok)throw 0;"
+                     "m.style.display='block';clearTimeout(window.presetT);window.presetT=setTimeout(function(){m.style.display='none';},4000);"
+                     "}).catch(function(){location.href=a.href;});return false;}</script>";
+
             // Vorschaubilder nacheinander laden, bei Fehler bis zu 3 Versuche - parallel angefragt fehlte der Uhr
             // (vor allem ohne PSRAM) der Speicher, viele Bilder blieben leer.
 
@@ -2417,72 +2439,11 @@
             chunk += "<form method='POST' action='/api/createPreset'>";
             chunk += "<button type='submit'>" + translate("Create Preset from Current Settings") + "</button>";
             chunk += "</form>";
-            chunk += "<hr>";
-
-            // Presets als Datei sichern/wiederherstellen
-            // Back up/restore presets as a file
-
-            chunk += "<h3>" + translate("Backup / Restore Presets") + "</h3>";
-            chunk += "<a href='/exportpresets'><button type='button'>" + translate("Save Presets to File") + "</button></a> ";
-            chunk += "<form method='POST' action='/importpresets' enctype='multipart/form-data' style='display:inline;'>";
-            chunk += "<input type='file' name='presetfile' accept='.txt' required>";
-            chunk += "<button type='submit'>" + translate("Load Presets from File") + "</button>";
-            chunk += "</form> ";
-
             chunk += "</body></html>";
             webserver.sendContent(chunk);
             webserver.sendContent(""); // Ende der Chunked-Uebertragung signalisieren
                                        // signal the end of the chunked transfer
             });
-
-        // Alle belegten Presets (Name + URL) als herunterladbare Textdatei
-        // exportieren - eine Zeile pro Preset, Name und URL durch Tab getrennt.
-
-        // Export all occupied presets (name + URL) as a downloadable text file -
-        // one line per preset, name and URL separated by a tab.
-
-        webserver.on("/exportpresets", HTTP_GET, []() {
-            String content;
-            for (int i = 0; i < MAX_PRESETS; i++) {
-                if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
-                    String exportUrl = presets[i].url;
-
-                    // Host-Teil durch Platzhalter ersetzen - wird beim Import ohnehin
-                    // durch die dann aktuelle IP ersetzt (siehe loadPresets()).
-
-                    // Replace the host part with a placeholder - gets replaced by
-                    // the then-current IP on import anyway (see loadPresets()).
-
-                    if (exportUrl.startsWith("http://")) {
-                        int ipEnd = exportUrl.indexOf('/', 7);
-                        if (ipEnd != -1) {
-                            exportUrl = "http://<clock-ip>" + exportUrl.substring(ipEnd);
-                        }
-                        else {
-                            exportUrl = "http://<clock-ip>";
-                        }
-                    }
-                    content += presets[i].name + "\t" + exportUrl + "\n";
-                }
-            }
-            webserver.sendHeader("Content-Disposition", "attachment; filename=presets.txt");
-            webserver.send(200, "text/plain", content);
-            });
-
-        // Presets aus einer zuvor per /exportpresets erzeugten Textdatei
-        // wiederherstellen - ersetzt ALLE aktuell gespeicherten Presets.
-
-        // Restore presets from a text file previously created via /exportpresets
-        // - replaces ALL currently stored presets.
-
-        webserver.on("/importpresets", HTTP_POST, []() {
-            if (presetImportSuccess) {
-                redirectTo("/presets?msg=Presets%20imported%20successfully");
-            }
-            else {
-                redirectTo("/presets?err=Import%20failed%20-%20please%20check%20the%20file");
-            }
-            }, handlePresetImportUpload);
 
         // API zum Neustart des ESP. Diagnose: Teil-Aktualisierung des Displays ein-/ausschalten - nicht
         // gespeichert, nach dem Neustart wieder an.
@@ -7457,6 +7418,41 @@
             html += "x.upload.onload=function(){show(T.check,null);};";
             html += "x.onload=function(){if(x.status!==200){show(x.responseText||('HTTP '+x.status),0);done();return;}show(T.wait,null);waitRestart();};";
             html += "x.onerror=function(){show(T.err,0);done();};x.send(fd);});})();</script>";
+
+            // Update von GitHub (ota_update.h): Stand abfragen, bei neuerer Version Knopf zum Einspielen. Die Uhr
+            // laedt selbst (blockiert dabei, Fortschritt auf dem Display); die Seite wartet auf den Neustart.
+
+            // Update from GitHub (ota_update.h): query the state, a button to install if a newer version exists. The
+            // clock downloads by itself (blocking, progress on the display); the page waits for the restart.
+
+            html += "<hr><h3>" + translate("Firmware from GitHub") + "</h3>";
+            html += "<p>" + translate("The clock checks once a day (3 a.m.) and after the start whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum") + ".</p>";
+            html += "<p><small id='ghInfo'></small></p>";
+            html += "<button type='button' id='ghCheck'>" + translate("Check now") + "</button> ";
+            html += "<button type='button' id='ghInstall' hidden>" + translate("Install update") + "</button>";
+            html += "<div id='ghTexts' hidden data-installed='" + translate("Installed version") +
+                    "' data-github='" + translate("Firmware on GitHub") +
+                    "' data-newer='" + translate("newer - update available") +
+                    "' data-same='" + translate("same as installed") +
+                    "' data-older='" + translate("older than installed") +
+                    "' data-unknown='" + translate("not checked yet") +
+                    "' data-busy='" + translate("Checking GitHub") +
+                    "' data-load='" + translate("The clock is loading the firmware (progress on its display) - keep this page open") +
+                    "' data-wait='" + translate("Firmware installed - waiting for the clock to restart") +
+                    "' data-timeout='" + translate("The clock does not respond yet - refresh the page later") +
+                    "' data-ask='" + translate("Install the firmware and restart the clock?") + "'></div>";
+            html += "<script>(function(){var T=document.getElementById('ghTexts').dataset,i=document.getElementById('ghInfo'),c=document.getElementById('ghCheck'),b=document.getElementById('ghInstall');";
+            html += "function lock(on){c.disabled=on;b.disabled=on;if(window.topbarPolling)window.topbarPolling(!on);}";
+            html += "function show(r){var s=r.state=='newer'?T.newer:r.state=='same'?T.same:r.state=='older'?T.older:T.unknown;";
+            html += "i.textContent=T.installed+': '+r.installed+' - '+T.github+': '+(r.remote||'?')+' ('+s+')'+(r.error?' - '+r.error:'');b.hidden=r.state!='newer';}";
+            html += "function query(force){i.textContent=T.busy+' ...';c.disabled=true;fetch('/firmware/check'+(force?'?force=1':''),{cache:'no-store'}).then(function(r){return r.json();}).then(show).catch(function(){i.textContent='?';}).then(function(){c.disabled=false;});}";
+            html += "function waitRestart(){var t0=Date.now();function tryIt(){fetch('/api/topbarStatus',{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;location.href='/';})";
+            html += ".catch(function(){if(Date.now()-t0>120000){i.textContent=T.timeout;lock(false);}else{setTimeout(tryIt,2000);}});}setTimeout(tryIt,5000);}";
+            html += "c.addEventListener('click',function(){query(true);});";
+            html += "b.addEventListener('click',function(){if(!confirm(T.ask))return;lock(true);i.textContent=T.load;";
+            html += "fetch('/firmware/github',{method:'POST'}).then(function(r){return r.text().then(function(t){if(r.status!==200)throw t||('HTTP '+r.status);});})";
+            html += ".then(function(){i.textContent=T.wait;waitRestart();}).catch(function(e){i.textContent=(typeof e=='string'?e:'?');lock(false);});});";
+            html += "query(false);})();</script>";
 #endif
 
             html += "</body></html>";
@@ -7876,191 +7872,4 @@
         }
     }
 
-
-    // Prueft, ob das in einer Preset-URL angegebene Zifferblatt existiert - case-
-    // insensitiv (LittleFS ist case-sensitiv, Nutzer koennten abweichend schreiben),
-    // korrigiert die URL bei Treffer. False = kein passendes Zifferblatt (face_default.bmp immer gueltig).
-
-    // Checks whether the clock face given in a preset URL exists - case-
-    // insensitive (LittleFS is case-sensitive, users might type it differently),
-    // corrects the URL on a match. False = no matching face (face_default.bmp is always valid).
-
-    bool validateAndFixPresetFace(String& url, const std::vector<String>& existingFaces) {
-        int facePos = url.indexOf("face=");
-        if (facePos == -1) return true; // kein face-Parameter, nichts zu pruefen
-                                        // no face parameter, nothing to check
-
-        int valueStart = facePos + 5; // Laenge von "face="
-                                      // length of "face="
-        int valueEnd = url.indexOf('&', valueStart);
-        if (valueEnd == -1) valueEnd = url.length();
-
-        String faceValue = url.substring(valueStart, valueEnd);
-        String faceName = faceValue.startsWith("/") ? faceValue.substring(1) : faceValue;
-
-        if (faceName.equalsIgnoreCase("face_default.bmp")) {
-            return true; // Standard-Zifferblatt ist immer gueltig (wird bei Bedarf erzeugt)
-                         // default face is always valid (created when needed)
-        }
-
-        for (const String& existing : existingFaces) {
-            if (faceName.equalsIgnoreCase(existing)) {
-                String correctValue = "/" + existing;
-                if (correctValue != faceValue) {
-
-                    // Gross-/Kleinschreibung weicht ab - URL korrigieren
-                    // Case differs - correct the URL
-
-                    url = url.substring(0, valueStart) + correctValue + url.substring(valueEnd);
-                }
-                return true;
-            }
-        }
-
-        return false; // kein passendes Zifferblatt gefunden
-                      // no matching face found
-    }
-
-
-    // Upload fuer /importpresets: liest "Name<TAB>URL"-Zeilen und fuegt die Presets in freie Slots ein.
-    // skipExisting: Namen, die es schon gibt, ueberspringen - bestehende bleiben unangetastet. tag steht vor den
-    // Logzeilen.
-
-    // Upload for /importpresets: reads "Name<TAB>URL" lines and inserts the presets into free slots.
-    // skipExisting: skip names that already exist - existing ones stay untouched. tag precedes the log lines.
-
-    void handlePresetUpload(bool skipExisting, const char* tag) {
-        HTTPUpload& upload = webserver.upload();
-
-        if (upload.status == UPLOAD_FILE_START) {
-            DEBUG_PRINTLN(String(tag) + " Start (from " + webserver.client().remoteIP().toString() + ")");
-            presetImportFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_WRITE);
-            presetImportSuccess = presetImportFile ? true : false;
-        }
-        else if (upload.status == UPLOAD_FILE_WRITE) {
-            if (presetImportSuccess && presetImportFile) {
-                presetImportFile.write(upload.buf, upload.currentSize);
-            }
-        }
-        else if (upload.status == UPLOAD_FILE_END) {
-            if (presetImportSuccess && presetImportFile) {
-                presetImportFile.close();
-
-                File readFile = LittleFS.open(PRESET_IMPORT_TMP_PATH, FILE_READ);
-                if (!readFile) {
-                    DEBUG_PRINTLN(String(tag) + " Could not read file (from " + webserver.client().remoteIP().toString() + ")");
-                    presetImportSuccess = false;
-                    return;
-                }
-
-                // Namen der bereits vorhandenen Presets einmalig einsammeln, um
-                // importierte Zeilen mit gleichem Namen ueberspringen zu koennen -
-                // das bestehende Preset bleibt dadurch unveraendert erhalten.
-
-                // Collect the names of already existing presets once, so imported
-                // lines with the same name can be skipped - the existing preset stays
-                // unchanged as a result.
-
-                std::vector<String> existingPresetNames;
-                for (int i = 0; i < MAX_PRESETS; i++) {
-                    if (!presets[i].name.isEmpty() && !presets[i].url.isEmpty()) {
-                        existingPresetNames.push_back(presets[i].name);
-                    }
-                }
-
-                // Vorhandene Zifferblaetter einmalig einlesen, um jede
-                // importierte Preset-Zeile dagegen pruefen zu koennen.
-
-                // Read existing clock faces once, so each imported preset line can
-                // be checked against them.
-
-                std::vector<String> existingFaces;
-                File faceRoot = LittleFS.open("/");
-                File faceEntry = faceRoot.openNextFile();
-                while (faceEntry) {
-                    String entryName = faceEntry.name();
-                    if (!faceEntry.isDirectory() && entryName.startsWith("face_") && entryName.endsWith(".bmp")) {
-                        existingFaces.push_back(entryName);
-                    }
-                    faceEntry = faceRoot.openNextFile();
-                }
-
-                int importedCount = 0;
-                int skippedCount = 0;
-                while (readFile.available()) {
-                    String line = readFile.readStringUntil('\n');
-                    line.trim();
-                    if (line.isEmpty()) continue;
-
-                    int tabPos = line.indexOf('\t');
-                    if (tabPos == -1) {
-                        DEBUG_PRINTLN(String(tag) + " Ungueltige Zeile (kein Tab): " + line + " (from " + webserver.client().remoteIP().toString() + ")");
-                        continue;
-                    }
-
-                    String name = line.substring(0, tabPos);
-                    String url = line.substring(tabPos + 1);
-                    if (name.isEmpty() || url.isEmpty()) continue;
-
-                    // Import: Preset mit gleichem Namen existiert bereits - ueberspringen, statt es zu ueberschreiben
-                    // Import: a preset with the same name already exists - skip it instead of overwriting it
-
-                    bool alreadyExists = false;
-                    for (const String& existingName : existingPresetNames) {
-                        if (skipExisting && existingName == name) { alreadyExists = true; break; }
-                    }
-                    if (alreadyExists) {
-                        DEBUG_PRINTLN(String(tag) + " Skipped (already exists): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
-                        skippedCount++;
-                        continue;
-                    }
-
-                    if (!validateAndFixPresetFace(url, existingFaces)) {
-                        DEBUG_PRINTLN(String(tag) + " Skipped (clock face not found): " + name + " (from " + webserver.client().remoteIP().toString() + ")");
-                        skippedCount++;
-                        continue;
-                    }
-
-                    int freeIndex = -1;
-                    for (int i = 0; i < MAX_PRESETS; i++) {
-                        if (presets[i].name.isEmpty() && presets[i].url.isEmpty()) {
-                            freeIndex = i;
-                            break;
-                        }
-                    }
-                    if (freeIndex == -1) {
-                        DEBUG_PRINTLN(String(tag) + " No free slot left - aborted (preset: " + name + ") (from " + webserver.client().remoteIP().toString() + ")");
-                        break;
-                    }
-
-                    presets[freeIndex].name = name;
-                    presets[freeIndex].url = url;
-                    existingPresetNames.push_back(name); // schuetzt auch vor Duplikaten INNERHALB der Importdatei
-                                                         // also protects against duplicates WITHIN the import file
-                    importedCount++;
-                }
-                readFile.close();
-                LittleFS.remove(PRESET_IMPORT_TMP_PATH);
-
-                if (importedCount > 0) {
-                    savePresets();
-                }
-
-                DEBUG_PRINTLN(String(tag) + " " + String(importedCount) + " presets added, " + String(skippedCount) + " skipped (from " + webserver.client().remoteIP().toString() + ")");
-                presetImportSuccess = true; // auch 0 neue Presets ist kein Fehler (z.B. alles schon vorhanden)
-                                            // 0 new presets is also not an error (e.g. everything already existed)
-            }
-            else {
-                DEBUG_PRINTLN(String(tag) + " Failed while writing (from " + webserver.client().remoteIP().toString() + ")");
-            }
-        }
-    }
-
-
-    // Upload-Rueckruf der Route (WebServer erwartet Funktionen ohne Parameter)
-    // Upload callback of the route (WebServer expects functions without parameters)
-
-    void handlePresetImportUpload() {
-        handlePresetUpload(true, "[PRESET-IMPORT]");
-    }
 

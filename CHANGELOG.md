@@ -5,6 +5,12 @@
 ## 2026-10-08
 
 ### Hinzugefügt
+- Update von GitHub (nur ESP32-S3): Die Uhr fragt nach dem Start und jede Nacht um 3 Uhr bei GitHub nach, ob das
+  neueste Release eine neuere Firmware hat (Seite „Sicherung“ → „Firmware von GitHub“ mit „Jetzt prüfen“, Zeile
+  „Firmware on GitHub“ auf der Statusseite). Eingespielt wird nur per Klick auf „Update einspielen“; die Uhr lädt
+  `uhr4-s3.bin`, prüft Zertifikat (eingebautes Zertifikatspaket, dafür muss die Uhrzeit stimmen), Chip-Kopf und
+  SHA-256 aus `uhr4-s3.txt` und aktiviert die Firmware erst danach. Die beiden Dateien legt
+  `build_uhr4/publish_s3_update.ps1` in das neueste Release.
 - Eigener Build für den Waveshare ESP32-S3-LCD-1.28 (rundes GC9A01 fest verbaut, 16 MB Flash, 2 MB PSRAM),
   Ordner `build_uhr4/esp32s3`; noch nicht am Gerät erprobt:
   - Board „ESP32S3 Dev Module“, Flash Size 16MB, PSRAM „QSPI PSRAM“, Partition Scheme „16M Flash (3MB APP/9.9MB
@@ -87,6 +93,10 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- Auf der Seite „Presets“ entfallen „Presets als Datei speichern“ und „Presets aus Datei laden“ (samt Routen
+  `/exportpresets` und `/importpresets`); Presets sichert die Seite „Sicherung“ mit.
+- Preset anklicken lädt die Seite „Presets“ nicht mehr neu: Das Preset wird angewendet, oben erscheint die Meldung
+  „Preset angewendet“ (wie bei Zifferblättern und Zeigersätzen).
 - Der Chip (S2, S3, C6) steht jetzt neben dem Displaytyp in der Kopfzeile der Weboberfläche („S3 GC9A01_WITH_BACKLIGHT“),
   im Dateinamen der Sicherung (`uhr4-backup-<Hostname>-<Chip>-<Displaytyp>-<Datum>.tar`) und im Kopf der mitgesicherten
   Statusdatei.
@@ -318,6 +328,12 @@
 ## 2026-10-08
 
 ### Added
+- Update from GitHub (ESP32-S3 only): after the start and every night at 3 a.m. the clock asks GitHub whether the
+  latest release has a newer firmware ("Backup" page → "Firmware from GitHub" with "Check now", line "Firmware on
+  GitHub" on the status page). It is installed only by clicking "Install update"; the clock downloads
+  `uhr4-s3.bin`, checks the certificate (built-in certificate bundle, so the time must be right), chip header and
+  SHA-256 from `uhr4-s3.txt` and only then activates the firmware. `build_uhr4/publish_s3_update.ps1` puts the two
+  files into the latest release.
 - Separate build for the Waveshare ESP32-S3-LCD-1.28 (round GC9A01 built in, 16 MB flash, 2 MB PSRAM), folder
   `build_uhr4/esp32s3`; not yet tried on the device:
   - Board "ESP32S3 Dev Module", Flash Size 16MB, PSRAM "QSPI PSRAM", Partition Scheme "16M Flash (3MB APP/9.9MB
@@ -398,6 +414,10 @@
     their clock faces.
 
 ### Changed
+- The "Presets" page no longer has "Save Presets to File" and "Load Presets from File" (with the routes
+  `/exportpresets` and `/importpresets`); the "Backup" page saves presets as well.
+- Clicking a preset no longer reloads the "Presets" page: the preset is applied and the message "Preset applied"
+  appears at the top (like for clock faces and hand sets).
 - The chip (S2, S3, C6) now appears next to the display type in the header of the web interface ("S3
   GC9A01_WITH_BACKLIGHT"), in the backup file name (`uhr4-backup-<host name>-<chip>-<display type>-<date>.tar`) and
   in the header of the status file included in the backup.

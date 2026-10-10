@@ -286,11 +286,6 @@ Each preset in the list has its own links/buttons for renaming and deleting (wit
 
 ### 4.4 Backup and restore
 
-In the **"Backup / Restore Presets"** section:
-
-- **"Save Presets to File"** downloads all presets as a file (backup).
-- **"Load Presets from File"** uploads a previously saved file again, to restore or add to the presets.
-
 **Starter presets:** A new clock comes with the three presets "Standard", "1-12" and "I-XII" for its self-generated clock faces and hand sets.
 
 **Full backup of the whole clock:** The **"Backup"** page (in the navigation) saves all settings, presets, clock faces and hand sets in **one** file. It can be restored on the same or another clock with the same display type. WiFi credentials are only included on request (encrypted, but with a key that is the same in every firmware - so not secure).
