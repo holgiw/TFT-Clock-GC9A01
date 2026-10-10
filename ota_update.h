@@ -290,18 +290,16 @@
 
 #endif
 
-    // Pruefung auf ein neueres Release: true = Abfrage geklappt (fwRemoteBuild gesetzt), sonst steht der Grund in
-    // fwCheckError. Blockiert bis zu etwa 20 s.
+    // Pruefung auf ein neueres Release, nur auf Knopfdruck (Seite "Sicherung"): true = Abfrage geklappt
+    // (fwRemoteBuild gesetzt), sonst steht der Grund in fwCheckError. Die Uhr sucht nie von selbst.
 
-    // Check for a newer release: true = the request worked (fwRemoteBuild set), otherwise the reason is in
-    // fwCheckError. Blocks for up to about 20 s.
+    // Check for a newer release, only on a button click ("Backup" page): true = the request worked (fwRemoteBuild
+    // set), otherwise the reason is in fwCheckError. The clock never checks by itself.
 
     bool checkFirmwareUpdate() {
 #if HAS_OTA
         String build, sha, error;
         fwLastCheckMillis = millis();
-        struct tm now;
-        fwCheckedDay = getLocalTime(&now, 0) ? now.tm_yday : -1;
         bool ok = githubReadInfo(build, sha, error);
         if (ok) {
             fwRemoteBuild = build;
@@ -324,25 +322,6 @@
         if (fwRemoteBuild.length() == 0) return 2;
         int c = strcmp(fwRemoteBuild.c_str(), version);
         return c > 0 ? 1 : (c == 0 ? 0 : -1);
-    }
-
-    // Aus loop(): einmal kurz nach dem Start, danach jede Nacht um 3 Uhr (Zeit gueltig, WLAN verbunden). Ein Fehlschlag
-    // wird fruehestens nach einer Stunde wiederholt - die Abfrage haelt die Uhr bis zu einigen Sekunden an.
-
-    // From loop(): once shortly after boot, then every night at 3 o'clock (valid time, WiFi connected). A failure is
-    // retried after an hour at the earliest - the request stops the clock for up to a few seconds.
-
-    void firmwareUpdateTick() {
-#if HAS_OTA
-        if (otaInProgress || WiFi.status() != WL_CONNECTED || WiFi.getMode() == WIFI_AP) return;
-        if (fwLastCheckMillis != 0 && millis() - fwLastCheckMillis < WAIT_1h) return;
-        if (fwLastCheckMillis == 0 && millis() < 3 * WAIT_1m) return;
-        struct tm now;
-        if (!getLocalTime(&now, 0)) return;
-        bool firstCheck = fwLastCheckMillis == 0;
-        bool nightly = now.tm_hour == 3 && now.tm_yday != fwCheckedDay;
-        if (firstCheck || nightly) checkFirmwareUpdate();
-#endif
     }
 
     // Firmware von GitHub einspielen: nur bei neuerer Build-Zeit (force: auch gleiche/aeltere, nur ueber die Adresse

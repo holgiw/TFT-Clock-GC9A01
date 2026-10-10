@@ -439,7 +439,6 @@
     void setupOtaRoutes() ;
     bool checkFirmwareUpdate() ;
     bool installFirmwareFromGithub(String& error, bool force = false) ;
-    void firmwareUpdateTick() ;
     int firmwareUpdateState() ;
 
     // imu_rotation.h (automatische Rotation, nur ESP32-S3) / (automatic rotation, ESP32-S3 only)

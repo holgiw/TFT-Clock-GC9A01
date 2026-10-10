@@ -3182,9 +3182,21 @@
                                   String(fabsf(secAngleDiff) / 6.0f, 2) + "s, easing in (time now " +
                                   String(t.tm_hour) + ":" + String(t.tm_min) + ":" + String(t.tm_sec) + ")");
                 }
-                lastSecondAngleRef += secAngleDiff * 0.2f;
-                if (lastSecondAngleRef < 0.0f) lastSecondAngleRef += 360.0f;
-                else if (lastSecondAngleRef >= 360.0f) lastSecondAngleRef -= 360.0f;
+
+                // Grosse Spruenge uebernimmt animateHand() in einer Fahrt - sie hier schon Bild fuer Bild zu glaetten
+                // gaebe animateHand() ueber viele Bilder weitere Spruenge und liesse die Fahrt in der Mitte neu beginnen
+
+                // Large jumps are handled by animateHand() in one move - smoothing them here frame by frame would give
+                // animateHand() further jumps over many frames and restart the move in the middle
+
+                if (fabsf(secAngleDiff) > HAND_MOVE_THRESHOLD_DEG) {
+                    lastSecondAngleRef = targetSecAngle;
+                }
+                else {
+                    lastSecondAngleRef += secAngleDiff * 0.2f;
+                    if (lastSecondAngleRef < 0.0f) lastSecondAngleRef += 360.0f;
+                    else if (lastSecondAngleRef >= 360.0f) lastSecondAngleRef -= 360.0f;
+                }
             }
             else {
                 if (secondEasingActive[easingIdx]) {
@@ -3214,7 +3226,10 @@
                 float targetMinAngle = rotatedAngle(rawMinAngle, orientation);
                 float angleDiff = shortestAngleDiff(lastMinuteAngleRef, targetMinAngle);
 
-                if (fabs(angleDiff) > 0.1f) {
+                if (fabs(angleDiff) > HAND_MOVE_THRESHOLD_DEG) {
+                    lastMinuteAngleRef = targetMinAngle; // grosser Sprung: animateHand() / large jump: animateHand()
+                }
+                else if (fabs(angleDiff) > 0.1f) {
                     lastMinuteAngleRef += angleDiff * 0.1f;
                     if (lastMinuteAngleRef < 0.0f) lastMinuteAngleRef += 360.0f;
                     if (lastMinuteAngleRef >= 360.0f) lastMinuteAngleRef -= 360.0f;
@@ -3231,7 +3246,10 @@
         float targetHourAngle = rotatedAngle(hourAngle, orientation);
         float hourAngleDiff = shortestAngleDiff(lastHourAngleRef, targetHourAngle);
 
-        if (fabs(hourAngleDiff) > 0.05f) {
+        if (fabs(hourAngleDiff) > HAND_MOVE_THRESHOLD_DEG) {
+            lastHourAngleRef = targetHourAngle; // grosser Sprung: animateHand() / large jump: animateHand()
+        }
+        else if (fabs(hourAngleDiff) > 0.05f) {
             lastHourAngleRef += hourAngleDiff * 0.1f;  // Glättungsfaktor
                                                        // smoothing factor
 

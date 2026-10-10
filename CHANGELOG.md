@@ -5,9 +5,9 @@
 ## 2026-10-08
 
 ### Hinzugefügt
-- Update von GitHub (nur ESP32-S3): Die Uhr fragt nach dem Start und jede Nacht um 3 Uhr bei GitHub nach, ob das
-  neueste Release eine neuere Firmware hat (Seite „Sicherung“ → „Firmware von GitHub“ mit „Jetzt prüfen“, Zeile
-  „Firmware on GitHub“ auf der Statusseite). Eingespielt wird nur per Klick auf „Update einspielen“; die Uhr lädt
+- Update von GitHub (nur ESP32-S3): Auf der Seite „Sicherung“ → „Firmware von GitHub“
+  zeigt „Jetzt prüfen“, ob das neueste Release eine neuere Firmware hat (die Uhr sucht nie von selbst; Zeile
+  „Firmware on GitHub“ auf der Statusseite nach einer Prüfung). Eingespielt wird nur per Klick auf „Update einspielen“; die Uhr lädt
   `uhr4-s3.bin`, prüft Zertifikat (eingebautes Zertifikatspaket, dafür muss die Uhrzeit stimmen), Chip-Kopf und
   SHA-256 aus `uhr4-s3.txt` und aktiviert die Firmware erst danach. Die beiden Dateien legt
   `build_uhr4/publish_s3_update.ps1` in das neueste Release.
@@ -93,6 +93,9 @@
     vorhandener Uhren Sets zu deren Zifferblättern.
 
 ### Geändert
+- Zeiger laufen auf ihre Position (Start, Zeitkorrektur) ohne Ruckler in der Mitte: Sprünge über 10° gehen
+  unverändert an die 3-Sekunden-Fahrt, statt vorher schrittweise geglättet zu werden und die Fahrt neu zu starten.
+- Im Log stehen Adresse und Zeitquelle jetzt je in einer Zeile (I2C-Suche, Zeitsynchronisation).
 - Auf der Seite „Presets“ entfallen „Presets als Datei speichern“ und „Presets aus Datei laden“ (samt Routen
   `/exportpresets` und `/importpresets`); Presets sichert die Seite „Sicherung“ mit.
 - Preset anklicken lädt die Seite „Presets“ nicht mehr neu: Das Preset wird angewendet, oben erscheint die Meldung
@@ -328,9 +331,9 @@
 ## 2026-10-08
 
 ### Added
-- Update from GitHub (ESP32-S3 only): after the start and every night at 3 a.m. the clock asks GitHub whether the
-  latest release has a newer firmware ("Backup" page → "Firmware from GitHub" with "Check now", line "Firmware on
-  GitHub" on the status page). It is installed only by clicking "Install update"; the clock downloads
+- Update from GitHub (ESP32-S3 only): on the "Backup" page → "Firmware from GitHub"
+  "Check now" shows whether the latest release has a newer firmware (the clock never checks by itself; line
+  "Firmware on GitHub" on the status page after a check). It is installed only by clicking "Install update"; the clock downloads
   `uhr4-s3.bin`, checks the certificate (built-in certificate bundle, so the time must be right), chip header and
   SHA-256 from `uhr4-s3.txt` and only then activates the firmware. `build_uhr4/publish_s3_update.ps1` puts the two
   files into the latest release.
@@ -414,6 +417,9 @@
     their clock faces.
 
 ### Changed
+- Hands move to their position (start, time correction) without a stutter in the middle: jumps over 10° go
+  unchanged to the 3-second move, instead of being smoothed step by step first and restarting the move.
+- The log now shows address and time source in one line each (I2C scan, time synchronisation).
 - The "Presets" page no longer has "Save Presets to File" and "Load Presets from File" (with the routes
   `/exportpresets` and `/importpresets`); the "Backup" page saves presets as well.
 - Clicking a preset no longer reloads the "Presets" page: the preset is applied and the message "Preset applied"

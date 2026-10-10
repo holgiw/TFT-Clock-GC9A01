@@ -40,15 +40,14 @@
                                 // error while uploading via the web interface, empty = ok
 
     // Ergebnis der letzten Update-Pruefung auf GitHub (ota_update.h): Build-Zeit des Releases (leer = unbekannt) und
-    // Fehlertext (leer = ok); fwLastCheckMillis = Zeitpunkt des Versuchs, fwCheckedDay = Tag des Jahres der letzten Pruefung
+    // Fehlertext (leer = ok); fwLastCheckMillis = Zeitpunkt des Versuchs
 
     // Result of the last update check on GitHub (ota_update.h): build time of the release (empty = unknown) and
-    // error text (empty = ok); fwLastCheckMillis = time of the attempt, fwCheckedDay = day of the year of the last check
+    // error text (empty = ok); fwLastCheckMillis = time of the attempt
 
     String fwRemoteBuild = "";
     String fwCheckError = "";
     unsigned long fwLastCheckMillis = 0;
-    int fwCheckedDay = -1;
 
     // Log-Zeilen werden gesammelt statt einzeln auf Flash geschrieben - jeder Flash-Zugriff haelt kurz alles
     // an (auch die Displayuebertragung). logBufferMutex schuetzt logLineBuffer, da auch NTP-/Rocrail-Tasks

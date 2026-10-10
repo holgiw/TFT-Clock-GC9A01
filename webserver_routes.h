@@ -7426,7 +7426,7 @@
             // clock downloads by itself (blocking, progress on the display); the page waits for the restart.
 
             html += "<hr><h3>" + translate("Firmware from GitHub") + "</h3>";
-            html += "<p>" + translate("The clock checks once a day (3 a.m.) and after the start whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum") + ".</p>";
+            html += "<p>" + translate("The clock only checks on your click whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum") + ".</p>";
             html += "<p><small id='ghInfo'></small></p>";
             html += "<button type='button' id='ghCheck'>" + translate("Check now") + "</button> ";
             html += "<button type='button' id='ghInstall' hidden>" + translate("Install update") + "</button>";

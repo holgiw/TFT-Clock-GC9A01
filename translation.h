@@ -370,7 +370,7 @@
         { "Firmware installed - waiting for the clock to restart", "Firmware eingespielt - warte auf den Neustart der Uhr" },
         { "Firmware from GitHub", "Firmware von GitHub" },
         { "Firmware on GitHub", "Firmware auf GitHub" },
-        { "The clock checks once a day (3 a.m.) and after the start whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum", "Die Uhr pr&uuml;ft einmal t&auml;glich (3 Uhr) und nach dem Start, ob das neueste Release auf GitHub eine neuere Firmware hat. Eingespielt wird nur auf deinen Klick; die Datei wird per Zertifikat und Pr&uuml;fsumme gepr&uuml;ft" },
+        { "The clock only checks on your click whether the latest release on GitHub has a newer firmware. It is installed only on your click; the file is checked by certificate and checksum", "Die Uhr pr&uuml;ft nur auf deinen Klick, ob das neueste Release auf GitHub eine neuere Firmware hat. Eingespielt wird nur auf deinen Klick; die Datei wird per Zertifikat und Pr&uuml;fsumme gepr&uuml;ft" },
         { "Check now", "Jetzt pr&uuml;fen" },
         { "Install update", "Update einspielen" },
         { "newer - update available", "neuer - Update verf&uuml;gbar" },

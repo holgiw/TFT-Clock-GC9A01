@@ -1590,9 +1590,8 @@
 
         char buffer[64];
         strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S %Z", &timeinfo);
-        DEBUG_PRINT(source + " ");
-        DEBUG_PRINTLN(buffer); // Gibt die lokale Zeit und die Zeitzone aus
-                               // prints the local time and timezone
+        DEBUG_PRINTLN(source + " " + String(buffer)); // Gibt die lokale Zeit und die Zeitzone aus
+                                                      // prints the local time and timezone
         logTimeSyncDifference(source, oldTime, oldTimeMillis);
     }
 
@@ -1698,12 +1697,14 @@
         for (address = 1; address < 127; address++) {
             Wire.beginTransmission(address);
             error = Wire.endTransmission();
+            String addressHex = String(address, HEX);
+            if (address < 16) addressHex = "0" + addressHex;
+
+            // Eine Zeile je Adresse - mehrere DEBUG_PRINT ergaeben im Log getrennte Zeilen
+            // One line per address - several DEBUG_PRINT calls would give separate lines in the log
+
             if (error == 0) {
-                DEBUG_PRINT("[I2C]   I2C device found at address 0x");
-                if (address < 16) {
-                    DEBUG_PRINT("0");
-                }
-                DEBUG_PRINTLN(String(address, HEX) + " ");
+                DEBUG_PRINTLN("[I2C]   I2C device found at address 0x" + addressHex);
 
                 nDevices++;
 
@@ -1711,11 +1712,7 @@
                 i2cAddr += "0x" + String(address, HEX);
             }
             else if (error == 4) {
-                DEBUG_PRINT("[I2C] Unknow error at address 0x");
-                if (address < 16) {
-                    DEBUG_PRINT("0");
-                }
-                DEBUG_PRINTLN(String(address, HEX) + " ");
+                DEBUG_PRINTLN("[I2C] Unknown error at address 0x" + addressHex);
             }
         }
         if (nDevices == 0) {

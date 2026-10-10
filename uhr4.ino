@@ -1231,7 +1231,6 @@ void setup() {
         // Firmware update over WiFi (ESP32-S3 only): while it runs, everything else pauses
 
         if (handleOta()) return;
-        firmwareUpdateTick();
 
         // updateClock() bedient beide Displays je Tick samt eigener Rotation. WPS per Web-Button startet
         // verzoegert hier, nicht im Handler von /api/startWPS - so wird die Zielseite des Redirects sofort
